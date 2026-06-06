@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# bin/bench — run the matrix of (adapter x model x case), grade, and score.
+#
+# Each run: copy the case workdir into an isolated sandbox, hand the task to a
+# CLI adapter pointed at LM Studio, then run the case's hidden grader and record
+# pass/total. Results land in results/<timestamp>/results.csv plus per-run logs.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+ADAPTERS="$DEFAULT_ADAPTERS"; MODELS=""; CASES=""; TIMEOUT=300; LIST=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --adapters) ADAPTERS="$2"; shift 2;;
+    --models)   MODELS="$2";   shift 2;;
+    --cases)    CASES="$2";    shift 2;;
+    --timeout)  TIMEOUT="$2";  shift 2;;
+    --list)     LIST=1; shift;;
+    -h|--help)  sed -n '2,12p' "$0"; exit 0;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+# Resolve the three axes into arrays.
+IFS=',' read -ra ADAPTER_ARR <<< "$ADAPTERS"
+if [ -n "$MODELS" ]; then IFS=',' read -ra MODEL_ARR <<< "$MODELS";
+else mapfile -t MODEL_ARR < <(read_list "$MODELS_FILE"); fi
+if [ -n "$CASES" ]; then IFS=',' read -ra CASE_ARR <<< "$CASES";
+else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] && basename "$d"; done); fi
+
+if [ "$LIST" = 1 ]; then
+  echo "adapters: ${ADAPTER_ARR[*]}"; echo "models:   ${MODEL_ARR[*]}"; echo "cases:    ${CASE_ARR[*]}"; exit 0
+fi
+
+lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
+
+RUN_ID="$(date +%Y%m%d-%H%M%S)"
+RUN_DIR="$RESULTS_DIR/$RUN_ID"
+mkdir -p "$RUN_DIR"
+CSV="$RUN_DIR/results.csv"
+echo "adapter,model,case,pass,total,score,seconds,status" > "$CSV"
+
+info "run $RUN_ID  —  ${#ADAPTER_ARR[@]} adapters x ${#MODEL_ARR[@]} models x ${#CASE_ARR[@]} cases"
+echo
+
+for adapter in "${ADAPTER_ARR[@]}"; do
+  adapter_sh="$ADAPTERS_DIR/$adapter.sh"
+  [ -f "$adapter_sh" ] || { warn "no adapter $adapter.sh — skipping"; continue; }
+  command -v "$adapter" >/dev/null 2>&1 || { warn "$adapter not installed — skipping"; continue; }
+
+  for model in "${MODEL_ARR[@]}"; do
+    for case_id in "${CASE_ARR[@]}"; do
+      case_src="$CASES_DIR/$case_id"
+      [ -f "$case_src/meta.json" ] || { warn "no case $case_id — skipping"; continue; }
+
+      sandbox="$RUN_DIR/sandbox/$adapter/$(fs_safe "$model")/$case_id"
+      logf="$sandbox/.bench.log"
+      mkdir -p "$sandbox"
+      cp -R "$case_src/workdir/." "$sandbox/" 2>/dev/null || true
+
+      # --- run the adapter on the task -------------------------------------
+      start=$(date +%s)
+      status="ok"
+      ( cd "$sandbox" && MODEL_ID="$model" run_timeout "$TIMEOUT" \
+          bash "$adapter_sh" <"$case_src/task.md" ) >"$logf" 2>&1
+      rc=$?
+      [ $rc -eq 124 ] && status="timeout"
+      [ $rc -ne 0 ] && [ $rc -ne 124 ] && status="error($rc)"
+      elapsed=$(( $(date +%s) - start ))
+
+      # --- grade -----------------------------------------------------------
+      grade_out="$( cd "$sandbox" && CASE_DIR="$case_src" REPO_ROOT="$HERE" \
+                      bash "$case_src/check/run.sh" 2>>"$logf" )"
+      line="$(printf '%s\n' "$grade_out" | grep -E '^RESULT ' | tail -1)"
+      pass="$(sed -nE 's/.*pass=([0-9]+).*/\1/p' <<<"$line")"; pass="${pass:-0}"
+      total="$(sed -nE 's/.*total=([0-9]+).*/\1/p' <<<"$line")"; total="${total:-0}"
+      if [ "$total" -gt 0 ]; then
+        score="$(awk "BEGIN{printf \"%.2f\", $pass/$total}")"
+      else score="0.00"; fi
+
+      echo "$adapter,$model,$case_id,$pass,$total,$score,$elapsed,$status" >> "$CSV"
+
+      # --- report ----------------------------------------------------------
+      tag="$score"; [ "$status" != ok ] && tag="$tag ($status)"
+      if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${elapsed}s${C_RST}"
+      elif [ "$pass" -gt 0 ]; then warn "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${elapsed}s $status${C_RST}"
+      else err "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${elapsed}s $status${C_RST}"; fi
+    done
+  done
+done
+
+echo
+info "results: $CSV"
+"$HERE/bin/report" "$CSV"

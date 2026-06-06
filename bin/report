@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# bin/report [results.csv] — print leaderboards from a results CSV.
+# Defaults to the newest run under results/.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+CSV="${1:-}"
+if [ -z "$CSV" ]; then
+  CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
+  [ -n "$CSV" ] || die "no results found in $RESULTS_DIR"
+fi
+[ -f "$CSV" ] || die "no such file: $CSV"
+
+echo "${C_BLD}Leaderboard — by adapter x model${C_RST}  ${C_DIM}($CSV)${C_RST}"
+awk -F, 'NR>1 {
+  key=$1" | "$2; p[key]+=$4; t[key]+=$5; n[key]++; sec[key]+=$7
+}
+END {
+  printf "  %-9s %-26s %8s %8s %7s\n","ADAPTER","MODEL","TESTS","PASS%","avg s"
+  for (k in p) {
+    pct = t[k]>0 ? 100*p[k]/t[k] : 0
+    split(k,a," | ")
+    printf "  %-9s %-26s %4d/%-4d %7.1f%% %6.1f|%s\n", a[1],a[2],p[k],t[k],pct,sec[k]/n[k],k
+  }
+}' "$CSV" | sort -t'|' -k2 -rn | sed 's/|.*$//'
+
+echo
+echo "${C_BLD}Leaderboard — by model (all adapters)${C_RST}"
+awk -F, 'NR>1 { p[$2]+=$4; t[$2]+=$5 }
+END {
+  for (m in p) { pct=t[m]>0?100*p[m]/t[m]:0; printf "  %-26s %4d/%-4d %7.1f%%|%f\n",m,p[m],t[m],pct,pct }
+}' "$CSV" | sort -t'|' -k2 -rn | sed 's/|.*$//'

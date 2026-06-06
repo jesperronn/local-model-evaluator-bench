@@ -1,0 +1,15 @@
+# Models under test — one LM Studio model id per line.
+# Lines starting with # are ignored. To add a new model: download it in LM
+# Studio, then add its id here (run `lms ls` or `bin/doctor` to see ids).
+#
+# These ids must match what LM Studio exposes on its OpenAI endpoint. For most
+# models that's the same string `lms ls` prints. Verify with: bin/doctor
+
+qwen/qwen3-coder-30b
+qwen/qwen3.5-9b
+qwen/qwen3.6-35b-a3b
+google/gemma-4-12b
+google/gemma-4-12b-qat
+google/gemma-4-26b-a4b-qat
+google/gemma-4-31b
+google/gemma-4-e4b

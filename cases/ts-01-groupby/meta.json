@@ -1,0 +1,8 @@
+{
+  "id": "ts-01-groupby",
+  "lang": "ts",
+  "title": "Implement a typed groupBy",
+  "points": 4,
+  "category": "feature",
+  "edit_files": ["src/groupBy.ts"]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "js-02-debounce-feature",
+  "lang": "js",
+  "title": "Implement debounce",
+  "points": 5,
+  "category": "feature",
+  "edit_files": ["src/debounce.js"]
+}

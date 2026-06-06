@@ -1,0 +1,8 @@
+{
+  "id": "js-01-slugify-bug",
+  "lang": "js",
+  "title": "Fix the slugify bug",
+  "points": 4,
+  "category": "bugfix",
+  "edit_files": ["src/slugify.js"]
+}

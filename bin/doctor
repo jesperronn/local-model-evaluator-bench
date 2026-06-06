@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# bin/doctor — verify the environment: server up, CLIs installed, models present.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+info "LM Studio server: $LMS_BASE_URL"
+if lms_up; then
+  ok "reachable"
+  loaded="$(lms_loaded_models)"
+  if [ -n "$loaded" ]; then
+    echo "  loaded model ids:"; printf '    %s\n' $loaded
+  else
+    warn "no model currently loaded — load one in LM Studio or run: lms load <id>"
+  fi
+else
+  err "not reachable. Start it with:  lms server start"
+fi
+
+echo
+info "Coding CLIs (adapters in $ADAPTERS_DIR):"
+for a in "$ADAPTERS_DIR"/*.sh; do
+  name="$(basename "$a" .sh)"
+  if command -v "$name" >/dev/null 2>&1; then ok "$name -> $(command -v "$name")"
+  else warn "$name not on PATH (adapter present, tool missing)"; fi
+done
+
+echo
+info "Models under test ($MODELS_FILE):"
+read_list "$MODELS_FILE" | sed 's/^/    /'
+
+echo
+info "Test cases ($CASES_DIR):"
+for d in "$CASES_DIR"/*/; do
+  [ -f "$d/meta.json" ] || continue
+  id="$(basename "$d")"
+  lang="$(grep -oE '"lang"\s*:\s*"[^"]+"' "$d/meta.json" | sed -E 's/.*"([^"]+)"$/\1/')"
+  printf '    %-26s [%s]\n' "$id" "$lang"
+done
