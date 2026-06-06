@@ -15,5 +15,4 @@ exec aider \
   --no-auto-commits --no-dirty-commits --no-git \
   --no-check-update --no-show-model-warnings \
   --yes-always \
-  --message "$PROMPT" \
-  .
+  --message "$PROMPT"

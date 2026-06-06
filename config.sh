@@ -15,7 +15,10 @@ export SMOKE_TTL="${SMOKE_TTL:-600}"
 
 # Which CLI adapters to exercise by default (one file per name in adapters/).
 # Override per-run with:  bin/bench --adapters aider,opencode
-DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,opencode,codex,caveman,hermes}"
+# NOTE: `hermes` is intentionally omitted — it runs tools in an isolated
+# container workspace that doesn't touch the host sandbox (see adapters/hermes.sh),
+# so it scores 0 here until its config is changed. Re-add it once that's sorted.
+DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,opencode,codex,caveman}"
 
 # Repo root, resolved regardless of where you invoke from.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

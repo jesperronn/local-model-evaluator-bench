@@ -38,18 +38,29 @@ That's the whole contract — add a new CLI by writing one such script.
 
 How each is pointed at LM Studio:
 
-| CLI       | Model discovery / how it finds LM Studio                                            |
-|-----------|--------------------------------------------------------------------------------------|
-| `aider`   | Generic OpenAI provider: `--openai-api-base $LMS_BASE_URL` + `openai/<id>` model.    |
-| `opencode`| Built-in `lmstudio` provider (auto-discovers from `localhost:1234`); `lmstudio/<id>`.|
-| `codex`   | Custom `model_provider` passed inline via `-c` overrides → `base_url = $LMS_BASE_URL`.|
-| `caveman` | OpenAI-compatible provider via `OPENAI_BASE_URL` env + `--provider openai`.          |
-| `hermes`  | OpenAI-compatible provider via env + `--provider openai`.                            |
+| CLI       | Model discovery / how it finds LM Studio                                            | Status |
+|-----------|--------------------------------------------------------------------------------------|--------|
+| `aider`   | Generic OpenAI provider: `--openai-api-base $LMS_BASE_URL` + `openai/<id>` model.    | ✅ works |
+| `opencode`| Built-in `lmstudio` provider (auto-discovers from `localhost:1234`); `lmstudio/<id>`.| ✅ works |
+| `codex`   | Custom provider inline via `-c` (`lmstudio` is a RESERVED id → use `lmstudio_local`).| ✅ works |
+| `caveman` | `pi`-based; LM Studio provider defined in `~/.pi/agent/models.json`; `--provider lmstudio`.| ✅ works |
+| `hermes`  | Built-in `lmstudio` provider (`~/.hermes/config.yaml`) + `-t file,terminal`.         | ⚠️ container-isolated |
 
-> **Verify before trusting.** The exact provider flags for `caveman` and
-> `hermes` vary by version — the adapters carry a `NOTE:` line where to confirm
-> (`caveman --help`, `hermes config`). If a model "isn't found", that adapter's
-> flags are the first place to look. `aider`/`opencode`/`codex` syntax is stable.
+> **`caveman` provider config** lives in `~/.pi/agent/models.json` (machine
+> config — consider moving to dotfiles):
+> ```json
+> { "providers": { "lmstudio": {
+>     "baseUrl": "http://localhost:1234/v1", "api": "openai-completions",
+>     "apiKey": "lm-studio", "models": [ { "id": "qwen/qwen3-coder-30b" } ] } } }
+> ```
+> Add each model id you test to that `models` array.
+
+> **`hermes` is configured correctly** (provider `lmstudio`, file+terminal
+> toolsets) **but is excluded from the default benchmark**: it runs tools in an
+> isolated container workspace (`docker_mount_cwd_to_workspace: false` in
+> `~/.hermes/config.yaml`), so edits never reach the host sandbox. Enable cwd
+> mounting / a local backend in that file (a dotfiles task — hermes guards it
+> from agent edits) and re-add `hermes` to `DEFAULT_ADAPTERS` to include it.
 
 If `opencode`'s `lmstudio` provider needs a non-default URL, set it in
 `~/.config/opencode/opencode.json`:

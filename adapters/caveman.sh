@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
 # Adapter: caveman -> LM Studio.
-# caveman uses an OpenAI-compatible provider; point it at LM Studio via the
-# OPENAI_BASE_URL env var and select it with --provider openai.
+# caveman is a `pi`-based agent. Custom providers live in ~/.pi/agent/models.json;
+# we define an `lmstudio` provider there (baseUrl http://localhost:1234/v1,
+# api openai-completions) and select it by name. See docs/SETUP.md.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
-# NOTE: verify the exact provider flag with `caveman --help`; adjust if needed.
 set -euo pipefail
 PROMPT="$(cat)"
 
-export OPENAI_BASE_URL="$LMS_BASE_URL"
-export OPENAI_API_KEY="$LMS_API_KEY"
-
 exec caveman \
-  --provider openai \
+  --provider lmstudio \
   --model "$MODEL_ID" \
-  --api-key "$LMS_API_KEY" \
   --print \
   "$PROMPT"

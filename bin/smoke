@@ -11,17 +11,14 @@ MODEL="${1:-$SMOKE_MODEL}"
 
 lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
 
-# --- ensure the model is loaded, with the API id pinned to $MODEL -----------
+# --- ensure the model is loaded ---------------------------------------------
 if lms_loaded_models | grep -qxF "$MODEL"; then
   ok "model already loaded: $MODEL"
 else
   info "loading $MODEL (ttl ${SMOKE_TTL:-none}s) ..."
-  ttl_arg=(); [ -n "${SMOKE_TTL:-}" ] && ttl_arg=(--ttl "$SMOKE_TTL")
-  if lms load "$MODEL" -y --identifier "$MODEL" "${ttl_arg[@]}"; then
-    ok "loaded $MODEL"
-  else
-    die "could not load $MODEL — check 'lms ls' for the exact key, or load it in the GUI"
-  fi
+  ensure_model_loaded "$MODEL" "${SMOKE_TTL:-}" \
+    && ok "loaded $MODEL" \
+    || die "could not load $MODEL — check 'lms ls' for the exact key, or load it in the GUI"
 fi
 
 # --- run the smoke case across every adapter --------------------------------

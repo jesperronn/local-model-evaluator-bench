@@ -38,9 +38,26 @@ run_timeout() {
 # Sanitize a model id into a filesystem-safe path segment.
 fs_safe() { printf '%s' "$1" | tr '/:' '__'; }
 
-# List model ids currently *loaded* in LM Studio (from the OpenAI endpoint).
+# Model ids currently LOADED in memory (from `lms ps`, the authoritative source).
+# Note: the OpenAI /v1/models endpoint lists ALL downloaded models (JIT load),
+# so it can't tell us what's resident — `lms ps` can.
 lms_loaded_models() {
-  curl -fsS --max-time 5 "$LMS_BASE_URL/models" 2>/dev/null \
-    | grep -oE '"id"\s*:\s*"[^"]+"' \
-    | sed -E 's/.*"id"\s*:\s*"([^"]+)".*/\1/'
+  lms ps --json 2>/dev/null \
+    | grep -oE '"modelKey":"[^"]+"' \
+    | sed -E 's/.*:"([^"]+)"/\1/'
+}
+
+# Ensure a model is resident. Idempotent; tolerates stale identifiers.
+# Usage: ensure_model_loaded <model-key> [ttl-seconds]
+ensure_model_loaded() {
+  local m="$1" ttl="${2:-}" ttl_arg=()
+  lms_loaded_models | grep -qxF "$m" && return 0
+  [ -n "$ttl" ] && ttl_arg=(--ttl "$ttl")
+  if lms load "$m" -y "${ttl_arg[@]}" >/dev/null 2>/tmp/.lmsload.err; then return 0; fi
+  # Stale identifier left from a prior --identifier load: clear and retry once.
+  if grep -qi "already" /tmp/.lmsload.err; then
+    lms unload "$m" >/dev/null 2>&1 || true
+    lms load "$m" -y "${ttl_arg[@]}" >/dev/null 2>&1 && return 0
+  fi
+  return 1
 }
