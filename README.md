@@ -36,9 +36,17 @@ runs `.ts` directly via type-stripping).
 ```bash
 lms server start          # start LM Studio's OpenAI-compatible server
 bin/doctor                # check server, installed CLIs, models, cases
+bin/smoke                 # load a small model, verify every tool can drive it
 bin/bench                 # run the full matrix (adapters x models x cases)
 bin/report                # re-print the leaderboard from the latest run
 ```
+
+`bin/smoke` is the recommended first step on a new machine: it loads
+`$SMOKE_MODEL` (a small model, auto-unloaded after idle) and runs one trivial
+task through every adapter, classifying each as **PASS** / **PARTIAL** (reached
+the model, didn't finish) / **FAIL** (couldn't reach the model — a wiring issue
+to fix in `adapters/`). It flushes out provider-flag problems before you spend
+time on a full benchmark.
 
 Narrow a run while iterating:
 

@@ -1,0 +1,8 @@
+{
+  "id": "smoke-00-hello",
+  "lang": "none",
+  "title": "Smoke test — write a file",
+  "points": 1,
+  "category": "smoke",
+  "edit_files": ["hello.txt"]
+}

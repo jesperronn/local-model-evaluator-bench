@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# bin/smoke [model-id] — prove every installed CLI can actually drive a model
+# through LM Studio. Loads a small model, runs the trivial smoke case across all
+# adapters, and classifies each: PASS / PARTIAL (reached model, task incomplete)
+# / FAIL (couldn't reach the model — a wiring problem).
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+MODEL="${1:-$SMOKE_MODEL}"
+
+lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
+
+# --- ensure the model is loaded, with the API id pinned to $MODEL -----------
+if lms_loaded_models | grep -qxF "$MODEL"; then
+  ok "model already loaded: $MODEL"
+else
+  info "loading $MODEL (ttl ${SMOKE_TTL:-none}s) ..."
+  ttl_arg=(); [ -n "${SMOKE_TTL:-}" ] && ttl_arg=(--ttl "$SMOKE_TTL")
+  if lms load "$MODEL" -y --identifier "$MODEL" "${ttl_arg[@]}"; then
+    ok "loaded $MODEL"
+  else
+    die "could not load $MODEL — check 'lms ls' for the exact key, or load it in the GUI"
+  fi
+fi
+
+# --- run the smoke case across every adapter --------------------------------
+info "running smoke case across adapters: $DEFAULT_ADAPTERS"
+echo
+"$HERE/bin/bench" --cases smoke-00-hello --models "$MODEL" --timeout 120
+
+# --- classify the just-written results --------------------------------------
+CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
+[ -f "$CSV" ] || die "no results produced"
+
+echo
+echo "${C_BLD}Smoke verdict — can each tool reach '$MODEL'?${C_RST}"
+fails=0
+while IFS=, read -r adapter model case pass total score seconds status; do
+  [ "$adapter" = adapter ] && continue
+  if [ "$status" != ok ]; then
+    err "$(printf '%-9s FAIL    — could not reach model (%s)' "$adapter" "$status")"; fails=$((fails+1))
+  elif [ "$pass" = "$total" ]; then
+    ok  "$(printf '%-9s PASS    — full path works (%ss)' "$adapter" "$seconds")"
+  else
+    warn "$(printf '%-9s PARTIAL — reached model, task incomplete (%s/%s)' "$adapter" "$pass" "$total")"
+  fi
+done < "$CSV"
+
+echo
+if [ "$fails" -eq 0 ]; then
+  ok "all installed tools reached the model — ready to benchmark"
+else
+  warn "$fails tool(s) could not reach the model — check that adapter's flags in adapters/ (see docs/SETUP.md)"
+fi
+echo "${C_DIM}logs + edits: $(dirname "$CSV")/sandbox/<adapter>/...  •  details: $CSV${C_RST}"
+exit "$([ "$fails" -eq 0 ] && echo 0 || echo 1)"
