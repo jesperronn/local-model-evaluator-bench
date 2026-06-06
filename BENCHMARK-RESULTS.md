@@ -16,7 +16,7 @@ Models tested in ascending memory order:
 |---|-------|------|--------|
 | 1 | qwen/qwen3.5-9b | 5.98 GB | ✅ done |
 | 2 | google/gemma-4-e4b | 6.33 GB | ✅ done |
-| 3 | google/gemma-4-12b-qat | 7.15 GB | pending |
+| 3 | google/gemma-4-12b-qat | 7.15 GB | ✅ done |
 | 4 | google/gemma-4-12b | 7.56 GB | pending |
 | 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | pending |
 | 6 | qwen/qwen3-coder-30b | 17.19 GB | pending |
@@ -72,4 +72,31 @@ much for it). Tool choice matters far more at this size than at 9B.
 - **caveman / opencode** degrade most gracefully on small models — prefer them
   when testing sub-9B models.
 - The **topwords** case is a strong discriminator at the low end; keep it.
+
+## 3. google/gemma-4-12b-qat (7.15 GB)
+
+Scores below use a **600s** timeout (the initial 240s run produced false
+failures — this QAT model is slow, many runs took 170–480s). caveman/codex from
+the 240s run, aider/opencode from the 600s re-run.
+
+| Tool | slugify /4 | debounce /4 | groupBy /3 | topwords /4 | **Total** | Notes |
+|------|:---:|:---:|:---:|:---:|:---:|-------|
+| caveman  | 4 | 4 | 3 | 4 | **15/15** | clean |
+| codex    | 4 | 4 | 3 | 4 | **15/15** | fastest here (80–157s) |
+| opencode | 4 | 4 | 3 | 4 | **15/15** | correct but slow (207–478s) |
+| aider    | 2 | 0 | 3 | 4 | **9/15**  | debounce **hangs past 600s**; slugify 2/4 again |
+
+**Verdict:** gemma-4-12b-qat is a capable coding model (three tools at 15/15) but
+**slow** due to QAT quantization. codex — which failed at 4B — is excellent here,
+confirming it just needs a tool-capable model.
+
+**Suggestions to improve:**
+- **Timeout is a first-class variable.** At 240s this model looked far worse
+  than it is. Slow/quantized models need ≥600s, and a tool killed mid-edit can
+  leave a half-written file that *breaks test collection* (opencode's groupBy
+  scored 0/1 — only 1 of 3 tests even loaded). Benchmark uses 600s from here on.
+- **aider** is the weak link on gemma models: it hung on debounce past 600s
+  (likely a reflect/retry loop) and repeatedly nails only 2/4 slugify cases.
+  Worth trying aider's `--no-stream`/edit-format settings, or a per-tool
+  hang-watchdog, for these models.
 
