@@ -38,6 +38,21 @@ run_timeout() {
 # Sanitize a model id into a filesystem-safe path segment.
 fs_safe() { printf '%s' "$1" | tr '/:' '__'; }
 
+# Median of the numeric args. Odd count: the middle value. Even count: the mean
+# of the two middle values. Empty input prints 0. Used to collapse repeated
+# trials (--trials N) into one robust per-(tool,model,case) number, since
+# run-to-run variance makes a single trial untrustworthy.
+median() {
+  [ $# -gt 0 ] || { printf '0'; return; }
+  printf '%s\n' "$@" | sort -n | awk '
+    { a[NR]=$1 }
+    END {
+      m=int(NR/2)
+      if (NR%2) print a[m+1]
+      else      printf "%.4f", (a[m]+a[m+1])/2
+    }'
+}
+
 # Model ids currently LOADED in memory (from `lms ps`, the authoritative source).
 # Note: the OpenAI /v1/models endpoint lists ALL downloaded models (JIT load),
 # so it can't tell us what's resident — `lms ps` can.

@@ -33,6 +33,48 @@ lms ps                      # show what's currently loaded
 2. Add its id as a new line in `models.txt`.
 3. `bin/doctor` to confirm the id resolves; `bin/bench --models <id>` to test it.
 
+### Which model — modern-efficiency features
+
+The harness rewards *smallest/fastest that still passes*, so prefer
+architectures designed for fast local inference (these are co-equal with raw
+benchmark scores when choosing what to download):
+
+- **MLX** — Apple Silicon-native; generally faster than GGUF on Mac. Prefer the
+  MLX build of a model when one exists.
+- **MoE / A3B** — sparse Mixture-of-Experts that activate only a few billion
+  params per token (e.g. `*-A3B` = ~3B active). Gives large-model quality at
+  small-model token speed; the default for tight-VRAM, accuracy-sensitive work.
+- **QAT** — quantization-aware-trained weights run quantized with little
+  quality loss vs the full-precision model.
+- **MTP** — multi-token prediction / speculative decoding, ~1.4–2× faster
+  generation with no accuracy cost (dense models gain more than MoE). Use the
+  MTP-converted build where offered.
+
+### Which quantization — accuracy vs speed vs context
+
+Quantization is the lever between accuracy and footprint. Two rules that matter
+for this harness's **multi-file** and **self-verifying** cases:
+
+- **Multi-file / patch-format work is quant-sensitive.** Reproducing exact file
+  paths, identifiers, and diff formatting across a long context degrades *first*
+  under aggressive quantization (dropped edits, wrong symbols, malformed
+  patches) — well before chat quality drops. Don't judge a quant by chat feel.
+- **MoE / A3B models are *more* quant-sensitive than dense ones** — fewer active
+  weights carry each decision, so rounding error hits harder. Bump a bit-level
+  for sparse models doing structured edits.
+
+Rough guidance (MLX bit-levels):
+
+| Quant | Use for |
+|-------|---------|
+| **4-bit** | Single-file edits, chat, max speed. Risky for A3B multi-file work. |
+| **6-bit** | Sweet spot for accuracy-sensitive agentic editing — near-lossless, leaves RAM for a large context (which itself aids multi-file accuracy). |
+| **8-bit** | Effectively lossless vs the original weights; max fidelity when RAM allows and you accept slower tokens + less context headroom. |
+
+When in doubt, download two bit-levels and benchmark them head-to-head with
+`bin/bench --models <id-a>,<id-b>` on a multi-file case — the harness measures
+the real accuracy delta so you don't have to guess.
+
 ## 3. The CLI adapters
 
 Each `adapters/<name>.sh` drives one CLI **non-interactively**, in the sandbox's

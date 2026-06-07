@@ -12,22 +12,36 @@ if [ -z "$CSV" ]; then
 fi
 [ -f "$CSV" ] || die "no such file: $CSV"
 
+# Each CSV row is already a per-(adapter,model,case) median across $9 trials
+# (or a single trial when $9 is 1/absent), so the leaderboards aggregate medians.
+maxtrials="$(awk -F, 'NR>1 && $9+0>m {m=$9+0} END{print m+0}' "$CSV")"
+[ "$maxtrials" -gt 1 ] 2>/dev/null \
+  && echo "${C_DIM}scores & seconds are per-case medians across up to ${maxtrials} trials${C_RST}"
+
+# Rows are emitted with a leading hidden sort key (PASS%) + a TAB, sorted
+# numerically descending, then the key is stripped with `cut`. Keeping adapter
+# and model in separate awk arrays (keyed by SUBSEP) avoids splitting a display
+# string on " | ", which awk would mis-parse as a regex alternation.
 echo "${C_BLD}Leaderboard — by adapter x model${C_RST}  ${C_DIM}($CSV)${C_RST}"
+printf "  %-9s %-26s %8s %8s %7s %6s\n" "ADAPTER" "MODEL" "TESTS" "PASS%" "med s" "trials"
 awk -F, 'NR>1 {
-  key=$1" | "$2; p[key]+=$4; t[key]+=$5; n[key]++; sec[key]+=$7
+  k=$1 SUBSEP $2; ad[k]=$1; mo[k]=$2
+  p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
 }
 END {
-  printf "  %-9s %-26s %8s %8s %7s\n","ADAPTER","MODEL","TESTS","PASS%","avg s"
   for (k in p) {
     pct = t[k]>0 ? 100*p[k]/t[k] : 0
-    split(k,a," | ")
-    printf "  %-9s %-26s %4d/%-4d %7.1f%% %6.1f|%s\n", a[1],a[2],p[k],t[k],pct,sec[k]/n[k],k
+    printf "%09.4f\t  %-9s %-26s %4d/%-4d %7.1f%% %6.1f %6d\n", \
+      pct, ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
   }
-}' "$CSV" | sort -t'|' -k2 -rn | sed 's/|.*$//'
+}' "$CSV" | sort -t$'\t' -k1 -rn | cut -f2-
 
 echo
 echo "${C_BLD}Leaderboard — by model (all adapters)${C_RST}"
-awk -F, 'NR>1 { p[$2]+=$4; t[$2]+=$5 }
+awk -F, 'NR>1 { mo[$2]=$2; p[$2]+=$4; t[$2]+=$5 }
 END {
-  for (m in p) { pct=t[m]>0?100*p[m]/t[m]:0; printf "  %-26s %4d/%-4d %7.1f%%|%f\n",m,p[m],t[m],pct,pct }
-}' "$CSV" | sort -t'|' -k2 -rn | sed 's/|.*$//'
+  for (m in p) {
+    pct = t[m]>0 ? 100*p[m]/t[m] : 0
+    printf "%09.4f\t  %-26s %4d/%-4d %7.1f%%\n", pct, mo[m], p[m], t[m], pct
+  }
+}' "$CSV" | sort -t$'\t' -k1 -rn | cut -f2-

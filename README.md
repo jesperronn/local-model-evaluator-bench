@@ -15,7 +15,7 @@ is RAM you don't have and seconds you wait. So this harness scores two things as
 - **Accuracy** — does the produced code actually pass the tests? (fraction of
   hidden sub-tests passing)
 - **Speed** — how long did the tool+model take? (`seconds` per run, surfaced as
-  `avg s` in the leaderboard)
+  `med s` in the leaderboard)
 
 The headline question per task is therefore: **what is the smallest / fastest
 local model that reliably passes — and which tool gets the most out of it?**
@@ -34,6 +34,15 @@ Tool choice matters as much as model choice, especially on smaller models.
    (LM Studio) feeds every tool. Adding a model = download it in LM Studio +
    one line in `models.txt`. See [docs/SETUP.md](docs/SETUP.md) for how each
    CLI/extension discovers models.
+4. **Favour modern-efficiency architectures** — because the goal is
+   *smallest/fastest that still passes*, prefer models built for fast local
+   inference: **MLX**-native builds on Apple Silicon, **MoE / A3B** (sparse,
+   few active params → big-model quality at small-model speed), **QAT**
+   (quantization-aware-trained → runs quantized with little quality loss), and
+   **MTP** (multi-token prediction → ~1.4–2× generation speed, no accuracy
+   cost). These features are what keep a large local model fast enough to be
+   worth benchmarking. Pick a **quantization** that matches the workload — see
+   the model-selection guidance in [docs/SETUP.md](docs/SETUP.md#2-adding-a-model-under-test).
 
 ## Documentation
 
@@ -43,6 +52,8 @@ Tool choice matters as much as model choice, especially on smaller models.
 - [docs/SETUP.md](docs/SETUP.md) — LM Studio, per-tool provider config, IDE
   extensions, and the hermes no-yolo setup.
 - [docs/ADDING-CASES.md](docs/ADDING-CASES.md) — how to add a new case.
+- [docs/MODEL-RESEARCH.md](docs/MODEL-RESEARCH.md) — dated log of model candidates
+  worth benchmarking, with sources + re-runnable search queries.
 - [BENCHMARK-RESULTS.md](BENCHMARK-RESULTS.md) — recorded results + per-tool
   findings across models.
 
@@ -82,8 +93,14 @@ Narrow a run while iterating:
 
 ```bash
 bin/bench --adapters aider,opencode --models qwen/qwen3-coder-30b --cases js-01-slugify-bug
+bin/bench --trials 3 --cases js-01-slugify-bug   # repeat each triple 3x, record medians
 bin/bench --list          # show what would run, without running
 ```
+
+Run-to-run variance is material (a triple can swing 4/4 → 0/4 between identical
+runs), so `--trials N` repeats each `(tool, model, case)` and records the
+**median** score and seconds; per-trial detail lands in `trials.csv`. See
+[SCORING.md](docs/SCORING.md#trials-and-medians---trials-n).
 
 Results land in `results/<timestamp>/`: a `results.csv` plus a per-run sandbox
 with each tool's edits and logs (`.bench.log`) for inspection.

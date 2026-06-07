@@ -30,17 +30,33 @@ the result. See [CASES.md](CASES.md) for which is which.
 `results/<timestamp>/results.csv` has one row per triple:
 
 ```
-adapter,model,case,pass,total,score,seconds,status
+adapter,model,case,pass,total,score,seconds,status,trials
 ```
 
 `status` is `ok`, `timeout`, or `error(<rc>)` — a tool that crashes or hangs
-scores 0 on that case but the run continues.
+scores 0 on that case but the run continues. With `--trials N` (below) a row's
+`status` is the `|`-joined set of distinct trial statuses (e.g. `ok|timeout`), so
+a triple that's flaky across trials is visible at a glance. `trials` is `N`.
+
+### Trials and medians (`--trials N`)
+
+Run-to-run variance is **material** — the same `(tool, model, case)` triple has
+swung 4/4 → 0/4 between identical runs — so a single trial is untrustworthy.
+`bin/bench --trials N` repeats each triple `N` times in isolated per-trial
+sandboxes and records the **median** `score` and **median** `seconds` in
+`results.csv` (median is robust to the occasional outlier run). `pass` is derived
+from the median score (`round(score × total)`) so it stays an integer consistent
+with `score`. Every individual trial is also written to
+`results/<timestamp>/trials.csv` (`adapter,model,case,trial,pass,total,score,seconds,status`)
+so the variance behind each median stays inspectable. `--trials` defaults to `1`,
+in which case the median is just the single trial and no `trials.csv` is written.
 
 ### Aggregation
 
 `bin/report` rolls the CSV into two leaderboards:
 
-- **by adapter × model** — which CLI + model combo edits code best, plus avg time.
+- **by adapter × model** — which CLI + model combo edits code best, plus the
+  `med s` (mean across cases of each case's median seconds) and `trials` columns.
 - **by model** — a model's overall pass-rate across all adapters.
 
 Because the unit is "tests passed", scores are comparable across models and
@@ -56,7 +72,7 @@ for and latency you wait on. Read the two columns together:
 
 - A model that scores 15/15 in 30s beats one that scores 15/15 in 300s.
 - A smaller model that passes is preferable to a larger one that also passes.
-- `bin/report` shows `avg s` next to `PASS%` so you can pick the cheapest model
+- `bin/report` shows `med s` next to `PASS%` so you can pick the cheapest model
   that clears your accuracy bar for a given task.
 
 Caveats when reading `seconds`:

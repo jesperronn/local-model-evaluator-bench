@@ -29,7 +29,9 @@ For each `(tool, model, case)` triple, `bin/bench` does:
    can't game the score by editing the tests), runs them, and prints exactly:
    `RESULT pass=<n> total=<m>`.
 5. **Record.** Append a row to `results/<ts>/results.csv`:
-   `adapter,model,case,pass,total,score,seconds,status` where `score = pass/total`.
+   `adapter,model,case,pass,total,score,seconds,status,trials` where
+   `score = pass/total`. With `--trials N` the `score`/`seconds` are medians
+   across the N trials — see [SCORING.md](SCORING.md).
 
 Two metrics matter equally: **score** (correctness) and **seconds** (speed) —
 see [SCORING.md](SCORING.md). `bin/report` aggregates both into leaderboards.
