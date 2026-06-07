@@ -19,7 +19,7 @@ Models tested in ascending memory order:
 | 3 | google/gemma-4-12b-qat | 7.15 GB | ✅ done |
 | 4 | google/gemma-4-12b | 7.56 GB | ⚠️ broken template |
 | 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | ✅ done |
-| 6 | qwen/qwen3-coder-30b | 17.19 GB | pending |
+| 6 | qwen/qwen3-coder-30b | 17.19 GB | ✅ done |
 | 7 | qwen/qwen3.6-35b-a3b | 22.07 GB | pending |
 | 8 | google/gemma-4-31b | 28.85 GB | pending |
 
@@ -150,3 +150,25 @@ aider remains the lone underperformer, repeating its two signature failures.
   edit/reflection loop, not the models. Recommend testing aider with
   `--edit-format whole` and a hard per-call wall-clock cap.
 
+
+## 6. qwen/qwen3-coder-30b (17.19 GB) — best for editing so far
+
+| Tool | slugify /4 | debounce /4 | groupBy /3 | topwords /4 | **Total** | Notes |
+|------|:---:|:---:|:---:|:---:|:---:|-------|
+| aider    | 4 | 4 | 3 | 4 | **15/15** | **7–10s** — ~10× faster than the rest |
+| caveman  | 4 | 4 | 3 | 4 | **15/15** | clean (43–150s) |
+| codex    | 4 | 4 | 3 | 4 | **15/15** | correct; 1 lingering timeout + 1 post-edit error |
+| opencode | 4 | 4 | 3 | 3 | **14/15** | missed one topwords edge (tie-break / n-limit) |
+
+**Verdict:** the strongest model for these editing tasks. A purpose-built coding
+model lifts every tool — and notably **fixes aider**: 15/15 and an order of
+magnitude faster, because qwen3-coder emits aider's diff edit-format cleanly.
+This confirms aider's earlier 9–13/15 scores were the *gemma* models failing to
+produce its edit format, not an aider defect.
+
+**Suggestions to improve:**
+- **Pair aider with code-specialized models** (qwen3-coder class). It's the
+  fastest tool by far when the model speaks its diff format; avoid it with
+  general/instruct models that don't.
+- **opencode**: the single topwords miss is worth a look — likely the
+  alphabetical tie-break or the n-limit clamp. Minor.
