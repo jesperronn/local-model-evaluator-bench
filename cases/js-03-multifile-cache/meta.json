@@ -1,0 +1,8 @@
+{
+  "id": "js-03-multifile-cache",
+  "lang": "js",
+  "title": "Capacity cache spanning two files",
+  "points": 5,
+  "category": "multi-file",
+  "edit_files": ["src/store.js", "src/cache.js"]
+}
