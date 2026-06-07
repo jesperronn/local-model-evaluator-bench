@@ -21,7 +21,7 @@ Models tested in ascending memory order:
 | 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | ✅ done |
 | 6 | qwen/qwen3-coder-30b | 17.19 GB | ✅ done |
 | 7 | qwen/qwen3.6-35b-a3b | 22.07 GB | ✅ done |
-| 8 | google/gemma-4-31b | 28.85 GB | pending |
+| 8 | google/gemma-4-31b | 28.85 GB | ✅ done |
 
 ---
 
@@ -193,3 +193,77 @@ correctness; pick on speed/ergonomics (codex fastest here).
 clean sweep argues for **harder cases** (multi-file refactors, failing-test
 repro, ambiguous specs) to keep discriminating among top models — the current
 4 cases are saturated above ~17B.
+
+## 8. google/gemma-4-31b (28.85 GB) — capable but very slow
+
+Dense 31B **heavy reasoner** (spends most tokens reasoning before answering).
+Runs took 130–600s; the largest model tested.
+
+| Tool | slugify /4 | debounce /4 | groupBy /3 | topwords /4 | **Total** | Notes |
+|------|:---:|:---:|:---:|:---:|:---:|-------|
+| aider    | 4 | 4 | 3 | 4 | **15/15** | 133–552s |
+| caveman  | 4 | 4 | 3 | 4 | **15/15** | clean (275–489s) |
+| opencode | 4 | 4 | 3 | 4 | **15/15** | clean (267–456s) |
+| codex    | 4 | 0 | 3 | 4 | **11/15** | debounce **killed mid-edit @600s** (broke the file → 0/1) |
+
+**Verdict:** correct but the slowest model by far — its reasoning overhead makes
+it impractical for interactive editing. codex's only miss was a timeout casualty
+(file half-written when killed), not a capability gap.
+
+**Suggestions to improve:**
+- For a dense 31B reasoner, raise the per-call timeout (≥900–1200s) or cap its
+  reasoning budget; otherwise prefer the MoE 35B (#7), which is far faster for
+  equal quality.
+- **Harness:** when a run times out, the partially-written file poisons grading
+  (counts as a worse score than "no edit"). Consider snapshotting the file
+  before the run and restoring-then-scoring on timeout, or marking timeouts as
+  N/A rather than 0.
+
+---
+
+# Overall summary
+
+**Valid models: 7** (gemma-4-12b #4 excluded — broken chat template).
+Max score per model = 15, so max total = **105**.
+
+| Rank | Tool | Total | % | Profile |
+|:--:|------|:--:|:--:|---------|
+| 1 | **caveman**  | **102/105** | 97% | most consistent — never catastrophically failed any working model |
+| 2 | **opencode** | **101/105** | 96% | nearly as consistent; one minor topwords miss |
+| 3 | **codex**    | **91/105**  | 87% | great with ≥9B tool-capable models; fails <9B (can't drive apply_patch) and on extreme-slow models (timeout) |
+| 4 | **aider**    | **87/105**  | 83% | fastest with code-specialized models, but weak/hangs on gemma *instruct* models that don't emit its diff format |
+
+Per-model totals (out of 15; #4 = broken template):
+
+| Tool | m1 9b | m2 e4b | m3 12bq | m5 26b | m6 coder | m7 35b | m8 31b |
+|------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| caveman  | 15 | 12 | 15 | 15 | 15 | 15 | 15 |
+| opencode | 15 | 12 | 15 | 15 | 14 | 15 | 15 |
+| codex    | 15 | 5  | 15 | 15 | 15 | 15 | 11 |
+| aider    | 13 | 11 | 9  | 9  | 15 | 15 | 15 |
+
+## Key takeaways
+
+1. **Best model for local code editing: `qwen3-coder-30b` and `qwen3.6-35b-a3b`.**
+   Both drive every tool to ~15/15; the MoE 35B is the best speed/quality combo,
+   the coder-30b is the fastest with aider.
+2. **Model capability dominates below ~12B.** At 4B, tool choice swings the score
+   from 5/15 (codex) to 12/15 (caveman/opencode). At ≥17B, all tools converge.
+3. **Tool robustness ranking: caveman ≈ opencode > codex > aider.** caveman and
+   opencode degrade most gracefully across the model range.
+4. **codex needs a tool-capable model** (≥~9B) to use `apply_patch`; below that it
+   makes no edit at all.
+5. **aider is model-format-sensitive**: superb with code models (15/15, ~10×
+   faster), but hangs / under-edits with gemma instruct models.
+6. **Two non-tool gotchas surfaced:** one model ships a broken jinja template
+   (gemma-4-12b), and slow models need generous timeouts — both warrant a
+   pre-run health check and timeout-aware grading (see per-model suggestions).
+
+## Not benchmarked
+
+- **hermes** — reaches models fine but executes in an isolated container
+  workspace (`docker_mount_cwd_to_workspace: false`); edits never reach the host
+  sandbox. Needs a config change (dotfiles) to participate. See `adapters/hermes.sh`.
+- **VS Code / IntelliJ extensions** — point them at the same LM Studio endpoint
+  and grade with each case's `check/run.sh` (see `docs/SETUP.md`). Manual, not in
+  this automated matrix.
