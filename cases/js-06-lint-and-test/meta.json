@@ -1,0 +1,10 @@
+{
+  "id": "js-06-lint-and-test",
+  "lang": "js",
+  "title": "Fix the bug AND make lint pass (run test + lint, iterate)",
+  "points": 4,
+  "category": "self-verify",
+  "edit_files": ["src/total.js"],
+  "visible_tests": true,
+  "note": "Scores tests + a lint check (.editorconfig: no tabs, no trailing whitespace, final newline). Grader uses pristine test + linter."
+}
