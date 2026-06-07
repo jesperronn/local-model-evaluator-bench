@@ -17,7 +17,7 @@ Models tested in ascending memory order:
 | 1 | qwen/qwen3.5-9b | 5.98 GB | ✅ done |
 | 2 | google/gemma-4-e4b | 6.33 GB | ✅ done |
 | 3 | google/gemma-4-12b-qat | 7.15 GB | ✅ done |
-| 4 | google/gemma-4-12b | 7.56 GB | pending |
+| 4 | google/gemma-4-12b | 7.56 GB | ⚠️ broken template |
 | 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | pending |
 | 6 | qwen/qwen3-coder-30b | 17.19 GB | pending |
 | 7 | qwen/qwen3.6-35b-a3b | 22.07 GB | pending |
@@ -99,4 +99,32 @@ confirming it just needs a tool-capable model.
   (likely a reflect/retry loop) and repeatedly nails only 2/4 slugify cases.
   Worth trying aider's `--no-stream`/edit-format settings, or a per-tool
   hang-watchdog, for these models.
+
+## 4. google/gemma-4-12b (7.56 GB) — ⚠️ broken prompt template
+
+**This model is mis-configured in LM Studio**, not a tool failure. caveman and
+opencode both abort with:
+
+> `Error rendering prompt with jinja template: "Cannot call something that is
+> not a function: got UndefinedValue"` … *"usually an issue with the model's
+> prompt template."*
+
+| Tool | slugify /4 | debounce /4 | groupBy /3 | topwords /4 | **Total** | Notes |
+|------|:---:|:---:|:---:|:---:|:---:|-------|
+| aider    | 2 | 4 | 3 | 4 | **13/15** | survived the template bug (different request path) |
+| caveman  | – | – | – | – | **template error** | jinja render failure, no edit |
+| opencode | – | – | – | – | **template error** | jinja render failure, no edit |
+| codex    | – | – | – | – | **errored** | bailed on models endpoint / template |
+
+**Verdict:** not a usable comparison — the GGUF's embedded chat template is
+broken. The QAT sibling (#3) works fine, so this is variant-specific.
+
+**Suggestions to improve:**
+- **Fix the model, not the harness:** re-download the `lmstudio-community`
+  build of gemma-4-12b (fixed templates) or override the Prompt Template in LM
+  Studio → My Models → model settings. Then re-run model #4.
+- **Harness:** `bin/doctor` (or a pre-run check) should do a 1-token chat
+  completion per model and flag template-render errors up front, so a broken
+  model is caught before a full matrix run rather than looking like 3 tool
+  failures.
 
