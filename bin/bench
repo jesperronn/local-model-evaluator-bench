@@ -84,12 +84,15 @@ run_trial() {
   printf '%s %s %s %s\n' "$pass" "$total" "$elapsed" "$status"
 }
 
-for adapter in "${ADAPTER_ARR[@]}"; do
-  adapter_sh="$ADAPTERS_DIR/$adapter.sh"
-  [ -f "$adapter_sh" ] || { warn "no adapter $adapter.sh — skipping"; continue; }
-  command -v "$adapter" >/dev/null 2>&1 || { warn "$adapter not installed — skipping"; continue; }
+for model in "${MODEL_ARR[@]}"; do
+  info "loading model: $model"
+  lms load "$model" || { warn "lms load failed for $model — skipping"; continue; }
 
-  for model in "${MODEL_ARR[@]}"; do
+  for adapter in "${ADAPTER_ARR[@]}"; do
+    adapter_sh="$ADAPTERS_DIR/$adapter.sh"
+    [ -f "$adapter_sh" ] || { warn "no adapter $adapter.sh — skipping"; continue; }
+    command -v "$adapter" >/dev/null 2>&1 || { warn "$adapter not installed — skipping"; continue; }
+
     for case_id in "${CASE_ARR[@]}"; do
       case_src="$CASES_DIR/$case_id"
       [ -f "$case_src/meta.json" ] || { warn "no case $case_id — skipping"; continue; }
@@ -126,6 +129,9 @@ for adapter in "${ADAPTER_ARR[@]}"; do
       else err "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note} $status${C_RST}"; fi
     done
   done
+
+  info "unloading model: $model"
+  lms unload --all
 done
 
 echo
