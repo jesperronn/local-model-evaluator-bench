@@ -8,7 +8,7 @@ see `adapters/hermes.sh`.)
 
 Score = fraction of a case's hidden tests that pass after the tool edits the
 code. Each cell below is `passed-tests / total-tests` summed over the 4 cases
-(max 16 sub-tests: slugify 4 + debounce 4 + groupBy 3 + topwords 4... = 15).
+(max **15** sub-tests: slugify 4 + debounce 4 + groupBy 3 + topwords 4).
 
 Models tested in ascending memory order:
 
