@@ -5,21 +5,46 @@ A small, repeatable harness for testing how well **local models** (served by
 agentic coding CLIs — and, via the same local server, VS Code / IntelliJ
 extensions.
 
-It answers one question per model: *given a real editing task, does the code it
-produces actually pass the tests?*
+## Purpose
 
-## The three design criteria
+When you run models **locally**, the best model isn't the biggest — it's the
+**smallest and fastest one that can still do the job**. Every extra GB of model
+is RAM you don't have and seconds you wait. So this harness scores two things as
+**co-equal**:
+
+- **Accuracy** — does the produced code actually pass the tests? (fraction of
+  hidden sub-tests passing)
+- **Speed** — how long did the tool+model take? (`seconds` per run, surfaced as
+  `avg s` in the leaderboard)
+
+The headline question per task is therefore: **what is the smallest / fastest
+local model that reliably passes — and which tool gets the most out of it?**
+Tool choice matters as much as model choice, especially on smaller models.
+
+## The design criteria
 
 1. **Folders with individual test cases** — every task lives in `cases/<id>/`,
    self-contained: the prompt, the starter code, and a hidden grader.
-2. **Verification / score of quality** — grading is *objective*: each case ships
-   a hidden test suite; the score is the fraction of tests that pass after the
-   model edits the code. (An optional LLM-judge quality score can be layered on
-   later — see `docs/SCORING.md`.)
+2. **Objective verification + timing** — each case ships a hidden test suite;
+   the score is the fraction of tests passing after the model edits the code,
+   **and** the wall-clock time is recorded. Both go in `results/<ts>/results.csv`.
+   (An optional LLM-judge quality score can be layered on later — see
+   [docs/SCORING.md](docs/SCORING.md).)
 3. **Ease of setup & model discovery** — one OpenAI-compatible endpoint
    (LM Studio) feeds every tool. Adding a model = download it in LM Studio +
-   one line in `models.txt`. See `docs/SETUP.md` for how each CLI/extension
-   discovers models.
+   one line in `models.txt`. See [docs/SETUP.md](docs/SETUP.md) for how each
+   CLI/extension discovers models.
+
+## Documentation
+
+- [docs/CASES.md](docs/CASES.md) — **precise spec of every test case + the run
+  procedure** (enough to recreate each case's code in another framework).
+- [docs/SCORING.md](docs/SCORING.md) — how scoring (accuracy + speed) works.
+- [docs/SETUP.md](docs/SETUP.md) — LM Studio, per-tool provider config, IDE
+  extensions, and the hermes no-yolo setup.
+- [docs/ADDING-CASES.md](docs/ADDING-CASES.md) — how to add a new case.
+- [BENCHMARK-RESULTS.md](BENCHMARK-RESULTS.md) — recorded results + per-tool
+  findings across models.
 
 ## What's tested
 
@@ -30,6 +55,11 @@ VS Code + Cline/Continue, JetBrains plugins — see `docs/SETUP.md`.
 **Languages**: JavaScript, TypeScript, Bash/CLI. Test cases use Node's built-in
 test runner and shell assertions — **zero dependencies to install** (Node 24+
 runs `.ts` directly via type-stripping).
+
+**Case kinds** (full spec in [docs/CASES.md](docs/CASES.md)): one-shot bugfix /
+feature edits, **multi-file** edits, and **self-verifying** tasks that ship a
+test/lint suite in the workdir and instruct the agent to *iterate until green*
+(this is what separates agents that run a verify-fix loop from those that don't).
 
 ## Quick start
 
@@ -67,7 +97,7 @@ adapters/<cli>.sh    how each CLI is driven non-interactively against LM Studio
 cases/<id>/          task.md (prompt) + workdir/ (starter) + check/ (hidden grader)
 lib/                 shared bash helpers + the node:test scorer
 bin/bench            run the matrix    bin/report  leaderboard    bin/doctor  preflight
-docs/                SETUP.md (tools + extensions), SCORING.md, ADDING-CASES.md
+docs/                CASES.md (per-case spec), SCORING.md, SETUP.md, ADDING-CASES.md
 ```
 
 ## Adding things

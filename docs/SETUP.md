@@ -1,5 +1,8 @@
 # Setup — LM Studio, CLIs, and editor extensions
 
+Related: [README](../README.md) · [CASES.md](CASES.md) · [SCORING.md](SCORING.md) · [ADDING-CASES.md](ADDING-CASES.md)
+
+
 Everything points at one endpoint: LM Studio's OpenAI-compatible server,
 default `http://localhost:1234/v1`. Configure it once in `config.sh`.
 

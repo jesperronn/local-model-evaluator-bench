@@ -1,5 +1,8 @@
 # Benchmark results
 
+Related: [README](README.md) · [docs/CASES.md](docs/CASES.md) (what each case tests) · [docs/SCORING.md](docs/SCORING.md)
+
+
 Local LM Studio models as code editors, scored by automated test pass-rate
 across CLI tools. Cases: `js-01-slugify-bug`, `js-02-debounce-feature`,
 `ts-01-groupby`, `bash-01-topwords` (see `cases/`). Tools: aider, opencode,
@@ -17,7 +20,7 @@ Models tested in ascending memory order:
 | 1 | qwen/qwen3.5-9b | 5.98 GB | ✅ done |
 | 2 | google/gemma-4-e4b | 6.33 GB | ✅ done |
 | 3 | google/gemma-4-12b-qat | 7.15 GB | ✅ done |
-| 4 | google/gemma-4-12b | 7.56 GB | ⚠️ broken template |
+| 4 | google/gemma-4-12b | 7.56 GB | ⏸️ deferred (broken template — awaiting upstream fix) |
 | 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | ✅ done |
 | 6 | qwen/qwen3-coder-30b | 17.19 GB | ✅ done |
 | 7 | qwen/qwen3.6-35b-a3b | 22.07 GB | ✅ done |
@@ -100,7 +103,11 @@ confirming it just needs a tool-capable model.
   Worth trying aider's `--no-stream`/edit-format settings, or a per-tool
   hang-watchdog, for these models.
 
-## 4. google/gemma-4-12b (7.56 GB) — ⚠️ broken prompt template
+## 4. google/gemma-4-12b (7.56 GB) — ⏸️ deferred (broken prompt template)
+
+> **Deferred** (2026-06-07): the non-QAT `gemma-4-12b` ships a broken jinja
+> template (below). Re-test in a few days once the ecosystem republishes a fixed
+> build. Note the **QAT** sibling (#3) is fine and already covers this size class.
 
 **This model is mis-configured in LM Studio**, not a tool failure. caveman and
 opencode both abort with:

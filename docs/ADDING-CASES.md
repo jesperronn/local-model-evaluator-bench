@@ -1,5 +1,8 @@
 # Adding a test case
 
+Related: [README](../README.md) · [CASES.md](CASES.md) (spec of existing cases) · [SCORING.md](SCORING.md)
+
+
 A case is a folder under `cases/`. Copy an existing one and adapt it.
 
 ```
