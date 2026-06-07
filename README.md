@@ -1,6 +1,6 @@
-# local-model-editor-bench
+# Local Model Evaluator Bench
 
-A small, repeatable harness for testing how well **local models** (served by
+Small, repeatable harness for testing how well **local models** (served by
 [LM Studio](https://lmstudio.ai)) perform as **code editors**, across several
 agentic coding CLIs — and, via the same local server, VS Code / IntelliJ
 extensions.
