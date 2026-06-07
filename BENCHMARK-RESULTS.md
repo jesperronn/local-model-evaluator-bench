@@ -234,6 +234,44 @@ it impractical for interactive editing. codex's only miss was a timeout casualty
 
 ---
 
+## Comprehensive re-run — qwen3.5-9b, all 5 tools × 6 cases
+
+First run including **hermes** (no-yolo: `backend: local` + `approvals.mode:
+smart`) and the two **multi-file** cases. Max = 23 (slug 4 + deb 4 + grp 3 +
+top 4 + cache 5 + rename 3).
+
+| Tool | slug/4 | deb/4 | grp/3 | top/4 | cache/5 | rename/3 | **Total/23** | speed |
+|------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|------|
+| **codex**    | 4 | 4 | 3 | 4 | 5 | 3 | **23** | 70–300s (1 lingering timeout) |
+| **hermes**   | 4 | 4 | 3 | 0 | 5 | 3 | **19** | 42–300s (smart-guardian adds latency) |
+| **caveman**  | 4 | 4 | 0·| 4 | 0·| 3 | **15** | 30–300s |
+| **opencode** | 4 | 4 | 3 | 0 | 0·| 3 | **14** | 62–300s |
+| **aider**    | 2 | 4 | 3 | 4 | 1 | 0·| **14** | 16–43s (fastest by far) |
+
+`·` = the tool was cut off / broke the file mid-edit, so the test file failed to
+load (recorded as 0 of a reduced total — counted here against the nominal max).
+
+**Findings:**
+- **codex = 23/23**, perfect including both multi-file cases. Strongest tool on
+  this 9B model (but slow; one 300s lingering timeout on debounce).
+- **hermes works now and is competitive (19/23)** — its first real result. It
+  nailed both multi-file cases (cache 5/5, rename 3/3) and only missed the bash
+  `topwords` task. The no-yolo `local`+`smart` setup is validated.
+- **Multi-file cases are the key discriminator on this model:** codex & hermes
+  scored 8/8 across cache+rename; aider 1/8, opencode 3/8, caveman 3/8. One-shot
+  single-file cases no longer separate the field at 9B; multi-file does.
+- **aider** is the fastest by a wide margin (16–43s) but weakest on multi-file
+  (inconsistent rename broke the import; cache 1/5).
+- ⚠️ **Run-to-run variance is real.** vs the first qwen3.5-9b run: opencode
+  `topwords` went 4/4 → 0/4 and caveman `groupBy` 3/3 → 0/1. Single trials are
+  noisy — **run ≥3 trials per cell** before trusting small differences. (Not yet
+  automated; a good next harness feature: `--trials N` + median.)
+
+> Note: the self-verify cases (js-05/js-06) were added *after* this run and are
+> not included here; fold them into the next sweep.
+
+---
+
 # Overall summary
 
 **Valid models: 7** (gemma-4-12b #4 excluded — broken chat template).
