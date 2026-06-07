@@ -20,7 +20,7 @@ Models tested in ascending memory order:
 | 4 | google/gemma-4-12b | 7.56 GB | ⚠️ broken template |
 | 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | ✅ done |
 | 6 | qwen/qwen3-coder-30b | 17.19 GB | ✅ done |
-| 7 | qwen/qwen3.6-35b-a3b | 22.07 GB | pending |
+| 7 | qwen/qwen3.6-35b-a3b | 22.07 GB | ✅ done |
 | 8 | google/gemma-4-31b | 28.85 GB | pending |
 
 ---
@@ -172,3 +172,24 @@ produce its edit format, not an aider defect.
   general/instruct models that don't.
 - **opencode**: the single topwords miss is worth a look — likely the
   alphabetical tie-break or the n-limit clamp. Minor.
+
+## 7. qwen/qwen3.6-35b-a3b (22.07 GB) — clean sweep
+
+Reasoning MoE (active ~3B). Every tool scored a perfect 15/15.
+
+| Tool | slugify /4 | debounce /4 | groupBy /3 | topwords /4 | **Total** | Notes |
+|------|:---:|:---:|:---:|:---:|:---:|-------|
+| aider    | 4 | 4 | 3 | 4 | **15/15** | 44–140s |
+| caveman  | 4 | 4 | 3 | 4 | **15/15** | fast & clean (38–44s) |
+| codex    | 4 | 4 | 3 | 4 | **15/15** | fastest overall (23–46s) |
+| opencode | 4 | 4 | 3 | 4 | **15/15** | clean (79–96s) |
+
+**Verdict:** the best all-around result in the suite — every tool perfect, all
+fast. A reasoning MoE with ~3B active params delivers strong edits at high
+throughput. With a model this capable, tool choice no longer affects
+correctness; pick on speed/ergonomics (codex fastest here).
+
+**Suggestions to improve:** none at the model level. For the harness, this
+clean sweep argues for **harder cases** (multi-file refactors, failing-test
+repro, ambiguous specs) to keep discriminating among top models — the current
+4 cases are saturated above ~17B.
