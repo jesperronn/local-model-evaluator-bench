@@ -18,7 +18,7 @@ Models tested in ascending memory order:
 | 2 | google/gemma-4-e4b | 6.33 GB | ✅ done |
 | 3 | google/gemma-4-12b-qat | 7.15 GB | ✅ done |
 | 4 | google/gemma-4-12b | 7.56 GB | ⚠️ broken template |
-| 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | pending |
+| 5 | google/gemma-4-26b-a4b-qat | 15.64 GB | ✅ done |
 | 6 | qwen/qwen3-coder-30b | 17.19 GB | pending |
 | 7 | qwen/qwen3.6-35b-a3b | 22.07 GB | pending |
 | 8 | google/gemma-4-31b | 28.85 GB | pending |
@@ -127,4 +127,26 @@ broken. The QAT sibling (#3) works fine, so this is variant-specific.
   completion per model and flag template-render errors up front, so a broken
   model is caught before a full matrix run rather than looking like 3 tool
   failures.
+
+## 5. google/gemma-4-26b-a4b-qat (15.64 GB)
+
+Reasoning MoE (active ~4B). Template sanity-checked before the run.
+
+| Tool | slugify /4 | debounce /4 | groupBy /3 | topwords /4 | **Total** | Notes |
+|------|:---:|:---:|:---:|:---:|:---:|-------|
+| caveman  | 4 | 4 | 3 | 4 | **15/15** | clean (66–277s) |
+| codex    | 4 | 4 | 3 | 4 | **15/15** | clean (82–121s) |
+| opencode | 4 | 4 | 3 | 4 | **15/15** | clean (124–144s) |
+| aider    | 2 | 4 | 3 | 0 | **9/15**  | topwords **hung past 600s**; slugify 2/4 |
+
+**Verdict:** excellent model — three tools at 15/15, fast for its size (MoE).
+aider remains the lone underperformer, repeating its two signature failures.
+
+**Suggestions to improve:**
+- **aider** now shows a clear, reproducible pattern across models: (a) it gets
+  **exactly 2/4 on slugify** every time (its edit-format consistently misses
+  the collapse/trim cases), and (b) it **hangs past the timeout on one heavier
+  case per slow model** (debounce @#3, topwords @#5). This points at aider's
+  edit/reflection loop, not the models. Recommend testing aider with
+  `--edit-format whole` and a hard per-call wall-clock cap.
 
