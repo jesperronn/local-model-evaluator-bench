@@ -50,7 +50,8 @@ How each is pointed at LM Studio:
 | `hermes`  | Built-in `lmstudio` provider (`~/.hermes/config.yaml`) + `-t file,terminal`.         | ⚠️ container-isolated |
 
 > **`caveman` provider config** lives in `~/.pi/agent/models.json` (machine
-> config — consider moving to dotfiles):
+> config — consider moving to dotfiles). A ready-to-copy template is committed
+> at [`config-templates/pi-agent-models.json`](../config-templates/pi-agent-models.json):
 > ```json
 > { "providers": { "lmstudio": {
 >     "baseUrl": "http://localhost:1234/v1", "api": "openai-completions",
@@ -71,6 +72,9 @@ How each is pointed at LM Studio:
 >   mode: smart             # LLM "guardian" approves safe ops, denies dangerous
 >                           # ones, escalates uncertain (60s timeout -> deny)
 > ```
+>
+> (These keys are also captured at
+> [`config-templates/hermes-config.snippet.yaml`](../config-templates/hermes-config.snippet.yaml).)
 >
 > With `mode: smart` the adapter does **not** pass `--yolo`: every tool action is
 > reviewed by the guardian (which uses the same local LM Studio model via

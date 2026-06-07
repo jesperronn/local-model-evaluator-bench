@@ -1,0 +1,25 @@
+# Hermes setup for this benchmark (no-yolo, fully local).
+#
+# These are the ONLY keys you need to change in ~/.hermes/config.yaml. Do NOT
+# copy this file over your config (it omits everything else, including secrets).
+# Edit those keys in place, or fold them into your dotfiles. See docs/SETUP.md.
+#
+# Rationale:
+#   terminal.backend: local  -> tools run on the host so edits reach the sandbox
+#                               (the `docker` backend never surfaces edits on macOS)
+#   approvals.mode:   smart   -> an LLM "guardian" gates each action (approve safe /
+#                               deny dangerous / escalate). Lets us drop --yolo.
+#   models.approval.provider: auto -> guardian uses your local LM Studio default.
+#
+# Verify with: bin/doctor   (reports hermes readiness)
+
+terminal:
+  backend: local
+
+approvals:
+  mode: smart
+
+# (already 'auto' by default — shown for completeness)
+# models:
+#   approval:
+#     provider: auto
