@@ -13,3 +13,7 @@ google/gemma-4-12b-qat
 google/gemma-4-26b-a4b-qat
 google/gemma-4-31b
 google/gemma-4-e4b
+google/gemma-4-e4b-qat
+google/gemma-4-e2b
+google/gemma-4-e2b-qat
+google/gemma-4-31b-qat
