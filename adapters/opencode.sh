@@ -8,4 +8,4 @@ set -euo pipefail
 PROMPT="$(cat)"
 
 # Model is addressed as provider/model -> lmstudio/<id>.
-exec opencode run -m "lmstudio/${MODEL_ID}" "$PROMPT"
+exec opencode run --model "openai/${MODEL_ID}" --openai-api-base "$LMS_BASE_URL" --openai-api-key "$LMS_API_KEY" "$PROMPT"
