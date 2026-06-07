@@ -55,23 +55,31 @@ How each is pointed at LM Studio:
 > ```
 > Add each model id you test to that `models` array.
 
-> **`hermes` is configured correctly** (provider `lmstudio`, file+terminal
-> toolsets) **but is excluded from the default benchmark** because its tools run
-> in a **container workspace** that doesn't surface edits to the host sandbox.
-> `bin/doctor` reports hermes readiness. Two ways to make it eligible (set under
-> `terminal:` in `~/.hermes/config.yaml` — a dotfiles concern):
-> - **Safe (recommended):** keep `backend: docker` and set
->   `docker_mount_cwd_to_workspace: true` (mounts cwd → `/workspace`, isolation
->   kept). Needs Docker running + the `nikolaik/python-nodejs` image.
-> - **Simple:** `backend: local` — runs the `--yolo` agent's tools directly on
->   the host (no sandbox).
+> ### Configuring `hermes` (no-yolo, fully local)
 >
-> ⚠️ **Known issue (unresolved):** even with `docker_mount_cwd_to_workspace:
-> true` + Docker, hermes edits did **not** surface to the host sandbox in
-> testing on macOS (the model resolves paths the bind-mount doesn't expose;
-> `container_persistent: false` didn't help either). Until that's solved, leave
-> `hermes` out of `DEFAULT_ADAPTERS`. Then re-add it once a real-case edit is
-> confirmed to change the host file.
+> hermes runs its tools in a sandbox that, by default (`backend: docker`), never
+> surfaces edits to the host. The **recommended no-yolo setup** — used by the
+> adapter and verified by `bin/doctor` — sets two keys in `~/.hermes/config.yaml`:
+>
+> ```yaml
+> terminal:
+>   backend: local          # tools run on the host so edits reach the sandbox
+> approvals:
+>   mode: smart             # LLM "guardian" approves safe ops, denies dangerous
+>                           # ones, escalates uncertain (60s timeout -> deny)
+> ```
+>
+> With `mode: smart` the adapter does **not** pass `--yolo`: every tool action is
+> reviewed by the guardian (which uses the same local LM Studio model via
+> `models.approval.provider: auto`), so execution is gated rather than blanket-
+> approved. This is strictly safer than `local` + `--yolo` while still running
+> non-interactively. Verified working: hermes edits the host sandbox and scores
+> on the real cases. (The earlier `docker` + `docker_mount_cwd_to_workspace`
+> attempt did not surface edits on macOS — `local` is the path that works.)
+>
+> ⚠️ Trade-off: `backend: local` executes the agent's tool calls on your host
+> (not in a container). The `smart` guardian is the safety layer; review it if
+> you run untrusted prompts. This config belongs in your dotfiles.
 
 If `opencode`'s `lmstudio` provider needs a non-default URL, set it in
 `~/.config/opencode/opencode.json`:

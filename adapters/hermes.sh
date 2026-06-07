@@ -10,18 +10,17 @@ PROMPT="$(cat)"
 # -t file,terminal enables the file-edit + shell toolsets (default is none, so
 # without this hermes just chats and never touches the filesystem).
 #
-# KNOWN LIMITATION (why hermes is not in DEFAULT_ADAPTERS): hermes executes its
-# tools in an isolated CONTAINER workspace (~/.hermes/config.yaml:
-# docker_image=..., docker_mount_cwd_to_workspace: false), so file edits land in
-# the container, never in our host sandbox — every case scores 0 regardless of
-# model. To benchmark hermes like the other CLIs, enable cwd mounting / a local
-# execution backend in ~/.hermes/config.yaml (a dotfiles concern; hermes guards
-# that file from agent edits), then add `hermes` back to DEFAULT_ADAPTERS.
-# Also note: hermes refuses writes under /private/var (macOS mktemp), so any
-# sandbox must live on a normal path — bench puts them under results/, fine.
+# NO-YOLO SETUP (recommended for testing hermes): instead of --yolo (which
+# bypasses all approvals), we rely on ~/.hermes/config.yaml `approvals.mode:
+# smart` — an LLM "guardian" auto-approves safe ops, denies dangerous ones, and
+# escalates uncertain ones (60s timeout -> deny). The guardian uses the same
+# local LM Studio model (approval.provider: auto). For edits to reach the host
+# sandbox, that config also needs `terminal.backend: local` (tools run on the
+# host, gated by the smart guardian). `bin/doctor` verifies this is set up.
+# Note: hermes refuses writes under /private/var (macOS mktemp); bench sandboxes
+# live under results/, which is fine.
 exec hermes \
   --provider lmstudio \
   -m "$MODEL_ID" \
   -t file,terminal \
-  --yolo \
   -z "$PROMPT"
