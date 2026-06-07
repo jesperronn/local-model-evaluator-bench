@@ -59,3 +59,52 @@ for d in "$CASES_DIR"/*/; do
   lang="$(grep -oE '"lang"\s*:\s*"[^"]+"' "$d/meta.json" | sed -E 's/.*"([^"]+)"$/\1/')"
   printf '    %-26s [%s]\n' "$id" "$lang"
 done
+
+echo
+info "Coverage gaps (missing adapter × model × case combos):"
+RESULTS_DIR="$RESULTS_DIR" python3 - << 'PYEOF'
+import glob, csv, os, sys
+from collections import defaultdict
+
+results_dir = os.environ['RESULTS_DIR']
+latest = {}
+for path in sorted(glob.glob(results_dir + '/*/results.csv')):
+    run = os.path.basename(os.path.dirname(path))
+    try:
+        with open(path) as f:
+            for row in csv.DictReader(f):
+                k = (row['adapter'], row['model'], row['case'])
+                if k not in latest or run > latest[k]['run']:
+                    latest[k] = {**row, 'run': run}
+    except Exception:
+        pass
+
+if not latest:
+    print('  no results found yet')
+    sys.exit(0)
+
+adapters = sorted(set(k[0] for k in latest))
+models   = sorted(set(k[1] for k in latest))
+cases    = sorted(set(k[2] for k in latest))
+
+missing = defaultdict(lambda: defaultdict(list))
+for adapter in adapters:
+    for model in models:
+        has_any = any((adapter, model, c) in latest for c in cases)
+        if not has_any:
+            continue
+        for case in cases:
+            if (adapter, model, case) not in latest:
+                missing[adapter][model].append(case)
+
+total = sum(len(cs) for m in missing.values() for cs in m.values())
+if total == 0:
+    print('  all combinations complete!')
+else:
+    print(f'  {total} missing. Commands to fill the gaps:\n')
+    for adapter in sorted(missing):
+        for model in sorted(missing[adapter]):
+            cases_list = ','.join(missing[adapter][model])
+            print(f'  bin/bench --tool {adapter} --model {model} --cases {cases_list}')
+        print()
+PYEOF

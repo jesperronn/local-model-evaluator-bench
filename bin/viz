@@ -1,0 +1,798 @@
+#!/usr/bin/env bash
+# bin/viz — regenerate results/index.html from all run CSVs (adapter × model × case).
+# Usage: bin/viz
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+OUT="$HERE/results/index.html"
+
+mapfile -t csvs < <(find "$RESULTS_DIR" -name 'results.csv' | sort)
+[ "${#csvs[@]}" -gt 0 ] || die "no results.csv found in $RESULTS_DIR"
+info "Building index.html from ${#csvs[@]} run(s)…"
+
+# ── JSON data array (one object per CSV row, run field added from dir name) ──
+data_json=$(awk -F, '
+  BEGIN { printf "["; sep="" }
+  FNR==1 { n=split(FILENAME,a,"/"); run=a[n-1]; next }
+  {
+    st=$8; gsub(/\\/,"\\\\",st); gsub(/"/,"\\\"",st)
+    mo=$2; gsub(/\\/,"\\\\",mo); gsub(/"/,"\\\"",mo)
+    printf "%s{\"run\":\"%s\",\"adapter\":\"%s\",\"model\":\"%s\",\"case\":\"%s\",\"pass\":%d,\"total\":%d,\"score\":%s,\"seconds\":%d,\"status\":\"%s\",\"trials\":%d}",
+      sep, run, $1, mo, $3, $4+0, $5+0, $6, $7+0, st, ($9+0<1?1:$9+0)
+    sep=","
+  }
+  END { printf "]" }
+' "${csvs[@]}")
+
+# ── CASE_TOTALS: max 'total' seen per case ───────────────────────────────────
+case_totals_json=$(awk -F, '
+  FNR>1 { if($5+0 > ct[$3]+0) ct[$3]=$5+0 }
+  END {
+    sep=""
+    printf "{"
+    for(c in ct){ printf "%s\"%s\":%d", sep, c, ct[c]+0; sep="," }
+    printf "}"
+  }
+' "${csvs[@]}")
+
+# ── Write HTML ────────────────────────────────────────────────────────────────
+{
+cat << 'VIZ_END'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Benchmark Results</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+VIZ_END
+
+# ── CSS ──────────────────────────────────────────────────────────────────────
+cat << 'VIZ_END'
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f6f8fa;--card:#fff;--border:#d0d7de;--text:#1f2328;--muted:#636c76;--accent:#0969da;--radius:6px;--shadow:0 1px 3px rgba(0,0,0,.08)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.app{max-width:1600px;margin:0 auto;padding:20px 16px}
+header{margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px}
+h1{font-size:20px;font-weight:600}
+.subtitle{color:var(--muted);font-size:12px;margin-top:2px}
+#data-summary{font-size:12px;color:var(--muted)}
+.filters{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;box-shadow:var(--shadow)}
+.filter-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.filter-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);white-space:nowrap}
+.filter-hint{font-size:10px;color:var(--muted);white-space:nowrap;margin-left:2px}
+.chips{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.chip{padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;font-weight:500;transition:opacity .12s;user-select:none;white-space:nowrap}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip:hover{opacity:.82}
+.size-hdr{font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;cursor:pointer;user-select:none;white-space:nowrap;border:1px solid var(--border);transition:all .12s}
+.size-hdr.all-on{background:#1f2328;color:#fff;border-color:#1f2328}
+.size-hdr.some-on{background:#f0f2f4;color:#1f2328;border-color:#636c76;border-style:dashed}
+.size-hdr.none-on{background:transparent;color:#adb5bd;border-color:#eaeef2}
+.size-sep{width:1px;height:18px;background:var(--border);display:inline-block;vertical-align:middle;margin:0 2px;flex-shrink:0}
+.vdivider{width:1px;height:22px;background:var(--border);flex-shrink:0}
+.views{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.vtab{padding:6px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:13px;font-weight:500;transition:all .12s;box-shadow:var(--shadow)}
+.vtab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.vtab:hover:not(.on){background:#f0f2f4;border-color:#8c959f}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.ctrl-row{display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.btn{padding:4px 12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;font-weight:500;transition:all .12s}
+.btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:hover:not(.on){background:#f0f2f4;border-color:#8c959f}
+.ctrl-sep{width:1px;height:18px;background:var(--border);margin:0 4px}
+.search{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:240px;outline:none;background:var(--bg)}
+.search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(9,105,218,.12)}
+.row-count{font-size:12px;color:var(--muted)}
+.chart-wrap{position:relative;height:500px;margin-top:12px}
+.chart-note{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+.hm-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+table.hm{border-collapse:collapse;font-size:12px;white-space:nowrap;width:100%}
+.hm th{padding:6px 10px;background:#f6f8fa;border:1px solid var(--border);font-weight:600;position:sticky;top:0;z-index:2;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+.hm td{padding:5px 8px;border:1px solid var(--border);text-align:center;min-width:68px;font-size:11px;font-variant-numeric:tabular-nums}
+.hm .rl{text-align:left;min-width:175px;font-weight:600;position:sticky;left:0;background:var(--card);z-index:1;padding-left:10px}
+.hm .agg{font-weight:700;border-left:2px solid var(--border)}
+.hm .adapter-hdr td{background:#f6f8fa;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;text-align:left;border-top:2px solid var(--border)}
+.hm tr:hover td:not(.rl){filter:brightness(.96)}
+.dt-wrap{overflow:auto;max-height:600px;border:1px solid var(--border);border-radius:var(--radius)}
+table.dt{border-collapse:collapse;width:100%;font-size:12px}
+.dt th{padding:7px 10px;background:#f6f8fa;border:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;z-index:1}
+.dt th:hover{background:#eaeef2}
+.dt th.sa::after{content:" ↑";color:var(--accent)}
+.dt th.sd::after{content:" ↓";color:var(--accent)}
+.dt td{padding:5px 10px;border:1px solid var(--border);white-space:nowrap}
+.dt tr:nth-child(even) td{background:#f9fafb}
+.dt tr:hover td{background:#f0f4f8}
+.lb{display:flex;flex-direction:column;gap:6px;max-height:640px;overflow-y:auto;padding:2px}
+.lb-row{display:grid;grid-template-columns:40px 1fr auto;align-items:start;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);transition:box-shadow .12s}
+.lb-row:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.lb-rank{font-size:18px;font-weight:700;text-align:center;margin-top:2px}
+.lb-model{font-weight:600;font-size:13px}
+.lb-sub{font-size:11px;color:var(--muted);margin-top:1px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lb-cases{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.lb-case{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;white-space:nowrap}
+.lb-right{text-align:right;min-width:80px}
+.lb-score{font-size:20px;font-weight:700;line-height:1}
+.lb-time{font-size:11px;color:var(--muted);margin-top:3px}
+.lb-coverage{font-size:10px;margin-top:2px}
+.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:600}
+.b-ok{background:#dafbe1;color:#1a7f37}
+.b-timeout{background:#ede9fe;color:#6e40c9}
+.b-error{background:#ffebe9;color:#cf222e}
+.adot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:4px}
+.empty{color:var(--muted);text-align:center;padding:48px;font-size:13px}
+.task-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+.task-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;box-shadow:var(--shadow)}
+.task-title{font-weight:700;font-size:12px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.task-tag{font-size:10px;padding:2px 6px;border-radius:3px;background:#f0f2f4;color:var(--muted);font-family:monospace;flex-shrink:0}
+.task-row{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px}
+.task-row+.task-row{border-top:1px solid #f0f2f4}
+.task-rank{font-weight:700;min-width:22px;font-size:12px;text-align:right}
+.task-model{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-adapter{font-size:10px;padding:1px 5px;border-radius:3px;flex-shrink:0}
+.task-score{font-weight:700;font-size:11px;padding:1px 6px;border-radius:3px;min-width:36px;text-align:center;flex-shrink:0}
+.task-time{font-size:11px;color:var(--muted);min-width:36px;text-align:right;flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Benchmark Results</h1>
+      <div class="subtitle">Local model editor &middot; adapter &times; model &times; case</div>
+    </div>
+    <div id="data-summary"></div>
+  </header>
+  <div class="filters">
+    <div class="filter-group"><span class="filter-label">Adapter</span><div class="chips" id="f-adapters"></div></div>
+    <div class="vdivider"></div>
+    <div class="filter-group"><span class="filter-label">Model</span><div class="chips" id="f-models"></div></div>
+    <div class="vdivider"></div>
+    <div class="filter-group"><span class="filter-label">Run</span><div class="chips" id="f-run"></div></div>
+    <div class="vdivider"></div>
+    <div class="filter-group"><span class="filter-label">Cases</span><div class="chips" id="f-cases"></div></div>
+    <span class="filter-hint">⌘/Ctrl+click to solo</span>
+  </div>
+  <div class="views" id="view-tabs"></div>
+  <div id="view-content"></div>
+</div>
+<script>
+Chart.register(ChartDataLabels);
+VIZ_END
+
+# ── Embedded data (dynamically generated) ────────────────────────────────────
+printf 'const DATA = %s;\n' "$data_json"
+printf 'const CASE_TOTALS = %s;\n' "$case_totals_json"
+
+# ── JS logic (static) ────────────────────────────────────────────────────────
+cat << 'VIZ_END'
+const VIEWS = ['Scatter','Heatmap','Bars','Leaderboard','Table','By Task'];
+
+const ADAPTER_COLORS = {
+  aider:'#0969da', opencode:'#1a7f37', codex:'#d4371c',
+  hermes:'#6e40c9', caveman:'#bf3989'
+};
+const FAMILY_COLORS = {google:'#f97316', qwen:'#8b5cf6'};
+
+// 12 unique Chart.js point shapes (avoid 'dash'/'line' — they render as hairlines).
+// triangle supports 4 directions via rot: 0=▲ 90=▶ 180=▽ 270=◀
+// rectRounded@45 renders as a rounded diamond (distinct from rectRot@0 which is sharp ◆).
+//
+// Symbol candidates for future picking — copy any into sym:'':
+//   Filled solid:  ● ▲ ▽ ▶ ◀ ■ ◆ ★ ✚ ✕ ▣ ⬟ ⬡ ⬢ ◉ ◎ ✦ ✧ ✶ ✸ ✴ ❋ ❊
+//   Outlined:      △ ▷ ▽ ◁ □ ◇ ☆ ✩ ◯ ○ ⊕ ⊗ ⊙ ⊞ ⊠ ⊡ ◈ ⬦ ⬧
+//   Other shapes:  ⬤ ⬛ ⬜ ⬠ ⬡ ⬢ ⬣ ⬟ ⬦ ⏣ ❖ ✇ ⌖ ⌘ ⍟ ⎔ ⏻ ⏼ ⟐ ⟡
+//   Superscript-y: ⊛ ⊜ ⊝ ⊶ ⊷ ⋄ ⋆ ⋇ ⋈ ⋉ ⋊ ⋋ ⋌ ⋍ ⋎ ⋏ ⋐ ⋑
+const POINT_DEFS = [
+  {style:'circle',       rot:0,   sym:'●'},
+  {style:'triangle',     rot:0,   sym:'▲'},
+  {style:'triangle',     rot:180, sym:'▽'},
+  {style:'triangle',     rot:90,  sym:'▶'},
+  {style:'triangle',     rot:270, sym:'◀'},
+  {style:'rect',         rot:0,   sym:'■'},
+  {style:'rectRot',      rot:0,   sym:'◆'},
+  {style:'star',         rot:0,   sym:'★'},
+  {style:'cross',        rot:0,   sym:'✚'},
+  {style:'crossRot',     rot:0,   sym:'✕'},
+  {style:'rectRounded',  rot:0,   sym:'▣'},
+  {style:'rectRounded',  rot:45,  sym:'⬟'},
+];
+
+const S = {
+  view:'Scatter', adapters:new Set(), models:new Set(), cases:new Set(),
+  run:'latest-combo', scatterMode:'detail',
+  hmMode:'score', barMode:'score',
+  tblSort:{col:'score',dir:'desc'}, tblSearch:'',
+};
+
+let C1=null, ALL_MODELS=[];
+
+// ─── Helpers ────────────────────────────────────────────
+function parseSize(m){
+  const n=m.split('/').pop().toLowerCase();
+  const e=n.match(/-e(\d+)b/); if(e)return parseInt(e[1]);
+  const r=n.match(/-(\d+)b/);  if(r)return parseInt(r[1]);
+  return null;
+}
+function pdef(m)  { return POINT_DEFS[ALL_MODELS.indexOf(m)%POINT_DEFS.length]||POINT_DEFS[0]; }
+function sym(m)   { return pdef(m).sym; }
+function scoreColor(s){ if(s==null)return '#f6f8fa'; return `hsl(${s*120},65%,${91-s*9}%)`; }
+function timeColor(t,mx){ if(!mx||!t)return '#f6f8fa'; return `hsl(${(1-Math.min(t/mx,1))*110},55%,88%)`; }
+function fmtFrac(p,t){ return t?`${p}/${t}`:'—'; }
+function fmtPct(s)   { return s!=null?(s*100).toFixed(0)+'%':'—'; }
+function fmtTime(s)  { if(s==null)return '—'; return s>=60?(s/60).toFixed(1)+'m':s+'s'; }
+function shortModel(m){ return m.split('/').pop(); }
+function ac(a){ return ADAPTER_COLORS[a]||'#888'; }
+function fc(m){ return FAMILY_COLORS[m.split('/')[0]]||'#888'; }
+function statusBadge(s){ const c=s==='ok'?'b-ok':s.includes('timeout')?'b-timeout':'b-error'; return `<span class="badge ${c}">${s}</span>`; }
+function rankColor(i){ return ['#b45309','#6b7280','#92400e'][i]||'#9ca3af'; }
+function scoreCol(v){ return v>=0.75?'#1a7f37':v>=0.5?'#9a6700':'#cf222e'; }
+
+// ─── Data ───────────────────────────────────────────────
+function filteredRows(){
+  let rows=DATA;
+  if(S.run==='latest-combo'){
+    const map=new Map();
+    for(const r of rows){const k=r.adapter+'|'+r.model+'|'+r.case;if(!map.has(k)||r.run>map.get(k).run)map.set(k,r);}
+    rows=[...map.values()];
+  } else if(S.run==='latest-run'){
+    const latest=rows.reduce((a,b)=>a.run>b.run?a:b).run;
+    rows=rows.filter(r=>r.run===latest);
+  }
+  return rows.filter(r=>S.adapters.has(r.adapter)&&S.models.has(r.model)&&S.cases.has(r.case));
+}
+
+function aggregated(rows){
+  const sel=[...S.cases].sort();
+  const map=new Map();
+  for(const r of rows){
+    const k=r.adapter+'|'+r.model;
+    if(!map.has(k))map.set(k,{adapter:r.adapter,model:r.model,byCase:{},secs:0});
+    const g=map.get(k); g.byCase[r.case]=r; g.secs+=r.seconds;
+  }
+  return [...map.values()].map(g=>{
+    let pass=0,total=0,scoreSum=0,attempted=0;
+    for(const c of sel){
+      const r=g.byCase[c];
+      if(r){pass+=r.pass;total+=r.total;scoreSum+=r.score;attempted++;}
+      else {total+=(CASE_TOTALS[c]||0);}
+    }
+    return{...g,pass,total,attempted,caseCount:sel.length,avgScore:sel.length?scoreSum/sel.length:0};
+  }).sort((a,b)=>b.avgScore-a.avgScore||a.secs-b.secs);
+}
+
+// ─── Adapter chips ──────────────────────────────────────
+function setAStyle(chip,a,on){
+  const c=ac(a);
+  chip.style.cssText=on?`background:${c};border-color:${c};color:#fff`:`background:${c}18;border-color:${c}55;color:${c}`;
+}
+function buildAdapterChips(adapters){
+  const el=document.getElementById('f-adapters'); el.innerHTML='';
+  const chips=[];
+  adapters.forEach(a=>{
+    const chip=document.createElement('span'); chip.className='chip';
+    chip.textContent=a; setAStyle(chip,a,S.adapters.has(a));
+    chip.onclick=e=>{
+      if(e.metaKey||e.ctrlKey){
+        const solo=!(S.adapters.size===1&&S.adapters.has(a));
+        S.adapters.clear(); if(solo)S.adapters.add(a); else adapters.forEach(x=>S.adapters.add(x));
+        chips.forEach((c,i)=>setAStyle(c,adapters[i],S.adapters.has(adapters[i])));
+      } else {
+        S.adapters.has(a)?S.adapters.delete(a):S.adapters.add(a);
+        setAStyle(chip,a,S.adapters.has(a));
+      }
+      render();
+    };
+    el.appendChild(chip); chips.push(chip);
+  });
+}
+
+// ─── Model chips (grouped by size) ──────────────────────
+function buildModelChips(models){
+  const el=document.getElementById('f-models'); el.innerHTML='';
+  const bySize=new Map();
+  for(const m of models){
+    const sz=parseSize(m);
+    if(!bySize.has(sz))bySize.set(sz,[]);
+    bySize.get(sz).push(m);
+  }
+  const sortedSizes=[...bySize.keys()].sort((a,b)=>(a||0)-(b||0));
+
+  sortedSizes.forEach((sz,sIdx)=>{
+    const sModels=bySize.get(sz);
+    const szLabel=(sz?sz+'B':'?B');
+    if(sIdx>0){const sep=document.createElement('span');sep.className='size-sep';el.appendChild(sep);}
+
+    const allOn=sModels.every(m=>S.models.has(m));
+    const someOn=sModels.some(m=>S.models.has(m));
+    const sBtn=document.createElement('span');
+    sBtn.className='size-hdr '+(allOn?'all-on':someOn?'some-on':'none-on');
+    sBtn.textContent=szLabel;
+    sBtn.title=`Toggle all ${szLabel} models · ⌘+click to solo this size`;
+    sBtn.onclick=e=>{
+      if(e.metaKey||e.ctrlKey){
+        const alreadySolo=S.models.size===sModels.length&&sModels.every(m=>S.models.has(m));
+        S.models.clear();
+        if(alreadySolo)models.forEach(m=>S.models.add(m)); else sModels.forEach(m=>S.models.add(m));
+      } else {
+        if(allOn)sModels.forEach(m=>S.models.delete(m)); else sModels.forEach(m=>S.models.add(m));
+      }
+      buildModelChips(models); render();
+    };
+    el.appendChild(sBtn);
+
+    sModels.forEach(m=>{
+      const chip=document.createElement('span');
+      chip.className='chip'+(S.models.has(m)?' on':'');
+      chip.textContent=sym(m)+' '+shortModel(m);
+      chip.title=m+' ('+szLabel+')';
+      chip.onclick=e=>{
+        if(e.metaKey||e.ctrlKey){
+          const solo=!(S.models.size===1&&S.models.has(m));
+          S.models.clear(); if(solo)S.models.add(m); else models.forEach(x=>S.models.add(x));
+        } else {
+          S.models.has(m)?S.models.delete(m):S.models.add(m);
+        }
+        buildModelChips(models); render();
+      };
+      el.appendChild(chip);
+    });
+  });
+}
+
+function buildRunChips(){
+  const el=document.getElementById('f-run'); el.innerHTML='';
+  [['latest-combo','Latest/combo'],['latest-run','Latest run'],['all','All runs']].forEach(([val,label])=>{
+    const chip=document.createElement('span');
+    chip.className='chip'+(S.run===val?' on':'');
+    chip.textContent=label;
+    chip.onclick=()=>{S.run=val;buildRunChips();render();};
+    el.appendChild(chip);
+  });
+}
+
+function buildChips(id,items,activeSet,labelFn){
+  const el=document.getElementById(id); el.innerHTML='';
+  const chips=[];
+  items.forEach((item,idx)=>{
+    const chip=document.createElement('span');
+    chip.className='chip'+(activeSet.has(item)?' on':'');
+    chip.textContent=labelFn?labelFn(item):item;
+    chip.onclick=e=>{
+      if(e.metaKey||e.ctrlKey){
+        const solo=!(activeSet.size===1&&activeSet.has(item));
+        activeSet.clear(); if(solo)activeSet.add(item); else items.forEach(x=>activeSet.add(x));
+        chips.forEach((c,i)=>c.classList.toggle('on',activeSet.has(items[i])));
+      } else {
+        activeSet.has(item)?activeSet.delete(item):activeSet.add(item);
+        chip.classList.toggle('on',activeSet.has(item));
+      }
+      render();
+    };
+    el.appendChild(chip); chips.push(chip);
+  });
+}
+
+// ─── URL sync ───────────────────────────────────────────
+function syncURL(){
+  const p=new URLSearchParams();
+  p.set('view',S.view);
+  p.set('run',S.run);
+  if(S.scatterMode!=='detail') p.set('scatterMode',S.scatterMode);
+  if(S.hmMode!=='score')       p.set('hmMode',S.hmMode);
+  if(S.barMode!=='score')      p.set('barMode',S.barMode);
+  if(S.tblSearch)              p.set('q',S.tblSearch);
+  if(S.tblSort.col!=='score'||S.tblSort.dir!=='desc') p.set('sort',S.tblSort.col+':'+S.tblSort.dir);
+  p.set('adapters',[...S.adapters].sort().join(','));
+  p.set('models',  [...S.models].sort().join(','));
+  p.set('cases',   [...S.cases].sort().join(','));
+  history.replaceState(null,'','?'+p.toString());
+}
+
+function loadFromURL(){
+  const p=new URLSearchParams(location.search);
+  if(p.has('view')&&VIEWS.includes(p.get('view')))  S.view=p.get('view');
+  if(p.has('run'))         S.run=p.get('run');
+  if(p.has('scatterMode')) S.scatterMode=p.get('scatterMode');
+  if(p.has('hmMode'))      S.hmMode=p.get('hmMode');
+  if(p.has('barMode'))     S.barMode=p.get('barMode');
+  if(p.has('q'))           S.tblSearch=p.get('q');
+  if(p.has('sort')){const[col,dir]=p.get('sort').split(':');if(col&&dir)S.tblSort={col,dir};}
+  return{
+    adapters:p.has('adapters')?p.get('adapters').split(',').filter(Boolean):null,
+    models:  p.has('models')  ?p.get('models').split(',').filter(Boolean)  :null,
+    cases:   p.has('cases')   ?p.get('cases').split(',').filter(Boolean)   :null,
+  };
+}
+
+// ─── Init ───────────────────────────────────────────────
+function init(){
+  const urlF=loadFromURL();
+  const adapters=[...new Set(DATA.map(r=>r.adapter))].sort();
+  ALL_MODELS=[...new Set(DATA.map(r=>r.model))].sort();
+  const cases=[...new Set(DATA.map(r=>r.case))].sort();
+  const wantA=urlF.adapters||adapters;
+  const wantM=urlF.models||ALL_MODELS;
+  const wantC=urlF.cases||cases;
+  wantA.forEach(a=>{if(adapters.includes(a))S.adapters.add(a);});
+  wantM.forEach(m=>{if(ALL_MODELS.includes(m))S.models.add(m);});
+  wantC.forEach(c=>{if(cases.includes(c))S.cases.add(c);});
+  buildAdapterChips(adapters);
+  buildModelChips(ALL_MODELS);
+  buildRunChips();
+  buildChips('f-cases',cases,S.cases,c=>c.replace(/^\w+-\d+-/,''));
+  const tabsEl=document.getElementById('view-tabs');
+  VIEWS.forEach(v=>{
+    const b=document.createElement('button');
+    b.className='vtab'+(v===S.view?' on':'');
+    b.textContent=v;
+    b.onclick=()=>{S.view=v;document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('on',t.textContent===S.view));render();};
+    tabsEl.appendChild(b);
+  });
+  render();
+}
+
+// ─── Render ─────────────────────────────────────────────
+function render(){
+  syncURL();
+  if(C1){C1.destroy();C1=null;}
+  const rows=filteredRows();
+  const el=document.getElementById('view-content');
+  document.getElementById('data-summary').textContent=rows.length+' rows · '+new Set(rows.map(r=>r.adapter+'|'+r.model)).size+' combos';
+  if(!rows.length){el.innerHTML='<div class="card"><div class="empty">No data matches current filters.</div></div>';return;}
+  ({Scatter:vScatter,Heatmap:vHeatmap,Bars:vBars,Leaderboard:vLeaderboard,Table:vTable,'By Task':vByTask})[S.view](el,rows);
+}
+
+// ─── View 1: Scatter ────────────────────────────────────
+function aggByAdapter(rows){
+  const map=new Map();
+  for(const r of rows){
+    if(!map.has(r.adapter))map.set(r.adapter,{adapter:r.adapter,pass:0,total:0,secs:0,scores:[]});
+    const g=map.get(r.adapter);g.pass+=r.pass;g.total+=r.total;g.secs+=r.seconds;g.scores.push(r.score);
+  }
+  return[...map.values()].map(g=>({...g,avgScore:g.scores.reduce((a,b)=>a+b,0)/g.scores.length}));
+}
+function aggByModel(rows){
+  const map=new Map();
+  for(const r of rows){
+    if(!map.has(r.model))map.set(r.model,{model:r.model,pass:0,total:0,secs:0,scores:[]});
+    const g=map.get(r.model);g.pass+=r.pass;g.total+=r.total;g.secs+=r.seconds;g.scores.push(r.score);
+  }
+  return[...map.values()].map(g=>({...g,avgScore:g.scores.reduce((a,b)=>a+b,0)/g.scores.length}));
+}
+
+function vScatter(el,rows){
+  const mBtn=(label,mode)=>
+    `<button class="btn${S.scatterMode===mode?' on':''}" onclick="S.scatterMode='${mode}';render()">${label}</button>`;
+
+  el.innerHTML=`<div class="card">
+    <div class="ctrl-row">${mBtn('Detail','detail')} ${mBtn('By Adapter','by-adapter')} ${mBtn('By Model','by-model')}</div>
+    <div class="chart-wrap"><canvas id="C1"></canvas></div>
+    <div class="chart-note" id="scatter-note"></div>
+  </div>`;
+
+  let datasets, note, showLabels=false, yMax=1;
+
+  if(S.scatterMode==='by-adapter'){
+    const agg=aggByAdapter(rows);
+    yMax=Math.max(...agg.map(g=>g.total),1);
+    datasets=agg.map(g=>({
+      label:g.adapter,
+      data:[{x:g.secs,y:g.pass,_g:g,_type:'adapter'}],
+      backgroundColor:ac(g.adapter)+'cc',borderColor:ac(g.adapter),
+      borderWidth:2,pointStyle:'circle',pointRadius:14,pointHoverRadius:18,
+    }));
+    note='One point per adapter — all selected models & cases summed.';
+    showLabels=true;
+
+  } else if(S.scatterMode==='by-model'){
+    const agg=aggByModel(rows);
+    yMax=Math.max(...agg.map(g=>g.total),1);
+    const byFam={};
+    for(const g of agg)(byFam[g.model.split('/')[0]]=byFam[g.model.split('/')[0]]||[]).push(g);
+    datasets=Object.entries(byFam).map(([fam,items])=>({
+      label:fam,
+      data:items.map(g=>({x:g.secs,y:g.pass,_g:g,_type:'model'})),
+      backgroundColor:items.map(g=>fc(g.model)+'cc'),
+      borderColor:items.map(g=>fc(g.model)),
+      borderWidth:2,
+      pointStyle:items.map(g=>pdef(g.model).style),
+      rotation:items.map(g=>pdef(g.model).rot),
+      pointRadius:12,pointHoverRadius:16,
+    }));
+    note='One point per model — all adapters summed. Shape = model (same symbol as filter chips).';
+    showLabels=true;
+
+  } else {
+    const agg=aggregated(rows);
+    yMax=[...S.cases].reduce((s,c)=>s+(CASE_TOTALS[c]||0),0)||1;
+    const byAdapter={};
+    for(const g of agg)(byAdapter[g.adapter]=byAdapter[g.adapter]||[]).push(g);
+    datasets=Object.entries(byAdapter).map(([adapter,items])=>({
+      label:adapter,
+      data:items.map(g=>({x:g.secs,y:g.pass,_g:g,_type:'detail'})),
+      backgroundColor:ac(adapter)+'cc',borderColor:ac(adapter),
+      borderWidth:2,
+      pointStyle:items.map(g=>pdef(g.model).style),
+      rotation:items.map(g=>pdef(g.model).rot),
+      pointRadius:9,pointHoverRadius:13,
+    }));
+    note='Color = adapter · Shape = model (same symbol as filter chips). Each point = adapter × model.';
+    showLabels=false;
+  }
+
+  document.getElementById('scatter-note').textContent=note;
+
+  C1=new Chart(document.getElementById('C1'),{
+    type:'scatter',
+    data:{datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'top'},
+        datalabels:{
+          display:showLabels,
+          formatter:val=>{
+            const g=val._g;
+            if(val._type==='adapter') return g.adapter+'\n'+fmtFrac(g.pass,g.total);
+            if(val._type==='model')   return sym(g.model)+' '+shortModel(g.model)+'\n'+fmtFrac(g.pass,g.total);
+            return fmtFrac(g.pass,g.total);
+          },
+          font:{size:10,weight:'600'},color:'#1f2328',
+          align:'top',offset:8,textAlign:'center',
+        },
+        tooltip:{
+          callbacks:{
+            title:ctx=>{
+              const g=ctx[0].raw._g, t=ctx[0].raw._type;
+              return t==='adapter'?g.adapter:sym(g.model)+' '+shortModel(g.model);
+            },
+            label:ctx=>{
+              const g=ctx[0].raw._g, t=ctx[0].raw._type;
+              const sz=t!=='adapter'?parseSize(g.model):null;
+              const lines=[];
+              if(t==='detail')   lines.push(`  adapter: ${g.adapter}`);
+              if(t!=='adapter')  lines.push(`  model:   ${g.model}`);
+              if(sz!=null)       lines.push(`  size:    ${sz}B`);
+              lines.push(`  score:   ${fmtFrac(g.pass,g.total)}`);
+              lines.push(`  time:    ${fmtTime(g.secs)}`);
+              if(g.attempted!=null&&g.attempted<g.caseCount)
+                lines.push(`  ⚠ ${g.attempted}/${g.caseCount} cases run`);
+              return lines;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{title:{display:true,text:'Total seconds  ←  lower is better'},grid:{color:'#eaeef2'}},
+        y:{title:{display:true,text:'Checks passed'},min:0,max:yMax,
+           ticks:{stepSize:Math.max(1,Math.round(yMax/6)),callback:v=>Number.isInteger(v)?v+'/'+yMax:''},
+           grid:{color:'#eaeef2'}}
+      }
+    }
+  });
+}
+
+// ─── View 2: Heatmap ────────────────────────────────────
+function vHeatmap(el,rows){
+  const cases=[...S.cases].sort();
+  const agg=aggregated(rows);
+  const maxSec=Math.max(...rows.map(r=>r.seconds).filter(Boolean),1);
+  const mBtn=(label,mode)=>
+    `<button class="btn${S.hmMode===mode?' on':''}" onclick="S.hmMode='${mode}';render()">${label}</button>`;
+  let html=`<div class="card">
+  <div class="ctrl-row">${mBtn('Score','score')} ${mBtn('Time','time')}
+    <div class="ctrl-sep"></div>
+    <span class="row-count">Sorted by total score — missing (—) counted as 0</span>
+  </div>
+  <div class="hm-wrap"><table class="hm"><thead><tr>
+    <th class="rl" style="z-index:3">Model</th>
+    <th class="agg">${S.hmMode==='score'?'Total':'Total time'}</th>
+    ${cases.map(c=>`<th title="${c}">${c.replace(/^\w+-\d+-/,'')}</th>`).join('')}
+  </tr></thead><tbody>`;
+  let lastAdapter=null;
+  for(const g of agg){
+    if(g.adapter!==lastAdapter){
+      lastAdapter=g.adapter;
+      const dot=`background:${ac(g.adapter)};display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:5px`;
+      html+=`<tr class="adapter-hdr"><td colspan="${cases.length+2}"><span style="${dot}"></span>${g.adapter}</td></tr>`;
+    }
+    const sz=parseSize(g.model);
+    const aggBg=S.hmMode==='score'?scoreColor(g.avgScore):timeColor(g.secs,maxSec*cases.length);
+    const aggVal=S.hmMode==='score'?fmtFrac(g.pass,g.total):fmtTime(g.secs);
+    const cov=g.attempted<g.caseCount?` ⚠${g.attempted}/${g.caseCount}`:'';
+    html+=`<tr>
+      <td class="rl" title="${g.model} · ${sz?sz+'B':'?'}">${sym(g.model)} ${shortModel(g.model)} <span style="font-size:10px;color:var(--muted);font-weight:400">${sz?sz+'B':''}</span></td>
+      <td class="agg" style="background:${aggBg}" title="${fmtFrac(g.pass,g.total)} checks${cov}">${aggVal}</td>`;
+    for(const c of cases){
+      const r=g.byCase[c];
+      if(!r){html+=`<td style="background:#f0f2f4;color:#adb5bd" title="not run">—</td>`;continue;}
+      const bg=S.hmMode==='score'?scoreColor(r.score):timeColor(r.seconds,maxSec);
+      const out=r.status.includes('timeout')?';outline:2px solid #6e40c9;outline-offset:-2px':'';
+      html+=`<td style="background:${bg}${out}" title="${r.pass}/${r.total} · ${fmtTime(r.seconds)} · ${r.status}">${S.hmMode==='score'?fmtFrac(r.pass,r.total):fmtTime(r.seconds)}</td>`;
+    }
+    html+=`</tr>`;
+  }
+  html+=`</tbody></table></div></div>`;
+  el.innerHTML=html;
+}
+
+// ─── View 3: Bars ───────────────────────────────────────
+function vBars(el,rows){
+  const agg=aggregated(rows);
+  const models=[...new Set(agg.map(g=>g.model))].sort();
+  const adapters=[...new Set(agg.map(g=>g.adapter))].sort();
+  const mBtn=(label,mode)=>
+    `<button class="btn${S.barMode===mode?' on':''}" onclick="S.barMode='${mode}';render()">${label}</button>`;
+  el.innerHTML=`<div class="card">
+  <div class="ctrl-row">${mBtn('Score','score')} ${mBtn('Time','time')}</div>
+  <div class="chart-wrap"><canvas id="C1"></canvas></div></div>`;
+  C1=new Chart(document.getElementById('C1'),{
+    type:'bar',
+    data:{
+      labels:models.map(m=>sym(m)+' '+shortModel(m)),
+      datasets:adapters.map(adapter=>({
+        label:adapter,
+        data:models.map(m=>{const g=agg.find(x=>x.adapter===adapter&&x.model===m);return g?(S.barMode==='score'?g.avgScore:g.secs):null;}),
+        backgroundColor:ac(adapter)+'bb',borderColor:ac(adapter),borderWidth:1,
+      }))
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top'},
+        tooltip:{callbacks:{label:ctx=>{
+          const g=agg.find(x=>x.adapter===ctx.dataset.label&&sym(x.model)+' '+shortModel(x.model)===ctx.label);
+          if(!g)return`${ctx.dataset.label}: —`;
+          return S.barMode==='score'?`${ctx.dataset.label}: ${fmtFrac(g.pass,g.total)}`:`${ctx.dataset.label}: ${fmtTime(g.secs)}`;
+        }}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{maxRotation:40}},
+        y:{title:{display:true,text:S.barMode==='score'?'Avg score (missing=0)':'Total seconds'},
+          ...(S.barMode==='score'?{min:0,max:1.06,ticks:{callback:v=>v<=1?fmtPct(v):''}}:{}),
+          grid:{color:'#eaeef2'}}
+      }
+    }
+  });
+}
+
+// ─── View 4: Leaderboard ────────────────────────────────
+function vLeaderboard(el,rows){
+  const agg=aggregated(rows);
+  const cases=[...S.cases].sort();
+  let html='<div class="lb">';
+  agg.forEach((g,i)=>{
+    const rc=rankColor(i),sc=scoreCol(g.avgScore);
+    const sz=parseSize(g.model);
+    const abadge=`<span class="badge" style="background:${ac(g.adapter)}22;color:${ac(g.adapter)};border:1px solid ${ac(g.adapter)}44">${g.adapter}</span>`;
+    const covCol=g.attempted<g.caseCount?'#d4371c':'var(--muted)';
+    const tags=cases.map(c=>{
+      const r=g.byCase[c];
+      if(!r)return`<span class="lb-case" style="background:#f0f2f4;color:#9ca3af" title="not run">${c.replace(/^\w+-\d+-/,'')}</span>`;
+      const bg=scoreColor(r.score),col=scoreCol(r.score);
+      const to=r.status.includes('timeout')?' style="outline:1px solid #6e40c9"':'';
+      return`<span class="lb-case" style="background:${bg};color:${col}"${to}>${c.replace(/^\w+-\d+-/,'')} ${fmtFrac(r.pass,r.total)}</span>`;
+    }).join('');
+    html+=`<div class="lb-row">
+      <div class="lb-rank" style="color:${rc}">#${i+1}</div>
+      <div>
+        <div class="lb-model">${sym(g.model)} ${shortModel(g.model)} <span style="font-size:10px;font-weight:400;color:var(--muted)">${sz?sz+'B':''}</span></div>
+        <div class="lb-sub">${g.model} ${abadge}</div>
+        <div class="lb-cases">${tags}</div>
+      </div>
+      <div class="lb-right">
+        <div class="lb-score" style="color:${sc}">${fmtFrac(g.pass,g.total)}</div>
+        <div class="lb-time">${fmtTime(g.secs)}</div>
+        <div class="lb-coverage" style="color:${covCol}">${g.attempted}/${g.caseCount} cases run</div>
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  el.innerHTML=`<div class="card" style="padding:12px">${html}</div>`;
+}
+
+// ─── View 5: Table ──────────────────────────────────────
+function vTable(el,rows){
+  const cols=[
+    {k:'run',label:'Run'},{k:'adapter',label:'Adapter'},{k:'model',label:'Model'},
+    {k:'case',label:'Case'},{k:'score',label:'Score'},{k:'seconds',label:'Time'},
+    {k:'pass',label:'Pass'},{k:'total',label:'Total'},{k:'status',label:'Status'},
+  ];
+  const{col:sc,dir:sd}=S.tblSort;
+  const q=S.tblSearch.toLowerCase();
+  let sorted=rows.filter(r=>!q||[r.run,r.adapter,r.model,r.case,r.status].some(v=>v.toLowerCase().includes(q)));
+  sorted.sort((a,b)=>{const av=a[sc],bv=b[sc];const cmp=typeof av==='number'?av-bv:String(av).localeCompare(String(bv));return sd==='asc'?cmp:-cmp;});
+  el.innerHTML=`<div class="card">
+  <div class="ctrl-row">
+    <input class="search" id="tbl-q" placeholder="Search run, adapter, model, case…" value="${S.tblSearch}">
+    <span class="row-count">${sorted.length} rows</span>
+    <div class="ctrl-sep"></div>
+    <button class="btn" onclick="S.tblSearch='';document.getElementById('tbl-q').value='';render()">Clear</button>
+  </div>
+  <div class="dt-wrap"><table class="dt">
+  <thead><tr>${cols.map(c=>`<th class="${sc===c.k?(sd==='asc'?'sa':'sd'):''}" data-col="${c.k}">${c.label}</th>`).join('')}</tr></thead>
+  <tbody>
+  ${sorted.map(r=>{const sz=parseSize(r.model);return`<tr>
+    <td style="font-size:11px;color:var(--muted)">${r.run}</td>
+    <td><span class="adot" style="background:${ac(r.adapter)}"></span>${r.adapter}</td>
+    <td title="${r.model}">${sym(r.model)} ${shortModel(r.model)} <span style="font-size:10px;color:var(--muted)">${sz?sz+'B':''}</span></td>
+    <td>${r.case}</td>
+    <td style="background:${scoreColor(r.score)};font-weight:600">${fmtFrac(r.pass,r.total)}</td>
+    <td>${fmtTime(r.seconds)}</td>
+    <td>${r.pass}</td><td>${r.total}</td>
+    <td>${statusBadge(r.status)}</td>
+  </tr>`;}).join('')}
+  </tbody></table></div></div>`;
+  document.getElementById('tbl-q').addEventListener('input',e=>{S.tblSearch=e.target.value;render();});
+  document.querySelectorAll('.dt th[data-col]').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const k=th.dataset.col;
+      S.tblSort=S.tblSort.col===k?{col:k,dir:S.tblSort.dir==='asc'?'desc':'asc'}:{col:k,dir:'asc'};
+      render();
+    });
+  });
+}
+
+// ─── View 6: By Task ────────────────────────────────────
+function vByTask(el,rows){
+  const cases=[...new Set(rows.map(r=>r.case))].sort();
+  function rankForCase(c){
+    const map=new Map();
+    for(const r of rows.filter(x=>x.case===c)){
+      const k=r.adapter+'|'+r.model,cur=map.get(k);
+      if(!cur||r.score>cur.score||(r.score===cur.score&&r.seconds<cur.seconds))map.set(k,r);
+    }
+    return[...map.values()].sort((a,b)=>b.score-a.score||a.seconds-b.seconds);
+  }
+  const langTag=c=>({bash:'sh',js:'js',ts:'ts',smoke:'—'})[c.split('-')[0]]||c.split('-')[0];
+  let html='<div class="task-grid">';
+  for(const c of cases){
+    const ranked=rankForCase(c);
+    html+=`<div class="task-card">
+      <div class="task-title"><span class="task-tag">${langTag(c)}</span>${c}</div>`;
+    if(!ranked.length){html+=`<div style="color:var(--muted);font-size:12px;padding:8px 0">No data</div>`;}
+    else ranked.forEach((r,i)=>{
+      const rc=rankColor(i),bg=scoreColor(r.score),col=scoreCol(r.score);
+      const sz=parseSize(r.model);
+      const to=r.status.includes('timeout')?' title="timeout" style="outline:1px solid #6e40c9"':'';
+      html+=`<div class="task-row">
+        <span class="task-rank" style="color:${rc}">#${i+1}</span>
+        <span style="font-size:13px;flex-shrink:0">${sym(r.model)}</span>
+        <span class="task-model" title="${r.model} · ${sz?sz+'B':'?'}">${shortModel(r.model)}</span>
+        <span class="task-adapter" style="background:${ac(r.adapter)}18;color:${ac(r.adapter)}">${r.adapter}</span>
+        <span class="task-score" style="background:${bg};color:${col}"${to}>${fmtFrac(r.pass,r.total)}</span>
+        <span class="task-time">${fmtTime(r.seconds)}</span>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+init();
+</script>
+</body>
+</html>
+VIZ_END
+} > "$OUT"
+
+bytes=$(wc -c < "$OUT" | tr -d ' ')
+ok "results/index.html written (${bytes} bytes, ${#csvs[@]} run dirs)"
+
+if [ -t 0 ] && [ -t 1 ]; then
+  key=""
+  for i in 3 2 1; do
+    printf "\r> press 'o' to open (%ds) " "$i"
+    if IFS= read -r -s -n 1 -t 1 key 2>/dev/null; then
+      break
+    fi
+  done
+  printf "\r\033[K"
+  if [ "$key" = "o" ] || [ "$key" = "O" ]; then
+    open "$OUT"
+  fi
+fi

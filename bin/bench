@@ -6,31 +6,56 @@
 # pass/total. Results land in results/<timestamp>/results.csv plus per-run logs.
 #
 # Flags:
-#   --adapters a,b   CLI adapters to run        (default: $DEFAULT_ADAPTERS)
-#   --models   a,b   model ids                  (default: models.txt)
-#   --cases    a,b   case ids                   (default: all cases/)
-#   --timeout  N     per-trial timeout, seconds (default: 300)
-#   --trials   N     repeat each (tool,model,case) N times; results.csv records
-#                    the MEDIAN score & seconds (run-to-run variance is material,
-#                    so a single trial is untrustworthy). default: 1
-#   --list           print the resolved axes and exit
+#   --tool/-t a,b      CLI tools/adapters to run  (default: $DEFAULT_ADAPTERS)
+#   --models/--model/-m a,b  model ids            (default: models.txt)
+#   --cases    a,b     case ids                   (default: all cases/)
+#   --timeout  N       per-trial timeout, seconds (default: 300)
+#   --trials   N       repeat each (tool,model,case) N times; results.csv records
+#                      the MEDIAN score & seconds (run-to-run variance is material,
+#                      so a single trial is untrustworthy). default: 1
+#   --list             print the resolved axes and exit
+#   --interactive/-i   fzf pickers for model and tool; skips a picker if that
+#                      flag was already given (e.g. --tool hermes -i only picks model)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
-ADAPTERS="$DEFAULT_ADAPTERS"; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0
+ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --adapters) ADAPTERS="$2"; shift 2;;
-    --models)   MODELS="$2";   shift 2;;
-    --cases)    CASES="$2";    shift 2;;
-    --timeout)  TIMEOUT="$2";  shift 2;;
-    --trials)   TRIALS="$2";   shift 2;;
-    --list)     LIST=1; shift;;
-    -h|--help)  sed -n '2,19p' "$0"; exit 0;;
+    --tool|-t)          ADAPTERS="$2"; shift 2;;
+    --models|--model|-m) MODELS="$2"; shift 2;;
+    --cases)             CASES="$2";   shift 2;;
+    --timeout)           TIMEOUT="$2"; shift 2;;
+    --trials)            TRIALS="$2";  shift 2;;
+    --list)              LIST=1; shift;;
+    --interactive|-i)    INTERACTIVE=1; shift;;
+    -h|--help)  sed -n '2,18p' "$0"; exit 0;;
     *) die "unknown option: $1";;
   esac
 done
+
+if [ "$INTERACTIVE" = 1 ]; then
+  command -v fzf >/dev/null 2>&1 || die "fzf not installed (brew install fzf)"
+
+  if [ -z "$MODELS" ]; then
+    all_models="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
+    [ -z "$all_models" ] && die "no models found via lms ls"
+    sel_models="$(printf '%s\n' "$all_models" | fzf --multi --prompt='Models > ' --header='TAB = multi-select  ENTER = confirm')"
+    [ -z "$sel_models" ] && die "no models selected"
+    MODELS="$(printf '%s\n' "$sel_models" | paste -sd',' -)"
+  fi
+
+  if [ -z "$ADAPTERS" ]; then
+    all_tools="$(ls "$ADAPTERS_DIR"/*.sh 2>/dev/null | xargs -I{} basename {} .sh | sort)"
+    [ -z "$all_tools" ] && die "no adapters found in $ADAPTERS_DIR"
+    sel_tools="$(printf '%s\n' "$all_tools" | fzf --multi --prompt='Tools  > ' --header='TAB = multi-select  ENTER = confirm')"
+    [ -z "$sel_tools" ] && die "no tools selected"
+    ADAPTERS="$(printf '%s\n' "$sel_tools" | paste -sd',' -)"
+  fi
+fi
+
+[ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
 [[ "$TRIALS" =~ ^[1-9][0-9]*$ ]] || die "--trials must be a positive integer (got: $TRIALS)"
 
 # Resolve the three axes into arrays.
@@ -124,9 +149,10 @@ for model in "${MODEL_ARR[@]}"; do
 
       # --- report ----------------------------------------------------------
       sec_note="${elapsed}s"; [ "$TRIALS" -gt 1 ] && sec_note="med ${elapsed}s, ${n_ok}/${TRIALS} ok"
+      local status_note=""; [ "$status" != "ok" ] && status_note=" $status"
       if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
-      elif [ "$pass" -gt 0 ]; then warn "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note} $status${C_RST}"
-      else err "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note} $status${C_RST}"; fi
+      elif [ "$pass" -gt 0 ]; then warn "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
+      else err "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"; fi
     done
   done
 
