@@ -56,11 +56,22 @@ How each is pointed at LM Studio:
 > Add each model id you test to that `models` array.
 
 > **`hermes` is configured correctly** (provider `lmstudio`, file+terminal
-> toolsets) **but is excluded from the default benchmark**: it runs tools in an
-> isolated container workspace (`docker_mount_cwd_to_workspace: false` in
-> `~/.hermes/config.yaml`), so edits never reach the host sandbox. Enable cwd
-> mounting / a local backend in that file (a dotfiles task — hermes guards it
-> from agent edits) and re-add `hermes` to `DEFAULT_ADAPTERS` to include it.
+> toolsets) **but is excluded from the default benchmark** because its tools run
+> in a **container workspace** that doesn't surface edits to the host sandbox.
+> `bin/doctor` reports hermes readiness. Two ways to make it eligible (set under
+> `terminal:` in `~/.hermes/config.yaml` — a dotfiles concern):
+> - **Safe (recommended):** keep `backend: docker` and set
+>   `docker_mount_cwd_to_workspace: true` (mounts cwd → `/workspace`, isolation
+>   kept). Needs Docker running + the `nikolaik/python-nodejs` image.
+> - **Simple:** `backend: local` — runs the `--yolo` agent's tools directly on
+>   the host (no sandbox).
+>
+> ⚠️ **Known issue (unresolved):** even with `docker_mount_cwd_to_workspace:
+> true` + Docker, hermes edits did **not** surface to the host sandbox in
+> testing on macOS (the model resolves paths the bind-mount doesn't expose;
+> `container_persistent: false` didn't help either). Until that's solved, leave
+> `hermes` out of `DEFAULT_ADAPTERS`. Then re-add it once a real-case edit is
+> confirmed to change the host file.
 
 If `opencode`'s `lmstudio` provider needs a non-default URL, set it in
 `~/.config/opencode/opencode.json`:

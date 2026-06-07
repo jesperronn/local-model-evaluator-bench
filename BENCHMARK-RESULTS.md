@@ -120,9 +120,15 @@ opencode both abort with:
 broken. The QAT sibling (#3) works fine, so this is variant-specific.
 
 **Suggestions to improve:**
-- **Fix the model, not the harness:** re-download the `lmstudio-community`
-  build of gemma-4-12b (fixed templates) or override the Prompt Template in LM
-  Studio → My Models → model settings. Then re-run model #4.
+- **Fix the model, not the harness.** Re-downloading does **not** help: the
+  broken model already *is* the only available build
+  (`lmstudio-community/gemma-4-12B-it-GGUF`, Q4_K_M) and the bad jinja template
+  is embedded in the GGUF — no alternative variant resolves via `lms get`, and
+  there's no CLI-patchable per-model override. The fix is a **manual GUI
+  override**: LM Studio → My Models → gemma-4-12b → Prompt Template → paste a
+  working gemma template (copy the QAT sibling #3, same `gemma4` arch). Then
+  re-run model #4. (The QAT variant already covers the gemma-12b class, so this
+  is low priority.)
 - **Harness:** `bin/doctor` (or a pre-run check) should do a 1-token chat
   completion per model and flag template-render errors up front, so a broken
   model is caught before a full matrix run rather than looking like 3 tool
@@ -261,9 +267,12 @@ Per-model totals (out of 15; #4 = broken template):
 
 ## Not benchmarked
 
-- **hermes** — reaches models fine but executes in an isolated container
-  workspace (`docker_mount_cwd_to_workspace: false`); edits never reach the host
-  sandbox. Needs a config change (dotfiles) to participate. See `adapters/hermes.sh`.
+- **hermes** — reaches models fine but executes its tools in a container
+  workspace. Tried the safe fix (keep `backend: docker`, set
+  `docker_mount_cwd_to_workspace: true`, image pulled, `bin/doctor` confirms
+  ready) — but edits **still don't surface** to the host sandbox on macOS
+  (path/bind-mount mismatch; `container_persistent: false` didn't help). Remains
+  excluded pending deeper hermes/Docker debugging. See `docs/SETUP.md` + `bin/doctor`.
 - **VS Code / IntelliJ extensions** — point them at the same LM Studio endpoint
   and grade with each case's `check/run.sh` (see `docs/SETUP.md`). Manual, not in
   this automated matrix.

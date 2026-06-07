@@ -26,6 +26,28 @@ for a in "$ADAPTERS_DIR"/*.sh; do
 done
 
 echo
+info "hermes readiness (its tools run in a sandbox that must reach the cwd):"
+if command -v hermes >/dev/null 2>&1; then
+  cfg="$HOME/.hermes/config.yaml"
+  backend="$(grep -A1 '^terminal:' "$cfg" 2>/dev/null | sed -nE 's/^[[:space:]]*backend:[[:space:]]*([a-z]+).*/\1/p' | head -1)"
+  mount="$(grep -E 'docker_mount_cwd_to_workspace:' "$cfg" 2>/dev/null | sed -nE 's/.*:[[:space:]]*([a-z]+).*/\1/p' | head -1)"
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then dkr=up; else dkr=down; fi
+  if [ "$backend" = local ]; then
+    ok "backend=local (runs on host, no sandbox) — edits reach the cwd"
+  elif [ "$backend" = docker ] && [ "$mount" = true ] && [ "$dkr" = up ]; then
+    ok "backend=docker + cwd mounted + docker up — ready (isolation kept)"
+  else
+    warn "NOT ready: backend=${backend:-?} mount=${mount:-?} docker=$dkr"
+    echo "    In $cfg under 'terminal:' set ONE of:"
+    echo "      backend: docker   AND   docker_mount_cwd_to_workspace: true   (safe: keeps container isolation; needs Docker running + image)"
+    echo "      backend: local                                                (runs --yolo tools directly on the host — no sandbox)"
+    echo "    Then add 'hermes' to DEFAULT_ADAPTERS in config.sh."
+  fi
+else
+  echo "    hermes not installed — skipping"
+fi
+
+echo
 info "Models under test ($MODELS_FILE):"
 read_list "$MODELS_FILE" | sed 's/^/    /'
 
