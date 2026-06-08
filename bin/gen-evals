@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# bin/gen-evals [results.csv]
+# Collect bench results + repo context and emit a structured context bundle
+# for the eval-page generation agent. Defaults to the latest results run.
+# Output is markdown suitable for piping to `claude` or using in /gen-evals.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [options] [results.csv]
+
+Collect benchmark results and repo context, then emit a context bundle for the
+eval-page generation agent. Pipe to \`claude --print\` or run /gen-evals in
+Claude Code.
+
+Options:
+  --all         merge all runs (latest result per adapter+model+case)
+  -h, --help    show this help
+
+Examples:
+  bin/gen-evals                          # latest run
+  bin/gen-evals --all                    # merge all runs
+  bin/gen-evals results/20260608/results.csv
+  bin/gen-evals | claude --print
+EOF
+  exit 0
+}
+
+ALL_RUNS=0
+CSV=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage ;;
+    --all) ALL_RUNS=1; shift ;;
+    -*) die "unknown option: $1" ;;
+    *) CSV="$1"; shift ;;
+  esac
+done
+
+if [ "$ALL_RUNS" -eq 1 ]; then
+  MERGED="$(mktemp)"
+  trap 'rm -f "$MERGED"' EXIT
+  ALL_CSVS="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null)"
+  [ -n "$ALL_CSVS" ] || die "no results found in $RESULTS_DIR"
+  head -1 "$(echo "$ALL_CSVS" | head -1)" > "$MERGED"
+  awk -F, 'FNR==1{next} !seen[$1,$2,$3]++' $ALL_CSVS >> "$MERGED"
+  CSV="$MERGED"
+  CSV_LABEL="merged (all runs, latest per adapter+model+case)"
+elif [ -z "$CSV" ]; then
+  CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
+  [ -n "$CSV" ] || die "no results found in $RESULTS_DIR"
+  CSV_LABEL="$CSV"
+else
+  CSV_LABEL="$CSV"
+fi
+[ -f "$CSV" ] || die "no such file: $CSV"
+
+# ── emit context bundle ─────────────────────────────────────────────────────
+
+cat <<HEADER
+# Eval-page generation context bundle
+
+**Source CSV:** $CSV_LABEL
+**Generated:** $(date '+%Y-%m-%d %H:%M')
+**Repo root:** $HERE
+
+This bundle contains all data and context needed to generate or update model
+and tool evaluation pages. See the generation instructions at the end.
+
+---
+
+## 1. Raw results CSV
+
+\`\`\`csv
+HEADER
+cat "$CSV"
+cat <<'SECTION'
+```
+
+---
+
+## 2. Models under test (models.txt)
+
+```
+SECTION
+grep -v '^#' "$HERE/models.txt" | grep -v '^\s*$'
+cat <<'SECTION'
+```
+
+---
+
+## 3. Adapter scripts
+
+SECTION
+
+for adapter_script in "$HERE/adapters"/*.sh; do
+  name="$(basename "$adapter_script" .sh)"
+  echo "### adapters/${name}.sh"
+  echo
+  echo '```bash'
+  cat "$adapter_script"
+  echo '```'
+  echo
+done
+
+cat <<'SECTION'
+---
+
+## 4. Case categories (from docs/CASES.md)
+
+The following categories matter when attributing failures:
+- **bugfix / feature / cli** — single-file; failure usually means model couldn't solve the logic
+- **multi-file** — requires editing ≥2 files atomically; failure often means the adapter's edit format broke on the second file, or the model lost track of cross-file context
+- **self-verify** — tests ship in the workdir; the tool is told to run them and iterate; failure means the tool didn't loop, or the model couldn't fix its own mistakes
+- **smoke** — connectivity only; exclude from quality analysis
+
+Case summary (id → category → max points):
+SECTION
+
+for meta in "$HERE/cases"/*/meta.json; do
+  jq -r '"- \(.id)  [\(.category)]  max \(.points)"' "$meta" 2>/dev/null
+done
+
+cat <<'SECTION'
+
+---
+
+## 5. Requirements documents
+
+### docs/MODEL-EVAL-REQUIREMENTS.md
+
+SECTION
+cat "$HERE/docs/MODEL-EVAL-REQUIREMENTS.md"
+
+cat <<'SECTION'
+
+---
+
+### docs/TOOL-EVAL-REQUIREMENTS.md
+
+SECTION
+cat "$HERE/docs/TOOL-EVAL-REQUIREMENTS.md"
+
+cat <<'SECTION'
+
+---
+
+## 6. Existing eval pages (if any)
+
+SECTION
+
+MODEL_DIR="$HERE/docs/models"
+TOOL_DIR="$HERE/docs/tools"
+
+if [ -d "$MODEL_DIR" ] && ls "$MODEL_DIR"/*.md &>/dev/null; then
+  echo "### docs/models/"
+  echo
+  for f in "$MODEL_DIR"/*.md; do
+    echo "#### $(basename "$f")"
+    echo
+    echo '```markdown'
+    cat "$f"
+    echo '```'
+    echo
+  done
+else
+  echo "_No model eval pages exist yet — all pages will be created fresh._"
+  echo
+fi
+
+if [ -d "$TOOL_DIR" ] && ls "$TOOL_DIR"/*.md &>/dev/null; then
+  echo "### docs/tools/"
+  echo
+  for f in "$TOOL_DIR"/*.md; do
+    echo "#### $(basename "$f")"
+    echo
+    echo '```markdown'
+    cat "$f"
+    echo '```'
+    echo
+  done
+else
+  echo "_No tool eval pages exist yet — all pages will be created fresh._"
+  echo
+fi
+
+cat <<'FOOTER'
+---
+
+## 7. Generation instructions
+
+See `.agents/commands/gen-evals.md` for the full agent instructions.
+The instructions are the authoritative spec; this bundle is the data.
+FOOTER
