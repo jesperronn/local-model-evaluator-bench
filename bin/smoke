@@ -33,7 +33,7 @@ CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
 echo
 echo "${C_BLD}Smoke verdict — can each tool reach '$MODEL'?${C_RST}"
 fails=0
-while IFS=, read -r adapter model case pass total score seconds status; do
+while IFS=, read -r adapter model case pass total score seconds status trials; do
   [ "$adapter" = adapter ] && continue
   if [ "$status" != ok ]; then
     err "$(printf '%-9s FAIL    — could not reach model (%s)' "$adapter" "$status")"; fails=$((fails+1))
