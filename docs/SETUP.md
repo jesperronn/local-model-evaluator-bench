@@ -27,6 +27,18 @@ lms ps                      # show what's currently loaded
 > separate runs). You can automate loading with `lms load`/`lms unload` around
 > a `--models <one-id>` run if you want a fully unattended sweep.
 
+## 1b. hf CLI (required for model updates)
+
+`bin/lms_update` uses `hf` to re-download stale models directly from
+HuggingFace, bypassing `lms get` which can hang on XetHub-backed repos.
+
+```bash
+brew install hf
+hf --version    # verify
+```
+
+`bin/doctor` checks for it and prints an install hint if missing.
+
 ## 2. Adding a model under test
 
 1. Download it in LM Studio (GUI) or `lms get <id>`.

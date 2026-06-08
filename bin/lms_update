@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+# bin/lms_update — re-download outdated LM Studio models.
+#
+# Checks each model directory against the HuggingFace API (same logic as
+# bin/outdated). For stale models it resolves the lms model key and runs
+# `lms get <key>` to pull the latest version in-place.
+#
+# Usage:
+#   bin/update              # dry-run: show what would be re-downloaded
+#   bin/update --yes        # actually re-download stale models
+#   bin/update --all        # re-download ALL models (ignore staleness check)
+#   bin/update <dir> ...    # re-download specific model dir(s), e.g. gemma-4-12B-it-GGUF
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+MODELS_ROOT="${HOME}/.lmstudio/models/lmstudio-community"
+HF_ORG="lmstudio-community"
+HF_API="https://huggingface.co/api/models/${HF_ORG}"
+GGUF_CACHE="${HOME}/.lmstudio/.internal/gguf-metadata-cache.json"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [options] [model-dir ...]
+
+Options:
+  -y, --yes   actually re-download (default is dry-run)
+  -a, --all   re-download every model regardless of staleness
+  -h, --help  show this help
+
+Positional args: specific HF directory names to update, e.g. gemma-4-12B-it-GGUF
+EOF
+  exit 0
+}
+
+DRY_RUN=1
+FORCE_ALL=0
+TARGETS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage ;;
+    -y|--yes)  DRY_RUN=0;    shift ;;
+    -a|--all)  FORCE_ALL=1;  shift ;;
+    -*)        die "unknown option: $1" ;;
+    *)         TARGETS+=("$1"); shift ;;
+  esac
+done
+
+[ -d "$MODELS_ROOT" ] || die "models dir not found: $MODELS_ROOT"
+
+# ── Build HF-dir → lms-key mapping via Python ───────────────────────────────
+KEY_MAP="$(python3 << 'PYEOF'
+import json, re, subprocess, sys
+from pathlib import Path
+
+try:
+    lms_models = json.loads(subprocess.check_output(
+        ["lms", "ls", "--json"], stderr=subprocess.DEVNULL))
+except Exception as e:
+    print(f"ERROR: {e}", file=sys.stderr); sys.exit(1)
+
+lms_info = {}
+for m in lms_models:
+    sv = m.get("selectedVariant", "")
+    lms_info[m["modelKey"]] = {
+        "quant":  sv.split("@")[1].lower() if "@" in sv else "",
+        "is_mlx": m.get("format", "") == "safetensors",
+    }
+
+models_root = Path.home() / ".lmstudio/models/lmstudio-community"
+cache_path  = Path.home() / ".lmstudio/.internal/gguf-metadata-cache.json"
+
+def score(hf_dir, lms_key):
+    hf_t  = set(re.findall(r"[a-z0-9]+", hf_dir.lower()))
+    key_t = set(re.findall(r"[a-z0-9]+", lms_key.lower()))
+    if ("qat" in hf_t) != ("qat" in key_t):
+        return -1
+    if ("mlx" in hf_t) != lms_info[lms_key]["is_mlx"]:
+        return -1
+    return len(hf_t & key_t)
+
+result = {}
+
+# GGUF: use metadata cache for quant-aware matching
+if cache_path.exists():
+    with open(cache_path) as f:
+        cache = json.load(f)
+    for path_str, _ in cache["json"]["map"]:
+        if "lmstudio-community" not in path_str:
+            continue
+        rel    = path_str.split("lmstudio-community/")[1]
+        hf_dir = rel.split("/")[0]
+        fname  = Path(rel).name
+        m = re.search(r"[_-](Q\d[^._-]*(?:[_-][KkMm]+)*)\.gguf$", fname, re.IGNORECASE)
+        if not m:
+            continue
+        quant = m.group(1).lower().replace("-", "_")
+        best, best_s = None, 0
+        for key, info in lms_info.items():
+            if info["quant"] != quant:
+                continue
+            s = score(hf_dir, key)
+            if s > best_s:
+                best_s, best = s, key
+        if best and best_s >= 3:
+            result[hf_dir] = best
+
+# MLX / unmatched dirs: token overlap with format agreement
+for dir_path in sorted(models_root.iterdir()):
+    hf_dir = dir_path.name
+    if hf_dir in result:
+        continue
+    best, best_s = None, 0
+    for key in lms_info:
+        s = score(hf_dir, key)
+        if s > best_s:
+            best_s, best = s, key
+    result[hf_dir] = best if best_s >= 3 else ""
+
+for hf_dir, key in sorted(result.items()):
+    print(f"{hf_dir}\t{key}")
+PYEOF
+)"
+[ -n "$KEY_MAP" ] || die "failed to build model key mapping"
+
+# ── Staleness check (mirrors bin/outdated) ───────────────────────────────────
+stale=0; up_to_date=0; skipped=0; no_key=0
+
+declare -A stale_dirs   # hf_dir → lms_key for stale models
+
+for dir in "$MODELS_ROOT"/*/; do
+  name="$(basename "$dir")"
+
+  # If specific targets given, skip non-targets
+  if [ "${#TARGETS[@]}" -gt 0 ]; then
+    found=0
+    for t in "${TARGETS[@]}"; do [[ "$name" == "$t" ]] && found=1; done
+    [ "$found" -eq 1 ] || continue
+  fi
+
+  # Skip incomplete downloads
+  if find "$dir" -maxdepth 2 -name "*.part" 2>/dev/null | grep -q .; then
+    printf "  ${C_DIM}%-45s  partial — skipped${C_RST}\n" "$name"
+    (( skipped++ )) || true; continue
+  fi
+
+  # Resolve lms key
+  lms_key="$(echo "$KEY_MAP" | awk -F'\t' -v d="$name" '$1==d{print $2}')"
+
+  # Skip dirs with no lms key (orphan/superseded copies)
+  if [ -z "$lms_key" ]; then
+    printf "  ${C_DIM}%-45s  no lms key — skipped${C_RST}\n" "$name"
+    (( skipped++ )) || true; continue
+  fi
+
+  # Decide if stale (unless --all)
+  is_stale=0
+  if [ "$FORCE_ALL" -eq 1 ] || [ "${#TARGETS[@]}" -gt 0 ]; then
+    is_stale=1
+  else
+    local_epoch="$(find "$dir" -type f 2>/dev/null \
+      | xargs stat -f "%m" 2>/dev/null | sort -rn | head -1)"
+    hf_json="$(curl -sf --max-time 10 "${HF_API}/${name}" 2>/dev/null || true)"
+    if [ -z "$hf_json" ]; then
+      printf "  ${C_YEL}%-45s  HF API error${C_RST}\n" "$name"
+      (( skipped++ )) || true; sleep 0.5; continue
+    fi
+    hf_ts="$(printf '%s' "$hf_json" \
+      | python3 -c "import json,sys; print(json.load(sys.stdin).get('lastModified',''))" 2>/dev/null || true)"
+    hf_epoch="$(python3 -c \
+      "from datetime import datetime; print(int(datetime.fromisoformat('${hf_ts}'.replace('Z','+00:00')).timestamp()))" \
+      2>/dev/null || true)"
+    [ -n "$hf_epoch" ] && [ "$hf_epoch" -gt "${local_epoch:-0}" ] && is_stale=1
+    sleep 0.3
+  fi
+
+  if [ "$is_stale" -eq 1 ]; then
+    printf "  ${C_RED}%-45s  STALE  →  lms get %s${C_RST}\n" "$name" "$lms_key"
+    stale_dirs["$name"]="$lms_key"
+    (( stale++ )) || true
+  else
+    printf "  ${C_GRN}%-45s  ok${C_RST}\n" "$name"
+    (( up_to_date++ )) || true
+  fi
+done
+
+echo
+if [ "$stale" -eq 0 ] && [ "${#TARGETS[@]}" -eq 0 ] && [ "$FORCE_ALL" -eq 0 ]; then
+  echo "  All models are up to date."
+  exit 0
+fi
+
+if [ "$DRY_RUN" -eq 1 ] && [ "$stale" -gt 0 ]; then
+  echo "  ${C_DIM}Dry run — pass --yes to actually re-download${C_RST}"
+  exit 0
+fi
+
+# ── Download ─────────────────────────────────────────────────────────────────
+if [ "$DRY_RUN" -eq 0 ] && [ "${#stale_dirs[@]}" -gt 0 ]; then
+  command -v hf >/dev/null 2>&1 \
+    || die "hf not found — install with: brew install hf"
+  echo "  Downloading ${#stale_dirs[@]} model(s)..."
+  echo
+  for name in "${!stale_dirs[@]}"; do
+    hf_repo="lmstudio-community/${name}"
+    echo "${C_BLD}==> hf download ${hf_repo}${C_RST}"
+    hf download "$hf_repo" --local-dir "${MODELS_ROOT}/${name}"
+    echo
+  done
+fi

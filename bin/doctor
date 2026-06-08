@@ -18,6 +18,14 @@ else
 fi
 
 echo
+info "Model management CLIs:"
+if command -v hf >/dev/null 2>&1; then
+  ok "hf -> $(command -v hf)"
+else
+  warn "hf not found — bin/lms_update needs it: brew install hf"
+fi
+
+echo
 info "Coding CLIs (adapters in $ADAPTERS_DIR):"
 for a in "$ADAPTERS_DIR"/*.sh; do
   name="$(basename "$a" .sh)"
