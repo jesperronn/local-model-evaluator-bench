@@ -783,6 +783,62 @@ VIZ_END
 bytes=$(wc -c < "$OUT" | tr -d ' ')
 ok "results/index.html written (${bytes} bytes, ${#csvs[@]} run dirs)"
 
+MD_OUT="$HERE/LEADERBOARD.md"
+MERGED_MD="$(mktemp)"
+trap 'rm -f "$MERGED_MD"' EXIT
+head -1 "${csvs[0]}" > "$MERGED_MD"
+awk -F, 'FNR==1{next} !seen[$1,$2,$3]++' "${csvs[@]}" >> "$MERGED_MD"
+{
+  echo "# Benchmark Results"
+  echo
+  printf '**Runs:** %d  **Generated:** %s\n' "${#csvs[@]}" "$(date '+%Y-%m-%d %H:%M')"
+  echo
+  echo "## Leaderboard — by adapter × model"
+  echo
+  echo "| Adapter | Model | Pass | Pass% | Avg s | Trials |"
+  echo "|---------|-------|------|-------|-------|--------|"
+  awk -F, 'NR>1 {
+    k=$1 SUBSEP $2; ad[k]=$1; mo[k]=$2
+    p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
+  }
+  END {
+    for (k in p) {
+      pct = t[k]>0 ? 100*p[k]/t[k] : 0
+      printf "%09.4f\t| %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", \
+        pct, ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
+    }
+  }' "$MERGED_MD" | sort -t$'\t' -k1 -rn | cut -f2-
+  echo
+  echo "## Leaderboard — by model"
+  echo
+  echo "| Model | Pass | Pass% | Avg s |"
+  echo "|-------|------|-------|-------|"
+  awk -F, 'NR>1 { mo[$2]=$2; p[$2]+=$4; t[$2]+=$5; sec[$2]+=$7; n[$2]++ }
+  END {
+    for (m in p) {
+      pct  = t[m]>0 ? 100*p[m]/t[m] : 0
+      avgs = n[m]>0 ? sec[m]/n[m]   : 0
+      printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", \
+        pct, mo[m], p[m], t[m], pct, avgs
+    }
+  }' "$MERGED_MD" | sort -t$'\t' -k1 -rn | cut -f2-
+  echo
+  echo "## Leaderboard — by adapter"
+  echo
+  echo "| Adapter | Pass | Pass% | Avg s |"
+  echo "|---------|------|-------|-------|"
+  awk -F, 'NR>1 { ad[$1]=$1; p[$1]+=$4; t[$1]+=$5; sec[$1]+=$7; n[$1]++ }
+  END {
+    for (a in p) {
+      pct  = t[a]>0 ? 100*p[a]/t[a] : 0
+      avgs = n[a]>0 ? sec[a]/n[a]   : 0
+      printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", \
+        pct, ad[a], p[a], t[a], pct, avgs
+    }
+  }' "$MERGED_MD" | sort -t$'\t' -k1 -rn | cut -f2-
+} > "$MD_OUT"
+ok "LEADERBOARD.md written"
+
 if [ -t 0 ] && [ -t 1 ]; then
   key=""
   for i in 3 2 1; do

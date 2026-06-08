@@ -15,6 +15,8 @@ Options:
   -i, --interactive             use fzf to select tool(s) and model(s)
   -a, --all                     merge all runs under results/ (latest result
                                 wins per adapter+model+case)
+  --save [FILE]                 write leaderboards as markdown
+                                (default: LEADERBOARD.md at repo root)
   -h, --help                    show this help
 
 Defaults to the newest results CSV under $RESULTS_DIR.
@@ -27,6 +29,7 @@ MODEL_FILTER=""
 INTERACTIVE=0
 ALL_RUNS=0
 CSV=""
+SAVE_MD=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -35,6 +38,11 @@ while [[ $# -gt 0 ]]; do
     -m|--model) MODEL_FILTER="$2"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     -a|--all) ALL_RUNS=1; shift ;;
+    --save)
+      case "${2:-}" in
+        ""|-*) SAVE_MD="$HERE/LEADERBOARD.md"; shift ;;
+        *)     SAVE_MD="$2"; shift 2 ;;
+      esac ;;
     -*) die "unknown option: $1" ;;
     *) CSV="$1"; shift ;;
   esac
@@ -157,3 +165,61 @@ END {
       pct, ad[a], p[a], t[a], pct, avgs
   }
 }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+
+if [ -n "$SAVE_MD" ]; then
+  src_label="$CSV"
+  [ "$ALL_RUNS" -eq 1 ] && src_label="all runs (latest per adapter+model+case)"
+  {
+    echo "# Benchmark Report"
+    echo
+    printf '**Source:** `%s`\n' "$src_label"
+    printf '**Generated:** %s\n' "$(date '+%Y-%m-%d %H:%M')"
+    [ -n "$TOOL_FILTER"  ] && printf '**Tool filter:** `%s`\n'  "$TOOL_FILTER"
+    [ -n "$MODEL_FILTER" ] && printf '**Model filter:** `%s`\n' "$MODEL_FILTER"
+    echo
+    echo "## Leaderboard — by adapter × model"
+    echo
+    echo "| Adapter | Model | Pass | Pass% | Avg s | Trials |"
+    echo "|---------|-------|------|-------|-------|--------|"
+    awk -F, 'NR>1 {
+      k=$1 SUBSEP $2; ad[k]=$1; mo[k]=$2
+      p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
+    }
+    END {
+      for (k in p) {
+        pct = t[k]>0 ? 100*p[k]/t[k] : 0
+        printf "%09.4f\t| %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", \
+          pct, ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
+      }
+    }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+    echo
+    echo "## Leaderboard — by model"
+    echo
+    echo "| Model | Pass | Pass% | Avg s |"
+    echo "|-------|------|-------|-------|"
+    awk -F, 'NR>1 { mo[$2]=$2; p[$2]+=$4; t[$2]+=$5; sec[$2]+=$7; n[$2]++ }
+    END {
+      for (m in p) {
+        pct  = t[m]>0 ? 100*p[m]/t[m] : 0
+        avgs = n[m]>0 ? sec[m]/n[m]   : 0
+        printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", \
+          pct, mo[m], p[m], t[m], pct, avgs
+      }
+    }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+    echo
+    echo "## Leaderboard — by adapter"
+    echo
+    echo "| Adapter | Pass | Pass% | Avg s |"
+    echo "|---------|------|-------|-------|"
+    awk -F, 'NR>1 { ad[$1]=$1; p[$1]+=$4; t[$1]+=$5; sec[$1]+=$7; n[$1]++ }
+    END {
+      for (a in p) {
+        pct  = t[a]>0 ? 100*p[a]/t[a] : 0
+        avgs = n[a]>0 ? sec[a]/n[a]   : 0
+        printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", \
+          pct, ad[a], p[a], t[a], pct, avgs
+      }
+    }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+  } > "$SAVE_MD"
+  ok "Markdown saved → $SAVE_MD"
+fi
