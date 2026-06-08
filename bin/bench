@@ -114,7 +114,7 @@ run_trial() {
 for model in "${MODEL_ARR[@]}"; do
   info "loading model: $model"
   bench_ttl_secs=$(( BENCH_TTL_MINUTES * 60 ))
-  lms load --ttl="$bench_ttl_secs" -c "$BENCH_CONTEXT" --parallel "$BENCH_PARALLEL" "$model"
+  lms load --yes --ttl="$bench_ttl_secs" -c "$BENCH_CONTEXT" --parallel "$BENCH_PARALLEL" "$model"
   _lms_rc=$?
   if [ $_lms_rc -eq 130 ] || [ $_lms_rc -eq 143 ]; then exit $_lms_rc; fi
   if [ $_lms_rc -ne 0 ]; then warn "lms load failed for $model — skipping"; continue; fi
