@@ -11,12 +11,24 @@ MODEL="${1:-$SMOKE_MODEL}"
 
 lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
 
-# --- ensure the model is loaded ---------------------------------------------
-if lms_loaded_models | grep -qxF "$MODEL"; then
-  ok "model already loaded: $MODEL"
+# --- ensure the model is loaded with sufficient context ---------------------
+loaded_ctx=$(lms ps --json 2>/dev/null \
+  | python3 -c "
+import json, sys
+ps = json.load(sys.stdin)
+ctxs = [p.get('contextLength', 0) for p in ps if p.get('modelKey') == '$MODEL']
+print(max(ctxs) if ctxs else 0)
+" 2>/dev/null || echo 0)
+
+if [ "${loaded_ctx:-0}" -ge "${SMOKE_CTX}" ] 2>/dev/null; then
+  ok "model already loaded: $MODEL (ctx ${loaded_ctx})"
 else
-  info "loading $MODEL (ttl ${SMOKE_TTL:-none}s) ..."
-  ensure_model_loaded "$MODEL" "${SMOKE_TTL:-}" \
+  if [ "${loaded_ctx:-0}" -gt 0 ] 2>/dev/null; then
+    info "model loaded at ctx ${loaded_ctx} < ${SMOKE_CTX} required — reloading with ${SMOKE_CTX} ..."
+    lms unload "$MODEL" >/dev/null 2>&1 || true
+  fi
+  info "loading $MODEL (ttl ${SMOKE_TTL:-none}s, ctx ${SMOKE_CTX}) ..."
+  ensure_model_loaded "$MODEL" "${SMOKE_TTL:-}" "${SMOKE_CTX}" \
     && ok "loaded $MODEL" \
     || die "could not load $MODEL — check 'lms ls' for the exact key, or load it in the GUI"
 fi

@@ -8,7 +8,10 @@ export LMS_API_KEY="${LMS_API_KEY:-lm-studio}"
 
 # Model used by `bin/smoke` to verify every tool can reach LM Studio. Pick a
 # small, fast one — the smoke case is trivial, so capability doesn't matter.
-export SMOKE_MODEL="${SMOKE_MODEL:-google/gemma-4-e2b-qat@q4_0}"
+export SMOKE_MODEL="${SMOKE_MODEL:-google/gemma-4-e2b}"
+# Context window for the smoke model. Must be ≥64000 so all adapters (including
+# Hermes, which enforces a 64K floor) can reach it.
+export SMOKE_CTX="${SMOKE_CTX:-64000}"
 # How long the smoke model stays loaded after its last use (seconds), so the
 # smoke test doesn't leave memory occupied. Set empty to keep it loaded.
 export SMOKE_TTL="${SMOKE_TTL:-600}"

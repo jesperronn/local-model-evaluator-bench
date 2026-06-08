@@ -63,16 +63,17 @@ lms_loaded_models() {
 }
 
 # Ensure a model is resident. Idempotent; tolerates stale identifiers.
-# Usage: ensure_model_loaded <model-key> [ttl-seconds]
+# Usage: ensure_model_loaded <model-key> [ttl-seconds] [context-length]
 ensure_model_loaded() {
-  local m="$1" ttl="${2:-}" ttl_arg=()
+  local m="$1" ttl="${2:-}" ctx="${3:-}" ttl_arg=() ctx_arg=()
   lms_loaded_models | grep -qxF "$m" && return 0
   [ -n "$ttl" ] && ttl_arg=(--ttl "$ttl")
-  if lms load "$m" -y "${ttl_arg[@]}" >/dev/null 2>/tmp/.lmsload.err; then return 0; fi
+  [ -n "$ctx" ] && ctx_arg=(-c "$ctx")
+  if lms load "$m" --yes "${ttl_arg[@]}" "${ctx_arg[@]}" >/dev/null 2>/tmp/.lmsload.err; then return 0; fi
   # Stale identifier left from a prior --identifier load: clear and retry once.
   if grep -qi "already" /tmp/.lmsload.err; then
     lms unload "$m" >/dev/null 2>&1 || true
-    lms load "$m" -y "${ttl_arg[@]}" >/dev/null 2>&1 && return 0
+    lms load "$m" --yes "${ttl_arg[@]}" "${ctx_arg[@]}" >/dev/null 2>&1 && return 0
   fi
   return 1
 }
