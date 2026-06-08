@@ -8,10 +8,22 @@ export LMS_API_KEY="${LMS_API_KEY:-lm-studio}"
 
 # Model used by `bin/smoke` to verify every tool can reach LM Studio. Pick a
 # small, fast one — the smoke case is trivial, so capability doesn't matter.
-export SMOKE_MODEL="${SMOKE_MODEL:-google/gemma-4-e2b-qat}"
+export SMOKE_MODEL="${SMOKE_MODEL:-google/gemma-4-e2b-qat@q4_0}"
 # How long the smoke model stays loaded after its last use (seconds), so the
 # smoke test doesn't leave memory occupied. Set empty to keep it loaded.
 export SMOKE_TTL="${SMOKE_TTL:-600}"
+
+# bench load parameters — applied whenever bin/bench loads a model.
+# TTL: auto-unload after this many minutes of inactivity (bench loads are
+#   short-lived; 10 min distinguishes them from manually loaded models).
+# CONTEXT: token budget per request; 32768 covers full-file edits + tool call
+#   history. Safe to push higher on 128 GB — the KV cache cost is low.
+# PARALLEL: slots for simultaneous predictions. bench is sequential so 1 gives
+#   best single-request throughput. Raise to 2-4 if you run other tools
+#   against the same model concurrently while bench is running.
+export BENCH_TTL_MINUTES="${BENCH_TTL_MINUTES:-10}"
+export BENCH_CONTEXT="${BENCH_CONTEXT:-32768}"
+export BENCH_PARALLEL="${BENCH_PARALLEL:-1}"
 
 # Which CLI adapters to exercise by default (one file per name in adapters/).
 # Override per-run with:  bin/bench --adapters aider,opencode

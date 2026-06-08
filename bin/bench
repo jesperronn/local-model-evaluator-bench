@@ -20,6 +20,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
+trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
+
 ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -111,7 +113,11 @@ run_trial() {
 
 for model in "${MODEL_ARR[@]}"; do
   info "loading model: $model"
-  lms load "$model" || { warn "lms load failed for $model — skipping"; continue; }
+  bench_ttl_secs=$(( BENCH_TTL_MINUTES * 60 ))
+  lms load --ttl="$bench_ttl_secs" -c "$BENCH_CONTEXT" --parallel "$BENCH_PARALLEL" "$model"
+  _lms_rc=$?
+  if [ $_lms_rc -eq 130 ] || [ $_lms_rc -eq 143 ]; then exit $_lms_rc; fi
+  if [ $_lms_rc -ne 0 ]; then warn "lms load failed for $model — skipping"; continue; fi
 
   for adapter in "${ADAPTER_ARR[@]}"; do
     adapter_sh="$ADAPTERS_DIR/$adapter.sh"
@@ -149,7 +155,7 @@ for model in "${MODEL_ARR[@]}"; do
 
       # --- report ----------------------------------------------------------
       sec_note="${elapsed}s"; [ "$TRIALS" -gt 1 ] && sec_note="med ${elapsed}s, ${n_ok}/${TRIALS} ok"
-      local status_note=""; [ "$status" != "ok" ] && status_note=" $status"
+      status_note=""; [ "$status" != "ok" ] && status_note=" $status"
       if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
       elif [ "$pass" -gt 0 ]; then warn "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
       else err "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"; fi
@@ -157,7 +163,7 @@ for model in "${MODEL_ARR[@]}"; do
   done
 
   info "unloading model: $model"
-  lms unload --all
+  lms unload "$model"
 done
 
 echo

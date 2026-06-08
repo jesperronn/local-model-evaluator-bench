@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# Unload LM Studio models not used in the last TTL minutes.
+# Uses lastUsedTime from `lms ps --json` to determine idle duration.
+
+set -euo pipefail
+
+TTL_MINUTES=30
+DRY_RUN=false
+VERBOSE=false
+INTERACTIVE=false
+
+DIM='\033[2m'
+BOLD='\033[1m'
+GREEN_BOLD='\033[1;32m'
+RED_BOLD='\033[1;31m'
+RESET='\033[0m'
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [options]
+
+Unload LM Studio models not used in the last TTL minutes.
+
+Options:
+  --interactive, -i   Pick models to unload via fzf (overrides --ttl filter)
+  --ttl=MINUTES       Unload if idle for more than MINUTES (default: 30)
+  --dry-run           Show what would be unloaded, without unloading
+  --verbose           Show all models, not just those being unloaded
+  --help              Show this help
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -i|--interactive) INTERACTIVE=true ;;
+    --ttl=*)    TTL_MINUTES="${arg#--ttl=}" ;;
+    --dry-run)  DRY_RUN=true ;;
+    --verbose)  VERBOSE=true ;;
+    --help|-h)  usage; exit 0 ;;
+    *) echo "Unknown option: $arg" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+NOW_MS=$(( $(date +%s) * 1000 ))
+TTL_MS=$(( TTL_MINUTES * 60 * 1000 ))
+
+PS_JSON=$(lms ps --json 2>/dev/null)
+
+if [[ "$PS_JSON" == "[]" || -z "$PS_JSON" ]]; then
+  echo "No models loaded."
+  exit 0
+fi
+
+# Parse all loaded models — sorted by idle_min descending so long-idle appear first
+all_ids=()
+all_idle_mins=()
+
+while IFS=$'\t' read -r identifier idle_min; do
+  all_ids+=("$identifier")
+  all_idle_mins+=("$idle_min")
+done < <(echo "$PS_JSON" | jq -r --argjson now "$NOW_MS" '
+  [.[] | {
+    id:   .identifier,
+    idle: (($now - (.lastUsedTime // $now)) / 60000 | floor)
+  }] | sort_by(-.idle)[] | [.id, (.idle | tostring)] | @tsv
+')
+
+# Decide which models to unload
+ids=()
+idle_mins=()
+
+if $INTERACTIVE; then
+  command -v fzf >/dev/null 2>&1 || { echo "fzf not installed (brew install fzf)" >&2; exit 1; }
+
+  # fzf lines: "  NNNm  identifier"  — over-threshold models marked with *
+  fzf_lines=()
+  for i in "${!all_ids[@]}"; do
+    marker="  "
+    (( all_idle_mins[i] * 60 * 1000 >= TTL_MS )) && marker="* "
+    fzf_lines+=("$(printf '%s%-6s  %s' "$marker" "${all_idle_mins[$i]}m" "${all_ids[$i]}")")
+  done
+
+  selected=$(printf '%s\n' "${fzf_lines[@]}" | \
+    fzf --multi \
+        --prompt='Unload > ' \
+        --header='* = over TTL  TAB = toggle  ENTER = confirm  ESC = cancel' \
+        2>/dev/null || true)
+
+  [ -z "$selected" ] && { echo "Nothing selected."; exit 0; }
+
+  while IFS= read -r line; do
+    id="${line##*  }"
+    for i in "${!all_ids[@]}"; do
+      if [[ "${all_ids[$i]}" == "$id" ]]; then
+        ids+=("$id")
+        idle_mins+=("${all_idle_mins[$i]}")
+        break
+      fi
+    done
+  done <<< "$selected"
+
+else
+  for i in "${!all_ids[@]}"; do
+    if (( all_idle_mins[i] * 60 * 1000 >= TTL_MS )); then
+      ids+=("${all_ids[$i]}")
+      idle_mins+=("${all_idle_mins[$i]}")
+    elif $VERBOSE; then
+      printf "${DIM}Keep   ${RESET}${BOLD}%s${RESET} ${DIM}(idle %sm)${RESET}\n" \
+        "${all_ids[$i]}" "${all_idle_mins[$i]}"
+    fi
+  done
+fi
+
+if (( ${#ids[@]} == 0 )); then
+  echo "No models idle longer than ${TTL_MINUTES}m."
+  exit 0
+fi
+
+# Compute plain-text width of longest prefix for aligned OK/FAILED
+max_prefix_len=0
+for i in "${!ids[@]}"; do
+  plain="Unloading ${ids[$i]} (idle ${idle_mins[$i]}m)..."
+  (( ${#plain} > max_prefix_len )) && max_prefix_len=${#plain}
+done
+
+for i in "${!ids[@]}"; do
+  id="${ids[$i]}"
+  idle="${idle_mins[$i]}"
+  plain="Unloading ${id} (idle ${idle}m)..."
+  pad=$(( max_prefix_len - ${#plain} ))
+
+  printf "${DIM}Unloading${RESET} ${BOLD}%s${RESET} ${DIM}(idle %sm)${RESET}..." "$id" "$idle"
+
+  if $DRY_RUN; then
+    printf "%*s${GREEN_BOLD}OK${RESET}\n" $(( pad + 1 )) ""
+  else
+    if lms unload "$id" >/dev/null 2>&1; then
+      printf "%*s${GREEN_BOLD}OK${RESET}\n" $(( pad + 1 )) ""
+    else
+      printf "%*s${RED_BOLD}FAILED${RESET}\n" $(( pad + 1 )) ""
+    fi
+  fi
+done

@@ -1,9 +1,10 @@
 # Models under test — one LM Studio model id per line.
 # Lines starting with # are ignored. To add a new model: download it in LM
-# Studio, then add its id here (run `lms ls` or `bin/doctor` to see ids).
+# Studio, then run `lms ls --json | jq -r '.[].modelKey'` to get the
+# exact model key and add it here.
 #
-# These ids must match what LM Studio exposes on its OpenAI endpoint. For most
-# models that's the same string `lms ls` prints. Verify with: bin/doctor
+# Use the bare modelKey (no @variant suffix) — lms load only accepts
+# the modelKey, not the variant identifier from lms ls variants[].
 #
 # Ordered smallest → largest by total parameter count so memory-light models
 # run first. Within a family, QAT variants precede full-precision (smaller

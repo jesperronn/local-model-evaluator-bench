@@ -13,6 +13,8 @@ Options:
   -t, --tool TOOL[,TOOL...]    filter by adapter/tool (comma-separated)
   -m, --model MODEL[,MODEL...]  filter by model (comma-separated)
   -i, --interactive             use fzf to select tool(s) and model(s)
+  -a, --all                     merge all runs under results/ (latest result
+                                wins per adapter+model+case)
   -h, --help                    show this help
 
 Defaults to the newest results CSV under $RESULTS_DIR.
@@ -23,6 +25,7 @@ EOF
 TOOL_FILTER=""
 MODEL_FILTER=""
 INTERACTIVE=0
+ALL_RUNS=0
 CSV=""
 
 while [[ $# -gt 0 ]]; do
@@ -31,12 +34,23 @@ while [[ $# -gt 0 ]]; do
     -t|--tool)  TOOL_FILTER="$2";  shift 2 ;;
     -m|--model) MODEL_FILTER="$2"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
+    -a|--all) ALL_RUNS=1; shift ;;
     -*) die "unknown option: $1" ;;
     *) CSV="$1"; shift ;;
   esac
 done
 
-if [ -z "$CSV" ]; then
+if [ "$ALL_RUNS" -eq 1 ]; then
+  # Merge all runs: latest result wins per (adapter,model,case).
+  # CSVs are listed newest-first; awk skips a key it has already seen.
+  MERGED="$(mktemp)"
+  trap 'rm -f "$MERGED"' EXIT
+  ALL_CSVS="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null)"
+  [ -n "$ALL_CSVS" ] || die "no results found in $RESULTS_DIR"
+  head -1 "$(echo "$ALL_CSVS" | head -1)" > "$MERGED"
+  awk -F, 'FNR==1{next} !seen[$1,$2,$3]++' $ALL_CSVS >> "$MERGED"
+  CSV="$MERGED"
+elif [ -z "$CSV" ]; then
   CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
   [ -n "$CSV" ] || die "no results found in $RESULTS_DIR"
 fi
@@ -102,7 +116,9 @@ maxtrials="$(awk -F, 'NR>1 && $9+0>m {m=$9+0} END{print m+0}' "$WORK_CSV")"
 # numerically descending, then the key is stripped with `cut`. Keeping adapter
 # and model in separate awk arrays (keyed by SUBSEP) avoids splitting a display
 # string on " | ", which awk would mis-parse as a regex alternation.
-echo "${C_BLD}Leaderboard — by adapter x model${C_RST}  ${C_DIM}($CSV)${C_RST}"
+src_label="$CSV"
+[ "$ALL_RUNS" -eq 1 ] && src_label="all runs (latest per adapter+model+case)"
+echo "${C_BLD}Leaderboard — by adapter x model${C_RST}  ${C_DIM}($src_label)${C_RST}"
 printf "  %-9s %-26s %8s %8s %7s %6s\n" "ADAPTER" "MODEL" "TESTS" "PASS%" "med s" "trials"
 awk -F, 'NR>1 {
   k=$1 SUBSEP $2; ad[k]=$1; mo[k]=$2
@@ -118,13 +134,26 @@ END {
 
 echo
 echo "${C_BLD}Leaderboard — by model (all adapters)${C_RST}"
-printf "  %-26s %8s %8s %7s %7s\n" "MODEL" "TESTS" "PASS%" "avg s" "total s"
+printf "  %-26s %8s %8s %7s\n" "MODEL" "TESTS" "PASS%" "avg s"
 awk -F, 'NR>1 { mo[$2]=$2; p[$2]+=$4; t[$2]+=$5; sec[$2]+=$7; n[$2]++ }
 END {
   for (m in p) {
     pct  = t[m]>0   ? 100*p[m]/t[m] : 0
     avgs = n[m]>0   ? sec[m]/n[m]   : 0
-    printf "%09.4f\t  %-26s %4d/%-4d %7.1f%% %7.1f %7.1f\n", \
-      pct, mo[m], p[m], t[m], pct, avgs, sec[m]
+    printf "%09.4f\t  %-26s %4d/%-4d %7.1f%% %7.1f\n", \
+      pct, mo[m], p[m], t[m], pct, avgs
+  }
+}' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+
+echo
+echo "${C_BLD}Leaderboard — by adapter (all models)${C_RST}"
+printf "  %-9s %8s %8s %7s\n" "ADAPTER" "TESTS" "PASS%" "avg s"
+awk -F, 'NR>1 { ad[$1]=$1; p[$1]+=$4; t[$1]+=$5; sec[$1]+=$7; n[$1]++ }
+END {
+  for (a in p) {
+    pct  = t[a]>0 ? 100*p[a]/t[a] : 0
+    avgs = n[a]>0 ? sec[a]/n[a]   : 0
+    printf "%09.4f\t  %-9s %4d/%-4d %7.1f%% %7.1f\n", \
+      pct, ad[a], p[a], t[a], pct, avgs
   }
 }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
