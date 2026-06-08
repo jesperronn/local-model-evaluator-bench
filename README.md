@@ -1,25 +1,44 @@
 # Local Model Evaluator Bench
 
 Small, repeatable harness for testing how well **local models** (served by
-[LM Studio](https://lmstudio.ai)) perform as **code editors**, across several
-agentic coding CLIs — and, via the same local server, VS Code / IntelliJ
+[LM Studio](https://lmstudio.ai)) perform on **agentic coding workflows**, across
+several agentic coding CLIs — and, via the same local server, VS Code / IntelliJ
 extensions.
+
+## End goal
+
+The target workload is a **multi-agent orchestration setup**: an orchestrator
+model directing 2–3 coding agents, all running concurrently against the same
+local model. That means the model must handle parallel inference slots
+(`--parallel 3–4`) without degrading, and the cases must reflect realistic
+agentic sub-tasks — not just one-shot edits.
+
+The current single-agent cases are the foundation. They establish baseline
+accuracy and speed per (tool, model) pair. Multi-agent cases (orchestrator +
+sub-agents, concurrent tool calls, hand-off patterns) are the next layer.
 
 ## Purpose
 
 When you run models **locally**, the best model isn't the biggest — it's the
-**smallest and fastest one that can still do the job**. Every extra GB of model
-is RAM you don't have and seconds you wait. So this harness scores two things as
-**co-equal**:
+**smallest and fastest one that can still do the job under realistic load**.
+Every extra GB of model is RAM you don't have; every extra second per sub-task
+multiplies across all agents. So this harness scores two things as **co-equal**:
 
 - **Accuracy** — does the produced code actually pass the tests? (fraction of
   hidden sub-tests passing)
 - **Speed** — how long did the tool+model take? (`seconds` per run, surfaced as
   `med s` in the leaderboard)
 
-The headline question per task is therefore: **what is the smallest / fastest
-local model that reliably passes — and which tool gets the most out of it?**
-Tool choice matters as much as model choice, especially on smaller models.
+The headline question per task is: **what is the smallest / fastest local model
+that reliably passes at realistic concurrency — and which tool gets the most out
+of it?** Tool choice matters as much as model choice, especially on smaller models.
+
+> **`--parallel` and benchmarking realism:** `config.sh` sets `BENCH_PARALLEL=1`
+> (best single-request throughput). When memory allows — especially for small
+> models on a 128 GB machine — benchmark at the concurrency you'll actually run
+> (e.g. `BENCH_PARALLEL=4`) to see how accuracy and latency hold up under load.
+> A model that scores well at `--parallel 1` but degrades at `--parallel 4` is
+> not a good fit for a multi-agent setup.
 
 ## The design criteria
 

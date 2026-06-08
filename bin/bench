@@ -83,7 +83,77 @@ echo "adapter,model,case,pass,total,score,seconds,status,trials" > "$CSV"
 TRIALS_CSV="$RUN_DIR/trials.csv"
 [ "$TRIALS" -gt 1 ] && echo "adapter,model,case,trial,pass,total,score,seconds,status" > "$TRIALS_CSV"
 
-info "run $RUN_ID  —  ${#ADAPTER_ARR[@]} adapters x ${#MODEL_ARR[@]} models x ${#CASE_ARR[@]} cases x ${TRIALS} trial(s)"
+# Collect run configuration + system snapshot into run.json so results are
+# reproducible and comparable across machines / BENCH_PARALLEL settings.
+write_run_meta() {
+  local out="$1"
+
+  # CPU
+  local cpu
+  cpu="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "unknown")"
+
+  # RAM — macOS vm_stat (page-granularity)
+  local page_size total_ram_bytes
+  page_size="$(sysctl -n hw.pagesize 2>/dev/null || echo 16384)"
+  total_ram_bytes="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
+
+  local vm pf pa pi pw pc
+  vm="$(vm_stat 2>/dev/null)"
+  pf="$(awk '/^Pages free:/                    {gsub(/\./,"",$NF); print $NF+0}' <<<"$vm")"
+  pa="$(awk '/^Pages active:/                  {gsub(/\./,"",$NF); print $NF+0}' <<<"$vm")"
+  pi="$(awk '/^Pages inactive:/                {gsub(/\./,"",$NF); print $NF+0}' <<<"$vm")"
+  pw="$(awk '/^Pages wired down:/              {gsub(/\./,"",$NF); print $NF+0}' <<<"$vm")"
+  pc="$(awk '/^Pages occupied by compressor:/  {gsub(/\./,"",$NF); print $NF+0}' <<<"$vm")"
+  pf="${pf:-0}"; pa="${pa:-0}"; pi="${pi:-0}"; pw="${pw:-0}"; pc="${pc:-0}"
+
+  local ram_total_gb ram_used_gb ram_free_gb
+  ram_total_gb="$(awk "BEGIN{printf \"%.1f\", $total_ram_bytes/1073741824}")"
+  ram_used_gb="$( awk "BEGIN{printf \"%.1f\", ($pa+$pw+$pc)*$page_size/1073741824}")"
+  ram_free_gb="$( awk "BEGIN{printf \"%.1f\", ($pf+$pi)*$page_size/1073741824}")"
+
+  # Swap (vm.swapusage: total = 3072.00M  used = 2066.50M ...)
+  local swap_line swap_total swap_used
+  swap_line="$(sysctl vm.swapusage 2>/dev/null || echo "")"
+  swap_total="$(grep -oE 'total = [0-9.]+[MG]' <<<"$swap_line" | grep -oE '[0-9.]+[MG]')"
+  swap_used="$( grep -oE 'used = [0-9.]+[MG]'  <<<"$swap_line" | grep -oE '[0-9.]+[MG]')"
+  swap_total="${swap_total:-0M}"; swap_used="${swap_used:-0M}"
+
+  # Axes as JSON arrays
+  local adapters_json models_json cases_json
+  adapters_json="$(printf '"%s",' "${ADAPTER_ARR[@]}" | sed 's/,$//')"
+  models_json="$(  printf '"%s",' "${MODEL_ARR[@]}"   | sed 's/,$//')"
+  cases_json="$(   printf '"%s",' "${CASE_ARR[@]}"    | sed 's/,$//')"
+
+  cat >"$out" <<EOF
+{
+  "run_id": "$RUN_ID",
+  "bench": {
+    "parallel": $BENCH_PARALLEL,
+    "context": $BENCH_CONTEXT,
+    "ttl_minutes": $BENCH_TTL_MINUTES,
+    "timeout_seconds": $TIMEOUT,
+    "trials": $TRIALS
+  },
+  "axes": {
+    "adapters": [$adapters_json],
+    "models": [$models_json],
+    "cases": [$cases_json]
+  },
+  "system": {
+    "cpu": "$cpu",
+    "ram_total_gb": $ram_total_gb,
+    "ram_used_gb": $ram_used_gb,
+    "ram_free_gb": $ram_free_gb,
+    "swap_total": "$swap_total",
+    "swap_used": "$swap_used"
+  }
+}
+EOF
+}
+
+write_run_meta "$RUN_DIR/run.json"
+
+info "run $RUN_ID  —  ${#ADAPTER_ARR[@]} adapters x ${#MODEL_ARR[@]} models x ${#CASE_ARR[@]} cases x ${TRIALS} trial(s)  --parallel $BENCH_PARALLEL"
 echo
 
 # Run one (adapter,model,case) trial in its own sandbox; echo "pass total elapsed status".
@@ -111,7 +181,25 @@ run_trial() {
   printf '%s %s %s %s\n' "$pass" "$total" "$elapsed" "$status"
 }
 
+# Unload all running instances of a model by their exact lms-ps identifier (e.g.
+# "qwen/qwen3-coder-30b:2"). lms unload by base name silently misses variant-
+# qualified instances, which is why models can survive across bench runs.
+lms_unload_model() {
+  local model="$1"
+  local ids
+  ids="$(lms ps --json 2>/dev/null | jq -r --arg m "$model" '.[] | select(.modelKey==$m) | .identifier')"
+  [ -z "$ids" ] && return 0
+  while IFS= read -r id; do
+    info "unloading model: $model ($id)"
+    lms unload "$id"
+  done <<< "$ids"
+}
+
 for model in "${MODEL_ARR[@]}"; do
+  # Clear any stale instances (e.g. ":2" variants left from a previous run)
+  # before loading, so their RAM is freed first.
+  lms_unload_model "$model"
+
   info "loading model: $model"
   bench_ttl_secs=$(( BENCH_TTL_MINUTES * 60 ))
   lms load --yes --ttl="$bench_ttl_secs" -c "$BENCH_CONTEXT" --parallel "$BENCH_PARALLEL" "$model"
@@ -162,8 +250,7 @@ for model in "${MODEL_ARR[@]}"; do
     done
   done
 
-  info "unloading model: $model"
-  lms unload "$model"
+  lms_unload_model "$model"
 done
 
 echo

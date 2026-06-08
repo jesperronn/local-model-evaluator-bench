@@ -13,12 +13,8 @@ lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
 
 # --- ensure the model is loaded with sufficient context ---------------------
 loaded_ctx=$(lms ps --json 2>/dev/null \
-  | python3 -c "
-import json, sys
-ps = json.load(sys.stdin)
-ctxs = [p.get('contextLength', 0) for p in ps if p.get('modelKey') == '$MODEL']
-print(max(ctxs) if ctxs else 0)
-" 2>/dev/null || echo 0)
+  | jq -r --arg m "$MODEL" '[.[] | select(.modelKey==$m) | .contextLength] | if length>0 then max else 0 end' \
+  2>/dev/null || echo 0)
 
 if [ "${loaded_ctx:-0}" -ge "${SMOKE_CTX}" ] 2>/dev/null; then
   ok "model already loaded: $MODEL (ctx ${loaded_ctx})"

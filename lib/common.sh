@@ -57,9 +57,7 @@ median() {
 # Note: the OpenAI /v1/models endpoint lists ALL downloaded models (JIT load),
 # so it can't tell us what's resident — `lms ps` can.
 lms_loaded_models() {
-  lms ps --json 2>/dev/null \
-    | grep -oE '"modelKey":"[^"]+"' \
-    | sed -E 's/.*:"([^"]+)"/\1/'
+  lms ps --json 2>/dev/null | jq -r '.[].modelKey'
 }
 
 # Ensure a model is resident. Idempotent; tolerates stale identifiers.

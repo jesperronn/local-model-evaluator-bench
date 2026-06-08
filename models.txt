@@ -23,7 +23,6 @@ qwen/qwen3.5-9b
 
 # 12B
 google/gemma-4-12b-qat
-google/gemma-4-12b
 
 # 26B (MoE, 4B active)
 google/gemma-4-26b-a4b-qat
@@ -31,9 +30,8 @@ google/gemma-4-26b-a4b-qat
 # 30B
 qwen/qwen3-coder-30b
 
-# 31B
-google/gemma-4-31b-qat
-google/gemma-4-31b
+# 80B (sparse MoE, 10B active — 60 GB at MLX-6bit)
+qwen/qwen3-coder-next
 
 # 35B (MoE, 3B active)
 qwen/qwen3.6-35b-a3b

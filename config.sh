@@ -21,12 +21,13 @@ export SMOKE_TTL="${SMOKE_TTL:-600}"
 #   short-lived; 10 min distinguishes them from manually loaded models).
 # CONTEXT: token budget per request; 32768 covers full-file edits + tool call
 #   history. Safe to push higher on 128 GB — the KV cache cost is low.
-# PARALLEL: slots for simultaneous predictions. bench is sequential so 1 gives
-#   best single-request throughput. Raise to 2-4 if you run other tools
-#   against the same model concurrently while bench is running.
+# PARALLEL: slots for simultaneous predictions. Set to match the real
+#   multi-agent concurrency you care about (orchestrator + 2-3 agents = 3-4).
+#   Default 3 mirrors the target workload; lower to 1 for max single-request
+#   throughput, raise to 4 for a heavier orchestration scenario.
 export BENCH_TTL_MINUTES="${BENCH_TTL_MINUTES:-10}"
 export BENCH_CONTEXT="${BENCH_CONTEXT:-32768}"
-export BENCH_PARALLEL="${BENCH_PARALLEL:-1}"
+export BENCH_PARALLEL="${BENCH_PARALLEL:-3}"
 
 # Which CLI adapters to exercise by default (one file per name in adapters/).
 # Override per-run with:  bin/bench --adapters aider,opencode
