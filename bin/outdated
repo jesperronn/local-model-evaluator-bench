@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# bin/outdated — check whether local LM Studio models are behind HuggingFace.
+#
+# For each model directory under ~/.lmstudio/models/lmstudio-community/, queries
+# the HF API for lastModified and compares against the newest local file's mtime.
+# Reports STALE (HF is newer), ok (local is current), or skips incomplete downloads.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+MODELS_ROOT="${HOME}/.lmstudio/models/lmstudio-community"
+HF_ORG="lmstudio-community"
+HF_API="https://huggingface.co/api/models/${HF_ORG}"
+
+[ -d "$MODELS_ROOT" ] || die "models dir not found: $MODELS_ROOT"
+
+stale=0; up_to_date=0; skipped=0; errors=0
+
+printf "  %-45s  %-7s  %-10s  %s\n" "MODEL" "STATUS" "LOCAL" "HF"
+printf "  %s\n" "$(printf '%.0s-' {1..75})"
+
+for dir in "$MODELS_ROOT"/*/; do
+  name="$(basename "$dir")"
+
+  # Skip incomplete downloads (any .part files present)
+  if find "$dir" -maxdepth 2 -name "*.part" 2>/dev/null | grep -q .; then
+    printf "  %-45s  ${C_DIM}%-7s${C_RST}\n" "$name" "partial"
+    (( skipped++ )) || true
+    continue
+  fi
+
+  # Newest local file mtime as epoch seconds
+  local_epoch="$(find "$dir" -type f 2>/dev/null \
+    | xargs stat -f "%m" 2>/dev/null \
+    | sort -rn | head -1)"
+  if [ -z "$local_epoch" ]; then
+    printf "  %-45s  ${C_DIM}%-7s${C_RST}\n" "$name" "empty"
+    (( skipped++ )) || true
+    continue
+  fi
+
+  # Query HF API
+  hf_json="$(curl -sf --max-time 10 "${HF_API}/${name}" 2>/dev/null || true)"
+  if [ -z "$hf_json" ]; then
+    printf "  %-45s  ${C_YEL}%-7s${C_RST}  (HF API unreachable)\n" "$name" "?"
+    (( errors++ )) || true
+    sleep 0.5
+    continue
+  fi
+
+  hf_ts="$(printf '%s' "$hf_json" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('lastModified',''))" 2>/dev/null || true)"
+  if [ -z "$hf_ts" ]; then
+    printf "  %-45s  ${C_DIM}%-7s${C_RST}  (no lastModified in response)\n" "$name" "?"
+    (( skipped++ )) || true
+    sleep 0.3
+    continue
+  fi
+
+  # Convert HF ISO-8601 timestamp to epoch for comparison
+  hf_epoch="$(python3 -c \
+    "from datetime import datetime; print(int(datetime.fromisoformat('${hf_ts}'.replace('Z','+00:00')).timestamp()))" \
+    2>/dev/null || true)"
+  if [ -z "$hf_epoch" ]; then
+    printf "  %-45s  ${C_YEL}%-7s${C_RST}  (date parse error: ${hf_ts})\n" "$name" "?"
+    (( errors++ )) || true
+    sleep 0.3
+    continue
+  fi
+
+  local_date="$(date -r "$local_epoch" "+%Y-%m-%d")"
+  hf_date="${hf_ts:0:10}"
+
+  if [ "$hf_epoch" -gt "$local_epoch" ]; then
+    printf "  %-45s  ${C_RED}%-7s${C_RST}  %-10s  %s\n" "$name" "STALE" "$local_date" "$hf_date"
+    (( stale++ )) || true
+  else
+    printf "  %-45s  ${C_GRN}%-7s${C_RST}  %-10s  %s\n" "$name" "ok" "$local_date" "$hf_date"
+    (( up_to_date++ )) || true
+  fi
+
+  sleep 0.3  # be gentle with HF API
+done
+
+echo
+printf "  %d stale  %d ok  %d skipped  %d errors\n" \
+  "$stale" "$up_to_date" "$skipped" "$errors"
+if [ "$stale" -gt 0 ]; then
+  echo "  ${C_DIM}Re-download stale models with:  lms get ${HF_ORG}/<name>${C_RST}"
+fi
