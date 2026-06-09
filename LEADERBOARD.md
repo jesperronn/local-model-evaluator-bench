@@ -1,7 +1,7 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-06-09 06:51
+**Generated:** 2026-06-09 07:16
 
 ## Leaderboard — by adapter × model
 
@@ -11,14 +11,14 @@
 | opencode | google/gemma-4-26b-a4b-qat | 34/34 | 100.0% | 105.4 | 1 |
 | codex | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 32.7 | 1 |
 | codex | qwen/qwen3.5-9b | 34/34 | 100.0% | 110.6 | 1 |
-| codex | qwen/qwen3-coder-next | 34/34 | 100.0% | 80.1 | 1 |
+| codex | qwen/qwen3-coder-next | 34/34 | 100.0% | 94.1 | 1 |
 | codex | qwen/qwen3-coder-30b | 34/34 | 100.0% | 81.4 | 1 |
 | caveman | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 37.1 | 1 |
 | caveman | qwen/qwen3-coder-30b | 34/34 | 100.0% | 55.8 | 1 |
 | caveman | google/gemma-4-26b-a4b-qat | 34/34 | 100.0% | 80.0 | 1 |
 | opencode | qwen/qwen3-coder-30b | 33/34 | 97.1% | 64.4 | 1 |
 | caveman | qwen/qwen3.5-9b | 30/31 | 96.8% | 72.3 | 1 |
-| caveman | qwen/qwen3-coder-next | 29/30 | 96.7% | 30.0 | 1 |
+| caveman | qwen/qwen3-coder-next | 29/30 | 96.7% | 29.1 | 1 |
 | caveman | google/gemma-4-12b-qat | 29/30 | 96.7% | 164.2 | 1 |
 | opencode | google/gemma-4-12b-qat | 30/32 | 93.8% | 205.3 | 1 |
 | opencode | google/gemma-4-e2b | 27/30 | 90.0% | 36.7 | 1 |
@@ -53,7 +53,7 @@
 | opencode | google/gemma-4-12b | 2/28 | 7.1% | 1.3 | 1 |
 | hermes | qwen/qwen3.6-35b-a3b | 2/28 | 7.1% | 3.3 | 1 |
 | hermes | qwen/qwen3.5-9b | 2/28 | 7.1% | 4.1 | 1 |
-| hermes | qwen/qwen3-coder-next | 2/28 | 7.1% | 4.0 | 1 |
+| hermes | qwen/qwen3-coder-next | 2/28 | 7.1% | 3.4 | 1 |
 | hermes | qwen/qwen3-coder-30b | 2/28 | 7.1% | 4.4 | 1 |
 | hermes | google/gemma-4-e4b-qat | 2/28 | 7.1% | 3.2 | 1 |
 | hermes | google/gemma-4-e4b | 2/28 | 7.1% | 3.3 | 1 |
@@ -82,7 +82,7 @@
 | qwen/qwen3.5-9b | 109/155 | 70.3% | 50.8 |
 | google/gemma-4-26b-a4b-qat | 111/158 | 70.3% | 64.3 |
 | google/gemma-4-12b-qat | 91/152 | 59.9% | 138.4 |
-| qwen/qwen3-coder-next | 90/152 | 59.2% | 26.4 |
+| qwen/qwen3-coder-next | 90/152 | 59.2% | 28.9 |
 | google/gemma-4-e4b | 88/154 | 57.1% | 53.4 |
 | google/gemma-4-e4b-qat | 78/137 | 56.9% | 52.0 |
 | google/gemma-4-e2b | 79/139 | 56.8% | 26.9 |
@@ -95,8 +95,8 @@
 
 | Adapter | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| caveman | 277/392 | 70.7% | 46.5 |
+| caveman | 277/392 | 70.7% | 46.4 |
 | opencode | 264/405 | 65.2% | 54.4 |
-| codex | 245/402 | 60.9% | 71.4 |
+| codex | 245/402 | 60.9% | 72.5 |
 | aider | 207/372 | 55.6% | 36.6 |
-| hermes | 26/364 | 7.1% | 4.5 |
+| hermes | 26/364 | 7.1% | 4.4 |
