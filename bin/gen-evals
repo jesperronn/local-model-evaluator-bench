@@ -196,3 +196,11 @@ cat <<'FOOTER'
 See `.agents/commands/gen-evals.md` for the full agent instructions.
 The instructions are the authoritative spec; this bundle is the data.
 FOOTER
+
+# ── Next steps hint (stderr so it doesn't corrupt the bundle when piped) ─────
+{
+  echo
+  echo "${C_DIM}Next step — pipe this bundle to generate model/tool eval pages:${C_RST}"
+  echo "${C_DIM}  bin/gen-evals --all | claude --print \"/gen-evals --all\"${C_RST}"
+  echo "${C_DIM}  (or run: /gen-evals --all  inside Claude Code)${C_RST}"
+} >&2

@@ -223,3 +223,13 @@ if [ -n "$SAVE_MD" ]; then
   } > "$SAVE_MD"
   ok "Markdown saved → $SAVE_MD"
 fi
+
+# ── Next steps hint ──────────────────────────────────────────────────────────
+echo
+echo "${C_DIM}Next steps:${C_RST}"
+[ "$ALL_RUNS" -eq 0 ] && \
+  echo "${C_DIM}  bin/report --all                   # merge all historical runs${C_RST}"
+[ -z "$SAVE_MD" ] && \
+  echo "${C_DIM}  bin/report --all --save            # persist merged leaderboard → LEADERBOARD.md${C_RST}"
+echo "${C_DIM}  bin/gen-evals --all                # build context bundle for eval pages${C_RST}"
+echo "${C_DIM}  bin/viz                            # rebuild interactive HTML dashboard${C_RST}"

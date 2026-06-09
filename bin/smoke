@@ -55,6 +55,9 @@ done < "$CSV"
 echo
 if [ "$fails" -eq 0 ]; then
   ok "all installed tools reached the model — ready to benchmark"
+  echo
+  echo "${C_DIM}Next step:${C_RST}"
+  echo "${C_DIM}  bin/bench --model $MODEL          # run the full benchmark suite${C_RST}"
 else
   warn "$fails tool(s) could not reach the model — check that adapter's flags in adapters/ (see docs/SETUP.md)"
 fi
