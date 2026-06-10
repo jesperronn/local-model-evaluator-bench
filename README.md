@@ -182,3 +182,20 @@ docs/                CASES.md (per-case spec), SCORING.md, SETUP.md, ADDING-CASE
 - **A model**: download in LM Studio, add its id to `models.txt`. (`docs/SETUP.md`)
 - **A test case**: copy a `cases/<id>/` folder. (`docs/ADDING-CASES.md`)
 - **A CLI**: drop a `adapters/<name>.sh` following the adapter contract. (`docs/SETUP.md`)
+
+## Further reading
+
+### Runtime selection & benchmarks
+- [Choosing an On-Device LLM Runtime on Apple Silicon: A Decision Framework Beyond Benchmarks](https://medium.com/@michael.hannecke/choosing-an-on-device-llm-runtime-on-apple-silicon-a-decision-framework-beyond-benchmarks-2449067b8b67) — goes beyond tok/s to cover context handling, API surface, and agentic fit
+- [Local LLM on iPhone: MLX vs llama.cpp vs LiteRT-LM vs CoreML](https://rockyshikoku.medium.com/local-llm-on-iphone-which-runtime-is-actually-fastest-58096685481e) — cross-runtime speed comparison on Apple Silicon (May 2026)
+- [Prefix caching: SGLang vs vLLM — token-level radix tree vs block-level hashing](https://medium.com/byte-sized-ai/prefix-caching-sglang-vs-vllm-token-level-radix-tree-vs-block-level-hashing-b99ece9977a1)
+
+### Apple Silicon & MLX
+- [WWDC26 session 232: Run local agentic AI on the Mac using MLX](https://developer.apple.com/videos/play/wwdc2026/232/) — Apple's official agentic stack: `mlx_lm.server`, continuous batching, M5 Neural Accelerators, distributed inference over Thunderbolt
+- [WWDC26 session 233: Explore distributed inference and training with MLX](https://developer.apple.com/videos/play/wwdc2026/233/) — multi-Mac model sharding
+- [Exploring LLMs with MLX and the Neural Accelerators in the M5 GPU](https://machinelearning.apple.com/research/exploring-llms-mlx-m5) — Apple ML Research on M5 kernel selection and throughput
+- [LM Studio MLX Engine — agentic workloads (v1.8.5, June 2026)](https://lmstudio.ai/blog/mlx-engine-agentic-workloads) — disk-backed KV cache checkpointing at 256-token boundaries
+
+### Model architectures relevant to local inference
+- [Gemma 4 12B developer guide](https://developers.googleblog.com/gemma-4-12b-the-developer-guide/) — covers LiteRT-LM, MoE variants (E2B/E4B), and on-device deployment
+- [Blazing fast on-device GenAI with LiteRT-LM](https://developers.googleblog.com/blazing-fast-on-device-genai-with-litert-lm/) — Google's edge runtime: MTP speculative decoding, session save/restore, constrained decoding
