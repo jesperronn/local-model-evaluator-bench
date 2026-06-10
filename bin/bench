@@ -106,8 +106,11 @@ fi
 if [ "$RUNTIME" = lms ]; then
   lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
 else
-  curl -fsS --max-time 5 "$RUNTIME_BASE_URL/models" >/dev/null 2>&1 \
-    || die "$RUNTIME server not reachable at $RUNTIME_BASE_URL"
+  # mlx_lm.server's /v1/models crashes when HF cache is absent; probe /health
+  # or fall back to a HEAD on /v1/chat/completions (always returns something).
+  curl -fsS --max-time 5 "$RUNTIME_BASE_URL/health" >/dev/null 2>&1 \
+  || curl -fs  --max-time 5 -o /dev/null "$RUNTIME_BASE_URL/chat/completions" \
+  || die "$RUNTIME server not reachable at $RUNTIME_BASE_URL"
 fi
 
 RUN_ID="$(date +%Y%m%d-%H%M%S)"

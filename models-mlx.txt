@@ -4,8 +4,5 @@
 # Run bench against these with: bin/bench --runtime mlx
 # Ordered by benchmark score (top scorers first).
 
-# 30B coder — maps to qwen/qwen3-coder-30b in LM Studio
-# mlx-community/Qwen3-Coder-30B-Instruct-8bit
-
-# 35B MoE (3.6B active) — maps to qwen/qwen3.6-35b-a3b in LM Studio
-# mlx-community/Qwen3.6-35B-A3B-Instruct-8bit
+# 30B coder (MLX-4bit) — local LM Studio copy; maps to qwen/qwen3-coder-30b
+/Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit
