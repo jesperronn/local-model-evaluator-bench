@@ -19,24 +19,35 @@
 #   --verbose/-v       on every non-pass trial, print the .bench.log path plus a
 #                      short error excerpt inline (so failures are diagnosable
 #                      without hunting through results/<ts>/sandbox/)
+#   --runtime RUNTIME  inference backend: lms (default), ollama, mlx
+#                      lms:    LM Studio at $LMS_BASE_URL; loads/unloads models
+#                      ollama: Ollama at localhost:11434/v1; models always ready
+#                      mlx:    mlx_lm.server at localhost:8080/v1; start manually
+#                      Per-runtime models file used when --models not given:
+#                        lms    → models.txt
+#                        ollama → models-ollama.txt
+#                        mlx    → models-mlx.txt
+#                      Adapters: if adapters/<name>-<runtime>.sh exists it is
+#                      preferred over adapters/<name>.sh for that runtime.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
 trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
 
-ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0
+ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --tool|-t)          ADAPTERS="$2"; shift 2;;
-    --models|--model|-m) MODELS="$2"; shift 2;;
-    --cases)             CASES="$2";   shift 2;;
-    --timeout)           TIMEOUT="$2"; shift 2;;
-    --trials)            TRIALS="$2";  shift 2;;
+    --tool|-t)           ADAPTERS="$2"; shift 2;;
+    --models|--model|-m) MODELS="$2";   shift 2;;
+    --cases)             CASES="$2";    shift 2;;
+    --timeout)           TIMEOUT="$2";  shift 2;;
+    --trials)            TRIALS="$2";   shift 2;;
+    --runtime)           RUNTIME="$2";  shift 2;;
     --list)              LIST=1; shift;;
     --interactive|-i)    INTERACTIVE=1; shift;;
     --verbose|-v)        VERBOSE=1; shift;;
-    -h|--help)  sed -n '2,21p' "$0"; exit 0;;
+    -h|--help)  sed -n '2,30p' "$0"; exit 0;;
     *) die "unknown option: $1";;
   esac
 done
@@ -64,18 +75,40 @@ fi
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
 [[ "$TRIALS" =~ ^[1-9][0-9]*$ ]] || die "--trials must be a positive integer (got: $TRIALS)"
 
+# ── Runtime: set base URL, API key, and default models file ──────────────────
+case "$RUNTIME" in
+  lms)    RUNTIME_MODELS_FILE="$MODELS_FILE"
+          RUNTIME_BASE_URL="$LMS_BASE_URL"
+          RUNTIME_API_KEY="$LMS_API_KEY";;
+  ollama) RUNTIME_MODELS_FILE="$HERE/models-ollama.txt"
+          RUNTIME_BASE_URL="http://localhost:11434/v1"
+          RUNTIME_API_KEY="ollama";;
+  mlx)    RUNTIME_MODELS_FILE="$HERE/models-mlx.txt"
+          RUNTIME_BASE_URL="http://localhost:8080/v1"
+          RUNTIME_API_KEY="not-needed";;
+  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx)";;
+esac
+export LMS_BASE_URL="$RUNTIME_BASE_URL"
+export LMS_API_KEY="$RUNTIME_API_KEY"
+
 # Resolve the three axes into arrays.
 IFS=',' read -ra ADAPTER_ARR <<< "$ADAPTERS"
 if [ -n "$MODELS" ]; then IFS=',' read -ra MODEL_ARR <<< "$MODELS";
-else mapfile -t MODEL_ARR < <(read_list "$MODELS_FILE"); fi
+else mapfile -t MODEL_ARR < <(read_list "$RUNTIME_MODELS_FILE"); fi
 if [ -n "$CASES" ]; then IFS=',' read -ra CASE_ARR <<< "$CASES";
 else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] && basename "$d"; done); fi
 
 if [ "$LIST" = 1 ]; then
-  echo "adapters: ${ADAPTER_ARR[*]}"; echo "models:   ${MODEL_ARR[*]}"; echo "cases:    ${CASE_ARR[*]}"; exit 0
+  echo "runtime:  $RUNTIME"; echo "adapters: ${ADAPTER_ARR[*]}"; echo "models:   ${MODEL_ARR[*]}"; echo "cases:    ${CASE_ARR[*]}"; exit 0
 fi
 
-lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
+# Health check — lms has lms_up; other runtimes probe /v1/models directly.
+if [ "$RUNTIME" = lms ]; then
+  lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
+else
+  curl -fsS --max-time 5 "$RUNTIME_BASE_URL/models" >/dev/null 2>&1 \
+    || die "$RUNTIME server not reachable at $RUNTIME_BASE_URL"
+fi
 
 RUN_ID="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="$RESULTS_DIR/$RUN_ID"
@@ -131,6 +164,7 @@ write_run_meta() {
   cat >"$out" <<EOF
 {
   "run_id": "$RUN_ID",
+  "runtime": "$RUNTIME",
   "bench": {
     "parallel": $BENCH_PARALLEL,
     "context": $BENCH_CONTEXT,
@@ -199,20 +233,26 @@ lms_unload_model() {
   done <<< "$ids"
 }
 
-for model in "${MODEL_ARR[@]}"; do
-  # Clear any stale instances (e.g. ":2" variants left from a previous run)
-  # before loading, so their RAM is freed first.
-  lms_unload_model "$model"
+info "runtime: $RUNTIME  base_url: $RUNTIME_BASE_URL"
 
-  info "loading model: $model"
-  bench_ttl_secs=$(( BENCH_TTL_MINUTES * 60 ))
-  lms load --yes --ttl="$bench_ttl_secs" -c "$BENCH_CONTEXT" --parallel "$BENCH_PARALLEL" "$model"
-  _lms_rc=$?
-  if [ $_lms_rc -eq 130 ] || [ $_lms_rc -eq 143 ]; then exit $_lms_rc; fi
-  if [ $_lms_rc -ne 0 ]; then warn "lms load failed for $model — skipping"; continue; fi
+for model in "${MODEL_ARR[@]}"; do
+  if [ "$RUNTIME" = lms ]; then
+    # Clear any stale instances before loading (":2" variants survive across runs).
+    lms_unload_model "$model"
+    info "loading model: $model"
+    bench_ttl_secs=$(( BENCH_TTL_MINUTES * 60 ))
+    lms load --yes --ttl="$bench_ttl_secs" --context-length "$BENCH_CONTEXT" --parallel "$BENCH_PARALLEL" "$model"
+    _lms_rc=$?
+    if [ $_lms_rc -eq 130 ] || [ $_lms_rc -eq 143 ]; then exit $_lms_rc; fi
+    if [ $_lms_rc -ne 0 ]; then warn "lms load failed for $model — skipping"; continue; fi
+  else
+    info "model: $model  (${RUNTIME} manages loading)"
+  fi
 
   for adapter in "${ADAPTER_ARR[@]}"; do
-    adapter_sh="$ADAPTERS_DIR/$adapter.sh"
+    # Prefer a runtime-specific adapter (e.g. hermes-ollama.sh) if one exists.
+    adapter_sh="$ADAPTERS_DIR/$adapter-$RUNTIME.sh"
+    [ -f "$adapter_sh" ] || adapter_sh="$ADAPTERS_DIR/$adapter.sh"
     [ -f "$adapter_sh" ] || { warn "no adapter $adapter.sh — skipping"; continue; }
     command -v "$adapter" >/dev/null 2>&1 || { warn "$adapter not installed — skipping"; continue; }
 
@@ -267,7 +307,7 @@ for model in "${MODEL_ARR[@]}"; do
     done
   done
 
-  lms_unload_model "$model"
+  [ "$RUNTIME" = lms ] && lms_unload_model "$model"
 done
 
 echo
