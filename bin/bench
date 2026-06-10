@@ -16,13 +16,16 @@
 #   --list             print the resolved axes and exit
 #   --interactive/-i   fzf pickers for model and tool; skips a picker if that
 #                      flag was already given (e.g. --tool hermes -i only picks model)
+#   --verbose/-v       on every non-pass trial, print the .bench.log path plus a
+#                      short error excerpt inline (so failures are diagnosable
+#                      without hunting through results/<ts>/sandbox/)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
 trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
 
-ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0
+ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --tool|-t)          ADAPTERS="$2"; shift 2;;
@@ -32,7 +35,8 @@ while [ $# -gt 0 ]; do
     --trials)            TRIALS="$2";  shift 2;;
     --list)              LIST=1; shift;;
     --interactive|-i)    INTERACTIVE=1; shift;;
-    -h|--help)  sed -n '2,18p' "$0"; exit 0;;
+    --verbose|-v)        VERBOSE=1; shift;;
+    -h|--help)  sed -n '2,21p' "$0"; exit 0;;
     *) die "unknown option: $1";;
   esac
 done
@@ -247,6 +251,19 @@ for model in "${MODEL_ARR[@]}"; do
       if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
       elif [ "$pass" -gt 0 ]; then warn "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
       else err "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"; fi
+
+      # On any non-pass, point at the log so failures are diagnosable without
+      # digging through the sandbox tree. --verbose adds a short error excerpt.
+      if [ "$pass" != "$total" ] || [ "$total" -eq 0 ]; then
+        logf="$sandbox/.bench.log"
+        echo "      ${C_DIM}log: ${logf#"$HERE"/}${C_RST}"
+        if [ "$VERBOSE" = 1 ] && [ -f "$logf" ]; then
+          # MISS:/RESULT come from the grader (expected-vs-got per sub-test — the
+          # most useful signal); the rest catch adapter/model/runtime errors.
+          grep -aiE 'MISS:|^RESULT |error|refus|not ok|failed|exception|traceback|cannot|denied|no such' "$logf" \
+            | grep -av '[⠁-⣿]' | tail -10 | sed "s/^/        ${C_DIM}| /; s/$/${C_RST}/"
+        fi
+      fi
     done
   done
 
