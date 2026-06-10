@@ -27,6 +27,37 @@ lms ps                      # show what's currently loaded
 > separate runs). You can automate loading with `lms load`/`lms unload` around
 > a `--models <one-id>` run if you want a fully unattended sweep.
 
+### Context length & concurrency — persistent defaults
+
+Two load-time settings matter for real use, especially when **editor extensions
+or several agents hit the server at once**: a large enough **context window**,
+and **`--parallel`** (how many predictions one loaded model serves
+concurrently — without it, concurrent requests queue).
+
+`lms load` takes both as flags, but they are **per-invocation, not global**:
+
+```bash
+lms load <id> --context-length 65536 --parallel 4 --ttl 3600 --yes
+```
+
+There is no CLI flag for a persistent default. The two persistence layers LM
+Studio actually has:
+
+| Lever | Where | Scope | Caveat |
+|-------|-------|-------|--------|
+| **Global default context** | GUI → Settings → *Default Context Length* (persists to `~/.lmstudio/settings.json` → `defaultContextLength`) | every JIT-loaded model | App-managed JSON — set via GUI, not by hand (the app rewrites it). A blanket-high default costs KV-cache RAM on **every** load — fine on 128 GB, risky on 32 GB. |
+| **Per-model default load config** | GUI → My Models → model ⚙ → set load config → *set as default* | one model's JIT loads | Can pin both context **and** `--parallel`. Stored in `~/.lmstudio/.internal/user-concrete-model-default-config/<model>.json` (app-managed). |
+| **`--parallel`** | `lms load` flag **only** | that load | No global default exists at all. |
+
+> **Editor extensions bypass `lms load`.** Cline/Continue/etc. hit the OpenAI
+> endpoint, and with **JIT loading on** (`justInTimeModelLoading: true`, the
+> default) LM Studio auto-loads the model on first request — using the *default*
+> load config above, **not** any CLI flag. So the reliable way to guarantee an
+> extension gets high context + concurrency is to **pre-load explicitly** before
+> opening the editor; an already-loaded instance is reused (JIT only fires if
+> nothing is loaded). A dotfiles `lms-serve` wrapper makes this one command —
+> see `source/91_ai_tools.sh` in the dotfiles repo.
+
 ## 1b. hf CLI (required for model updates)
 
 `bin/lms_update` uses `hf` to re-download stale models directly from
