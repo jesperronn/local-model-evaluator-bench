@@ -26,6 +26,7 @@ EOF
 
 TOOL_FILTER=""
 MODEL_FILTER=""
+RUNTIME_FILTER=""
 INTERACTIVE=0
 ALL_RUNS=0
 CSV=""
@@ -34,8 +35,9 @@ SAVE_MD=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage ;;
-    -t|--tool)  TOOL_FILTER="$2";  shift 2 ;;
-    -m|--model) MODEL_FILTER="$2"; shift 2 ;;
+    -t|--tool)    TOOL_FILTER="$2";    shift 2 ;;
+    -m|--model)   MODEL_FILTER="$2";   shift 2 ;;
+    -r|--runtime) RUNTIME_FILTER="$2"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     -a|--all) ALL_RUNS=1; shift ;;
     --save)
@@ -56,7 +58,8 @@ if [ "$ALL_RUNS" -eq 1 ]; then
   ALL_CSVS="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null)"
   [ -n "$ALL_CSVS" ] || die "no results found in $RESULTS_DIR"
   head -1 "$(echo "$ALL_CSVS" | head -1)" > "$MERGED"
-  awk -F, 'FNR==1{next} !seen[$1,$2,$3]++' $ALL_CSVS >> "$MERGED"
+  # Dedup key: adapter+model+case+runtime ($10, empty in old CSVs → groups as "lms").
+  awk -F, 'FNR==1{next} !seen[$1,$2,$3,$10]++' $ALL_CSVS >> "$MERGED"
   CSV="$MERGED"
 elif [ -z "$CSV" ]; then
   CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
@@ -89,11 +92,11 @@ fi
 
 # Pre-filter the CSV if any filter is active, keeping the header row.
 WORK_CSV="$CSV"
-if [ -n "$TOOL_FILTER" ] || [ -n "$MODEL_FILTER" ]; then
+if [ -n "$TOOL_FILTER" ] || [ -n "$MODEL_FILTER" ] || [ -n "$RUNTIME_FILTER" ]; then
   WORK_CSV="$(mktemp)"
   trap 'rm -f "$WORK_CSV"' EXIT
   head -1 "$CSV" > "$WORK_CSV"
-  awk -F, -v tf="$TOOL_FILTER" -v mf="$MODEL_FILTER" '
+  awk -F, -v tf="$TOOL_FILTER" -v mf="$MODEL_FILTER" -v rf="$RUNTIME_FILTER" '
   NR == 1 { next }
   {
     if (tf != "") {
@@ -106,13 +109,21 @@ if [ -n "$TOOL_FILTER" ] || [ -n "$MODEL_FILTER" ]; then
       for (i = 1; i <= n; i++) if (a[i] == $2) { ok = 1; break }
       if (!ok) next
     }
+    if (rf != "") {
+      # col 10 = runtime; old CSVs have no col 10 → treated as "lms"
+      rt = ($10 != "" ? $10 : "lms")
+      n = split(rf, a, ","); ok = 0
+      for (i = 1; i <= n; i++) if (a[i] == rt) { ok = 1; break }
+      if (!ok) next
+    }
     print
   }' "$CSV" >> "$WORK_CSV"
 fi
 
 # Show active filters
-[ -n "$TOOL_FILTER"  ] && echo "${C_DIM}tool filter:  $TOOL_FILTER${C_RST}"
-[ -n "$MODEL_FILTER" ] && echo "${C_DIM}model filter: $MODEL_FILTER${C_RST}"
+[ -n "$TOOL_FILTER"    ] && echo "${C_DIM}tool filter:    $TOOL_FILTER${C_RST}"
+[ -n "$MODEL_FILTER"   ] && echo "${C_DIM}model filter:   $MODEL_FILTER${C_RST}"
+[ -n "$RUNTIME_FILTER" ] && echo "${C_DIM}runtime filter: $RUNTIME_FILTER${C_RST}"
 
 # Each CSV row is already a per-(adapter,model,case) median across $9 trials
 # (or a single trial when $9 is 1/absent), so the leaderboards aggregate medians.
@@ -126,30 +137,50 @@ maxtrials="$(awk -F, 'NR>1 && $9+0>m {m=$9+0} END{print m+0}' "$WORK_CSV")"
 # string on " | ", which awk would mis-parse as a regex alternation.
 src_label="$CSV"
 [ "$ALL_RUNS" -eq 1 ] && src_label="all runs (latest per adapter+model+case)"
-echo "${C_BLD}Leaderboard — by adapter x model${C_RST}  ${C_DIM}($src_label)${C_RST}"
-printf "  %-9s %-26s %8s %8s %7s %6s\n" "ADAPTER" "MODEL" "TESTS" "PASS%" "med s" "trials"
+echo "${C_BLD}Leaderboard — by runtime${C_RST}  ${C_DIM}($src_label)${C_RST}"
+printf "  %-8s %8s %8s %7s\n" "RUNTIME" "TESTS" "PASS%" "avg s"
 awk -F, 'NR>1 {
-  k=$1 SUBSEP $2; ad[k]=$1; mo[k]=$2
+  rt = ($10 != "" ? $10 : "lms")
+  p[rt]+=$4; t[rt]+=$5; sec[rt]+=$7; n[rt]++
+}
+END {
+  for (r in p) {
+    pct  = t[r]>0 ? 100*p[r]/t[r] : 0
+    avgs = n[r]>0 ? sec[r]/n[r]   : 0
+    printf "%09.4f\t  %-8s %4d/%-4d %7.1f%% %7.1f\n", pct, r, p[r], t[r], pct, avgs
+  }
+}' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+
+echo
+echo "${C_BLD}Leaderboard — by adapter x model${C_RST}  ${C_DIM}($src_label)${C_RST}"
+printf "  %-8s %-9s %-26s %8s %8s %7s %6s\n" "RUNTIME" "ADAPTER" "MODEL" "TESTS" "PASS%" "med s" "trials"
+awk -F, 'NR>1 {
+  rt = ($10 != "" ? $10 : "lms")
+  k=$1 SUBSEP $2 SUBSEP rt; ad[k]=$1; mo[k]=$2; ru[k]=rt
   p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
 }
 END {
   for (k in p) {
     pct = t[k]>0 ? 100*p[k]/t[k] : 0
-    printf "%09.4f\t  %-9s %-26s %4d/%-4d %7.1f%% %6.1f %6d\n", \
-      pct, ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
+    printf "%09.4f\t  %-8s %-9s %-26s %4d/%-4d %7.1f%% %6.1f %6d\n", \
+      pct, ru[k], ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
   }
 }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
 
 echo
 echo "${C_BLD}Leaderboard — by model (all adapters)${C_RST}"
-printf "  %-26s %8s %8s %7s\n" "MODEL" "TESTS" "PASS%" "avg s"
-awk -F, 'NR>1 { mo[$2]=$2; p[$2]+=$4; t[$2]+=$5; sec[$2]+=$7; n[$2]++ }
+printf "  %-8s %-26s %8s %8s %7s\n" "RUNTIME" "MODEL" "TESTS" "PASS%" "avg s"
+awk -F, 'NR>1 {
+  rt = ($10 != "" ? $10 : "lms")
+  k=$2 SUBSEP rt; mo[k]=$2; ru[k]=rt
+  p[k]+=$4; t[k]+=$5; sec[k]+=$7; n[k]++
+}
 END {
-  for (m in p) {
-    pct  = t[m]>0   ? 100*p[m]/t[m] : 0
-    avgs = n[m]>0   ? sec[m]/n[m]   : 0
-    printf "%09.4f\t  %-26s %4d/%-4d %7.1f%% %7.1f\n", \
-      pct, mo[m], p[m], t[m], pct, avgs
+  for (k in p) {
+    pct  = t[k]>0 ? 100*p[k]/t[k] : 0
+    avgs = n[k]>0 ? sec[k]/n[k]   : 0
+    printf "%09.4f\t  %-8s %-26s %4d/%-4d %7.1f%% %7.1f\n", \
+      pct, ru[k], mo[k], p[k], t[k], pct, avgs
   }
 }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
 
@@ -177,33 +208,54 @@ if [ -n "$SAVE_MD" ]; then
     [ -n "$TOOL_FILTER"  ] && printf '**Tool filter:** `%s`\n'  "$TOOL_FILTER"
     [ -n "$MODEL_FILTER" ] && printf '**Model filter:** `%s`\n' "$MODEL_FILTER"
     echo
+    echo "## Leaderboard — by runtime"
+    echo
+    echo "| Runtime | Pass | Pass% | Avg s |"
+    echo "|---------|------|-------|-------|"
+    awk -F, 'NR>1 {
+      rt = ($10 != "" ? $10 : "lms")
+      p[rt]+=$4; t[rt]+=$5; sec[rt]+=$7; n[rt]++
+    }
+    END {
+      for (r in p) {
+        pct  = t[r]>0 ? 100*p[r]/t[r] : 0
+        avgs = n[r]>0 ? sec[r]/n[r]   : 0
+        printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", pct, r, p[r], t[r], pct, avgs
+      }
+    }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+    echo
     echo "## Leaderboard — by adapter × model"
     echo
-    echo "| Adapter | Model | Pass | Pass% | Avg s | Trials |"
-    echo "|---------|-------|------|-------|-------|--------|"
+    echo "| Runtime | Adapter | Model | Pass | Pass% | Avg s | Trials |"
+    echo "|---------|---------|-------|------|-------|-------|--------|"
     awk -F, 'NR>1 {
-      k=$1 SUBSEP $2; ad[k]=$1; mo[k]=$2
+      rt = ($10 != "" ? $10 : "lms")
+      k=$1 SUBSEP $2 SUBSEP rt; ad[k]=$1; mo[k]=$2; ru[k]=rt
       p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
     }
     END {
       for (k in p) {
         pct = t[k]>0 ? 100*p[k]/t[k] : 0
-        printf "%09.4f\t| %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", \
-          pct, ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
+        printf "%09.4f\t| %s | %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", \
+          pct, ru[k], ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
       }
     }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
     echo
     echo "## Leaderboard — by model"
     echo
-    echo "| Model | Pass | Pass% | Avg s |"
-    echo "|-------|------|-------|-------|"
-    awk -F, 'NR>1 { mo[$2]=$2; p[$2]+=$4; t[$2]+=$5; sec[$2]+=$7; n[$2]++ }
+    echo "| Runtime | Model | Pass | Pass% | Avg s |"
+    echo "|---------|-------|------|-------|-------|"
+    awk -F, 'NR>1 {
+      rt = ($10 != "" ? $10 : "lms")
+      k=$2 SUBSEP rt; mo[k]=$2; ru[k]=rt
+      p[k]+=$4; t[k]+=$5; sec[k]+=$7; n[k]++
+    }
     END {
-      for (m in p) {
-        pct  = t[m]>0 ? 100*p[m]/t[m] : 0
-        avgs = n[m]>0 ? sec[m]/n[m]   : 0
-        printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", \
-          pct, mo[m], p[m], t[m], pct, avgs
+      for (k in p) {
+        pct  = t[k]>0 ? 100*p[k]/t[k] : 0
+        avgs = n[k]>0 ? sec[k]/n[k]   : 0
+        printf "%09.4f\t| %s | %s | %d/%d | %.1f%% | %.1f |\n", \
+          pct, ru[k], mo[k], p[k], t[k], pct, avgs
       }
     }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
     echo

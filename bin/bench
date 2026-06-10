@@ -116,7 +116,7 @@ RUN_ID="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="$RESULTS_DIR/$RUN_ID"
 mkdir -p "$RUN_DIR"
 CSV="$RUN_DIR/results.csv"
-echo "adapter,model,case,pass,total,score,seconds,status,trials" > "$CSV"
+echo "adapter,model,case,pass,total,score,seconds,status,trials,runtime" > "$CSV"
 # Per-trial detail (one row per trial) kept alongside the median summary so the
 # variance behind each median stays inspectable.
 TRIALS_CSV="$RUN_DIR/trials.csv"
@@ -285,7 +285,7 @@ for model in "${MODEL_ARR[@]}"; do
       # status: single status if all trials agree, else the distinct set joined with |.
       status="$(printf '%s\n' "${statuses[@]}" | sort -u | paste -sd'|' -)"
 
-      echo "$adapter,$model,$case_id,$pass,$total,$score,$elapsed,$status,$TRIALS" >> "$CSV"
+      echo "$adapter,$model,$case_id,$pass,$total,$score,$elapsed,$status,$TRIALS,$RUNTIME" >> "$CSV"
 
       # --- report ----------------------------------------------------------
       sec_note="${elapsed}s"; [ "$TRIALS" -gt 1 ] && sec_note="med ${elapsed}s, ${n_ok}/${TRIALS} ok"
