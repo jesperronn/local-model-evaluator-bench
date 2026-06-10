@@ -26,6 +26,12 @@ google/gemma-4-12b-qat
 
 # 26B (MoE, 4B active)
 google/gemma-4-26b-a4b-qat
+# Non-QAT full-precision counterpart. Commented until downloaded in LM Studio.
+# Purpose: targeted QAT-vs-full-precision check on codex + aider (the adapters
+# where the -qat variant underperforms: codex 88%, aider 39%). Answers whether
+# that drop is quantization loss or the model's ceiling. Expect larger footprint
+# and no speed win — accuracy delta is the only reason to run it.
+# google/gemma-4-26b-a4b
 
 # 30B
 qwen/qwen3-coder-30b
@@ -35,3 +41,8 @@ qwen/qwen3-coder-next
 
 # 35B (MoE, 3B active)
 qwen/qwen3.6-35b-a3b
+# Candidate to evaluate later. Commented until downloaded in LM Studio.
+# NOTE: verify the exact modelKey first — `qwen3.6-27b` is not a confirmed Qwen
+# variant (the known qwen3.6 build here is 35b-a3b; 27b is a Gemma size). Run
+# `lms ls --json | jq -r '.[].modelKey'` and fix the name before uncommenting.
+# qwen/qwen3.6-27b
