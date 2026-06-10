@@ -19,14 +19,16 @@ export SMOKE_TTL="${SMOKE_TTL:-600}"
 # bench load parameters — applied whenever bin/bench loads a model.
 # TTL: auto-unload after this many minutes of inactivity (bench loads are
 #   short-lived; 10 min distinguishes them from manually loaded models).
-# CONTEXT: token budget per request; 32768 covers full-file edits + tool call
-#   history. Safe to push higher on 128 GB — the KV cache cost is low.
+# CONTEXT: token budget per request. Must be ≥64000 — Hermes enforces a hard 64K
+#   floor and aborts on startup (error in ~3s) for any smaller model, which is
+#   what silently zeroed every hermes trial. 65536 also covers full-file edits +
+#   tool-call history for the other adapters. Safe on 128 GB — KV cache cost is low.
 # PARALLEL: slots for simultaneous predictions. Set to match the real
 #   multi-agent concurrency you care about (orchestrator + 2-3 agents = 3-4).
 #   Default 3 mirrors the target workload; lower to 1 for max single-request
 #   throughput, raise to 4 for a heavier orchestration scenario.
 export BENCH_TTL_MINUTES="${BENCH_TTL_MINUTES:-10}"
-export BENCH_CONTEXT="${BENCH_CONTEXT:-32768}"
+export BENCH_CONTEXT="${BENCH_CONTEXT:-65536}"
 export BENCH_PARALLEL="${BENCH_PARALLEL:-3}"
 
 # Which CLI adapters to exercise by default (one file per name in adapters/).
