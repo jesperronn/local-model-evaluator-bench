@@ -44,6 +44,8 @@ None beyond intrinsic 2B-active limitations.
 
 **removed** (2026-06-10) — scored 65.5% overall, the lowest of any active model. This is lower than the fp16 sibling (72.1%), confirming QAT hurts at the 2B scale rather than helping. The failure pattern is identical across every adapter (bash-01, js-03, js-04 fail everywhere) — consistent with intrinsic parameter-scale limits, not a configuration gap. Removed from `models.txt` alongside gemma-4-e2b.
 
+**Alternative:** `qwen/qwen3.5-9b` (6.0 GB, +1.7 GB over this model's 4.3 GB) scores **87.0%** vs 65.5% here — a 22 pp gain for 1.7 GB more RAM. It runs slower (80 s avg vs 32 s avg), but the accuracy uplift makes it the clear choice whenever 6 GB fits. If RAM is the hard constraint and 6 GB doesn't fit, there is no well-performing sub-5 GB coding model in this suite.
+
 ## Comparison within family
 
 gemma-4-e2b-qat vs gemma-4-e2b: QAT shows marginal gains on some adapters and losses on others. At the 2B scale, QAT benefits are small. The key differentiator between e2b variants is RAM footprint — the QAT model uses less memory, making it preferable if the fp16 fits but is tight.

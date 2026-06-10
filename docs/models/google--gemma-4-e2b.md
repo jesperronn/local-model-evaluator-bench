@@ -46,6 +46,8 @@ None beyond the intrinsic 2B-active parameter constraint.
 
 **removed** (2026-06-10) — scored 72.1% overall across all adapters and runs. Performance is consistent with genuine 2B-active parameter limitations: the same multi-file failures (js-03, js-04) appear across every adapter and match the QAT sibling's failure pattern, ruling out misconfiguration. No agentic workload on this bench benefits from a 2B model when 30B+ MoE models fit in the same memory budget. Removed from `models.txt` to save bench time.
 
+**Alternative:** `qwen/qwen3.5-9b` (6.0 GB, +1.6 GB over this model's 4.4 GB) scores **87.0%** vs 72.1% here — a 15 pp gain. It is slower (80 s avg vs 32 s avg), but completing 87% of cases correctly at 80 s is more useful than completing 72% at 32 s. If RAM is the hard constraint and 6 GB doesn't fit, there is no well-performing sub-5 GB coding model in this suite.
+
 ## Comparison within family
 
 gemma-4-e2b vs gemma-4-e2b-qat: both sit at similar overall scores. The QAT variant shows marginally better results on opencode (87.5% vs 90%) but slightly worse on caveman. At the 2B scale, the two variants are close enough that the choice should be based on RAM fit and desired inference precision. See gemma-4-e2b-qat page for details.

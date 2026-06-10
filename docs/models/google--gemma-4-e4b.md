@@ -44,6 +44,8 @@ None beyond the multi-file weakness which appears to be intrinsic to the fp16 mo
 
 **removed** (2026-06-10) — scored 70.1% overall. Multi-file failures (js-03, js-04) are cross-adapter and match the QAT sibling's pattern, so this reflects genuine 4B-active capacity rather than misconfiguration. The fp16 model is also marginally worse than the QAT variant on most adapters, giving it no advantage. Removed from `models.txt` alongside gemma-4-e4b-qat.
 
+**Alternative:** `qwen/qwen3.5-9b` (6.0 GB, **0.3 GB smaller** than this model's 6.3 GB) scores **87.0%** vs 70.1% here — a 17 pp gain at a lower disk footprint. It runs slower (80 s avg vs 68 s avg), but given the accuracy difference and the fact it actually uses less space, there is no reason to keep this model in the bench.
+
 ## Comparison within family
 
 gemma-4-e4b vs gemma-4-e4b-qat: the QAT variant outperforms the fp16 on caveman (76.9% vs 68.8%) and opencode. The e4b-qat is generally preferable. If QAT produces visible artefacts on specific outputs, keep e4b as a fallback.

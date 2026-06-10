@@ -44,6 +44,8 @@ None beyond intrinsic model limitations.
 
 **removed** (2026-06-10) — scored 71.1% overall. Despite being the stronger of the two e4b variants, 71% is below the utility threshold for agentic workloads when 30B+ MoE models fit in comparable memory. The bash-01 cross-adapter failure (≤1/4 on every adapter) and js-03 failures confirm this is a parameter-scale ceiling, not a configuration issue — the fp16 sibling has identical failure cases. Removed from `models.txt` alongside gemma-4-e4b.
 
+**Alternative:** `qwen/qwen3.5-9b` (6.0 GB, **0.1 GB smaller** than this model's 6.1 GB) scores **87.0%** vs 71.1% here — a 16 pp gain at virtually identical disk footprint. It runs slower (80 s avg vs 64 s avg), but the accuracy jump for the same RAM budget makes this a clear swap with no trade-off.
+
 ## Comparison within family
 
 gemma-4-e4b-qat vs gemma-4-e4b: QAT variant is consistently better — higher scores on caveman and opencode, same quality on aider. The QAT is the preferred variant. For the e4b size class, prefer this model over the fp16.
