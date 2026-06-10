@@ -42,7 +42,7 @@ None beyond intrinsic 2B-active limitations.
 
 ## Status
 
-**keep** — useful e2b baseline; the QAT variant is the preferred e2b model. Results are stable.
+**removed** (2026-06-10) — scored 65.5% overall, the lowest of any active model. This is lower than the fp16 sibling (72.1%), confirming QAT hurts at the 2B scale rather than helping. The failure pattern is identical across every adapter (bash-01, js-03, js-04 fail everywhere) — consistent with intrinsic parameter-scale limits, not a configuration gap. Removed from `models.txt` alongside gemma-4-e2b.
 
 ## Comparison within family
 

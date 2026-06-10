@@ -44,7 +44,7 @@ None beyond the intrinsic 2B-active parameter constraint.
 
 ## Status
 
-**keep** — useful as a baseline for the minimum-capability tier. The fp16 variant; compare against gemma-4-e2b-qat to evaluate QAT impact.
+**removed** (2026-06-10) — scored 72.1% overall across all adapters and runs. Performance is consistent with genuine 2B-active parameter limitations: the same multi-file failures (js-03, js-04) appear across every adapter and match the QAT sibling's failure pattern, ruling out misconfiguration. No agentic workload on this bench benefits from a 2B model when 30B+ MoE models fit in the same memory budget. Removed from `models.txt` to save bench time.
 
 ## Comparison within family
 

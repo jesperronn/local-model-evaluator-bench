@@ -42,7 +42,7 @@ None beyond the multi-file weakness which appears to be intrinsic to the fp16 mo
 
 ## Status
 
-**keep** — representative fp16 baseline for Gemma 4 e4b. Compare against gemma-4-e4b-qat to evaluate QAT impact.
+**removed** (2026-06-10) — scored 70.1% overall. Multi-file failures (js-03, js-04) are cross-adapter and match the QAT sibling's pattern, so this reflects genuine 4B-active capacity rather than misconfiguration. The fp16 model is also marginally worse than the QAT variant on most adapters, giving it no advantage. Removed from `models.txt` alongside gemma-4-e4b-qat.
 
 ## Comparison within family
 

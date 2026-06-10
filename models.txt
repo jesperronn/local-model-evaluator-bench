@@ -10,13 +10,10 @@
 # run first. Within a family, QAT variants precede full-precision (smaller
 # footprint). MoE models are placed by total param count, not active params.
 
-# 2B
-google/gemma-4-e2b-qat
-google/gemma-4-e2b
-
-# 4B
-google/gemma-4-e4b-qat
-google/gemma-4-e4b
+# 2B/4B Gemma variants removed 2026-06-10: scored 65–72% across all adapters.
+# Failures were cross-adapter and cross-quantization (same cases fail on both QAT
+# and fp16), confirming genuine parameter-scale limits, not misconfiguration.
+# See docs/models/google--gemma-4-e{2,4}b{,-qat}.md for details.
 
 # 9B
 qwen/qwen3.5-9b

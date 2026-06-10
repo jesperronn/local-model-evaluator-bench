@@ -42,7 +42,7 @@ None beyond intrinsic model limitations.
 
 ## Status
 
-**keep** — solid e4b-tier model, preferable to the fp16 variant. The bash-01 cross-adapter weakness is worth monitoring across runs to confirm it's reproducible.
+**removed** (2026-06-10) — scored 71.1% overall. Despite being the stronger of the two e4b variants, 71% is below the utility threshold for agentic workloads when 30B+ MoE models fit in comparable memory. The bash-01 cross-adapter failure (≤1/4 on every adapter) and js-03 failures confirm this is a parameter-scale ceiling, not a configuration issue — the fp16 sibling has identical failure cases. Removed from `models.txt` alongside gemma-4-e4b.
 
 ## Comparison within family
 
