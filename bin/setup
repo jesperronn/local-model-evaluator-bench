@@ -1,0 +1,414 @@
+#!/usr/bin/env bash
+# bin/setup — check and install tools used by the bench.
+#
+# With no flags: prints a status table for every tool (read-only).
+# With tool flags: installs/configures those tools.
+# --dry-run always safe — prints what would run, touches nothing.
+#
+# Flags:
+#   --dry-run          show commands without running them
+#   --verbose          extra output during installs
+#   --interactive      use fzf pickers where applicable
+#
+# Tool flags (combine freely, or use --all):
+#   --all              every tool below
+#   --lms              LM Studio CLI (lms)
+#   --hermes-cli       Hermes agent CLI
+#   --codex-cli        OpenAI Codex CLI
+#   --opencode-cli     OpenCode CLI
+#   --aider-cli        Aider CLI
+#   --caveman-cli      Caveman (pi-based coding agent)
+#   --mlx-server       mlx-lm Python package (mlx_lm.server)
+#   --ollama           Ollama runtime
+#   --fzf              fzf (required for --interactive pickers)
+#   --hf               HuggingFace CLI (required for bin/lms_update)
+#
+# Model flags:
+#   --model            show model status across runtimes
+#   --runtime lms|ollama|mlx  filter --model to one runtime
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+# ── Parse flags ──────────────────────────────────────────────────────────────
+DRY_RUN=0; VERBOSE=0; INTERACTIVE=0
+DO_ALL=0
+DO_LMS=0; DO_HERMES=0; DO_CODEX=0; DO_OPENCODE=0; DO_AIDER=0
+DO_CAVEMAN=0; DO_MLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0
+DO_MODEL=0; RUNTIME=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run)        DRY_RUN=1; shift;;
+    --verbose)        VERBOSE=1; shift;;
+    --interactive)    INTERACTIVE=1; shift;;
+    --all)            DO_ALL=1; shift;;
+    --lms)            DO_LMS=1; shift;;
+    --hermes-cli)     DO_HERMES=1; shift;;
+    --codex-cli)      DO_CODEX=1; shift;;
+    --opencode-cli)   DO_OPENCODE=1; shift;;
+    --aider-cli)      DO_AIDER=1; shift;;
+    --caveman-cli)    DO_CAVEMAN=1; shift;;
+    --mlx-server)     DO_MLX=1; shift;;
+    --ollama)         DO_OLLAMA=1; shift;;
+    --fzf)            DO_FZF=1; shift;;
+    --hf)             DO_HF=1; shift;;
+    --model)          DO_MODEL=1; shift;;
+    --runtime)        RUNTIME="$2"; shift 2;;
+    -h|--help) sed -n '2,29p' "$0"; exit 0;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+if [ "$DO_ALL" = 1 ]; then
+  DO_LMS=1; DO_HERMES=1; DO_CODEX=1; DO_OPENCODE=1; DO_AIDER=1
+  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1
+fi
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+step() { printf '\n%s\n' "${C_BLD}$*${C_RST}"; }
+
+run_or_dry() {
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '  %s%s%s\n' "$C_DIM" "would run: $*" "$C_RST"
+  else
+    [ "$VERBOSE" = 1 ] && info "running: $*"
+    "$@"
+  fi
+}
+
+# check_cmd NAME CMD INSTALL_CMD [NOTES]
+# Prints ok/warn; returns 0 if installed, 1 if not.
+check_cmd() {
+  local name="$1" cmd="$2" install="$3" notes="${4:-}"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    local ver; ver="$(command -v "$cmd")"
+    ok "$name  ${C_DIM}$(command -v "$cmd")${C_RST}"
+    return 0
+  else
+    warn "$name  ${C_DIM}not found${C_RST}"
+    printf '    install: %s\n' "$install"
+    [ -n "$notes" ] && printf '    %s\n' "$notes"
+    return 1
+  fi
+}
+
+# do_install NAME CMD BREW_PKG [NPM_PKG|pip:PKG|manual:URL]
+do_install() {
+  local name="$1" cmd="$2" pkg="$3"
+  command -v "$cmd" >/dev/null 2>&1 && { ok "$name already installed"; return 0; }
+  info "installing $name..."
+  case "$pkg" in
+    pip:*)   run_or_dry pip3 install "${pkg#pip:}";;
+    npm:*)   run_or_dry npm install --global "${pkg#npm:}";;
+    manual:*) warn "$name must be installed manually: ${pkg#manual:}"; return 1;;
+    *)       run_or_dry brew install "$pkg";;
+  esac
+}
+
+# ── Tool definitions ──────────────────────────────────────────────────────────
+
+setup_lms() {
+  step "LM Studio (lms)"
+  if ! check_cmd "lms CLI" lms "brew install --cask lm-studio" \
+       "or download from https://lmstudio.ai"; then
+    [ "$DO_LMS" = 1 ] && do_install "LM Studio" lms "manual:https://lmstudio.ai"
+    return
+  fi
+  [ "$DO_LMS" = 0 ] && return
+  # Config: start server
+  if lms_up; then
+    ok "server reachable at $LMS_BASE_URL"
+  else
+    warn "server not running"
+    printf '    start with: lms server start\n'
+    run_or_dry lms server start
+  fi
+}
+
+setup_hermes() {
+  step "Hermes agent CLI"
+  if ! check_cmd "hermes" hermes "brew install hermes-agent"; then
+    [ "$DO_HERMES" = 1 ] && do_install "hermes" hermes "hermes-agent"
+    return
+  fi
+  [ "$DO_HERMES" = 0 ] && return
+  # Config: ~/.hermes/config.yaml
+  local cfg="$HOME/.hermes/config.yaml"
+  local backend approvals
+  backend="$(grep -A1 '^terminal:' "$cfg" 2>/dev/null | sed -nE 's/^[[:space:]]*backend:[[:space:]]*([a-z]+).*/\1/p' | head -1)"
+  approvals="$(grep -A1 '^approvals:' "$cfg" 2>/dev/null | sed -nE 's/^[[:space:]]*mode:[[:space:]]*([a-z]+).*/\1/p' | head -1)"
+  if [ "${backend:-}" = local ] && [ "${approvals:-}" = smart ]; then
+    ok "config  ${C_DIM}backend=local approvals=smart${C_RST}"
+  else
+    warn "config needs update  ${C_DIM}backend=${backend:-?} approvals=${approvals:-?}${C_RST}"
+    printf '    In %s set:\n' "$cfg"
+    printf '      terminal:\n        backend: local\n      approvals:\n        mode: smart\n'
+    if [ "$DRY_RUN" = 0 ]; then
+      # Idempotent: only append what's missing
+      if [ "${backend:-}" != local ]; then
+        run_or_dry bash -c "printf '\nterminal:\n  backend: local\n' >> '$cfg'"
+      fi
+      if [ "${approvals:-}" != smart ]; then
+        run_or_dry bash -c "printf '\napprovals:\n  mode: smart\n' >> '$cfg'"
+      fi
+    else
+      run_or_dry true  # show dry-run marker
+    fi
+  fi
+}
+
+setup_codex() {
+  step "Codex CLI"
+  if ! check_cmd "codex" codex "npm install --global @openai/codex"; then
+    [ "$DO_CODEX" = 1 ] && do_install "codex" codex "npm:@openai/codex"
+    return
+  fi
+  [ "$DO_CODEX" = 0 ] && return
+  ok "no persistent config needed (inline -c flags in adapter)"
+}
+
+setup_opencode() {
+  step "OpenCode CLI"
+  if ! check_cmd "opencode" opencode "brew install opencode"; then
+    [ "$DO_OPENCODE" = 1 ] && do_install "opencode" opencode "opencode"
+    return
+  fi
+  [ "$DO_OPENCODE" = 0 ] && return
+  ok "no persistent config needed (lmstudio provider is built-in)"
+}
+
+setup_aider() {
+  step "Aider CLI"
+  if ! check_cmd "aider" aider "brew install aider  # or: pip install aider-chat"; then
+    [ "$DO_AIDER" = 1 ] && do_install "aider" aider "aider"
+    return
+  fi
+  [ "$DO_AIDER" = 0 ] && return
+  ok "no persistent config needed (--openai-api-base passed inline)"
+}
+
+setup_caveman() {
+  step "Caveman (pi-based agent)"
+  if ! check_cmd "caveman" caveman "npm install --global @juliusbrussee/caveman-code"; then
+    [ "$DO_CAVEMAN" = 1 ] && do_install "caveman" caveman "npm:@juliusbrussee/caveman-code"
+    return
+  fi
+  [ "$DO_CAVEMAN" = 0 ] && return
+  # Config: ~/.pi/agent/models.json
+  local models_json="$HOME/.pi/agent/models.json"
+  if [ -f "$models_json" ]; then
+    ok "provider config  ${C_DIM}$models_json${C_RST}"
+  else
+    warn "provider config missing: $models_json"
+    local tmpl="$HERE/config-templates/pi-agent-models.json"
+    if [ -f "$tmpl" ]; then
+      printf '    copy template: cp %s %s\n' "$tmpl" "$models_json"
+      if [ "$DRY_RUN" = 0 ]; then
+        run_or_dry mkdir -p "$(dirname "$models_json")"
+        run_or_dry cp "$tmpl" "$models_json"
+      else
+        run_or_dry true
+      fi
+    else
+      printf '    create %s with lmstudio provider — see docs/SETUP.md\n' "$models_json"
+    fi
+  fi
+}
+
+setup_mlx() {
+  step "MLX-LM server (mlx_lm.server)"
+  if ! check_cmd "mlx_lm.server" mlx_lm.server "pip install mlx-lm"; then
+    [ "$DO_MLX" = 1 ] && do_install "mlx-lm" mlx_lm.server "mlx-lm"
+    return
+  fi
+  [ "$DO_MLX" = 0 ] && return
+  ok "start with: mlx_lm.server --model mlx-community/<model-name>"
+  local mlx_models="$HERE/models-mlx.txt"
+  if [ -f "$mlx_models" ]; then
+    ok "models file: $mlx_models"
+  else
+    warn "models-mlx.txt not found — create it with HuggingFace model ids (mlx-community/...)"
+  fi
+}
+
+setup_ollama() {
+  step "Ollama runtime"
+  if ! check_cmd "ollama" ollama "brew install ollama"; then
+    [ "$DO_OLLAMA" = 1 ] && do_install "ollama" ollama "ollama"
+    return
+  fi
+  [ "$DO_OLLAMA" = 0 ] && return
+  # Check if running
+  if curl -fsS --max-time 3 "http://localhost:11434/api/version" >/dev/null 2>&1; then
+    local ver; ver="$(curl -fsS http://localhost:11434/api/version 2>/dev/null | grep -oE '"version":"[^"]+"' | cut -d'"' -f4)"
+    ok "server running  ${C_DIM}v${ver}${C_RST}"
+  else
+    warn "server not running"
+    printf '    start with: ollama serve\n'
+    [ "$DRY_RUN" = 0 ] && info "run 'ollama serve' in a separate terminal to start"
+  fi
+  local ollama_models="$HERE/models-ollama.txt"
+  if [ -f "$ollama_models" ]; then
+    ok "models file: $ollama_models"
+    info "installed Ollama models:"
+    ollama list 2>/dev/null | tail -n +2 | sed 's/^/    /'
+  else
+    warn "models-ollama.txt not found — create it with Ollama model ids"
+  fi
+}
+
+setup_fzf() {
+  step "fzf (interactive pickers)"
+  check_cmd "fzf" fzf "brew install fzf" || \
+    { [ "$DO_FZF" = 1 ] && do_install "fzf" fzf "fzf"; }
+}
+
+setup_hf() {
+  step "HuggingFace CLI (hf)"
+  check_cmd "hf" hf "brew install hf  # required for bin/lms_update" || \
+    { [ "$DO_HF" = 1 ] && do_install "hf" hf "hf"; }
+}
+
+# ── Model status ──────────────────────────────────────────────────────────────
+
+show_models() {
+  step "Model status"
+
+  local show_lms=1 show_ollama=1 show_mlx=1
+  case "$RUNTIME" in
+    lms)    show_ollama=0; show_mlx=0;;
+    ollama) show_lms=0;    show_mlx=0;;
+    mlx)    show_lms=0;    show_ollama=0;;
+  esac
+
+  if [ "$show_lms" = 1 ]; then
+    info "LM Studio (models.txt → $LMS_BASE_URL)"
+    if lms_up; then
+      local loaded; loaded="$(lms_loaded_models)"
+      while IFS= read -r m; do
+        if printf '%s\n' "$loaded" | grep -qxF "$m"; then
+          ok "  $m  ${C_DIM}[loaded]${C_RST}"
+        else
+          printf '    %s\n' "$m"
+        fi
+      done < <(read_list "$MODELS_FILE")
+    else
+      warn "LM Studio not running — run: lms server start"
+      read_list "$MODELS_FILE" | sed 's/^/    /'
+    fi
+  fi
+
+  if [ "$show_ollama" = 1 ] && command -v ollama >/dev/null 2>&1; then
+    echo
+    info "Ollama models"
+    local ollama_file="$HERE/models-ollama.txt"
+    if [ -f "$ollama_file" ]; then
+      local installed; installed="$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')"
+      while IFS= read -r m; do
+        if printf '%s\n' "$installed" | grep -qxF "$m"; then
+          ok "  $m  ${C_DIM}[installed]${C_RST}"
+        else
+          warn "  $m  ${C_DIM}not installed — run: ollama pull $m${C_RST}"
+        fi
+      done < <(read_list "$ollama_file")
+    else
+      warn "models-ollama.txt not found"
+      info "installed Ollama models:"
+      ollama list 2>/dev/null | sed 's/^/  /'
+    fi
+  fi
+
+  if [ "$show_mlx" = 1 ] && command -v mlx_lm.server >/dev/null 2>&1; then
+    echo
+    info "MLX models (~/.lmstudio/models or HuggingFace cache)"
+    local mlx_file="$HERE/models-mlx.txt"
+    if [ -f "$mlx_file" ]; then
+      read_list "$mlx_file" | sed 's/^/  /'
+    else
+      warn "models-mlx.txt not found"
+    fi
+  fi
+
+  # Interactive: fzf to pick a model and show pull command
+  if [ "$INTERACTIVE" = 1 ]; then
+    command -v fzf >/dev/null 2>&1 || die "fzf not installed (brew install fzf)"
+    echo
+    info "Interactive model picker"
+    local candidates=""
+    # Gather LM Studio models not yet in models.txt
+    if lms_up 2>/dev/null; then
+      candidates="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print "lms:" $1}')"
+    fi
+    # Gather Ollama models
+    candidates="$candidates
+$(ollama list 2>/dev/null | tail -n +2 | awk '{print "ollama:" $1}')"
+    # Gather any from models-mlx.txt
+    [ -f "$HERE/models-mlx.txt" ] && \
+      candidates="$candidates
+$(read_list "$HERE/models-mlx.txt" | sed 's/^/mlx:/')"
+
+    candidates="$(printf '%s\n' "$candidates" | grep -v '^$' | sort -u)"
+    [ -z "$candidates" ] && die "no models found to pick from"
+
+    local sel
+    sel="$(printf '%s\n' "$candidates" | \
+           fzf --multi \
+               --prompt='Models > ' \
+               --header='TAB = multi-select  ENTER = confirm  (runtime:model-id)')"
+    [ -z "$sel" ] && { info "nothing selected"; return 0; }
+
+    echo
+    info "Selected — commands to add/pull:"
+    while IFS= read -r entry; do
+      local rt="${entry%%:*}" mid="${entry#*:}"
+      case "$rt" in
+        lms)    printf '  echo "%s" >> models.txt\n' "$mid";;
+        ollama) printf '  ollama pull %s\n' "$mid"
+                printf '  echo "%s" >> models-ollama.txt\n' "$mid";;
+        mlx)    printf '  # already in models-mlx.txt\n';;
+      esac
+    done <<< "$sel"
+  fi
+}
+
+# ── Status-only (no flags given) ───────────────────────────────────────────────
+STATUS_ONLY=0
+if [ "$DO_ALL$DO_LMS$DO_HERMES$DO_CODEX$DO_OPENCODE$DO_AIDER$DO_CAVEMAN$DO_MLX$DO_OLLAMA$DO_FZF$DO_HF$DO_MODEL" = "000000000000" ]; then
+  STATUS_ONLY=1
+fi
+
+# ── Run ───────────────────────────────────────────────────────────────────────
+[ "$DRY_RUN" = 1 ] && info "dry-run mode — no changes will be made"
+
+if [ "$STATUS_ONLY" = 1 ]; then
+  info "Tool status (pass --all or a specific flag to install)"
+  setup_lms
+  setup_hermes
+  setup_codex
+  setup_opencode
+  setup_aider
+  setup_caveman
+  setup_mlx
+  setup_ollama
+  setup_fzf
+  setup_hf
+  echo
+  show_models
+  exit 0
+fi
+
+[ "$DO_LMS" = 1 ]     && setup_lms
+[ "$DO_HERMES" = 1 ]  && setup_hermes
+[ "$DO_CODEX" = 1 ]   && setup_codex
+[ "$DO_OPENCODE" = 1 ] && setup_opencode
+[ "$DO_AIDER" = 1 ]   && setup_aider
+[ "$DO_CAVEMAN" = 1 ] && setup_caveman
+[ "$DO_MLX" = 1 ]     && setup_mlx
+[ "$DO_OLLAMA" = 1 ]  && setup_ollama
+[ "$DO_FZF" = 1 ]     && setup_fzf
+[ "$DO_HF" = 1 ]      && setup_hf
+[ "$DO_MODEL" = 1 ]   && show_models
+
+echo
+[ "$DRY_RUN" = 1 ] && info "dry-run complete — nothing was changed" || info "setup complete"

@@ -1,0 +1,7 @@
+# Models for Ollama runtime — one Ollama model id per line.
+# Use exact ids as shown by: ollama list
+# Run bench against these with: bin/bench --runtime ollama
+# Ordered by benchmark score (top scorers first).
+
+# 35B MoE (3.6B active) — maps to qwen/qwen3.6-35b-a3b in LM Studio
+qwen3.6:35b-a3b-coding-mxfp8
