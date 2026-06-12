@@ -10,6 +10,7 @@
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
+| **Removed** | 2026-06-10 |
 
 ## Results summary
 
@@ -39,7 +40,9 @@ The model is uniformly slow: 70–300s per case on most adapters. The QAT quanti
 
 ## Status
 
-**keep** — results are valid, just slow. The caveman 96% score is strong. Consider raising the timeout if running codex+12b-qat, and use caveman or opencode for reliable results with this model.
+**removed 2026-06-10** — dropped from `models.txt` because `qwen/qwen3.5-9b` is strictly better: 87% vs 75% accuracy, 81s vs 173s average time, and smaller (9B vs 12B). The GGUF backend running via llama.cpp on LM Studio is the likely cause of the slowness — a native MLX 12B Gemma would probably close the speed gap, but the accuracy gap is a genuine model-capability difference. No MLX variant is currently downloaded.
+
+**Better alternative:** `qwen/qwen3.5-9b` (MLX-4bit) — faster, more accurate, smaller footprint.
 
 ## Comparison within family
 

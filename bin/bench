@@ -35,6 +35,57 @@ source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
 trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
 
+# ── Model aliases: cross-runtime short names ──────────────────────────────────
+# models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id
+# Pass --model <alias> and bench resolves to the right runtime id automatically.
+declare -A _ALIAS_MAP
+_ALIASES_FILE="$HERE/models-aliases.conf"
+if [ -f "$_ALIASES_FILE" ]; then
+  while IFS=$'\t' read -r _al _lms _mlx _oll; do
+    [[ "$_al" =~ ^[[:space:]]*# || -z "${_al// /}" ]] && continue
+    _ALIAS_MAP["${_al}:lms"]="$_lms"
+    _ALIAS_MAP["${_al}:mlx"]="$_mlx"
+    _ALIAS_MAP["${_al}:ollama"]="$_oll"
+  done < "$_ALIASES_FILE"
+fi
+# Returns the runtime-specific id for a name, or the name itself if not an alias.
+# Returns empty string when alias exists but maps to "-" for this runtime.
+resolve_model() {
+  local name="$1" rt="$2" key rid
+  key="${name}:${rt}"
+  if [[ -v "_ALIAS_MAP[$key]" ]]; then
+    rid="${_ALIAS_MAP[$key]}"
+    [ "$rid" = "-" ] && echo "" || echo "$rid"
+  else
+    echo "$name"
+  fi
+}
+
+# Pre-scan for --runtime so --help can show the right models file.
+_help_runtime="lms"; _prev_ha=""
+for _ha in "$@"; do [ "$_prev_ha" = "--runtime" ] && _help_runtime="$_ha"; _prev_ha="$_ha"; done
+
+show_help() {
+  local runtime="$1"
+  awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
+  echo
+  printf 'Available adapters:\n  '
+  ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
+    | xargs -I{} basename {} .sh \
+    | sed "s/-${runtime}$//" | sort -u | tr '\n' ' '
+  echo
+  echo
+  local mfile
+  case "$runtime" in
+    lms)    mfile="$MODELS_FILE";;
+    ollama) mfile="$HERE/models-ollama.txt";;
+    mlx)    mfile="$HERE/models-mlx.txt";;
+    *)      mfile="$MODELS_FILE";;
+  esac
+  echo "Available models ($runtime → $(basename "$mfile")):"
+  read_list "$mfile" | sed 's/^/  /'
+}
+
 ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -47,7 +98,7 @@ while [ $# -gt 0 ]; do
     --list)              LIST=1; shift;;
     --interactive|-i)    INTERACTIVE=1; shift;;
     --verbose|-v)        VERBOSE=1; shift;;
-    -h|--help)  sed -n '2,30p' "$0"; exit 0;;
+    -h|--help)  show_help "$_help_runtime"; exit 0;;
     *) die "unknown option: $1";;
   esac
 done
@@ -56,20 +107,34 @@ if [ "$INTERACTIVE" = 1 ]; then
   command -v fzf >/dev/null 2>&1 || die "fzf not installed (brew install fzf)"
 
   if [ -z "$MODELS" ]; then
-    all_models="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
-    [ -z "$all_models" ] && die "no models found via lms ls"
+    case "$RUNTIME" in
+      lms)
+        all_models="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
+        [ -z "$all_models" ] && die "no models found via lms ls"
+        ;;
+      ollama)
+        all_models="$(read_list "$HERE/models-ollama.txt")"
+        [ -z "$all_models" ] && die "no models found in models-ollama.txt"
+        ;;
+      mlx)
+        all_models="$(read_list "$HERE/models-mlx.txt")"
+        [ -z "$all_models" ] && die "no models found in models-mlx.txt"
+        ;;
+    esac
     sel_models="$(printf '%s\n' "$all_models" | fzf --multi --prompt='Models > ' --header='TAB = multi-select  ENTER = confirm')"
     [ -z "$sel_models" ] && die "no models selected"
     MODELS="$(printf '%s\n' "$sel_models" | paste -sd',' -)"
   fi
 
   if [ -z "$ADAPTERS" ]; then
-    all_tools="$(ls "$ADAPTERS_DIR"/*.sh 2>/dev/null | xargs -I{} basename {} .sh | sort)"
+    all_tools="$(ls "$ADAPTERS_DIR"/*.sh 2>/dev/null | xargs -I{} basename {} .sh | sed -E 's/-(lms|ollama|mlx)$//' | sort -u)"
     [ -z "$all_tools" ] && die "no adapters found in $ADAPTERS_DIR"
     sel_tools="$(printf '%s\n' "$all_tools" | fzf --multi --prompt='Tools  > ' --header='TAB = multi-select  ENTER = confirm')"
     [ -z "$sel_tools" ] && die "no tools selected"
     ADAPTERS="$(printf '%s\n' "$sel_tools" | paste -sd',' -)"
   fi
+
+  echo "${C_DIM}Rerun: bin/bench --runtime $RUNTIME --tool $ADAPTERS --model $MODELS${C_RST}"
 fi
 
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
@@ -111,6 +176,58 @@ else
   curl -s --max-time 5 -o /dev/null "http://localhost:${_rt_port:-8080}/" 2>/dev/null \
   || die "$RUNTIME server not reachable at $RUNTIME_BASE_URL"
 fi
+
+# ── Pre-flight: check model availability ─────────────────────────────────────
+# For runtimes where we can enumerate installed models, warn about missing ones
+# up front so the user sees the full list before any trial runs.
+preflight_check_models() {
+  local runtime="$1"; shift; local models=("$@")
+  local available missing=()
+
+  case "$runtime" in
+    lms)
+      available="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
+      for m in "${models[@]}"; do
+        printf '%s\n' "$available" | grep -qx "$m" || missing+=("$m")
+      done
+      [ "${#missing[@]}" -eq 0 ] && return 0
+      warn "models not found in LM Studio (lms ls):"
+      for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
+      echo "  ${C_DIM}To add: download via LM Studio or lms pull <id>${C_RST}"
+      ;;
+    ollama)
+      available="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | sed 's/:latest$//')"
+      for m in "${models[@]}"; do
+        printf '%s\n' "$available" | grep -qx "${m%:latest}" || missing+=("$m")
+      done
+      [ "${#missing[@]}" -eq 0 ] && return 0
+      warn "models not found in Ollama:"
+      for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
+      echo "  ${C_DIM}To fix:${C_RST}"
+      for m in "${missing[@]}"; do
+        if [ -f "$HERE/config-templates/${m}.Modelfile" ]; then
+          echo "    ${C_DIM}bin/setup-ollama-modelfile $m${C_RST}"
+        else
+          echo "    ${C_DIM}ollama pull $m${C_RST}"
+        fi
+      done
+      ;;
+    mlx)
+      return 0  # mlx_lm.server exposes only one model; can't enumerate
+      ;;
+  esac
+
+  [ "${#missing[@]}" -eq "${#models[@]}" ] && die "no available models for runtime $runtime — nothing to run"
+  echo
+}
+
+# Resolve aliases before preflight so availability checks use runtime-specific ids.
+RESOLVED_MODEL_ARR=()
+for _m in "${MODEL_ARR[@]}"; do
+  _r="$(resolve_model "$_m" "$RUNTIME")"
+  [ -n "$_r" ] && RESOLVED_MODEL_ARR+=("$_r")
+done
+preflight_check_models "$RUNTIME" "${RESOLVED_MODEL_ARR[@]}"
 
 RUN_ID="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="$RESULTS_DIR/$RUN_ID"
@@ -237,18 +354,37 @@ lms_unload_model() {
 
 info "runtime: $RUNTIME  base_url: $RUNTIME_BASE_URL"
 
-for model in "${MODEL_ARR[@]}"; do
+for model_alias in "${MODEL_ARR[@]}"; do
+  # Resolve alias → runtime-specific id. model_alias used in CSV/display; model
+  # is the id passed to the runtime (they differ when an alias is used).
+  model="$(resolve_model "$model_alias" "$RUNTIME")"
+  if [ -z "$model" ]; then
+    warn "model '$model_alias' not mapped for runtime $RUNTIME (alias maps to '-') — skipping"
+    continue
+  fi
+
   if [ "$RUNTIME" = lms ]; then
     # Clear any stale instances before loading (":2" variants survive across runs).
     lms_unload_model "$model"
-    info "loading model: $model"
+    [ "$model" != "$model_alias" ] && _id_note=" ($model)" || _id_note=""
+    info "loading model: $model_alias${_id_note}"
     bench_ttl_secs=$(( BENCH_TTL_MINUTES * 60 ))
     lms load --yes --ttl="$bench_ttl_secs" --context-length "$BENCH_CONTEXT" --parallel "$BENCH_PARALLEL" "$model"
     _lms_rc=$?
     if [ $_lms_rc -eq 130 ] || [ $_lms_rc -eq 143 ]; then exit $_lms_rc; fi
     if [ $_lms_rc -ne 0 ]; then warn "lms load failed for $model — skipping"; continue; fi
+  elif [ "$RUNTIME" = ollama ]; then
+    if ! ollama list 2>/dev/null | awk 'NR>1{print $1}' | sed 's/:latest$//' | grep -qx "${model%:latest}"; then
+      if [ -f "$HERE/config-templates/${model}.Modelfile" ]; then
+        warn "model not found in ollama: $model  (run: bin/setup-ollama-modelfile $model) — skipping"
+      else
+        warn "model not found in ollama: $model  (run: ollama pull $model) — skipping"
+      fi
+      continue
+    fi
+    info "model: $model_alias  (ollama manages loading)"
   else
-    info "model: $model  (${RUNTIME} manages loading)"
+    info "model: $model_alias  (${RUNTIME} manages loading)"
   fi
 
   for adapter in "${ADAPTER_ARR[@]}"; do
@@ -262,7 +398,7 @@ for model in "${MODEL_ARR[@]}"; do
       case_src="$CASES_DIR/$case_id"
       [ -f "$case_src/meta.json" ] || { warn "no case $case_id — skipping"; continue; }
 
-      base_sandbox="$RUN_DIR/sandbox/$adapter/$(fs_safe "$model")/$case_id"
+      base_sandbox="$RUN_DIR/sandbox/$adapter/$(fs_safe "$model_alias")/$case_id"
 
       # --- run N trials, collecting per-trial pass/seconds/status ----------
       scores=(); secs=(); statuses=(); total=0; n_ok=0
@@ -274,7 +410,7 @@ for model in "${MODEL_ARR[@]}"; do
         scores+=("$t_score"); secs+=("$t_elapsed"); statuses+=("$t_status")
         [ "$t_status" = ok ] && n_ok=$((n_ok+1))
         [ "$TRIALS" -gt 1 ] && \
-          echo "$adapter,$model,$case_id,$t,$t_pass,$t_total,$(awk "BEGIN{printf \"%.2f\", $t_score}"),$t_elapsed,$t_status" >> "$TRIALS_CSV"
+          echo "$adapter,$model_alias,$case_id,$t,$t_pass,$t_total,$(awk "BEGIN{printf \"%.2f\", $t_score}"),$t_elapsed,$t_status" >> "$TRIALS_CSV"
       done
 
       # --- collapse trials into medians ------------------------------------
@@ -285,14 +421,14 @@ for model in "${MODEL_ARR[@]}"; do
       # status: single status if all trials agree, else the distinct set joined with |.
       status="$(printf '%s\n' "${statuses[@]}" | sort -u | paste -sd'|' -)"
 
-      echo "$adapter,$model,$case_id,$pass,$total,$score,$elapsed,$status,$TRIALS,$RUNTIME" >> "$CSV"
+      echo "$adapter,$model_alias,$case_id,$pass,$total,$score,$elapsed,$status,$TRIALS,$RUNTIME" >> "$CSV"
 
       # --- report ----------------------------------------------------------
       sec_note="${elapsed}s"; [ "$TRIALS" -gt 1 ] && sec_note="med ${elapsed}s, ${n_ok}/${TRIALS} ok"
       status_note=""; [ "$status" != "ok" ] && status_note=" $status"
-      if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
-      elif [ "$pass" -gt 0 ]; then warn "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
-      else err "$adapter | $model | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"; fi
+      if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
+      elif [ "$pass" -gt 0 ]; then warn "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
+      else err "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"; fi
 
       # On any non-pass, point at the log so failures are diagnosable without
       # digging through the sandbox tree. --verbose adds a short error excerpt.
@@ -309,17 +445,13 @@ for model in "${MODEL_ARR[@]}"; do
     done
   done
 
-  [ "$RUNTIME" = lms ] && lms_unload_model "$model"
+  case "$RUNTIME" in
+    lms)    lms_unload_model "$model";;
+    ollama) info "unloading model: $model_alias"; ollama stop "$model" 2>/dev/null || true;;
+    mlx)    ;;  # mlx_lm.server serves one model for its lifetime; restart to change models
+  esac
 done
 
 echo
 info "results: $CSV"
 "$HERE/bin/report" "$CSV"
-
-# ── Next steps hint ──────────────────────────────────────────────────────────
-echo
-echo "${C_DIM}Next steps:${C_RST}"
-echo "${C_DIM}  bin/report --all                   # compare this run with all previous runs${C_RST}"
-echo "${C_DIM}  bin/report --all --save            # persist merged leaderboard → LEADERBOARD.md${C_RST}"
-echo "${C_DIM}  bin/gen-evals --all                # build context bundle for model/tool eval pages${C_RST}"
-echo "${C_DIM}  bin/viz                            # rebuild interactive HTML dashboard${C_RST}"

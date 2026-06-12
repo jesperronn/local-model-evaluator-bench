@@ -10,6 +10,7 @@
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
+| **LMS entry removed** | 2026-06-10 |
 
 ## Results summary
 
@@ -38,7 +39,9 @@ All three failures are aider-specific and do not appear on opencode, codex, or c
 
 ## Status
 
-**keep** — perfect scores on three adapters; top-ranked model in the suite. The aider failures are well-understood adapter-format issues, not model capability regressions.
+**model: active** — perfect scores on three adapters; top-ranked model in the suite. Still benchmarked via Ollama as `qwen3.6:35b-a3b-coding-mxfp8` (MLX/mxfp8).
+
+**LMS entry removed 2026-06-10** — `qwen/qwen3.6-35b-a3b` (GGUF) dropped from `models.txt` for two reasons: (1) the identical model already runs via Ollama in MLX format, making the GGUF entry redundant; (2) moving to an all-MLX LMS runtime for consistency. Replaced in `models.txt` by `qwen/qwen3.6-27b` (MLX-6bit, already downloaded), which covers the same model family at 27B dense instead of 35B MoE.
 
 ## Comparison within family
 

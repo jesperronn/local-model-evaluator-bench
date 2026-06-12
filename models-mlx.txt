@@ -1,8 +1,32 @@
-# Models for mlx_lm.server runtime — HuggingFace model ids (mlx-community/...).
-# These are downloaded on first use by mlx_lm.server or via:
+# Models for mlx_lm.server runtime — HuggingFace model ids (mlx-community/...) or
+# local absolute paths to LM Studio MLX model directories.
+# HuggingFace models are downloaded on first use by mlx_lm.server or via:
 #   huggingface-cli download mlx-community/<name>
 # Run bench against these with: bin/bench --runtime mlx
 # Ordered by benchmark score (top scorers first).
 
 # 30B coder (MLX-4bit) — local LM Studio copy; maps to qwen/qwen3-coder-30b
 /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit
+
+# 27B (MLX-6bit) — qwen3.6 27B; smaller sibling of the 35B MoE ollama model
+/Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-27B-MLX-6bit
+
+# 26B MoE (MLX-4bit QAT) — same weights as google/gemma-4-26b-a4b-qat in lms; enables runtime comparison
+/Users/jesper/.lmstudio/models/lmstudio-community/gemma-4-26B-A4B-it-QAT-MLX-4bit
+
+# 9B (MLX-4bit) — same weights as qwen/qwen3.5-9b in lms; enables runtime comparison; smallest here
+/Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit
+
+# Download these before running (mlx_lm.server fetches from HuggingFace on first load):
+#   huggingface-cli download mlx-community/Phi-4-mini-instruct-4bit
+#   huggingface-cli download mlx-community/Phi-4-4bit
+#   huggingface-cli download mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
+
+# 3.8B — Microsoft Phi-4 mini
+mlx-community/Phi-4-mini-instruct-4bit
+
+# 14B — Microsoft Phi-4
+mlx-community/Phi-4-4bit
+
+# 7B — Qwen 2.5 Coder coding specialist
+mlx-community/Qwen2.5-Coder-7B-Instruct-4bit

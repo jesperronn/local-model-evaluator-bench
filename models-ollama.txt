@@ -3,5 +3,32 @@
 # Run bench against these with: bin/bench --runtime ollama
 # Ordered by benchmark score (top scorers first).
 
+# 9B — Qwen3.5 dense; maps to qwen/qwen3.5-9b in lms.
+# NOT RECOMMENDED on Ollama: loads with 262K default context causing 300s timeouts
+# and very slow inference. Scores well on lms (97%) but poorly here. Skip for serious work.
+# qwen3.5:9b
+
 # 35B MoE (3.6B active) — maps to qwen/qwen3.6-35b-a3b in LM Studio
 qwen3.6:35b-a3b-coding-mxfp8
+
+# 26B MoE (4B active) — Gemma 4 26B, MLX-quantized by Ollama; maps to google/gemma-4-26b-a4b-qat in lms
+gemma4:26b-mlx
+
+# 26B MoE (4B active) — Custom Gemma 4 variant tuned for agentic use: 128K context
+# window (vs 4K default) and temperature 0.2 for stable tool-call JSON.
+# Build first: bin/setup-ollama-modelfile gemma4-claude
+gemma4-claude
+
+# Pull these before running (ollama pull <id>):
+#   ollama pull phi4-mini:latest
+#   ollama pull phi4:latest
+#   ollama pull qwen2.5-coder:7b
+
+# 3.8B — Microsoft Phi-4 mini; strong reasoning for size
+phi4-mini:latest
+
+# 14B — Microsoft Phi-4; top scores on small-model benchmarks
+phi4:latest
+
+# 7B — Qwen 2.5 Coder; best-in-class coding specialist at 7B
+qwen2.5-coder:7b

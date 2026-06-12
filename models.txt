@@ -15,11 +15,20 @@
 # and fp16), confirming genuine parameter-scale limits, not misconfiguration.
 # See docs/models/google--gemma-4-e{2,4}b{,-qat}.md for details.
 
+# 12B Gemma removed 2026-06-10: 75% at 173s avg — outperformed by qwen3.5-9b
+# (87% at 81s) which is smaller and faster. GGUF backend also likely a factor.
+# See docs/models/google--gemma-4-12b-qat.md
+
+# 35B MoE (3.6B active) — GGUF; re-added 2026-06-11 for cross-runtime comparison
+# (lms alias: qwen3.6-35b-a3b → maps to qwen3.6:35b-a3b-coding-mxfp8 in ollama)
+qwen/qwen3.6-35b-a3b
+
+# Phi-4 family — download in LM Studio then uncomment:
+#   microsoft/phi-4-mini  (3.8B, strong reasoning for size)
+#   microsoft/phi-4       (14B, top small-model benchmark scores)
+
 # 9B
 qwen/qwen3.5-9b
-
-# 12B
-google/gemma-4-12b-qat
 
 # 26B (MoE, 4B active)
 google/gemma-4-26b-a4b-qat
@@ -30,16 +39,11 @@ google/gemma-4-26b-a4b-qat
 # and no speed win — accuracy delta is the only reason to run it.
 # google/gemma-4-26b-a4b
 
+# 27B (MLX-6bit) — qwen3.6 dense, replaces the GGUF 35B-a3b (same family, all-MLX now)
+qwen/qwen3.6-27b
+
 # 30B
 qwen/qwen3-coder-30b
 
 # 80B (sparse MoE, 10B active — 60 GB at MLX-6bit)
 qwen/qwen3-coder-next
-
-# 35B (MoE, 3B active)
-qwen/qwen3.6-35b-a3b
-# Candidate to evaluate later. Commented until downloaded in LM Studio.
-# NOTE: verify the exact modelKey first — `qwen3.6-27b` is not a confirmed Qwen
-# variant (the known qwen3.6 build here is 35b-a3b; 27b is a Gemma size). Run
-# `lms ls --json | jq -r '.[].modelKey'` and fix the name before uncommenting.
-# qwen/qwen3.6-27b
