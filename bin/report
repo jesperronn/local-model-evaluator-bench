@@ -55,14 +55,16 @@ if [ "$ALL_RUNS" -eq 1 ]; then
   # CSVs are listed newest-first; awk skips a key it has already seen.
   MERGED="$(mktemp)"
   trap 'rm -f "$MERGED"' EXIT
-  ALL_CSVS="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null)"
+  # Sort by directory name (YYYYMMDD-HHMMSS), not mtime: mtime can be updated by
+  # later reads/writes and would cause an older run to shadow a newer one.
+  ALL_CSVS="$(ls -d "$RESULTS_DIR"/*/results.csv 2>/dev/null | sort -r)"
   [ -n "$ALL_CSVS" ] || die "no results found in $RESULTS_DIR"
   head -1 "$(echo "$ALL_CSVS" | head -1)" > "$MERGED"
   # Dedup key: adapter+model+case+runtime ($10, empty in old CSVs → groups as "lms").
   awk -F, 'FNR==1{next} !seen[$1,$2,$3,$10]++' $ALL_CSVS >> "$MERGED"
   CSV="$MERGED"
 elif [ -z "$CSV" ]; then
-  CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
+  CSV="$(ls -d "$RESULTS_DIR"/*/results.csv 2>/dev/null | sort -r | head -1)"
   [ -n "$CSV" ] || die "no results found in $RESULTS_DIR"
 fi
 [ -f "$CSV" ] || die "no such file: $CSV"

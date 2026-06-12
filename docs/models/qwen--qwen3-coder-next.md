@@ -10,6 +10,7 @@
 | **Disk size** | 60.31 GiB (as reported by `lms load`, 2026-06-09) |
 | **Added** | 2026-06-09 |
 | **Last run** | 2026-06-09 |
+| **Doc updated** | 2026-06-09 |
 
 ## Results summary
 

@@ -11,6 +11,7 @@
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
 | **LMS entry removed** | 2026-06-10 |
+| **Doc updated** | 2026-06-12 |
 
 ## Results summary
 

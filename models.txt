@@ -39,8 +39,9 @@ google/gemma-4-26b-a4b-qat
 # and no speed win — accuracy delta is the only reason to run it.
 # google/gemma-4-26b-a4b
 
-# 27B (MLX-6bit) — qwen3.6 dense, replaces the GGUF 35B-a3b (same family, all-MLX now)
-qwen/qwen3.6-27b
+# 27B (MLX-6bit) dense removed 2026-06-12: 35.7% at 253s avg — vastly outperformed
+# by qwen3.6-35b-a3b MoE (94% at 48s). Thinking token leakage also broke aider.
+# Same family covered by the MoE variant.
 
 # 30B
 qwen/qwen3-coder-30b

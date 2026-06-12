@@ -13,6 +13,13 @@ Score = fraction of a case's hidden tests that pass after the tool edits the
 code. Each cell below is `passed-tests / total-tests` summed over the 4 cases
 (max **15** sub-tests: slugify 4 + debounce 4 + groupBy 3 + topwords 4).
 
+> **Updated 2026-06-12:** The analysis below is the original 4-case / 4-adapter
+> narrative. The benchmark has since expanded to **9 cases**, **5 adapters**
+> (hermes now works), and **3 runtimes** (lms, ollama, mlx). Jump to
+> [Current results (2026-06-12)](#current-results-2026-06-12) for the latest
+> summary, or see [LEADERBOARD.md](LEADERBOARD.md) for the live automated
+> scoreboard.
+
 Models tested in ascending memory order:
 
 | # | Model | Size | Status |
@@ -312,12 +319,54 @@ Per-model totals (out of 15; #4 = broken template):
 
 ## Not benchmarked
 
-- **hermes** — reaches models fine but executes its tools in a container
-  workspace. Tried the safe fix (keep `backend: docker`, set
-  `docker_mount_cwd_to_workspace: true`, image pulled, `bin/doctor` confirms
-  ready) — but edits **still don't surface** to the host sandbox on macOS
-  (path/bind-mount mismatch; `container_persistent: false` didn't help). Remains
-  excluded pending deeper hermes/Docker debugging. See `docs/SETUP.md` + `bin/doctor`.
+- ~~**hermes**~~ — **resolved 2026-06-11**: switched to `backend: local`
+  (no Docker), `approvals.mode: smart`. Now fully working and included in the
+  main matrix; see current results below.
 - **VS Code / IntelliJ extensions** — point them at the same LM Studio endpoint
   and grade with each case's `check/run.sh` (see `docs/SETUP.md`). Manual, not in
   this automated matrix.
+
+---
+
+## Current results (2026-06-12)
+
+9 cases, 5 adapters (aider · caveman · codex · hermes · opencode), LM Studio
+runtime. Max = 34 sub-tests per adapter × model pair (smoke excluded from %).
+Scores and medians from `bin/report --all`. Live data: [LEADERBOARD.md](LEADERBOARD.md).
+
+### Per-model summary (LMS runtime)
+
+| Model | aider | caveman | codex | hermes | opencode | **Overall** | avg s |
+|-------|:-----:|:-------:|:-----:|:------:|:--------:|:-----------:|------:|
+| qwen/qwen3.6-35b-a3b | 93% | 100% | 100% | 100% | 100% | **99%** | 55s |
+| qwen/qwen3-coder-30b | 81% | 100% | 100% | 100% | 100% | **96%** | 61s |
+| qwen/qwen3-coder-next | 72% | 97% | 100% | 100% | 100% | **94%** | 43s |
+| qwen/qwen3.5-9b | 71% | 97% | 100% | 100% | 68% | **88%** | 79s |
+| google/gemma-4-26b-a4b-qat | 39% | 100% | 88% | 100% | 100% | **87%** | 75s |
+
+### Per-adapter summary (all LMS models, all cases)
+
+| Adapter | Pass% | avg s | Notes |
+|---------|:-----:|------:|-------|
+| hermes  | 98%   | 79s | 100% on all top-4 models; gemma-4-26b also 100% |
+| caveman | 98%   | 55s | most consistent; only misses on edge cases |
+| opencode| 93%   | 72s | strong across models; qwen3.5-9b drops to 68% |
+| codex   | 92%   | 75s | 100% on all Qwen models; gemma-4-26b 88% |
+| aider   | 73%   | 35s | fastest by far; consistent multi-file misses |
+
+### Key findings vs the initial 4-case run
+
+- **hermes works** with `backend: local` + `approvals.mode: smart`. Competitive
+  across all capable models (100% on the top 4). Docker was the root cause.
+- **9 cases reveal the multi-file gap:** aider scores 0/2 on
+  `js-03-multifile-cache` and `js-04-multifile-rename` regardless of model.
+  Single-file cases are saturated at strong models; multi-file still
+  discriminates.
+- **qwen3.6-35b-a3b is the best overall:** 99% with 4 adapters at 100%, fast
+  (37s median on caveman/codex/hermes), and the only model where aider also
+  reaches 93%.
+- **gemma-4-26b-a4b-qat aider anomaly:** aider drops to 39% on this model —
+  the same gemma format-incompatibility seen in the original 4-case analysis.
+  All other adapters hit 88–100%.
+- **opencode dropped on qwen3.5-9b (68%):** run-to-run variance confirmed; the
+  original 4-case run scored 100%. Small models should be re-run ≥3 trials.

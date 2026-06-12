@@ -9,7 +9,8 @@
 | **Parameter count** | 30B total, ~3B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-08 |
+| **Last run** | 2026-06-12 |
+| **Doc updated** | 2026-06-12 |
 
 ## Results summary
 
@@ -34,9 +35,18 @@ One of the top-performing models in the suite. opencode, codex, and caveman all 
 - **codex:** 49–142s. Comparable to qwen3-coder-next but slightly faster on most cases.
 - **caveman:** 18–127s. Slower than aider but more reliable on multi-file cases.
 
+## MLX runtime results (2026-06-12)
+
+hermes via `mlx_lm.server`: **28/28 (100%) on warm cases** — all 7 real coding
+cases passed (js-01 4/4, js-02 4/4, js-03 5/5, js-04 3/3, js-05 5/5, js-06 4/4,
+ts-01 3/3). Two cold-start failures (bash-01 and smoke) due to mlx_lm.server JIT
+compilation not yet complete on the first request after server start — not a model
+quality issue. Warm-case timing: 117–301s (avg ~228s), ~2.5× slower than LMS.
+
 ## Known issues
 
-**hermes error(1) — all cases:** hermes fails on all models; adapter-level issue unrelated to this model.
+**hermes error(1) — all cases (historic):** hermes previously failed on all models;
+resolved 2026-06-11 by switching to `backend: local`. Now fully functional.
 
 **codex non-zero exit on js-06, ts-01:** codex exits with rc=1 after successfully applying edits. No data loss — grader scored full points. Likely a codex CLI bug (fails to clean up a subprocess). Monitor across runs.
 

@@ -10,6 +10,7 @@
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
+| **Doc updated** | 2026-06-09 |
 
 ## Results summary
 

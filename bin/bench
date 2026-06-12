@@ -402,6 +402,7 @@ for model_alias in "${MODEL_ARR[@]}"; do
 
       # --- run N trials, collecting per-trial pass/seconds/status ----------
       scores=(); secs=(); statuses=(); total=0; n_ok=0
+      [ -t 1 ] && printf '%s' "${C_DIM}[RUNNING]${C_RST} $adapter | $model_alias | $case_id"
       for ((t=1; t<=TRIALS; t++)); do
         if [ "$TRIALS" -gt 1 ]; then sandbox="$base_sandbox/trial-$t"; else sandbox="$base_sandbox"; fi
         read -r t_pass t_total t_elapsed t_status < <(run_trial "$adapter_sh" "$model" "$case_src" "$sandbox")
@@ -424,6 +425,7 @@ for model_alias in "${MODEL_ARR[@]}"; do
       echo "$adapter,$model_alias,$case_id,$pass,$total,$score,$elapsed,$status,$TRIALS,$RUNTIME" >> "$CSV"
 
       # --- report ----------------------------------------------------------
+      [ -t 1 ] && printf '\r\033[K'
       sec_note="${elapsed}s"; [ "$TRIALS" -gt 1 ] && sec_note="med ${elapsed}s, ${n_ok}/${TRIALS} ok"
       status_note=""; [ "$status" != "ok" ] && status_note=" $status"
       if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
