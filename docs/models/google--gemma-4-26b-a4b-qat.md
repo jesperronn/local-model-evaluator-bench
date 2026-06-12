@@ -9,12 +9,12 @@
 | **Parameter count** | 26B total, ~4B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-12 |
-| **Doc updated** | 2026-06-12 |
+| **Last run** | 2026-06-13 |
+| **Doc updated** | 2026-06-13 |
 
 ## Results summary
 
-Top performer: hermes, opencode, and caveman all at 100%. Overall 143/164 (87.2%). The standout is **aider's catastrophic underperformance** — the worst aider score of any capable model (5 consistent failures across all multi-file and complex cases). codex scores 88.2% (one case failure). Not a model quality issue; aider has a severe format incompatibility with this model's chat template. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+Top performer across all runtimes: hermes (LMS + MLX 4-bit QAT), opencode, and caveman all at 100%. Overall 143/164 (87.2%). The standout is **aider's catastrophic underperformance** — the worst aider score of any capable model (5 consistent failures across all multi-file and complex cases). codex scores 88.2% (one case failure). Not a model quality issue; aider has a severe format incompatibility with this model's chat template. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
 ## Failure patterns
 
@@ -34,7 +34,8 @@ The pattern across all 5 aider failures is consistent: this model has a chat tem
 
 ## Timing observations
 
-- **hermes:** ~56s avg. Clean on all 9 cases.
+- **hermes (LMS):** ~56s avg. Clean on all 9 cases.
+- **hermes (MLX 4-bit QAT):** 13–253s, avg 132s. 34/34 100%. Simple single-turn cases faster than LMS (bash-01: 84s vs 101s, js-01: 37s vs 62s); multi-turn iterative cases ~2.4–4.5× slower (js-02: 253s vs 56s). No cold-start JIT issue (4B active MoE — JIT completes before first request). 2 transient tool-call truncation warnings (both self-recovered via hermes retry).
 - **opencode:** 45–204s. All cases clean, no timeouts. js-03 was longest at 204s.
 - **codex:** 57–196s. All ok except js-02 (which codex failed).
 - **caveman:** 48–164s. All cases clean. js-03 took 164s.
