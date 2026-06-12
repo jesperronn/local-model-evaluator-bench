@@ -6,6 +6,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
 OUT="$HERE/results/index.html"
+PROTO_OUT="$HERE/results/compare-agents.html"
 
 mapfile -t csvs < <(find "$RESULTS_DIR" -name 'results.csv' | sort)
 [ "${#csvs[@]}" -gt 0 ] || die "no results.csv found in $RESULTS_DIR"
@@ -18,8 +19,9 @@ data_json=$(awk -F, '
   {
     st=$8; gsub(/\\/,"\\\\",st); gsub(/"/,"\\\"",st)
     mo=$2; gsub(/\\/,"\\\\",mo); gsub(/"/,"\\\"",mo)
-    printf "%s{\"run\":\"%s\",\"adapter\":\"%s\",\"model\":\"%s\",\"case\":\"%s\",\"pass\":%d,\"total\":%d,\"score\":%s,\"seconds\":%d,\"status\":\"%s\",\"trials\":%d}",
-      sep, run, $1, mo, $3, $4+0, $5+0, $6, $7+0, st, ($9+0<1?1:$9+0)
+    rt=$10; gsub(/\\/,"\\\\",rt); gsub(/"/,"\\\"",rt)
+    printf "%s{\"run\":\"%s\",\"adapter\":\"%s\",\"model\":\"%s\",\"case\":\"%s\",\"pass\":%d,\"total\":%d,\"score\":%s,\"seconds\":%d,\"status\":\"%s\",\"trials\":%d,\"runtime\":\"%s\"}",
+      sep, run, $1, mo, $3, $4+0, $5+0, $6, $7+0, st, ($9+0<1?1:$9+0), rt
     sep=","
   }
   END { printf "]" }
@@ -65,6 +67,8 @@ h1{font-size:20px;font-weight:600}
 .filter-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);white-space:nowrap}
 .filter-hint{font-size:10px;color:var(--muted);white-space:nowrap;margin-left:2px}
 .chips{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.filter-summary{font-size:12px;color:var(--muted);display:none}
+.filter-summary.on{display:block}
 .chip{padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;font-weight:500;transition:opacity .12s;user-select:none;white-space:nowrap}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .chip:hover{opacity:.82}
@@ -78,6 +82,9 @@ h1{font-size:20px;font-weight:600}
 .vtab{padding:6px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:13px;font-weight:500;transition:all .12s;box-shadow:var(--shadow)}
 .vtab.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .vtab:hover:not(.on){background:#f0f2f4;border-color:#8c959f}
+.page-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.page-link{padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--text);text-decoration:none;font-size:12px;font-weight:600;box-shadow:var(--shadow)}
+.page-link:hover{background:#f0f2f4}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
 .ctrl-row{display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
 .btn{padding:4px 12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;font-weight:500;transition:all .12s}
@@ -146,12 +153,18 @@ table.dt{border-collapse:collapse;width:100%;font-size:12px}
     </div>
     <div id="data-summary"></div>
   </header>
+  <nav class="page-nav">
+    <a class="page-link" href="./index.html">Main Dashboard</a>
+    <a class="page-link" href="./compare-agents.html">Compare Agents</a>
+  </nav>
   <div class="filters">
     <div class="filter-group"><span class="filter-label">Adapter</span><div class="chips" id="f-adapters"></div></div>
     <div class="vdivider"></div>
-    <div class="filter-group"><span class="filter-label">Model</span><div class="chips" id="f-models"></div></div>
+    <div class="filter-group"><span class="filter-label">Model</span><div class="chips" id="f-models"></div><div class="filter-summary" id="f-model-summary"></div></div>
     <div class="vdivider"></div>
     <div class="filter-group"><span class="filter-label">Run</span><div class="chips" id="f-run"></div></div>
+    <div class="vdivider"></div>
+    <div class="filter-group"><span class="filter-label">Runtime</span><div class="chips" id="f-runtimes"></div></div>
     <div class="vdivider"></div>
     <div class="filter-group"><span class="filter-label">Cases</span><div class="chips" id="f-cases"></div></div>
     <span class="filter-hint">⌘/Ctrl+click to solo</span>
@@ -202,16 +215,23 @@ const POINT_DEFS = [
 ];
 
 const S = {
-  view:'Scatter', adapters:new Set(), models:new Set(), cases:new Set(),
+  view:'Scatter', adapters:new Set(), models:new Set(), runtimes:new Set(), cases:new Set(),
   run:'latest-combo', scatterMode:'detail',
-  hmMode:'score', barMode:'score',
+  hmMode:'score', hmGroupBy:'adapter',
+  barMode:'score',
+  lbGroupBy:'none', groupedDetail:'overall',
   tblSort:{col:'score',dir:'desc'}, tblSearch:'',
 };
 
 let C1=null, ALL_MODELS=[];
 
 // ─── Helpers ────────────────────────────────────────────
+// Fallback sizes for models whose names don't encode a parameter count.
+const MODEL_SIZES = {
+  'qwen/qwen3-coder-next': 80,
+};
 function parseSize(m){
+  if(MODEL_SIZES[m]!=null)return MODEL_SIZES[m];
   const n=m.split('/').pop().toLowerCase();
   const e=n.match(/-e(\d+)b/); if(e)return parseInt(e[1]);
   const r=n.match(/-(\d+)b/);  if(r)return parseInt(r[1]);
@@ -229,6 +249,11 @@ function ac(a){ return ADAPTER_COLORS[a]||'#888'; }
 function fc(m){ return FAMILY_COLORS[m.split('/')[0]]||'#888'; }
 function statusBadge(s){ const c=s==='ok'?'b-ok':s.includes('timeout')?'b-timeout':'b-error'; return `<span class="badge ${c}">${s}</span>`; }
 function rankColor(i){ return ['#b45309','#6b7280','#92400e'][i]||'#9ca3af'; }
+function rtBadge(g){
+  const rts=[...(g.runtimes||[])].filter(Boolean);
+  if(!rts.length)return'';
+  return rts.map(rt=>`<span class="badge" style="background:#f0f4ff;color:#0969da;border:1px solid #b6d0f7">${rt}</span>`).join(' ');
+}
 function scoreCol(v){ return v>=0.75?'#1a7f37':v>=0.5?'#9a6700':'#cf222e'; }
 
 // ─── Data ───────────────────────────────────────────────
@@ -242,26 +267,127 @@ function filteredRows(){
     const latest=rows.reduce((a,b)=>a.run>b.run?a:b).run;
     rows=rows.filter(r=>r.run===latest);
   }
-  return rows.filter(r=>S.adapters.has(r.adapter)&&S.models.has(r.model)&&S.cases.has(r.case));
+  return rows.filter(r=>S.adapters.has(r.adapter)&&S.models.has(r.model)&&S.cases.has(r.case)&&S.runtimes.has(r.runtime));
 }
 
-function aggregated(rows){
+function aggregated(rows, groupBy){
+  if(!groupBy)groupBy='adapter';
+  const byRt=groupBy==='runtime'||groupBy==='adapter+runtime';
   const sel=[...S.cases].sort();
   const map=new Map();
   for(const r of rows){
-    const k=r.adapter+'|'+r.model;
-    if(!map.has(k))map.set(k,{adapter:r.adapter,model:r.model,byCase:{},secs:0});
-    const g=map.get(k); g.byCase[r.case]=r; g.secs+=r.seconds;
+    const rt=r.runtime||'';
+    const k=byRt?r.adapter+'|'+r.model+'|'+rt:r.adapter+'|'+r.model;
+    if(!map.has(k))map.set(k,{adapter:r.adapter,model:r.model,runtime:rt,byCase:{},secs:0,runtimes:new Set()});
+    const g=map.get(k);g.byCase[r.case]=r;g.secs+=r.seconds;if(r.runtime)g.runtimes.add(r.runtime);
   }
   return [...map.values()].map(g=>{
     let pass=0,total=0,scoreSum=0,attempted=0;
     for(const c of sel){
       const r=g.byCase[c];
       if(r){pass+=r.pass;total+=r.total;scoreSum+=r.score;attempted++;}
-      else {total+=(CASE_TOTALS[c]||0);}
+      else{total+=(CASE_TOTALS[c]||0);}
     }
     return{...g,pass,total,attempted,caseCount:sel.length,avgScore:sel.length?scoreSum/sel.length:0};
+  }).sort((a,b)=>{
+    if(groupBy!=='none'){
+      if(groupBy!=='runtime'){const c=a.adapter.localeCompare(b.adapter);if(c)return c;}
+      if(byRt){const c=(a.runtime||'').localeCompare(b.runtime||'');if(c)return c;}
+    }
+    return b.avgScore-a.avgScore||a.secs-b.secs;
+  });
+}
+
+function groupKey(g, groupBy){
+  if(groupBy==='runtime') return g.runtime||'—';
+  if(groupBy==='adapter+runtime') return g.adapter+'\x00'+(g.runtime||'—');
+  if(groupBy==='adapter') return g.adapter;
+  return g.adapter+'|'+g.model+'|'+(g.runtime||'');
+}
+
+function groupHeader(g, groupBy){
+  if(groupBy==='runtime'){
+    return {label:g.runtime||'—', dotHtml:'', color:'var(--muted)'};
+  }
+  const dot=`background:${ac(g.adapter)};display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:5px`;
+  if(groupBy==='adapter+runtime'){
+    return {
+      label:`${g.adapter} <span style="font-size:10px;font-weight:400;margin-left:4px;color:var(--muted)">· ${g.runtime||'—'}</span>`,
+      dotHtml:`<span style="${dot}"></span>`,
+      color:ac(g.adapter),
+    };
+  }
+  return {label:g.adapter,dotHtml:`<span style="${dot}"></span>`,color:ac(g.adapter)};
+}
+
+function aggregateGroupRows(rows, groupBy){
+  const cases=[...S.cases].sort();
+  const modelAgg=aggregated(rows, groupBy);
+  const map=new Map();
+  for(const g of modelAgg){
+    const key=groupKey(g, groupBy);
+    if(!map.has(key)){
+      map.set(key,{
+        key, adapter:g.adapter, runtime:g.runtime, models:[],
+        byCase:{}, pass:0, total:0, secs:0, attemptedModels:0,
+      });
+    }
+    const out=map.get(key);
+    out.models.push(g);
+    out.pass+=g.pass;
+    out.total+=g.total;
+    out.secs+=g.secs;
+    if(g.attempted===g.caseCount) out.attemptedModels++;
+    for(const c of cases){
+      const r=g.byCase[c];
+      if(!out.byCase[c]) out.byCase[c]={pass:0,total:0,secs:0,n:0,ok:0,timeout:0,error:0};
+      const cell=out.byCase[c];
+      if(r){
+        cell.pass+=r.pass;
+        cell.total+=r.total;
+        cell.secs+=r.seconds;
+        cell.n++;
+        if(r.status==='ok') cell.ok++;
+        else if(r.status.includes('timeout')) cell.timeout++;
+        else cell.error++;
+      }
+    }
+  }
+  return [...map.values()].map(g=>{
+    const topModels=g.models
+      .slice()
+      .sort((a,b)=>b.avgScore-a.avgScore||a.secs-b.secs)
+      .slice(0,5);
+    return {
+      ...g,
+      avgScore:g.total?g.pass/g.total:0,
+      modelCount:g.models.length,
+      topModels,
+    };
   }).sort((a,b)=>b.avgScore-a.avgScore||a.secs-b.secs);
+}
+
+function topModelsByGroup(rows, groupBy, limit){
+  const items=aggregated(rows, groupBy);
+  if(groupBy==='none') return items;
+  const out=[];
+  let currentKey=null, bucket=[];
+  function flush(){
+    if(!bucket.length) return;
+    bucket
+      .sort((a,b)=>b.avgScore-a.avgScore||a.secs-b.secs)
+      .slice(0, limit)
+      .forEach(x=>out.push(x));
+    bucket=[];
+  }
+  for(const item of items){
+    const key=groupKey(item, groupBy);
+    if(currentKey!==null && key!==currentKey) flush();
+    currentKey=key;
+    bucket.push(item);
+  }
+  flush();
+  return out;
 }
 
 // ─── Adapter chips ──────────────────────────────────────
@@ -343,6 +469,26 @@ function buildModelChips(models){
   });
 }
 
+function groupedModelSummaryActive(){
+  if(!['Heatmap','Leaderboard'].includes(S.view)) return false;
+  const groupBy=S.view==='Heatmap'?S.hmGroupBy:S.lbGroupBy;
+  return groupBy!=='none' && S.groupedDetail!=='all';
+}
+
+function updateModelFilterUI(){
+  const chips=document.getElementById('f-models');
+  const summary=document.getElementById('f-model-summary');
+  if(!chips||!summary) return;
+  const total=ALL_MODELS.length;
+  const selected=S.models.size;
+  const hidden=groupedModelSummaryActive();
+  chips.style.display=hidden?'none':'flex';
+  summary.classList.toggle('on', hidden);
+  summary.innerHTML=hidden
+    ?`${selected}/${total} selected models <span class="muted">· model chips hidden in ${S.groupedDetail==='overall'?'Overall':'Top 5'} mode</span>`
+    :'';
+}
+
 function buildRunChips(){
   const el=document.getElementById('f-run'); el.innerHTML='';
   [['latest-combo','Latest/combo'],['latest-run','Latest run'],['all','All runs']].forEach(([val,label])=>{
@@ -381,14 +527,18 @@ function syncURL(){
   const p=new URLSearchParams();
   p.set('view',S.view);
   p.set('run',S.run);
-  if(S.scatterMode!=='detail') p.set('scatterMode',S.scatterMode);
-  if(S.hmMode!=='score')       p.set('hmMode',S.hmMode);
-  if(S.barMode!=='score')      p.set('barMode',S.barMode);
+  if(S.scatterMode!=='detail')      p.set('scatterMode',S.scatterMode);
+  if(S.hmMode!=='score')            p.set('hmMode',S.hmMode);
+  if(S.hmGroupBy!=='adapter')       p.set('hmGroupBy',S.hmGroupBy);
+  if(S.barMode!=='score')           p.set('barMode',S.barMode);
+  if(S.lbGroupBy!=='none')          p.set('lbGroupBy',S.lbGroupBy);
+  if(S.groupedDetail!=='overall')   p.set('groupedDetail',S.groupedDetail);
   if(S.tblSearch)              p.set('q',S.tblSearch);
   if(S.tblSort.col!=='score'||S.tblSort.dir!=='desc') p.set('sort',S.tblSort.col+':'+S.tblSort.dir);
-  p.set('adapters',[...S.adapters].sort().join(','));
-  p.set('models',  [...S.models].sort().join(','));
-  p.set('cases',   [...S.cases].sort().join(','));
+  p.set('adapters', [...S.adapters].sort().join(','));
+  p.set('models',   [...S.models].sort().join(','));
+  p.set('runtimes', [...S.runtimes].sort().join(','));
+  p.set('cases',    [...S.cases].sort().join(','));
   history.replaceState(null,'','?'+p.toString());
 }
 
@@ -398,13 +548,17 @@ function loadFromURL(){
   if(p.has('run'))         S.run=p.get('run');
   if(p.has('scatterMode')) S.scatterMode=p.get('scatterMode');
   if(p.has('hmMode'))      S.hmMode=p.get('hmMode');
+  if(p.has('hmGroupBy'))   S.hmGroupBy=p.get('hmGroupBy');
   if(p.has('barMode'))     S.barMode=p.get('barMode');
+  if(p.has('lbGroupBy'))   S.lbGroupBy=p.get('lbGroupBy');
+  if(p.has('groupedDetail')) S.groupedDetail=p.get('groupedDetail');
   if(p.has('q'))           S.tblSearch=p.get('q');
   if(p.has('sort')){const[col,dir]=p.get('sort').split(':');if(col&&dir)S.tblSort={col,dir};}
   return{
-    adapters:p.has('adapters')?p.get('adapters').split(',').filter(Boolean):null,
-    models:  p.has('models')  ?p.get('models').split(',').filter(Boolean)  :null,
-    cases:   p.has('cases')   ?p.get('cases').split(',').filter(Boolean)   :null,
+    adapters: p.has('adapters')  ?p.get('adapters').split(',').filter(Boolean) :null,
+    models:   p.has('models')    ?p.get('models').split(',').filter(Boolean)   :null,
+    runtimes: p.has('runtimes')  ?p.get('runtimes').split(',').filter(Boolean) :null,
+    cases:    p.has('cases')     ?p.get('cases').split(',').filter(Boolean)    :null,
   };
 }
 
@@ -413,17 +567,22 @@ function init(){
   const urlF=loadFromURL();
   const adapters=[...new Set(DATA.map(r=>r.adapter))].sort();
   ALL_MODELS=[...new Set(DATA.map(r=>r.model))].sort();
+  const runtimes=[...new Set(DATA.map(r=>r.runtime))].sort();
   const cases=[...new Set(DATA.map(r=>r.case))].sort();
   const wantA=urlF.adapters||adapters;
   const wantM=urlF.models||ALL_MODELS;
+  const wantR=urlF.runtimes||runtimes;
   const wantC=urlF.cases||cases;
   wantA.forEach(a=>{if(adapters.includes(a))S.adapters.add(a);});
   wantM.forEach(m=>{if(ALL_MODELS.includes(m))S.models.add(m);});
+  wantR.forEach(rt=>{if(runtimes.includes(rt))S.runtimes.add(rt);});
   wantC.forEach(c=>{if(cases.includes(c))S.cases.add(c);});
   buildAdapterChips(adapters);
   buildModelChips(ALL_MODELS);
   buildRunChips();
+  buildChips('f-runtimes',runtimes,S.runtimes,rt=>rt||'(none)');
   buildChips('f-cases',cases,S.cases,c=>c.replace(/^\w+-\d+-/,''));
+  updateModelFilterUI();
   const tabsEl=document.getElementById('view-tabs');
   VIEWS.forEach(v=>{
     const b=document.createElement('button');
@@ -439,6 +598,7 @@ function init(){
 function render(){
   syncURL();
   if(C1){C1.destroy();C1=null;}
+  updateModelFilterUI();
   const rows=filteredRows();
   const el=document.getElementById('view-content');
   document.getElementById('data-summary').textContent=rows.length+' rows · '+new Set(rows.map(r=>r.adapter+'|'+r.model)).size+' combos';
@@ -579,40 +739,81 @@ function vScatter(el,rows){
 // ─── View 2: Heatmap ────────────────────────────────────
 function vHeatmap(el,rows){
   const cases=[...S.cases].sort();
-  const agg=aggregated(rows);
+  const gb=S.hmGroupBy;
+  const detailMode=gb==='none'?'all':S.groupedDetail;
+  const showGrouped=gb!=='none'&&detailMode==='overall';
+  const agg=showGrouped
+    ?aggregateGroupRows(rows,gb)
+    :detailMode==='top5'
+      ?topModelsByGroup(rows,gb,5)
+      :aggregated(rows,gb);
   const maxSec=Math.max(...rows.map(r=>r.seconds).filter(Boolean),1);
-  const mBtn=(label,mode)=>
+  const mMode=(label,mode)=>
     `<button class="btn${S.hmMode===mode?' on':''}" onclick="S.hmMode='${mode}';render()">${label}</button>`;
+  const gBtn=(label,g)=>
+    `<button class="btn${S.hmGroupBy===g?' on':''}" onclick="S.hmGroupBy='${g}';render()">${label}</button>`;
+  const dBtn=(label,mode)=>
+    `<button class="btn${S.groupedDetail===mode?' on':''}" onclick="S.groupedDetail='${mode}';render()">${label}</button>`;
   let html=`<div class="card">
-  <div class="ctrl-row">${mBtn('Score','score')} ${mBtn('Time','time')}
+  <div class="ctrl-row">${mMode('Score','score')} ${mMode('Time','time')}
     <div class="ctrl-sep"></div>
-    <span class="row-count">Sorted by total score — missing (—) counted as 0</span>
+    ${gBtn('By Adapter','adapter')} ${gBtn('By Runtime','runtime')} ${gBtn('Adap+RT','adapter+runtime')}
+    <div class="ctrl-sep"></div>
+    ${dBtn('Overall','overall')} ${dBtn('Top 5 models','top5')} ${dBtn('All models','all')}
+    <div class="ctrl-sep"></div>
+    <span class="row-count">${showGrouped?'Grouped totals across selected models.':detailMode==='top5'?'Top 5 models per group.':'All selected models shown — missing (—) counted as 0'}</span>
   </div>
   <div class="hm-wrap"><table class="hm"><thead><tr>
-    <th class="rl" style="z-index:3">Model</th>
+    <th class="rl" style="z-index:3">${showGrouped?'Group':'Model'}</th>
     <th class="agg">${S.hmMode==='score'?'Total':'Total time'}</th>
     ${cases.map(c=>`<th title="${c}">${c.replace(/^\w+-\d+-/,'')}</th>`).join('')}
   </tr></thead><tbody>`;
-  let lastAdapter=null;
+  let lastGroup=null;
   for(const g of agg){
-    if(g.adapter!==lastAdapter){
-      lastAdapter=g.adapter;
-      const dot=`background:${ac(g.adapter)};display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:5px`;
-      html+=`<tr class="adapter-hdr"><td colspan="${cases.length+2}"><span style="${dot}"></span>${g.adapter}</td></tr>`;
+    const groupVal=groupKey(g,gb);
+    if(groupVal!==lastGroup){
+      lastGroup=groupVal;
+      const hdr=groupHeader(g,gb);
+      const dotHtml=showGrouped?'':hdr.dotHtml;
+      const groupLabel=hdr.label;
+      html+=`<tr class="adapter-hdr"><td colspan="${cases.length+2}">${dotHtml}${groupLabel}</td></tr>`;
     }
-    const sz=parseSize(g.model);
     const aggBg=S.hmMode==='score'?scoreColor(g.avgScore):timeColor(g.secs,maxSec*cases.length);
     const aggVal=S.hmMode==='score'?fmtFrac(g.pass,g.total):fmtTime(g.secs);
-    const cov=g.attempted<g.caseCount?` ⚠${g.attempted}/${g.caseCount}`:'';
+    const inlineRt=!showGrouped&&gb==='adapter'&&g.runtime
+      ?` <span style="font-size:9px;background:#f0f4ff;color:#0969da;padding:1px 4px;border-radius:3px;border:1px solid #b6d0f7;vertical-align:middle">${g.runtime}</span>`:'';
+    const inlineAd=!showGrouped&&gb==='runtime'
+      ?` <span style="font-size:10px;color:${ac(g.adapter)};vertical-align:middle"> · ${g.adapter}</span>`:'';
+    let rowLabel='', rowTitle='', totalTitle='';
+    if(showGrouped){
+      const top=g.topModels.map(m=>`${shortModel(m.model)} ${fmtFrac(m.pass,m.total)}`).join(' · ');
+      rowLabel=`Overall <span style="font-size:10px;color:var(--muted);font-weight:400">${g.modelCount} models</span>`;
+      rowTitle=`${g.adapter}${g.runtime?' · '+g.runtime:''} · ${g.modelCount} models`;
+      totalTitle=`${fmtFrac(g.pass,g.total)} checks · top: ${top||'—'}`;
+    } else {
+      const sz=parseSize(g.model);
+      rowLabel=`${sym(g.model)} ${shortModel(g.model)} <span style="font-size:10px;color:var(--muted);font-weight:400">${sz?sz+'B':''}</span>${inlineRt}${inlineAd}`;
+      rowTitle=`${g.model} · ${sz?sz+'B':'?'} · ${g.adapter}${g.runtime?' · '+g.runtime:''}`;
+      totalTitle=fmtFrac(g.pass,g.total)+' checks';
+      if(g.attempted<g.caseCount) totalTitle+=` ⚠${g.attempted}/${g.caseCount}`;
+    }
     html+=`<tr>
-      <td class="rl" title="${g.model} · ${sz?sz+'B':'?'}">${sym(g.model)} ${shortModel(g.model)} <span style="font-size:10px;color:var(--muted);font-weight:400">${sz?sz+'B':''}</span></td>
-      <td class="agg" style="background:${aggBg}" title="${fmtFrac(g.pass,g.total)} checks${cov}">${aggVal}</td>`;
+      <td class="rl" title="${rowTitle}">${rowLabel}</td>
+      <td class="agg" style="background:${aggBg}" title="${totalTitle}">${aggVal}</td>`;
     for(const c of cases){
       const r=g.byCase[c];
-      if(!r){html+=`<td style="background:#f0f2f4;color:#adb5bd" title="not run">—</td>`;continue;}
-      const bg=S.hmMode==='score'?scoreColor(r.score):timeColor(r.seconds,maxSec);
-      const out=r.status.includes('timeout')?';outline:2px solid #6e40c9;outline-offset:-2px':'';
-      html+=`<td style="background:${bg}${out}" title="${r.pass}/${r.total} · ${fmtTime(r.seconds)} · ${r.status}">${S.hmMode==='score'?fmtFrac(r.pass,r.total):fmtTime(r.seconds)}</td>`;
+      if(!r||!r.total){html+=`<td style="background:#f0f2f4;color:#adb5bd" title="not run">—</td>`;continue;}
+      if(showGrouped){
+        const score=r.total?r.pass/r.total:0;
+        const bg=S.hmMode==='score'?scoreColor(score):timeColor(r.secs,maxSec*Math.max(r.n,1));
+        const warn=r.timeout?';outline:2px solid #6e40c9;outline-offset:-2px':'';
+        const title=`${fmtFrac(r.pass,r.total)} · ${fmtTime(r.secs)} · ${r.n} models`;
+        html+=`<td style="background:${bg}${warn}" title="${title}">${S.hmMode==='score'?fmtFrac(r.pass,r.total):fmtTime(r.secs)}</td>`;
+      } else {
+        const bg=S.hmMode==='score'?scoreColor(r.score):timeColor(r.seconds,maxSec);
+        const out=r.status.includes('timeout')?';outline:2px solid #6e40c9;outline-offset:-2px':'';
+        html+=`<td style="background:${bg}${out}" title="${r.pass}/${r.total} · ${fmtTime(r.seconds)} · ${r.status}">${S.hmMode==='score'?fmtFrac(r.pass,r.total):fmtTime(r.seconds)}</td>`;
+      }
     }
     html+=`</tr>`;
   }
@@ -661,32 +862,76 @@ function vBars(el,rows){
 
 // ─── View 4: Leaderboard ────────────────────────────────
 function vLeaderboard(el,rows){
-  const agg=aggregated(rows);
+  const gb=S.lbGroupBy;
+  const detailMode=gb==='none'?'all':S.groupedDetail;
+  const showGrouped=gb!=='none'&&detailMode==='overall';
+  const agg=showGrouped
+    ?aggregateGroupRows(rows,gb)
+    :detailMode==='top5'
+      ?topModelsByGroup(rows,gb,5)
+      :aggregated(rows,gb);
   const cases=[...S.cases].sort();
-  let html='<div class="lb">';
-  agg.forEach((g,i)=>{
-    const rc=rankColor(i),sc=scoreCol(g.avgScore);
-    const sz=parseSize(g.model);
-    const abadge=`<span class="badge" style="background:${ac(g.adapter)}22;color:${ac(g.adapter)};border:1px solid ${ac(g.adapter)}44">${g.adapter}</span>`;
-    const covCol=g.attempted<g.caseCount?'#d4371c':'var(--muted)';
-    const tags=cases.map(c=>{
-      const r=g.byCase[c];
-      if(!r)return`<span class="lb-case" style="background:#f0f2f4;color:#9ca3af" title="not run">${c.replace(/^\w+-\d+-/,'')}</span>`;
-      const bg=scoreColor(r.score),col=scoreCol(r.score);
-      const to=r.status.includes('timeout')?' style="outline:1px solid #6e40c9"':'';
-      return`<span class="lb-case" style="background:${bg};color:${col}"${to}>${c.replace(/^\w+-\d+-/,'')} ${fmtFrac(r.pass,r.total)}</span>`;
-    }).join('');
+  const gBtn=(label,v)=>
+    `<button class="btn${S.lbGroupBy===v?' on':''}" onclick="S.lbGroupBy='${v}';render()">${label}</button>`;
+  const dBtn=(label,mode)=>
+    `<button class="btn${S.groupedDetail===mode?' on':''}" onclick="S.groupedDetail='${mode}';render()">${label}</button>`;
+  let html=`<div class="ctrl-row" style="margin-bottom:10px">${gBtn('All','none')} ${gBtn('By Adapter','adapter')} ${gBtn('By Runtime','runtime')} ${gBtn('Adap+RT','adapter+runtime')} <div class="ctrl-sep"></div> ${dBtn('Overall','overall')} ${dBtn('Top 5 models','top5')} ${dBtn('All models','all')}</div><div class="lb">`;
+  let lastGroup=null, groupI=-1;
+  agg.forEach((g,globalI)=>{
+    const groupVal=gb!=='none'?groupKey(g,gb):null;
+    if(groupVal!==null&&groupVal!==lastGroup){
+      lastGroup=groupVal; groupI=0;
+      const pad=globalI>0?'padding-top:16px':'';
+      const info=groupHeader(g,gb);
+      const hdr=`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;${pad};padding-bottom:4px;color:${info.color}">${info.dotHtml}${gb==='runtime'?'Runtime: ':''}${info.label}</div>`;
+      html+=hdr;
+    } else {
+      groupI++;
+    }
+    const rankI=gb==='none'?globalI:groupI;
+    const rc=rankColor(rankI),sc=scoreCol(g.avgScore);
+    let title='',sub='',tags='',coverage='';
+    if(showGrouped){
+      const top=g.topModels.map(m=>`${sym(m.model)} ${shortModel(m.model)} ${fmtFrac(m.pass,m.total)}`).join(' · ');
+      title=`Overall <span style="font-size:10px;font-weight:400;color:var(--muted)">${g.modelCount} models</span>`;
+      sub=`Top models: ${top||'—'}`;
+      tags=cases.map(c=>{
+        const r=g.byCase[c];
+        if(!r||!r.total)return`<span class="lb-case" style="background:#f0f2f4;color:#9ca3af" title="not run">${c.replace(/^\w+-\d+-/,'')}</span>`;
+        const score=r.pass/r.total, bg=scoreColor(score), col=scoreCol(score);
+        const to=r.timeout?' style="outline:1px solid #6e40c9"':'';
+        return`<span class="lb-case" style="background:${bg};color:${col}"${to}>${c.replace(/^\w+-\d+-/,'')} ${fmtFrac(r.pass,r.total)}</span>`;
+      }).join('');
+      coverage=`${g.modelCount} models selected`;
+    } else {
+      const sz=parseSize(g.model);
+      const showAdapter=gb!=='adapter'&&gb!=='adapter+runtime';
+      const showRuntime=gb!=='runtime'&&gb!=='adapter+runtime';
+      const abadge=showAdapter?`<span class="badge" style="background:${ac(g.adapter)}22;color:${ac(g.adapter)};border:1px solid ${ac(g.adapter)}44">${g.adapter}</span>`:'';
+      const rbadge=showRuntime?rtBadge(g):'';
+      const covCol=g.attempted<g.caseCount?'#d4371c':'var(--muted)';
+      title=`${sym(g.model)} ${shortModel(g.model)} <span style="font-size:10px;font-weight:400;color:var(--muted)">${sz?sz+'B':''}</span>`;
+      sub=`${g.model} ${abadge}${rbadge}`;
+      tags=cases.map(c=>{
+        const r=g.byCase[c];
+        if(!r)return`<span class="lb-case" style="background:#f0f2f4;color:#9ca3af" title="not run">${c.replace(/^\w+-\d+-/,'')}</span>`;
+        const bg=scoreColor(r.score),col=scoreCol(r.score);
+        const to=r.status.includes('timeout')?' style="outline:1px solid #6e40c9"':'';
+        return`<span class="lb-case" style="background:${bg};color:${col}"${to}>${c.replace(/^\w+-\d+-/,'')} ${fmtFrac(r.pass,r.total)}</span>`;
+      }).join('');
+      coverage=`<span style="color:${covCol}">${g.attempted}/${g.caseCount} cases run</span>`;
+    }
     html+=`<div class="lb-row">
-      <div class="lb-rank" style="color:${rc}">#${i+1}</div>
+      <div class="lb-rank" style="color:${rc}">#${rankI+1}</div>
       <div>
-        <div class="lb-model">${sym(g.model)} ${shortModel(g.model)} <span style="font-size:10px;font-weight:400;color:var(--muted)">${sz?sz+'B':''}</span></div>
-        <div class="lb-sub">${g.model} ${abadge}</div>
+        <div class="lb-model">${title}</div>
+        <div class="lb-sub">${sub}</div>
         <div class="lb-cases">${tags}</div>
       </div>
       <div class="lb-right">
         <div class="lb-score" style="color:${sc}">${fmtFrac(g.pass,g.total)}</div>
         <div class="lb-time">${fmtTime(g.secs)}</div>
-        <div class="lb-coverage" style="color:${covCol}">${g.attempted}/${g.caseCount} cases run</div>
+        <div class="lb-coverage">${coverage}</div>
       </div>
     </div>`;
   });
@@ -698,12 +943,12 @@ function vLeaderboard(el,rows){
 function vTable(el,rows){
   const cols=[
     {k:'run',label:'Run'},{k:'adapter',label:'Adapter'},{k:'model',label:'Model'},
-    {k:'case',label:'Case'},{k:'score',label:'Score'},{k:'seconds',label:'Time'},
-    {k:'pass',label:'Pass'},{k:'total',label:'Total'},{k:'status',label:'Status'},
+    {k:'runtime',label:'Runtime'},{k:'case',label:'Case'},{k:'score',label:'Score'},
+    {k:'seconds',label:'Time'},{k:'pass',label:'Pass'},{k:'total',label:'Total'},{k:'status',label:'Status'},
   ];
   const{col:sc,dir:sd}=S.tblSort;
   const q=S.tblSearch.toLowerCase();
-  let sorted=rows.filter(r=>!q||[r.run,r.adapter,r.model,r.case,r.status].some(v=>v.toLowerCase().includes(q)));
+  let sorted=rows.filter(r=>!q||[r.run,r.adapter,r.model,r.runtime,r.case,r.status].some(v=>String(v).toLowerCase().includes(q)));
   sorted.sort((a,b)=>{const av=a[sc],bv=b[sc];const cmp=typeof av==='number'?av-bv:String(av).localeCompare(String(bv));return sd==='asc'?cmp:-cmp;});
   el.innerHTML=`<div class="card">
   <div class="ctrl-row">
@@ -719,6 +964,7 @@ function vTable(el,rows){
     <td style="font-size:11px;color:var(--muted)">${r.run}</td>
     <td><span class="adot" style="background:${ac(r.adapter)}"></span>${r.adapter}</td>
     <td title="${r.model}">${sym(r.model)} ${shortModel(r.model)} <span style="font-size:10px;color:var(--muted)">${sz?sz+'B':''}</span></td>
+    <td style="font-size:11px;color:var(--muted)">${r.runtime||'—'}</td>
     <td>${r.case}</td>
     <td style="background:${scoreColor(r.score)};font-weight:600">${fmtFrac(r.pass,r.total)}</td>
     <td>${fmtTime(r.seconds)}</td>
@@ -763,6 +1009,7 @@ function vByTask(el,rows){
         <span style="font-size:13px;flex-shrink:0">${sym(r.model)}</span>
         <span class="task-model" title="${r.model} · ${sz?sz+'B':'?'}">${shortModel(r.model)}</span>
         <span class="task-adapter" style="background:${ac(r.adapter)}18;color:${ac(r.adapter)}">${r.adapter}</span>
+        ${r.runtime?`<span class="task-adapter" style="background:#f0f4ff;color:#0969da">${r.runtime}</span>`:''}
         <span class="task-score" style="background:${bg};color:${col}"${to}>${fmtFrac(r.pass,r.total)}</span>
         <span class="task-time">${fmtTime(r.seconds)}</span>
       </div>`;
@@ -783,11 +1030,186 @@ VIZ_END
 bytes=$(wc -c < "$OUT" | tr -d ' ')
 ok "results/index.html written (${bytes} bytes, ${#csvs[@]} run dirs)"
 
+{
+cat << 'VIZ_END'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compare Agents by Runtime</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f8fa;color:#1f2328}
+.app{max-width:1500px;margin:0 auto;padding:24px 18px 40px}
+h1{margin:0 0 4px;font-size:24px}
+.sub{color:#636c76;font-size:13px;margin-bottom:18px}
+.page-nav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.page-link{padding:6px 12px;border-radius:999px;border:1px solid #d0d7de;background:#fff;color:#1f2328;text-decoration:none;font-size:12px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.page-link:hover{background:#f0f2f4}
+.note{background:#fff8c5;border:1px solid #d4a72c;border-radius:8px;padding:10px 12px;margin-bottom:18px;font-size:12px}
+.rt{margin-bottom:26px;background:#fff;border:1px solid #d0d7de;border-radius:10px;padding:14px 14px 10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.rt h2{margin:0 0 10px;font-size:18px}
+.grid{display:grid;grid-template-columns:1.1fr 1.4fr;gap:14px}
+.card{border:1px solid #d0d7de;border-radius:8px;overflow:hidden}
+.card h3{margin:0;padding:10px 12px;background:#f6f8fa;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;border-top:1px solid #d8dee4;vertical-align:top}
+th{background:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.35px;text-align:left}
+.mono{font-variant-numeric:tabular-nums}
+.muted{color:#636c76}
+.good{color:#1a7f37;font-weight:700}
+.mid{color:#9a6700;font-weight:700}
+.bad{color:#cf222e;font-weight:700}
+.pill{display:inline-block;padding:2px 7px;border:1px solid #d0d7de;border-radius:999px;background:#f6f8fa;font-size:11px;margin:0 4px 4px 0;white-space:nowrap}
+.tight{line-height:1.35}
+.entity{transition:background-color .12s,color .12s,box-shadow .12s,opacity .12s;border-radius:4px}
+.entity-match{background:#fff8c5;box-shadow:0 0 0 2px #d4a72c inset}
+.entity-dim{opacity:.42}
+@media (max-width:1100px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Compare Agents by Runtime</h1>
+  <div class="sub">Prototype view focused on tool choice first, with models pushed into secondary detail.</div>
+  <nav class="page-nav">
+    <a class="page-link" href="./index.html">Main Dashboard</a>
+    <a class="page-link" href="./compare-agents.html">Compare Agents</a>
+  </nav>
+  <div class="note">This page uses runtime-aware latest-combo dedupe: latest row per <code>adapter + model + runtime + case</code>. It is intentionally split into one section per runtime.</div>
+  <div id="app"></div>
+</div>
+<script>
+VIZ_END
+printf 'const DATA = %s;\n' "$data_json"
+cat << 'VIZ_END'
+function shortModel(m){return m.split('/').pop();}
+function fmtFrac(p,t){return t?`${p}/${t}`:'—';}
+function fmtPct(s){return (s*100).toFixed(0)+'%';}
+function fmtTime(s){return s>=60?(s/60).toFixed(1)+'m':s+'s';}
+function scoreCls(v){return v>=0.75?'good':v>=0.5?'mid':'bad';}
+function esc(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');}
+function ent(kind,name,label,extra=''){return `<span class="entity" data-entity-kind="${kind}" data-entity-name="${esc(name)}"${extra}>${label}</span>`;}
+
+function latestComboRuntime(rows){
+  const map=new Map();
+  for(const r of rows){
+    const k=[r.adapter,r.model,r.runtime,r.case].join('|');
+    if(!map.has(k)||r.run>map.get(k).run) map.set(k,r);
+  }
+  return [...map.values()];
+}
+
+function aggregate(rows){
+  const agents=new Map(), modelRows=[];
+  for(const r of rows){
+    const ak=r.adapter;
+    if(!agents.has(ak)) agents.set(ak,{adapter:r.adapter,pass:0,total:0,secs:0,models:new Map(),ok:0,timeout:0,error:0});
+    const a=agents.get(ak);
+    a.pass+=r.pass; a.total+=r.total; a.secs+=r.seconds;
+    if(r.status==='ok') a.ok++; else if((r.status||'').includes('timeout')) a.timeout++; else a.error++;
+    const mk=r.model;
+    if(!a.models.has(mk)) a.models.set(mk,{model:r.model,pass:0,total:0,secs:0,cases:0});
+    const m=a.models.get(mk);
+    m.pass+=r.pass; m.total+=r.total; m.secs+=r.seconds; m.cases++;
+  }
+  return [...agents.values()].map(a=>{
+    const top=[...a.models.values()]
+      .map(m=>({...m,score:m.total?m.pass/m.total:0}))
+      .sort((x,y)=>y.score-x.score||x.secs-y.secs)
+      .slice(0,5);
+    return {...a,score:a.total?a.pass/a.total:0,modelCount:a.models.size,top};
+  }).sort((x,y)=>y.score-x.score||x.secs-y.secs);
+}
+
+function renderRuntime(rt, rows){
+  const agg=aggregate(rows);
+  const modelSet=new Set(rows.map(r=>r.model));
+  const cases=new Set(rows.map(r=>r.case));
+  return `<section class="rt">
+    <h2>${ent('runtime',rt||'—',rt||'—')} <span class="muted" style="font-size:13px;font-weight:400">· ${rows.length} rows · ${modelSet.size} models · ${cases.size} cases</span></h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Agent Leaderboard</h3>
+        <table>
+          <thead><tr><th>Agent</th><th>Pass</th><th>Pass %</th><th>Time</th><th>Models</th><th>Status mix</th></tr></thead>
+          <tbody>
+            ${agg.map(a=>`<tr>
+              <td><strong>${ent('agent',a.adapter,a.adapter)}</strong></td>
+              <td class="mono">${fmtFrac(a.pass,a.total)}</td>
+              <td class="mono ${scoreCls(a.score)}">${fmtPct(a.score)}</td>
+              <td class="mono">${fmtTime(a.secs)}</td>
+              <td class="mono">${a.modelCount}</td>
+              <td class="mono tight muted">ok ${a.ok} · timeout ${a.timeout} · err ${a.error}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Top 5 Models Per Agent</h3>
+        <table>
+          <thead><tr><th>Agent</th><th>Best models</th></tr></thead>
+          <tbody>
+            ${agg.map(a=>`<tr>
+              <td><strong>${ent('agent',a.adapter,a.adapter)}</strong></td>
+              <td>${a.top.map(m=>`<span class="pill">${ent('model',m.model,`<strong>${esc(shortModel(m.model))}</strong>`)} <span class="${scoreCls(m.score)}">${fmtFrac(m.pass,m.total)}</span> <span class="muted">${fmtTime(m.secs)}</span></span>`).join('')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>`;
+}
+
+const rows=latestComboRuntime(DATA).filter(r=>r.runtime);
+const runtimes=[...new Set(rows.map(r=>r.runtime))].sort();
+document.getElementById('app').innerHTML=runtimes.map(rt=>renderRuntime(rt, rows.filter(r=>r.runtime===rt))).join('');
+
+let hoverKey='';
+function setHover(kind,name){
+  const key=kind+'|'+name;
+  if(hoverKey===key) return;
+  hoverKey=key;
+  const nodes=[...document.querySelectorAll('[data-entity-kind]')];
+  nodes.forEach(node=>{
+    const match=node.dataset.entityKind===kind && node.dataset.entityName===name;
+    node.classList.toggle('entity-match', match);
+    node.classList.toggle('entity-dim', !match);
+  });
+}
+function clearHover(){
+  hoverKey='';
+  document.querySelectorAll('[data-entity-kind]').forEach(node=>{
+    node.classList.remove('entity-match','entity-dim');
+  });
+}
+document.addEventListener('mouseover', e=>{
+  const t=e.target.closest('[data-entity-kind]');
+  if(!t) return;
+  setHover(t.dataset.entityKind, t.dataset.entityName);
+});
+document.addEventListener('mouseout', e=>{
+  const from=e.target.closest('[data-entity-kind]');
+  if(!from) return;
+  const to=e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-entity-kind]') : null;
+  if(to && to.dataset.entityKind===from.dataset.entityKind && to.dataset.entityName===from.dataset.entityName) return;
+  clearHover();
+});
+</script>
+</body>
+</html>
+VIZ_END
+} > "$PROTO_OUT"
+
+proto_bytes=$(wc -c < "$PROTO_OUT" | tr -d ' ')
+ok "results/compare-agents.html written (${proto_bytes} bytes)"
+
 MD_OUT="$HERE/LEADERBOARD.md"
 MERGED_MD="$(mktemp)"
 trap 'rm -f "$MERGED_MD"' EXIT
 head -1 "${csvs[0]}" > "$MERGED_MD"
-awk -F, 'FNR==1{next} !seen[$1,$2,$3]++' "${csvs[@]}" >> "$MERGED_MD"
+awk -F, 'FNR==1{next} {latest[$1 SUBSEP $2 SUBSEP $3]=$0} END{for(k in latest)print latest[k]}' "${csvs[@]}" >> "$MERGED_MD"
 {
   echo "# Benchmark Results"
   echo
@@ -795,17 +1217,18 @@ awk -F, 'FNR==1{next} !seen[$1,$2,$3]++' "${csvs[@]}" >> "$MERGED_MD"
   echo
   echo "## Leaderboard — by adapter × model"
   echo
-  echo "| Adapter | Model | Pass | Pass% | Avg s | Trials |"
-  echo "|---------|-------|------|-------|-------|--------|"
+  echo "| Adapter | Model | Runtime | Pass | Pass% | Avg s | Trials |"
+  echo "|---------|-------|---------|------|-------|-------|--------|"
   awk -F, 'NR>1 {
-    k=$1 SUBSEP $2; ad[k]=$1; mo[k]=$2
+    rt=($10==""?"-":$10)
+    k=$1 SUBSEP $2 SUBSEP rt; ad[k]=$1; mo[k]=$2; rtm[k]=rt
     p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
   }
   END {
     for (k in p) {
       pct = t[k]>0 ? 100*p[k]/t[k] : 0
-      printf "%09.4f\t| %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", \
-        pct, ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
+      printf "%09.4f\t| %s | %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", \
+        pct, ad[k], mo[k], rtm[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
     }
   }' "$MERGED_MD" | sort -t$'\t' -k1 -rn | cut -f2-
   echo
