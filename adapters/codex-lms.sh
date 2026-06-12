@@ -19,4 +19,5 @@ exec codex exec \
   -c model_providers.lmstudio_local.name="LM Studio" \
   -c model_providers.lmstudio_local.base_url="$LMS_BASE_URL" \
   -c model_providers.lmstudio_local.env_key="LMS_API_KEY" \
-  "$PROMPT"
+  "$PROMPT" \
+  "$@"

@@ -10,4 +10,5 @@ exec hermes \
   --provider ollama \
   -m "$MODEL_ID" \
   -t file,terminal \
-  -z "$PROMPT"
+  -z "$PROMPT" \
+  "$@"

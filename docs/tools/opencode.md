@@ -7,7 +7,7 @@
 | **Tool name** | opencode |
 | **CLI command** | `opencode run` |
 | **Version** | 1.16.2 |
-| **Adapter script** | [`adapters/opencode.sh`](../../adapters/opencode.sh) |
+| **Adapter script** | [`adapters/opencode-lms.sh`](../../adapters/opencode-lms.sh) |
 | **How it connects** | Built-in `lmstudio` provider (models.dev auto-discovery from `http://localhost:1234`). Model addressed as `lmstudio/<MODEL_ID>`. Config via `~/.config/opencode/opencode.json`. |
 | **Last reviewed** | 2026-06-09 |
 

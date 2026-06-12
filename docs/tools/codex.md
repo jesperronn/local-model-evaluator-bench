@@ -7,7 +7,7 @@
 | **Tool name** | codex |
 | **CLI command** | `codex exec` |
 | **Version** | codex-cli 0.138.0 |
-| **Adapter script** | [`adapters/codex.sh`](../../adapters/codex.sh) |
+| **Adapter script** | [`adapters/codex-lms.sh`](../../adapters/codex-lms.sh) |
 | **How it connects** | Custom `model_provider` config passed inline via `-c` flags. Registers a `lmstudio_local` provider (not `lmstudio` — that's a reserved built-in ID that can't be overridden). |
 | **Last reviewed** | 2026-06-09 |
 

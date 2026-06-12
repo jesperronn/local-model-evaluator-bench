@@ -23,4 +23,5 @@ exec hermes \
   --provider lmstudio \
   -m "$MODEL_ID" \
   -t file,terminal \
-  -z "$PROMPT"
+  -z "$PROMPT" \
+  "$@"

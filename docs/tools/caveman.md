@@ -7,7 +7,7 @@
 | **Tool name** | caveman |
 | **CLI command** | `caveman` |
 | **Version** | <!-- TODO: `caveman --version` did not produce output --> |
-| **Adapter script** | [`adapters/caveman.sh`](../../adapters/caveman.sh) |
+| **Adapter script** | [`adapters/caveman-lms.sh`](../../adapters/caveman-lms.sh) |
 | **How it connects** | Uses a `pi`-based agent runtime with a custom `lmstudio` provider definition in `~/.pi/agent/models.json` (baseUrl `http://localhost:1234/v1`, api `openai-completions`). |
 | **Last reviewed** | 2026-06-09 |
 

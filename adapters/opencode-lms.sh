@@ -10,4 +10,4 @@ PROMPT="$(cat)"
 # Model is addressed as provider/model -> lmstudio/<id>.
 # opencode reads baseURL from ~/.config/opencode/opencode.json (lmstudio provider).
 # No --openai-api-base / --openai-api-key flags supported by this version.
-exec opencode run --model "lmstudio/${MODEL_ID}" "$PROMPT"
+exec opencode run --model "lmstudio/${MODEL_ID}" "$PROMPT" "$@"

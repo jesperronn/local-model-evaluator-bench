@@ -7,7 +7,7 @@
 | **Tool name** | aider |
 | **CLI command** | `aider` |
 | **Version** | 0.86.2 |
-| **Adapter script** | [`adapters/aider.sh`](../../adapters/aider.sh) |
+| **Adapter script** | [`adapters/aider-lms.sh`](../../adapters/aider-lms.sh) |
 | **How it connects** | OpenAI-compatible endpoint via `--openai-api-base` and `--openai-api-key`; model addressed as `openai/<MODEL_ID>` |
 | **Last reviewed** | 2026-06-09 |
 

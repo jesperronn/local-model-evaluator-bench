@@ -7,7 +7,7 @@
 | **Tool name** | Hermes Agent |
 | **CLI command** | `hermes` |
 | **Version** | v0.16.0 (2026.6.5) |
-| **Adapter script** | [`adapters/hermes.sh`](../../adapters/hermes.sh) |
+| **Adapter script** | [`adapters/hermes-lms.sh`](../../adapters/hermes-lms.sh) |
 | **How it connects** | Built-in `lmstudio` provider, configured in `~/.hermes/config.yaml` (`provider: lmstudio`, `base_url: http://127.0.0.1:1234/v1`). Approvals handled by a "smart guardian" LLM running locally. |
 | **Last reviewed** | 2026-06-09 |
 

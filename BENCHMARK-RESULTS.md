@@ -7,7 +7,7 @@ Local LM Studio models as code editors, scored by automated test pass-rate
 across CLI tools. Cases: `js-01-slugify-bug`, `js-02-debounce-feature`,
 `ts-01-groupby`, `bash-01-topwords` (see `cases/`). Tools: aider, opencode,
 codex, caveman. (`hermes` excluded — runs in an isolated container workspace;
-see `adapters/hermes.sh`.)
+see `adapters/hermes-lms.sh`.)
 
 Score = fraction of a case's hidden tests that pass after the tool edits the
 code. Each cell below is `passed-tests / total-tests` summed over the 4 cases

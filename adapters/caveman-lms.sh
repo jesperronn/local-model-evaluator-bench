@@ -11,4 +11,5 @@ exec caveman \
   --provider lmstudio \
   --model "$MODEL_ID" \
   --print \
-  "$PROMPT"
+  "$PROMPT" \
+  "$@"
