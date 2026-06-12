@@ -8,7 +8,13 @@
 # 30B coder (MLX-4bit) — local LM Studio copy; maps to qwen/qwen3-coder-30b
 /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit
 
+# 30B coder (MLX-6bit) — same arch, higher quant; maps to qwen/qwen3-coder-next
+/Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-Next-MLX-6bit
+
 # 27B MLX removed 2026-06-12 — see models.txt for rationale
+
+# 26B MoE (MLX-6bit) — local LM Studio copy; maps to google/gemma-4-26b-a4b (no QAT)
+/Users/jesper/.lmstudio/models/lmstudio-community/gemma-4-26B-A4B-it-MLX-6bit
 
 # 26B MoE (MLX-4bit QAT) — same weights as google/gemma-4-26b-a4b-qat in lms; enables runtime comparison
 /Users/jesper/.lmstudio/models/lmstudio-community/gemma-4-26B-A4B-it-QAT-MLX-4bit
@@ -16,15 +22,18 @@
 # 9B (MLX-4bit) — same weights as qwen/qwen3.5-9b in lms; enables runtime comparison; smallest here
 /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit
 
+# 2B (MLX-4bit) — Gemma 4 E2B; smallest MLX model available locally
+/Users/jesper/.lmstudio/models/lmstudio-community/gemma-4-E2B-it-MLX-4bit
+
 # Download these before running (mlx_lm.server fetches from HuggingFace on first load):
 #   huggingface-cli download mlx-community/Phi-4-mini-instruct-4bit
 #   huggingface-cli download mlx-community/Phi-4-4bit
 #   huggingface-cli download mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
 
-# 3.8B — Microsoft Phi-4 mini
+# 3.8B — Microsoft Phi-4 mini (scores 7% — likely tool-call format mismatch with mlx_lm.server)
 mlx-community/Phi-4-mini-instruct-4bit
 
-# 14B — Microsoft Phi-4
+# 14B — Microsoft Phi-4 (scores 9% — likely tool-call format mismatch with mlx_lm.server)
 mlx-community/Phi-4-4bit
 
 # 7B — Qwen 2.5 Coder coding specialist

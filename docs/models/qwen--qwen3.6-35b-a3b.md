@@ -9,13 +9,13 @@
 | **Parameter count** | 35B total, 3B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-08 |
+| **Last run** | 2026-06-12 |
 | **LMS entry removed** | 2026-06-10 |
 | **Doc updated** | 2026-06-12 |
 
 ## Results summary
 
-The strongest general model in the suite. opencode, codex, and caveman all score 100%. aider scores 66.7% due to consistent multi-file and self-verify failures — a pattern that repeats across large Qwen3 MoE models with aider. Despite 35B total params, the 3B active architecture keeps it fast. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+The strongest general model in the suite. hermes (via Ollama), opencode, and codex all score 100%; caveman 92.9% via Ollama. aider scores 92.9% (LMS). Despite 35B total params, the 3B active architecture keeps it fast. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
 ## Failure patterns
 
@@ -36,7 +36,7 @@ All three failures are aider-specific and do not appear on opencode, codex, or c
 
 ## Known issues
 
-**hermes error(1) — all cases:** adapter-level issue, not model-specific.
+**hermes error(1) — historic (resolved 2026-06-11):** hermes was broken on all models; fixed by switching to `backend: local`. Results now available via Ollama (34/34 100%) and LMS hermes.
 
 ## Status
 

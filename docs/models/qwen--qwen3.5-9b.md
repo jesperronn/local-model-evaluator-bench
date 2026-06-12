@@ -9,12 +9,12 @@
 | **Parameter count** | 9B |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-08 |
-| **Doc updated** | 2026-06-09 |
+| **Last run** | 2026-06-12 |
+| **Doc updated** | 2026-06-12 |
 
 ## Results summary
 
-Strong small model. codex scores 100% and caveman 96.6%, making it a reliable choice when memory is constrained. aider scores 69.2% due to consistent multi-file and self-verify gaps. opencode scores 71.9% — its one miss (bash-01-topwords, 0/4) is an outlier given the model's otherwise solid capability. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+Strong small model. hermes and codex both score 100%, caveman 96.8%. Overall 139/161 (86.3%). aider scores 57.1% due to consistent multi-file and self-verify gaps. opencode scores 73.5% — its miss on bash-01-topwords (0/4) is an outlier given the model's otherwise solid capability. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
 ## Failure patterns
 
@@ -38,6 +38,14 @@ Strong small model. codex scores 100% and caveman 96.6%, making it a reliable ch
 - **opencode:** 8–131s. js-06 took 131s (self-verify iteration). bash-01 failed quickly.
 - **codex:** 32–300s. bash-01 hit timeout but passed; ts-01 was 149s.
 - **caveman:** 19–300s. js-02 timed out (genuine failure); other cases 19–132s.
+
+## MLX runtime results (2026-06-12)
+
+hermes via `mlx_lm.server`: **34/34 (100%)** — all 9 cases passed. No cold-start JIT issue
+(unlike Qwen3-Coder-30B — the 9B model's JIT compiles before the first request).
+js-03-multifile-cache status=timeout at 300s but all 5 tests passed before the adapter
+was killed. Timing: 24–300s per case, avg 153s — approximately 1.1× slower than LMS hermes
+(137s avg), much less overhead than the 30B model's 2.5× MLX penalty.
 
 ## Known issues
 

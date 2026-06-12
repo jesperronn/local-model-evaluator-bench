@@ -1,15 +1,15 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-06-12 23:16
+**Generated:** 2026-06-12 23:55
 
 ## Leaderboard — by runtime
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| lms | 1437/2130 | 67.5% | 62.1 |
+| lms | 1440/2133 | 67.5% | 63.1 |
 | ollama | 155/375 | 41.3% | 59.6 |
-| mlx | 40/188 | 21.3% | 50.9 |
+| mlx | 74/222 | 33.3% | 64.7 |
 
 ## Leaderboard — by adapter × model
 
@@ -18,6 +18,7 @@
 | ollama | hermes | qwen3.6:35b-a3b-coding-mxfp8 | 34/34 | 100.0% | 83.1 | 1 |
 | ollama | caveman | qwen3.5:9b | 2/2 | 100.0% | 23.0 | 1 |
 | ollama | aider | phi4-mini:latest | 2/2 | 100.0% | 33.0 | 1 |
+| mlx | hermes | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 34/34 | 100.0% | 153.3 | 1 |
 | lms | opencode | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 79.6 | 1 |
 | lms | opencode | qwen/qwen3-coder-next | 34/34 | 100.0% | 35.2 | 1 |
 | lms | opencode | qwen/qwen3-coder-30b | 34/34 | 100.0% | 66.3 | 1 |
@@ -30,13 +31,13 @@
 | lms | hermes | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 34/34 | 100.0% | 106.0 | 1 |
 | lms | codex | qwen3.6:35b-a3b-coding-mxfp8 | 34/34 | 100.0% | 53.0 | 1 |
 | lms | codex | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 33.3 | 1 |
-| lms | codex | qwen/qwen3.5-9b | 34/34 | 100.0% | 116.7 | 1 |
+| lms | codex | qwen/qwen3.5-9b | 34/34 | 100.0% | 146.4 | 1 |
 | lms | codex | qwen/qwen3-coder-next | 34/34 | 100.0% | 94.1 | 1 |
 | lms | codex | qwen/qwen3-coder-30b | 34/34 | 100.0% | 81.4 | 1 |
 | lms | caveman | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 168.0 | 1 |
+| lms | caveman | qwen/qwen3.5-9b | 34/34 | 100.0% | 70.7 | 1 |
 | lms | caveman | qwen/qwen3-coder-30b | 34/34 | 100.0% | 55.8 | 1 |
 | lms | caveman | google/gemma-4-26b-a4b-qat | 34/34 | 100.0% | 80.0 | 1 |
-| lms | caveman | qwen/qwen3.5-9b | 30/31 | 96.8% | 73.0 | 1 |
 | lms | caveman | qwen/qwen3-coder-next | 29/30 | 96.7% | 29.1 | 1 |
 | lms | caveman | google/gemma-4-12b-qat | 29/30 | 96.7% | 164.2 | 1 |
 | lms | hermes | qwen/qwen3.6-35b-a3b | 32/34 | 94.1% | 97.6 | 1 |
@@ -59,8 +60,8 @@
 | lms | aider | google/gemma-4-e2b-qat | 22/28 | 78.6% | 19.7 | 1 |
 | lms | hermes | google/gemma-4-e2b-qat | 25/32 | 78.1% | 30.4 | 1 |
 | lms | hermes | google/gemma-4-e4b-qat | 20/26 | 76.9% | 62.9 | 1 |
-| lms | opencode | qwen/qwen3.5-9b | 26/34 | 76.5% | 110.0 | 1 |
 | lms | opencode | google/gemma-4-e4b-qat | 22/29 | 75.9% | 60.2 | 1 |
+| lms | opencode | qwen/qwen3.5-9b | 25/34 | 73.5% | 147.1 | 1 |
 | lms | opencode | google/gemma-4-e4b | 25/34 | 73.5% | 73.8 | 1 |
 | lms | aider | qwen/qwen3-coder-next | 23/32 | 71.9% | 16.9 | 1 |
 | lms | aider | google/gemma-4-e2b | 17/24 | 70.8% | 20.4 | 1 |
@@ -116,13 +117,14 @@
 
 | Runtime | Model | Pass | Pass% | Avg s |
 |---------|-------|------|-------|-------|
+| mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 34/34 | 100.0% | 153.3 |
 | lms | qwen3.6:35b-a3b-coding-mxfp8 | 68/68 | 100.0% | 61.3 |
 | lms | qwen/qwen3.6-35b-a3b | 160/164 | 97.6% | 91.8 |
 | lms | qwen/qwen3-coder-30b | 162/168 | 96.4% | 61.0 |
 | lms | qwen/qwen3-coder-next | 154/164 | 93.9% | 42.7 |
 | ollama | qwen3.6:35b-a3b-coding-mxfp8 | 63/68 | 92.6% | 81.8 |
+| lms | qwen/qwen3.5-9b | 143/164 | 87.2% | 110.7 |
 | lms | google/gemma-4-26b-a4b-qat | 143/164 | 87.2% | 74.5 |
-| lms | qwen/qwen3.5-9b | 140/161 | 87.0% | 97.8 |
 | ollama | gemma4-claude | 61/78 | 78.2% | 110.7 |
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 28/36 | 77.8% | 189.7 |
 | lms | google/gemma-4-12b-qat | 119/158 | 75.3% | 173.0 |
@@ -147,9 +149,9 @@
 
 | Adapter | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| hermes | 464/640 | 72.5% | 80.4 |
-| caveman | 346/544 | 63.6% | 56.4 |
-| opencode | 306/495 | 61.8% | 51.7 |
+| hermes | 498/674 | 73.9% | 83.8 |
+| caveman | 350/547 | 64.0% | 56.3 |
+| opencode | 305/495 | 61.6% | 54.0 |
 | aider | 219/398 | 55.0% | 56.0 |
-| codex | 295/604 | 48.8% | 52.2 |
+| codex | 295/604 | 48.8% | 53.6 |
 | claude | 2/12 | 16.7% | 290.3 |

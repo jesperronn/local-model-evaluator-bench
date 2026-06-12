@@ -19,6 +19,9 @@ gemma4:26b-mlx
 # Build first: bin/setup-ollama-modelfile gemma4-claude
 gemma4-claude
 
+# 20.9B — OpenAI GPT-OSS open-weight release; MXFP4 quant, tools + thinking support
+gpt-oss:20b
+
 # Pull these before running (ollama pull <id>):
 #   ollama pull phi4-mini:latest
 #   ollama pull phi4:latest

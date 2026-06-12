@@ -9,12 +9,12 @@
 | **Parameter count** | 26B total, ~4B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-08 |
-| **Doc updated** | 2026-06-09 |
+| **Last run** | 2026-06-12 |
+| **Doc updated** | 2026-06-12 |
 
 ## Results summary
 
-Excellent model on opencode and caveman (both 100%), good on codex (87.5%). The major surprise is **aider's catastrophic underperformance** (34.6%) — the worst aider score across any capable model. This is not a model quality issue; it's a severe format incompatibility between this model's chat template and aider's diff format. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+Top performer: hermes, opencode, and caveman all at 100%. Overall 143/164 (87.2%). The standout is **aider's catastrophic underperformance** — the worst aider score of any capable model (5 consistent failures across all multi-file and complex cases). codex scores 88.2% (one case failure). Not a model quality issue; aider has a severe format incompatibility with this model's chat template. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
 ## Failure patterns
 
@@ -34,6 +34,7 @@ The pattern across all 5 aider failures is consistent: this model has a chat tem
 
 ## Timing observations
 
+- **hermes:** ~56s avg. Clean on all 9 cases.
 - **opencode:** 45–204s. All cases clean, no timeouts. js-03 was longest at 204s.
 - **codex:** 57–196s. All ok except js-02 (which codex failed).
 - **caveman:** 48–164s. All cases clean. js-03 took 164s.
