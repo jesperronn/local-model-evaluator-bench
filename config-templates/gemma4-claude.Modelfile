@@ -1,0 +1,14 @@
+FROM gemma4:26b
+
+# Bump the default 4K context to 64K for agentic use (tool call history +
+# full-file edits require headroom far beyond the 4K default).
+PARAMETER num_ctx 131072
+
+# Low temperature prevents malformed tool-call JSON.
+PARAMETER temperature 0.2
+
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.15
+
+# Max tokens per response — enough for file edits without runaway generation.
+PARAMETER num_predict 4096

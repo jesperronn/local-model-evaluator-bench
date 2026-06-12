@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# bin/setup-ollama-modelfile — build custom Ollama model variants tuned for
+# agentic use: 64K context window and low temperature for stable tool calls.
+#
+# The default Ollama context for most models is 4K tokens — far too small for
+# multi-step agent workflows (tool call history + file edits). This script
+# creates a named variant via an Ollama Modelfile so every adapter benefits
+# automatically when --runtime ollama is used.
+#
+# Usage:
+#   bin/setup-ollama-modelfile                  # build all variants in config-templates/
+#   bin/setup-ollama-modelfile gemma4-claude    # build one by name
+#
+# After running, verify with:  ollama list | grep claude
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+MODELFILES_DIR="$HERE/config-templates"
+OLLAMA_MODELFILES_DIR="$HOME/.ollama/Modelfiles"
+
+build_modelfile() {
+  local name="$1"
+  local src="$MODELFILES_DIR/${name}.Modelfile"
+  [ -f "$src" ] || die "no modelfile found: $src"
+
+  local dest="$OLLAMA_MODELFILES_DIR/${name}"
+  mkdir -p "$OLLAMA_MODELFILES_DIR"
+  cp "$src" "$dest"
+  info "Building $name from $src"
+  ollama create "$name" --file "$dest"
+  ok "$name created — verify: ollama list | grep '$name'"
+}
+
+if [ $# -gt 0 ]; then
+  for name in "$@"; do build_modelfile "$name"; done
+else
+  shopt -s nullglob
+  files=("$MODELFILES_DIR"/*.Modelfile)
+  [ ${#files[@]} -gt 0 ] || die "no .Modelfile files in $MODELFILES_DIR"
+  for f in "${files[@]}"; do
+    build_modelfile "$(basename "$f" .Modelfile)"
+  done
+fi
