@@ -5,12 +5,12 @@
 | Field | Value |
 |-------|-------|
 | **Model key** | `qwen/qwen3-coder-next` |
-| **Family / arch** | Qwen3-Coder, dense or MoE <!-- TODO: confirm arch --> |
-| **Parameter count** | <!-- TODO --> |
+| **Family / arch** | Qwen3-Coder, MoE (512 micro-experts, 10 active/token) |
+| **Parameter count** | ~86B total, ~6.5B active |
 | **Disk size** | 60.31 GiB (as reported by `lms load`, 2026-06-09) |
 | **Added** | 2026-06-09 |
-| **Last run** | 2026-06-12 |
-| **Doc updated** | 2026-06-12 |
+| **Last run** | 2026-06-13 |
+| **Doc updated** | 2026-06-13 |
 
 ## Results summary
 
@@ -34,9 +34,32 @@ Excellent coding model. All 5 adapters work at high scores: codex, hermes, and o
 - **hermes:** ~38s avg (LMS). Clean on all 9 cases.
 - **opencode:** ~35s avg (LMS). Clean on all 9 cases.
 
+## MLX runtime — hermes regression (2026-06-13)
+
+MLX hermes (via `bin/mlx-serve-qwen3-next`) scores significantly lower than LMS hermes
+despite tool calls now parsing correctly. LMS hermes: 34/34 100%, 38s avg. MLX hermes:
+~0-2/4 per case, 150-285s avg (partial/full failures on bash-01, js-01, js-02 confirmed).
+
+Root cause: The `qwen3_coder` XML tool format (required to fix the `json_tools` parser bug)
+presents tools differently from LM Studio's format. The model's response quality degrades
+when tools are presented in XML format vs the OpenAI JSON format LMS uses internally.
+Specifically:
+- `bash-01`: model confused about `process` tool's `session_id` (tries to use it without
+  first starting a process, gets "session_id is required" error, gives up)
+- `js-01/02`: model generates responses but misses tests
+- MLX timing is 4–7× slower per case vs LMS
+
+**Conclusion:** MLX hermes is not useful for this model in the current configuration.
+The model works correctly on LMS (LM Studio's native tool format). MLX hermes is a known
+regression until either the model's tool format expectation is aligned with qwen3_coder
+or LMS-style tool presentation can be reproduced on the MLX server.
+
 ## Known issues
 
-No current blockers. hermes and opencode were fixed 2026-06-11 when hermes switched to `backend: local`. opencode was likely fixed as a side-effect of the same hermes/LMS config fix.
+No current blockers for LMS adapter. hermes and opencode were fixed 2026-06-11 when hermes
+switched to `backend: local`. opencode was likely fixed as a side-effect of the same fix.
+
+See "MLX runtime" section above for MLX hermes regression.
 
 ## Status
 

@@ -328,6 +328,40 @@ Per-model totals (out of 15; #4 = broken template):
 
 ---
 
+## MLX runtime results (2026-06-13)
+
+hermes adapter only (MLX server path via `bin/mlx-serve-*`). 34 sub-tests per model.
+All cold-start JIT: send a warmup curl before benchmarking 30B+ models.
+See [LEADERBOARD.md](LEADERBOARD.md) for live data.
+
+### MLX per-model summary (hermes only)
+
+| Model | quant | hermes | avg s | Notes |
+|-------|-------|:------:|------:|-------|
+| google/gemma-4-26b-a4b (QAT) | MLX 4-bit QAT | **100%** | 132s | No cold-start (4B active MoE); 2× slower than LMS |
+| google/gemma-4-26b-a4b | MLX 6-bit | **100%** | 154s | 2.5× slower/token than QAT but fewer rounds on iterative cases |
+| qwen/qwen3.5-9b | MLX 4-bit | **100%** | 153s | No cold-start (9B); full 9-case pass |
+| qwen/qwen3-coder-30b | MLX 4-bit | **100%** (warm) | 228s | Cold-start JIT: 0/6 first case; 28/28 warm. Use warmup curl |
+| qwen/qwen3-coder-next | MLX 6-bit | **~11%** (partial) | ~214s | Tool format regression vs LMS; bench aborted after 3 cases. See model doc. |
+
+### Key MLX findings
+
+- **Cold-start JIT is model-size dependent.** Sub-9B models (Qwen3.5-9B): no issue. 
+  30B+ (Qwen3-Coder-30B, Qwen3-Coder-Next): first request fails with bad tool_calls.
+  Fix: `curl -s … -d '{"max_tokens":5}' > /dev/null` before benching.
+- **6-bit vs 4-bit QAT tradeoff.** Per-token: 6-bit is ~2.5× slower. Per-case: iterative
+  cases (js-02, js-05, js-06) finish faster on 6-bit because higher precision needs fewer 
+  rounds. Single-pass cases (bash-01, js-01) are faster on 4-bit QAT.
+- **Qwen3-Coder-Next tool_parser bug.** `tokenizer_config.json` wrongly specifies
+  `json_tools` but the model uses `qwen3_coder` XML format. Use `bin/mlx-serve-qwen3-next`
+  wrapper which patches the parser before server start. Direct `mlx_lm.server` gives
+  `tool_calls: null` on every request.
+- **MLX overall speed.** LMS runtime is significantly faster (no server overhead,
+  direct Metal inference). MLX server adds ~15–50% overhead per request. For benching
+  the MLX format specifically, MLX server is the only option.
+
+---
+
 ## Current results (2026-06-12)
 
 9 cases, 5 adapters (aider · caveman · codex · hermes · opencode), LM Studio
