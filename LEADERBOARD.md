@@ -1,13 +1,13 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-06-13 12:09
+**Generated:** 2026-06-13 12:20
 
 ## Leaderboard — by runtime
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| lms | 1499/2201 | 68.1% | 65.9 |
+| lms | 1533/2235 | 68.6% | 65.8 |
 | ollama | 326/579 | 56.3% | 73.6 |
 | mlx | 148/323 | 45.8% | 92.7 |
 
@@ -32,6 +32,7 @@
 | lms | hermes | qwen/qwen3-coder-30b | 34/34 | 100.0% | 91.8 | 1 |
 | lms | hermes | google/gemma-4-26b-a4b-qat | 34/34 | 100.0% | 56.1 | 1 |
 | lms | hermes | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 34/34 | 100.0% | 106.0 | 1 |
+| lms | copilot | qwen/qwen3-coder-next | 34/34 | 100.0% | 59.1 | 1 |
 | lms | codex | qwen3.6:35b-a3b-coding-mxfp8 | 34/34 | 100.0% | 53.0 | 1 |
 | lms | codex | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 33.3 | 1 |
 | lms | codex | qwen/qwen3.5-9b | 34/34 | 100.0% | 146.4 | 1 |
@@ -138,7 +139,7 @@
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 34/34 | 100.0% | 153.3 |
 | lms | qwen3.6:35b-a3b-coding-mxfp8 | 68/68 | 100.0% | 61.3 |
 | lms | qwen/qwen3-coder-30b | 195/202 | 96.5% | 69.4 |
-| lms | qwen/qwen3-coder-next | 154/164 | 93.9% | 42.7 |
+| lms | qwen/qwen3-coder-next | 188/198 | 94.9% | 45.4 |
 | lms | qwen/qwen3.6-35b-a3b | 185/198 | 93.4% | 88.1 |
 | ollama | qwen3.6:35b-a3b-coding-mxfp8 | 63/68 | 92.6% | 81.8 |
 | lms | google/gemma-4-26b-a4b-qat | 144/164 | 87.8% | 86.9 |
@@ -172,8 +173,8 @@
 
 | Adapter | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
+| copilot | 96/123 | 78.0% | 100.9 |
 | hermes | 568/754 | 75.3% | 91.9 |
-| copilot | 62/89 | 69.7% | 116.5 |
 | caveman | 376/575 | 65.4% | 61.7 |
 | opencode | 357/561 | 63.6% | 57.5 |
 | aider | 260/454 | 57.3% | 63.3 |
