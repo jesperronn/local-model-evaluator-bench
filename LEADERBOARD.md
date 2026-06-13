@@ -1,15 +1,15 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-06-13 12:39
+**Generated:** 2026-06-13 13:11
 
 ## Leaderboard — by runtime
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| lms | 1533/2235 | 68.6% | 65.8 |
+| lms | 1555/2262 | 68.7% | 67.4 |
 | ollama | 326/579 | 56.3% | 73.6 |
-| mlx | 180/357 | 50.4% | 94.0 |
+| mlx | 207/387 | 53.5% | 97.2 |
 
 ## Leaderboard — by adapter × model
 
@@ -55,6 +55,7 @@
 | lms | aider | qwen/qwen3.6-35b-a3b | 26/28 | 92.9% | 80.4 | 1 |
 | lms | opencode | google/gemma-4-26b-a4b-qat | 31/34 | 91.2% | 107.2 | 1 |
 | ollama | hermes | gemma4-claude | 29/32 | 90.6% | 71.8 | 1 |
+| mlx | copilot | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 27/30 | 90.0% | 133.9 | 1 |
 | lms | opencode | google/gemma-4-e2b | 27/30 | 90.0% | 36.7 | 1 |
 | ollama | caveman | gemma4-claude | 30/34 | 88.2% | 89.8 | 1 |
 | lms | hermes | google/gemma-4-12b-qat | 30/34 | 88.2% | 176.7 | 1 |
@@ -63,6 +64,7 @@
 | ollama | codex | gpt-oss-20b | 17/20 | 85.0% | 150.8 | 1 |
 | lms | hermes | google/gemma-4-e2b | 21/25 | 84.0% | 31.7 | 1 |
 | mlx | hermes | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 28/34 | 82.4% | 210.8 | 1 |
+| lms | copilot | google/gemma-4-26b-a4b-qat | 22/27 | 81.5% | 196.5 | 1 |
 | lms | aider | qwen/qwen3-coder-30b | 26/32 | 81.2% | 9.6 | 1 |
 | lms | caveman | google/gemma-4-e2b | 20/25 | 80.0% | 37.0 | 1 |
 | lms | hermes | google/gemma-4-e4b | 22/28 | 78.6% | 75.2 | 1 |
@@ -144,12 +146,12 @@
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-Next-MLX-6bit | 32/34 | 94.1% | 106.8 |
 | lms | qwen/qwen3.6-35b-a3b | 185/198 | 93.4% | 88.1 |
 | ollama | qwen3.6:35b-a3b-coding-mxfp8 | 63/68 | 92.6% | 81.8 |
-| lms | google/gemma-4-26b-a4b-qat | 144/164 | 87.8% | 86.9 |
 | lms | qwen/qwen3.5-9b | 143/164 | 87.2% | 128.5 |
+| lms | google/gemma-4-26b-a4b-qat | 166/191 | 86.9% | 103.5 |
 | ollama | gemma4-26b-qat | 107/124 | 86.3% | 128.4 |
+| mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 55/66 | 83.3% | 163.3 |
 | ollama | gpt-oss-20b | 64/80 | 80.0% | 58.9 |
 | ollama | gemma4-claude | 61/78 | 78.2% | 110.7 |
-| mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 28/36 | 77.8% | 189.7 |
 | lms | google/gemma-4-12b-qat | 119/158 | 75.3% | 173.0 |
 | lms | google/gemma-4-e2b | 98/136 | 72.1% | 32.6 |
 | lms | google/gemma-4-e4b-qat | 96/135 | 71.1% | 63.9 |
@@ -175,7 +177,7 @@
 
 | Adapter | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| copilot | 128/157 | 81.5% | 102.1 |
+| copilot | 177/214 | 82.7% | 119.8 |
 | hermes | 568/754 | 75.3% | 91.9 |
 | caveman | 376/575 | 65.4% | 61.7 |
 | opencode | 357/561 | 63.6% | 57.5 |
