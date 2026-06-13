@@ -27,10 +27,12 @@ lms_up() {
 
 # Portable timeout: run_timeout <seconds> <cmd...>. Uses GNU timeout if present,
 # else falls back to perl's alarm (ships with macOS). Exit 124 on timeout.
+# --kill-after=15: if SIGTERM is caught/ignored (e.g. aider waiting on a slow
+# Ollama API call), SIGKILL fires 15s later to guarantee termination.
 run_timeout() {
   local secs="$1"; shift
-  if command -v timeout >/dev/null 2>&1; then timeout "$secs" "$@"
-  elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"
+  if command -v timeout >/dev/null 2>&1; then timeout --kill-after=15 "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout --kill-after=15 "$secs" "$@"
   else perl -e 'my $s=shift; $SIG{ALRM}=sub{exit 124}; alarm $s; exec @ARGV or exit 127' "$secs" "$@"
   fi
 }

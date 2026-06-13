@@ -9,12 +9,20 @@
 | **Parameter count** | 26B total, ~4B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-13 |
+| **Last run** | 2026-06-13 (Ollama) |
 | **Doc updated** | 2026-06-13 |
 
 ## Results summary
 
-Top performer across all runtimes: hermes (LMS + MLX 4-bit QAT), opencode, and caveman all at 100%. Overall 143/164 (87.2%). The standout is **aider's catastrophic underperformance** — the worst aider score of any capable model (5 consistent failures across all multi-file and complex cases). codex scores 88.2% (one case failure). Not a model quality issue; aider has a severe format incompatibility with this model's chat template. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+Strong across all runtimes. LMS: hermes 100%, caveman 100%, codex 100%. Ollama: opencode 100%, codex 94.1%, caveman 92.9%, aider 53.6% (multifile cases fail — known format incompatibility). hermes on Ollama is broken (Gemma doesn't recognize terminal tool in Ollama's schema format; LMS hermes works fine). MLX hermes 100%. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+
+| Adapter | LMS | Ollama | MLX |
+|---------|-----|--------|-----|
+| hermes | 34/34 100% | broken (tool schema) | 34/34 100% |
+| opencode | — | 34/34 100% | — |
+| codex | 34/34 100% | 32/34 94.1% | — |
+| caveman | 34/34 100% | 26/28 92.9% | — |
+| aider | ~50% (timeout on bash-01) | 15/28 53.6% | — |
 
 ## Failure patterns
 
@@ -35,15 +43,19 @@ The pattern across all 5 aider failures is consistent: this model has a chat tem
 ## Timing observations
 
 - **hermes (LMS):** ~56s avg. Clean on all 9 cases.
-- **hermes (MLX 4-bit QAT):** 13–253s, avg 132s. 34/34 100%. Simple single-turn cases faster than LMS (bash-01: 84s vs 101s, js-01: 37s vs 62s); multi-turn iterative cases ~2.4–4.5× slower (js-02: 253s vs 56s). No cold-start JIT issue (4B active MoE — JIT completes before first request). 2 transient tool-call truncation warnings (both self-recovered via hermes retry).
-- **opencode:** 45–204s. All cases clean, no timeouts. js-03 was longest at 204s.
-- **codex:** 57–196s. All ok except js-02 (which codex failed).
-- **caveman:** 48–164s. All cases clean. js-03 took 164s.
-- **aider:** 10–300s. bash-01 hit 300s timeout; most non-timeout failures completed in 10–34s.
+- **hermes (MLX 4-bit QAT):** 13–253s, avg 132s. 34/34 100%. No cold-start JIT (4B active MoE). 2 transient tool-call truncation warnings (both self-recovered).
+- **opencode (Ollama):** 45–237s, avg 125s. All 9 cases clean, 34/34.
+- **codex (LMS):** 57–196s. 34/34 100%.
+- **codex (Ollama):** 72–167s, avg 116s. 32/34 94.1%. smoke-00-hello 0/2 (3s fast fail).
+- **caveman (LMS):** 48–164s. 34/34 100%.
+- **caveman (Ollama):** 46–242s, avg 106s. 26/28 92.9%. js-04/js-05 fail (import error collapses tests to 1).
+- **aider (Ollama):** 12–879s, avg 166s. 15/28 53.6%. bash-01 passes (4/4, 177s). All 4 multifile cases (js-03–js-06) fail.
 
 ## Known issues
 
-**aider format incompatibility:** aider's search/replace or unified-diff edit format is not compatible with this model's response style. The model likely uses a non-standard response format or adds explanation before the edit block. Suggested fix: try `--edit-format whole` in the aider adapter.
+**aider multifile incompatibility:** aider fails all 4 multifile cases (js-03–js-06) on both LMS and Ollama. Single-file cases mostly pass. Suggested fix: try `--edit-format whole` in the aider adapter.
+
+**hermes on Ollama is broken:** the model says "terminal tool appears to be unavailable in this session" and produces no edits. This is a Gemma-specific behavior with the Ollama tool schema format — LMS hermes works fine (100%). Do not use `hermes` adapter for this model on Ollama runtime.
 
 ## Status
 
