@@ -11,6 +11,6 @@ exec codex exec \
   --dangerously-bypass-approvals-and-sandbox \
   --oss \
   --local-provider ollama \
-  -c model="$MODEL_ID" \
+  -m "$MODEL_ID" \
   "$PROMPT" \
   "$@"

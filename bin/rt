@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+# bin/rt — runtime status and control.
+#
+# Usage:
+#   bin/rt [status]          show snapshot: RAM, runtimes, running bench
+#   bin/rt ram               RAM breakdown (total / used / free / Ollama)
+#   bin/rt log [N]           tail most recent bench log (default 40 lines)
+#   bin/rt watch [N]         live-tail bench log (follow mode)
+#   bin/rt stop bench        kill any running bench process tree
+#   bin/rt stop mlx          kill mlx_lm.server on port 8080
+#   bin/rt stop ollama       unload active Ollama models
+#   bin/rt stop lms          unload LM Studio model
+#   bin/rt stop all          stop bench + mlx + ollama + lms
+#
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+_ram_gb() {
+  # Returns: total_gb used_gb free_gb available_gb
+  local total pages page_size wired active speculative free compressed
+  total=$(sysctl -n hw.memsize)
+  page_size=$(vm_stat | awk '/page size of/ { print $8 }')
+  page_size=${page_size:-4096}
+  wired=$(vm_stat | awk '/Pages wired down/ { gsub(/\./,"",$4); print $4+0 }')
+  active=$(vm_stat | awk '/Pages active:/ { gsub(/\./,"",$3); print $3+0 }')
+  speculative=$(vm_stat | awk '/Pages speculative/ { gsub(/\./,"",$3); print $3+0 }')
+  free=$(vm_stat | awk '/Pages free:/ { gsub(/\./,"",$3); print $3+0 }')
+  compressed=$(vm_stat | awk '/Pages occupied by compressor/ { gsub(/\./,"",$5); print $5+0 }')
+  # Available = free + (active-but-reclaimable via swapping is hard to quantify on AS)
+  # Practical: free + speculative pages are immediately available
+  local used=$(( (wired + active + compressed) * page_size ))
+  local avail=$(( (free + speculative) * page_size ))
+  awk -v tot="$total" -v used="$used" -v avail="$avail" \
+    'BEGIN { printf "%.0f %.0f %.0f", tot/1073741824, used/1073741824, avail/1073741824 }'
+}
+
+_ollama_loaded() {
+  # List models currently loaded in Ollama (via ps)
+  ollama ps 2>/dev/null | awk 'NR>1 && NF { print $1 }' || true
+}
+
+_mlx_up() {
+  curl -fsS --max-time 2 http://localhost:8080/v1/models >/dev/null 2>&1
+}
+
+_ollama_up() {
+  curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1
+}
+
+_bench_pids() {
+  # PIDs of bench processes (the bench shell script and its run_timeout child)
+  pgrep -f "bash.*/bin/bench" 2>/dev/null || true
+}
+
+_codex_pids() {
+  pgrep -f "codex exec.*--dangerously-bypass" 2>/dev/null || true
+}
+
+_latest_log() {
+  # Path to most recent results.csv (exists as soon as bench starts)
+  ls -1dt "$HERE"/results/*/results.csv 2>/dev/null | head -1
+}
+
+_latest_bench_log() {
+  # Most recent .bench.log written (i.e. the case currently running / last run)
+  local run
+  run=$(ls -1dt "$HERE"/results/*/ 2>/dev/null | grep -v "_bad_runs" | head -1)
+  [ -z "$run" ] && return
+  find "$run/sandbox" -name ".bench.log" -print0 2>/dev/null \
+    | xargs -0 ls -1t 2>/dev/null | head -1
+}
+
+# ── subcommands ───────────────────────────────────────────────────────────────
+
+cmd_ram() {
+  local total used avail
+  read total used avail < <(_ram_gb)
+  local model_ram=0
+  local loaded_model; loaded_model=$(_ollama_loaded | head -1)
+  printf '%s\n' "${C_BLU}==> RAM (${total}GB total)${C_RST}"
+  printf '  %-12s %5s GB\n' "used"      "$used"
+  printf '  %-12s %5s GB\n' "free/avail" "$avail"
+  if [ -n "$loaded_model" ]; then
+    printf '  %-12s %s\n' "ollama" "$loaded_model (loaded)"
+  fi
+}
+
+cmd_status() {
+  local total used avail
+  read total used avail < <(_ram_gb)
+
+  printf '%s  %sGB total — %sGB used — %sGB free%s\n' \
+    "${C_BLU}RAM${C_RST}" "$total" "$used" "$avail" ""
+  echo
+
+  # LMS
+  printf '%s  ' "${C_BLU}LMS${C_RST}"
+  if lms_up 2>/dev/null; then
+    local lms_model; lms_model=$(lms_loaded_models 2>/dev/null | head -1)
+    if [ -n "$lms_model" ]; then
+      printf '%s  loaded: %s\n' "${C_GRN}up${C_RST}" "$lms_model"
+    else
+      printf '%s  (no model loaded)\n' "${C_GRN}up${C_RST}"
+    fi
+  else
+    printf '%s\n' "${C_DIM}down${C_RST}"
+  fi
+
+  # Ollama
+  printf '%s  ' "${C_BLU}Ollama${C_RST}"
+  if _ollama_up; then
+    local loaded; loaded=$(_ollama_loaded)
+    if [ -n "$loaded" ]; then
+      printf '%s  loaded: %s\n' "${C_GRN}up${C_RST}" "$(echo "$loaded" | tr '\n' '  ')"
+    else
+      printf '%s  (no model loaded)\n' "${C_GRN}up${C_RST}"
+    fi
+  else
+    printf '%s\n' "${C_DIM}down${C_RST}"
+  fi
+
+  # MLX
+  printf '%s  ' "${C_BLU}MLX${C_RST}"
+  if _mlx_up; then
+    local mlx_model; mlx_model=$(curl -fsS --max-time 2 http://localhost:8080/v1/models 2>/dev/null \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data'][0]['id'])" 2>/dev/null || echo "?")
+    printf '%s  model: %s\n' "${C_GRN}up (port 8080)${C_RST}" "$mlx_model"
+  else
+    printf '%s\n' "${C_DIM}down${C_RST}"
+  fi
+
+  echo
+
+  # Bench
+  local bpids; bpids=$(_bench_pids)
+  printf '%s  ' "${C_BLU}Bench${C_RST}"
+  if [ -n "$bpids" ]; then
+    local log; log=$(_latest_bench_log)
+    local results_count=0
+    local latest_csv; latest_csv=$(_latest_log)
+    [ -n "$latest_csv" ] && results_count=$(tail -n +2 "$latest_csv" 2>/dev/null | grep -c "." || echo 0)
+    printf '%s  PIDs: %s  results so far: %s\n' \
+      "${C_YEL}RUNNING${C_RST}" "$(echo $bpids | tr '\n' ' ')" "$results_count"
+    if [ -n "$log" ]; then
+      printf '  last log: %s\n' "${C_DIM}${log#$HERE/}${C_RST}"
+      printf '  last line: %s\n' "${C_DIM}$(tail -1 "$log" 2>/dev/null | tr -d '\000-\010\013-\037' | head -c 120)${C_RST}"
+    fi
+    # Show current bench command
+    local bench_cmd; bench_cmd=$(ps -p $(echo $bpids | awk '{print $1}') -o args= 2>/dev/null | head -1)
+    [ -n "$bench_cmd" ] && printf '  cmd: %s\n' "${C_DIM}$bench_cmd${C_RST}"
+  else
+    printf '%s\n' "${C_DIM}idle${C_RST}"
+    local latest_csv; latest_csv=$(_latest_log)
+    if [ -n "$latest_csv" ]; then
+      local run; run=$(basename "$(dirname "$latest_csv")")
+      local count; count=$(tail -n +2 "$latest_csv" 2>/dev/null | grep -c "." || echo 0)
+      printf '  last run: %s  (%s results)\n' \
+        "${C_DIM}$run${C_RST}" "$count"
+    fi
+  fi
+}
+
+_strip_ctrl() {
+  tr -d '\000-\010\013-\037\200-\237' \
+    | sed 's/[⠁⠂⠄⠈⠐⠠⡀⢀⠃⠅⠆⠉⠊⠌⠑⠒⠔⠘⠡⠢⠤⠨⠰⡁⡂⡄⡈⡐⡠⢁⢂⢄⢈⢐⢠⣀⠇⠋⠍⠎⠓⠕⠖⠙⠚⠜⠣⠦⠩⠪⠬⠱⠲⠴⠸⡃⡅⡆⡉⡊⡌⡑⡒⡔⡘⡡⡢⡤⡨⡰⢃⢅⢆⢉⢊⢌⢑⢒⢔⢘⢡⢢⢤⢨⢰⣁⣂⣄⣈⣐⣠]//g'
+}
+
+cmd_log() {
+  local n="${1:-40}"
+  local log; log=$(_latest_bench_log)
+  [ -z "$log" ] && die "no bench logs found (run a bench first)"
+  local rel="${log#$HERE/}"
+  # Show adapter/model/case from path: sandbox/<adapter>/<model>/<case>/.bench.log
+  local case_label; case_label=$(echo "$rel" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
+  info "$case_label"
+  tail -"$n" "$log" | _strip_ctrl
+}
+
+cmd_watch() {
+  local n="${1:-40}"
+  local log; log=$(_latest_bench_log)
+  [ -z "$log" ] && die "no bench log found (run a bench first)"
+  local rel="${log#$HERE/}"
+  local case_label; case_label=$(echo "$rel" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
+  info "watching: $case_label  (Ctrl-C to stop)"
+  # macOS tail -f: follows the file as it grows
+  tail -"$n" -f "$log" | _strip_ctrl
+}
+
+cmd_stop() {
+  local target="${1:-}"
+  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|ollama|lms|all]"; exit 1; }
+
+  case "$target" in
+    bench)
+      local pids; pids=$(_bench_pids)
+      local cpids; cpids=$(_codex_pids)
+      local all_pids="$pids $cpids"
+      all_pids="$(echo $all_pids | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')"
+      if [ -z "$(echo $all_pids | tr -d ' ')" ]; then
+        info "bench: no bench process found"
+      else
+        info "stopping bench PIDs: $all_pids"
+        kill $all_pids 2>/dev/null || true
+        sleep 1
+        # Force-kill any survivors
+        local survivors; survivors=$(echo $all_pids | tr ' ' '\n' | while read pid; do
+          kill -0 "$pid" 2>/dev/null && echo "$pid"; done | tr '\n' ' ')
+        [ -n "$(echo $survivors | tr -d ' ')" ] && kill -9 $survivors 2>/dev/null || true
+        ok "bench stopped"
+      fi
+      ;;
+    mlx)
+      local pid; pid=$(lsof -ti :8080 2>/dev/null | head -1)
+      if [ -z "$pid" ]; then
+        info "mlx: nothing on port 8080"
+      else
+        info "stopping MLX server (PID $pid)"
+        kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+        ok "MLX stopped"
+      fi
+      ;;
+    ollama)
+      if _ollama_up; then
+        local loaded; loaded=$(_ollama_loaded)
+        if [ -n "$loaded" ]; then
+          while IFS= read -r model; do
+            info "unloading Ollama model: $model"
+            ollama stop "$model" 2>/dev/null || true
+          done <<< "$loaded"
+          ok "Ollama models unloaded"
+        else
+          info "ollama: no models loaded"
+        fi
+      else
+        info "ollama: server not running"
+      fi
+      ;;
+    lms)
+      if lms_up 2>/dev/null; then
+        local loaded; loaded=$(lms_loaded_models 2>/dev/null)
+        if [ -n "$loaded" ]; then
+          while IFS= read -r model; do
+            info "unloading LMS model: $model"
+            lms unload "$model" 2>/dev/null || true
+          done <<< "$loaded"
+          ok "LMS models unloaded"
+        else
+          info "lms: no models loaded"
+        fi
+      else
+        info "lms: server not running"
+      fi
+      ;;
+    all)
+      cmd_stop bench
+      cmd_stop mlx
+      cmd_stop ollama
+      cmd_stop lms
+      ;;
+    *)
+      die "unknown stop target: $target (valid: bench mlx ollama lms all)"
+      ;;
+  esac
+}
+
+# ── dispatch ──────────────────────────────────────────────────────────────────
+
+CMD="${1:-status}"
+shift 2>/dev/null || true
+
+case "$CMD" in
+  status)  cmd_status "$@";;
+  ram)     cmd_ram    "$@";;
+  log)     cmd_log    "$@";;
+  watch)   cmd_watch  "$@";;
+  stop)    cmd_stop   "$@";;
+  -h|--help|help)
+    sed -n '2,12p' "$0"
+    ;;
+  *)
+    die "unknown command: $CMD (run bin/rt --help)"
+    ;;
+esac
