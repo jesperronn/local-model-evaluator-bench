@@ -354,6 +354,31 @@ lms_unload_model() {
 
 info "runtime: $RUNTIME  base_url: $RUNTIME_BASE_URL"
 
+# --- Block window renderer ---------------------------------------------------
+# In normal TTY mode, keeps a scrolling 8-line window of completed results plus
+# a live timer at the bottom — like docker-compose.  Each redraw erases the
+# previous block with ANSI cursor-up + clear-to-end, then repaints it.
+# In --verbose mode or when stdout is not a TTY, falls back to plain lines.
+_BLK_ROWS=0; _BLK_DONE=()
+
+_blk_erase() {
+  [ "$_BLK_ROWS" -gt 0 ] || return
+  printf '\033[%dA\033[J' "$_BLK_ROWS"
+  _BLK_ROWS=0
+}
+
+_blk_draw() {                          # $1 = running/timer line, or empty
+  local running="${1:-}" n="${#_BLK_DONE[@]}" start=0 drawn=0
+  _blk_erase
+  (( n > 8 )) && start=$(( n - 8 ))
+  for (( _i=start; _i<n; _i++ )); do printf '%s\n' "${_BLK_DONE[$_i]}"; (( drawn++ )); done
+  if [ -n "$running" ]; then printf '%s\n' "$running"; (( drawn++ )); fi
+  _BLK_ROWS=$drawn
+}
+
+_blk_add() { _BLK_DONE+=("$1"); _blk_draw ""; }  # graduate a finished trial into the block
+# ---------------------------------------------------------------------------
+
 for model_alias in "${MODEL_ARR[@]}"; do
   # Resolve alias → runtime-specific id. model_alias used in CSV/display; model
   # is the id passed to the runtime (they differ when an alias is used).
@@ -402,10 +427,63 @@ for model_alias in "${MODEL_ARR[@]}"; do
 
       # --- run N trials, collecting per-trial pass/seconds/status ----------
       scores=(); secs=(); statuses=(); total=0; n_ok=0
-      [ -t 1 ] && printf '%s' "${C_DIM}[RUNNING]${C_RST} $adapter | $model_alias | $case_id"
       for ((t=1; t<=TRIALS; t++)); do
         if [ "$TRIALS" -gt 1 ]; then sandbox="$base_sandbox/trial-$t"; else sandbox="$base_sandbox"; fi
-        read -r t_pass t_total t_elapsed t_status < <(run_trial "$adapter_sh" "$model" "$case_src" "$sandbox")
+
+        if [ "$VERBOSE" = 1 ]; then
+          # Verbose: run SYNCHRONOUSLY so the adapter's /dev/tty output (hermes
+          # writes its TUI there, bypassing stdout/stderr redirections) flows
+          # directly to the terminal.  Background jobs lose /dev/tty write access
+          # because they leave the terminal's foreground process group.
+          [ -t 1 ] && printf '%s\n' "${C_DIM}>>> $adapter | $model_alias | $case_id${C_RST}"
+
+          # Pre-create sandbox + log so tails start before the adapter does.
+          mkdir -p "$sandbox"; touch "$sandbox/.bench.log"
+          _vtail_pids=()
+
+          # Tail the bench log (stdout/stderr from all adapters; grader output).
+          # Use -F to survive the truncation when run_trial redirects >"$logf".
+          ( tail -n 0 -F "$sandbox/.bench.log" 2>/dev/null \
+            | sed -u "s/^/  ${C_DIM}/" ) &
+          _vtail_pids+=($!)
+
+          # For hermes: also tail agent.log filtered to high-signal lines.
+          # Drops plugin registration, HTTP client lifecycle, and HTTP responses
+          # (noise); keeps API-call latency, turn completions, and errors.
+          _hermes_log="${HOME}/.hermes/logs/agent.log"
+          if [ "$adapter" = hermes ] && [ -f "$_hermes_log" ]; then
+            ( tail -n 0 -F "$_hermes_log" 2>/dev/null \
+              | grep --line-buffered -v "Plugin\|OpenAI client \|primp: response" \
+              | sed -u "s/^/  ${C_BLU}▸${C_RST} ${C_DIM}/" ) &
+            _vtail_pids+=($!)
+          fi
+
+          read -r t_pass t_total t_elapsed t_status < \
+            <(run_trial "$adapter_sh" "$model" "$case_src" "$sandbox")
+
+          # Give buffered output a moment to flush before killing the tails.
+          sleep 0.3
+          for _vp in "${_vtail_pids[@]}"; do
+            kill "$_vp" 2>/dev/null; wait "$_vp" 2>/dev/null
+          done
+        else
+          # Normal / block renderer: run in background so we can animate.
+          _trial_out="$(mktemp)"
+          run_trial "$adapter_sh" "$model" "$case_src" "$sandbox" > "$_trial_out" &
+          _trial_pid=$!
+          _t0=$(date +%s)
+          if [ -t 1 ]; then
+            while kill -0 "$_trial_pid" 2>/dev/null; do
+              _dt=$(( $(date +%s) - _t0 ))
+              _blk_draw "${C_DIM}[${_dt}s]${C_RST} $adapter | $model_alias | $case_id"
+              sleep 1
+            done
+          fi
+          wait "$_trial_pid" 2>/dev/null
+          read -r t_pass t_total t_elapsed t_status < "$_trial_out"
+          rm -f "$_trial_out"
+        fi
+
         total="$t_total"
         if [ "$t_total" -gt 0 ]; then t_score="$(awk "BEGIN{printf \"%.4f\", $t_pass/$t_total}")"; else t_score="0"; fi
         scores+=("$t_score"); secs+=("$t_elapsed"); statuses+=("$t_status")
@@ -425,23 +503,43 @@ for model_alias in "${MODEL_ARR[@]}"; do
       echo "$adapter,$model_alias,$case_id,$pass,$total,$score,$elapsed,$status,$TRIALS,$RUNTIME" >> "$CSV"
 
       # --- report ----------------------------------------------------------
-      [ -t 1 ] && printf '\r\033[K'
       sec_note="${elapsed}s"; [ "$TRIALS" -gt 1 ] && sec_note="med ${elapsed}s, ${n_ok}/${TRIALS} ok"
       status_note=""; [ "$status" != "ok" ] && status_note=" $status"
-      if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
-      elif [ "$pass" -gt 0 ]; then warn "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
-      else err "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"; fi
+      logf="$sandbox/.bench.log"
 
-      # On any non-pass, point at the log so failures are diagnosable without
-      # digging through the sandbox tree. --verbose adds a short error excerpt.
-      if [ "$pass" != "$total" ] || [ "$total" -eq 0 ]; then
-        logf="$sandbox/.bench.log"
-        echo "      ${C_DIM}log: ${logf#"$HERE"/}${C_RST}"
-        if [ "$VERBOSE" = 1 ] && [ -f "$logf" ]; then
-          # MISS:/RESULT come from the grader (expected-vs-got per sub-test — the
-          # most useful signal); the rest catch adapter/model/runtime errors.
-          grep -aiE 'MISS:|^RESULT |error|refus|not ok|failed|exception|traceback|cannot|denied|no such' "$logf" \
-            | grep -av '[⠁-⣿]' | tail -10 | sed "s/^/        ${C_DIM}| /; s/$/${C_RST}/"
+      if [ -t 1 ] && [ "$VERBOSE" = 0 ]; then
+        # Block renderer: graduate the result into the scrolling window.
+        if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then
+          _blk_add "${C_GRN}[PASS]${C_RST} $adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
+        elif [ "$pass" -gt 0 ]; then
+          _blk_add "${C_YEL}[WARN]${C_RST} $adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
+        else
+          _blk_add "${C_RED}[FAIL]${C_RST} $adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
+        fi
+        # Log path as a second block line so it's tracked and redrawn correctly.
+        if [ "$pass" != "$total" ] || [ "$total" -eq 0 ]; then
+          _blk_add "      ${C_DIM}log: ${logf#"$HERE"/}${C_RST}"
+        fi
+      else
+        # Verbose or non-TTY: plain line output.
+        if   [ "$pass" = "$total" ] && [ "$total" -gt 0 ]; then ok   "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${C_RST}"
+        elif [ "$pass" -gt 0 ]; then warn "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"
+        else err "$adapter | $model_alias | $case_id  ->  $pass/$total  ${C_DIM}${sec_note}${status_note}${C_RST}"; fi
+
+        # On any non-pass, point at the log and (in --verbose) show an excerpt.
+        if [ "$pass" != "$total" ] || [ "$total" -eq 0 ]; then
+          echo "      ${C_DIM}log: ${logf#"$HERE"/}${C_RST}"
+          if [ "$VERBOSE" = 1 ] && [ -f "$logf" ]; then
+            # Grader signals: MISS:/RESULT; adapter/runtime: errors, refusals.
+            _err_lines="$(grep -aiE 'MISS:|^RESULT |error|refus|not ok|failed|exception|traceback|cannot|denied|no such' "$logf" \
+              | grep -av '[⠁-⣿]' | tail -20)"
+            [ -n "$_err_lines" ] && printf '%s\n' "$_err_lines" | sed "s/^/        ${C_DIM}| /; s/$/${C_RST}/"
+            _log_lines="$(wc -l < "$logf" | tr -d ' ')"
+            if [ "${_log_lines:-0}" -gt 0 ]; then
+              echo "      ${C_DIM}--- last lines of log ---${C_RST}"
+              tail -8 "$logf" | grep -av '[⠁-⣿]' | sed "s/^/        ${C_DIM}| /; s/$/${C_RST}/"
+            fi
+          fi
         fi
       fi
     done
