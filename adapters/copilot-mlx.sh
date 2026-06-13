@@ -17,6 +17,5 @@ exec env \
     --allow-all-tools \
     --allow-all-paths \
     --no-ask-user \
-    --silent \
     -p "$PROMPT" \
     "$@"
