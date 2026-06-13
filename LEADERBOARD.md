@@ -1,13 +1,13 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-06-13 14:07
+**Generated:** 2026-06-13 22:55
 
 ## Leaderboard — by runtime
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| lms | 1575/2299 | 68.5% | 67.0 |
+| lms | 1580/2303 | 68.6% | 67.0 |
 | ollama | 326/579 | 56.3% | 73.6 |
 | mlx | 207/387 | 53.5% | 97.2 |
 
@@ -23,23 +23,25 @@
 | mlx | hermes | gemma4-26b-6bit | 34/34 | 100.0% | 153.9 | 1 |
 | mlx | hermes | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 34/34 | 100.0% | 153.3 | 1 |
 | mlx | copilot | /Users/jesper/src/dotfiles/link-dir/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 2/2 | 100.0% | 362.0 | 1 |
-| lms | opencode | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 79.6 | 1 |
+| lms | opencode | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 110.6 | 1 |
 | lms | opencode | qwen/qwen3-coder-next | 34/34 | 100.0% | 35.2 | 1 |
 | lms | opencode | qwen/qwen3-coder-30b | 34/34 | 100.0% | 66.3 | 1 |
 | lms | hermes | qwen3.6:35b-a3b-coding-mxfp8 | 34/34 | 100.0% | 69.7 | 1 |
+| lms | hermes | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 99.7 | 1 |
 | lms | hermes | qwen/qwen3.5-9b | 34/34 | 100.0% | 171.4 | 1 |
 | lms | hermes | qwen/qwen3-coder-next | 34/34 | 100.0% | 38.1 | 1 |
 | lms | hermes | qwen/qwen3-coder-30b | 34/34 | 100.0% | 91.8 | 1 |
 | lms | hermes | google/gemma-4-26b-a4b-qat | 34/34 | 100.0% | 56.1 | 1 |
 | lms | hermes | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 34/34 | 100.0% | 106.0 | 1 |
+| lms | copilot | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 77.6 | 1 |
 | lms | copilot | qwen/qwen3-coder-next | 34/34 | 100.0% | 59.1 | 1 |
 | lms | codex | qwen3.6:35b-a3b-coding-mxfp8 | 34/34 | 100.0% | 53.0 | 1 |
-| lms | codex | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 33.3 | 1 |
+| lms | codex | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 73.0 | 1 |
 | lms | codex | qwen/qwen3.5-9b | 34/34 | 100.0% | 146.4 | 1 |
 | lms | codex | qwen/qwen3-coder-next | 34/34 | 100.0% | 94.1 | 1 |
 | lms | codex | qwen/qwen3-coder-30b | 34/34 | 100.0% | 81.4 | 1 |
 | lms | codex | google/gemma-4-26b-a4b-qat | 34/34 | 100.0% | 102.0 | 1 |
-| lms | caveman | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 168.0 | 1 |
+| lms | caveman | qwen/qwen3.6-35b-a3b | 34/34 | 100.0% | 51.4 | 1 |
 | lms | caveman | qwen/qwen3.5-9b | 34/34 | 100.0% | 125.9 | 1 |
 | lms | caveman | qwen/qwen3-coder-30b | 34/34 | 100.0% | 55.8 | 1 |
 | lms | caveman | google/gemma-4-26b-a4b-qat | 34/34 | 100.0% | 80.0 | 1 |
@@ -48,21 +50,18 @@
 | lms | caveman | google/gemma-4-12b-qat | 29/30 | 96.7% | 164.2 | 1 |
 | ollama | codex | gemma4-26b-qat | 32/34 | 94.1% | 115.7 | 1 |
 | mlx | copilot | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-Next-MLX-6bit | 32/34 | 94.1% | 106.8 | 1 |
-| lms | hermes | qwen/qwen3.6-35b-a3b | 32/34 | 94.1% | 97.6 | 1 |
 | lms | opencode | google/gemma-4-12b-qat | 30/32 | 93.8% | 205.3 | 1 |
 | ollama | caveman | gemma4-26b-qat | 26/28 | 92.9% | 106.1 | 1 |
 | ollama | aider | gpt-oss-20b | 26/28 | 92.9% | 24.0 | 1 |
-| lms | aider | qwen/qwen3.6-35b-a3b | 26/28 | 92.9% | 80.4 | 1 |
 | lms | opencode | google/gemma-4-26b-a4b-qat | 31/34 | 91.2% | 107.2 | 1 |
 | ollama | hermes | gemma4-claude | 29/32 | 90.6% | 71.8 | 1 |
 | mlx | copilot | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 27/30 | 90.0% | 133.9 | 1 |
-| lms | opencode | google/gemma-4-e2b | 27/30 | 90.0% | 36.7 | 1 |
+| lms | opencode | google/gemma-4-e2b | 27/30 | 90.0% | 37.1 | 1 |
 | ollama | caveman | gemma4-claude | 30/34 | 88.2% | 89.8 | 1 |
 | lms | hermes | google/gemma-4-12b-qat | 30/34 | 88.2% | 176.7 | 1 |
 | lms | opencode | google/gemma-4-e2b-qat | 28/32 | 87.5% | 44.8 | 1 |
 | ollama | caveman | qwen3.6:35b-a3b-coding-mxfp8 | 29/34 | 85.3% | 80.4 | 1 |
 | ollama | codex | gpt-oss-20b | 17/20 | 85.0% | 150.8 | 1 |
-| lms | hermes | google/gemma-4-e2b | 21/25 | 84.0% | 31.7 | 1 |
 | lms | copilot | google/gemma-4-26b-a4b-qat | 25/30 | 83.3% | 190.4 | 1 |
 | mlx | hermes | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 28/34 | 82.4% | 210.8 | 1 |
 | lms | aider | qwen/qwen3-coder-30b | 26/32 | 81.2% | 9.6 | 1 |
@@ -73,13 +72,14 @@
 | lms | aider | google/gemma-4-e2b-qat | 22/28 | 78.6% | 19.7 | 1 |
 | lms | hermes | google/gemma-4-e2b-qat | 25/32 | 78.1% | 30.4 | 1 |
 | lms | hermes | google/gemma-4-e4b-qat | 20/26 | 76.9% | 62.9 | 1 |
+| lms | hermes | google/gemma-4-e2b | 19/25 | 76.0% | 34.1 | 1 |
 | lms | opencode | google/gemma-4-e4b-qat | 22/29 | 75.9% | 60.2 | 1 |
 | lms | opencode | qwen/qwen3.5-9b | 25/34 | 73.5% | 147.1 | 1 |
 | lms | opencode | google/gemma-4-e4b | 25/34 | 73.5% | 73.8 | 1 |
-| lms | copilot | qwen/qwen3.6-35b-a3b | 25/34 | 73.5% | 70.0 | 1 |
 | lms | aider | qwen/qwen3-coder-next | 23/32 | 71.9% | 16.9 | 1 |
-| lms | aider | google/gemma-4-e2b | 17/24 | 70.8% | 20.4 | 1 |
+| lms | aider | google/gemma-4-e2b | 17/24 | 70.8% | 20.9 | 1 |
 | lms | caveman | google/gemma-4-e4b | 24/34 | 70.6% | 56.6 | 1 |
+| lms | aider | qwen/qwen3.6-35b-a3b | 22/32 | 68.8% | 114.3 | 1 |
 | ollama | opencode | gpt-oss-20b | 21/32 | 65.6% | 42.8 | 1 |
 | lms | aider | google/gemma-4-e4b-qat | 18/28 | 64.3% | 21.4 | 1 |
 | lms | codex | google/gemma-4-e4b-qat | 14/24 | 58.3% | 128.6 | 1 |
@@ -90,7 +90,7 @@
 | lms | copilot | qwen/qwen3.5-9b | 17/34 | 50.0% | 29.9 | 1 |
 | lms | codex | google/gemma-4-e4b | 15/30 | 50.0% | 100.0 | 1 |
 | lms | codex | google/gemma-4-e2b-qat | 12/28 | 42.9% | 50.7 | 1 |
-| lms | codex | google/gemma-4-e2b | 13/32 | 40.6% | 37.1 | 1 |
+| lms | codex | google/gemma-4-e2b | 13/32 | 40.6% | 37.8 | 1 |
 | lms | aider | google/gemma-4-26b-a4b-qat | 11/28 | 39.3% | 89.3 | 1 |
 | lms | aider | google/gemma-4-12b-qat | 11/28 | 39.3% | 102.7 | 1 |
 | lms | aider | google/gemma-4-12b | 11/28 | 39.3% | 115.6 | 1 |
@@ -143,9 +143,9 @@
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 34/34 | 100.0% | 153.3 |
 | lms | qwen3.6:35b-a3b-coding-mxfp8 | 68/68 | 100.0% | 61.3 |
 | lms | qwen/qwen3-coder-30b | 195/202 | 96.5% | 69.4 |
+| lms | qwen/qwen3.6-35b-a3b | 192/202 | 95.0% | 87.8 |
 | lms | qwen/qwen3-coder-next | 188/198 | 94.9% | 45.4 |
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-Next-MLX-6bit | 32/34 | 94.1% | 106.8 |
-| lms | qwen/qwen3.6-35b-a3b | 185/198 | 93.4% | 88.1 |
 | ollama | qwen3.6:35b-a3b-coding-mxfp8 | 63/68 | 92.6% | 81.8 |
 | lms | google/gemma-4-26b-a4b-qat | 169/194 | 87.1% | 104.2 |
 | ollama | gemma4-26b-qat | 107/124 | 86.3% | 128.4 |
@@ -154,8 +154,8 @@
 | ollama | gpt-oss-20b | 64/80 | 80.0% | 58.9 |
 | ollama | gemma4-claude | 61/78 | 78.2% | 110.7 |
 | lms | google/gemma-4-12b-qat | 119/158 | 75.3% | 173.0 |
-| lms | google/gemma-4-e2b | 98/136 | 72.1% | 32.6 |
 | lms | google/gemma-4-e4b-qat | 96/135 | 71.1% | 63.9 |
+| lms | google/gemma-4-e2b | 96/136 | 70.6% | 33.4 |
 | lms | google/gemma-4-e4b | 108/154 | 70.1% | 67.8 |
 | lms | google/gemma-4-e2b-qat | 102/148 | 68.9% | 33.5 |
 | lms | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 38/62 | 61.3% | 56.7 |
@@ -178,10 +178,10 @@
 
 | Adapter | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| copilot | 197/251 | 78.5% | 108.4 |
-| hermes | 568/754 | 75.3% | 91.9 |
-| caveman | 376/575 | 65.4% | 61.7 |
-| opencode | 357/561 | 63.6% | 57.5 |
-| aider | 260/454 | 57.3% | 63.3 |
-| codex | 348/658 | 52.9% | 60.0 |
+| copilot | 206/251 | 82.1% | 109.4 |
+| hermes | 568/754 | 75.3% | 92.1 |
+| caveman | 376/575 | 65.4% | 55.7 |
+| opencode | 357/561 | 63.6% | 59.2 |
+| aider | 256/458 | 55.9% | 65.5 |
+| codex | 348/658 | 52.9% | 61.9 |
 | claude | 2/12 | 16.7% | 290.3 |
