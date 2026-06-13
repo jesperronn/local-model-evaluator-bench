@@ -5,11 +5,12 @@
 # api openai-completions) and select it by name. See docs/SETUP.md.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-PROMPT="$(cat)"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-exec caveman \
-  --provider lmstudio \
-  --model "$MODEL_ID" \
-  --print \
-  "$PROMPT" \
-  "$@"
+CAVEMAN_ARGS=(--provider lmstudio --model "$MODEL_ID")
+if [ ! -t 0 ]; then
+  CAVEMAN_ARGS+=(--print "$(cat)")
+fi
+
+exec caveman "${CAVEMAN_ARGS[@]}" "$@"

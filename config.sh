@@ -6,6 +6,10 @@ export LMS_BASE_URL="${LMS_BASE_URL:-http://localhost:1234/v1}"
 # LM Studio ignores the key, but the clients require *some* value.
 export LMS_API_KEY="${LMS_API_KEY:-lm-studio}"
 
+# Default model used by adapters when MODEL_ID is not set externally.
+# Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh
+export PREFERRED_MODEL_ID="${PREFERRED_MODEL_ID:-qwen/qwen3.6-35b-a3b}"
+
 # Model used by `bin/smoke` to verify every tool can reach LM Studio. Pick a
 # small, fast one — the smoke case is trivial, so capability doesn't matter.
 export SMOKE_MODEL="${SMOKE_MODEL:-google/gemma-4-e2b}"

@@ -7,17 +7,22 @@
 # `lmstudio_local`. See docs/SETUP.md for the persistent setup.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-PROMPT="$(cat)"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
 export LMS_API_KEY  # codex reads the key from this env var (see -c env_key).
 
-exec codex exec \
-  --skip-git-repo-check \
-  --dangerously-bypass-approvals-and-sandbox \
-  -c model="$MODEL_ID" \
-  -c model_provider="lmstudio_local" \
-  -c model_providers.lmstudio_local.name="LM Studio" \
-  -c model_providers.lmstudio_local.base_url="$LMS_BASE_URL" \
-  -c model_providers.lmstudio_local.env_key="LMS_API_KEY" \
-  "$PROMPT" \
-  "$@"
+CODEX_ARGS=(
+  --skip-git-repo-check
+  --dangerously-bypass-approvals-and-sandbox
+  -c model="$MODEL_ID"
+  -c model_provider="lmstudio_local"
+  -c model_providers.lmstudio_local.name="LM Studio"
+  -c model_providers.lmstudio_local.base_url="$LMS_BASE_URL"
+  -c model_providers.lmstudio_local.env_key="LMS_API_KEY"
+)
+if [ ! -t 0 ]; then
+  CODEX_ARGS+=("$(cat)")
+fi
+
+exec codex exec "${CODEX_ARGS[@]}" "$@"

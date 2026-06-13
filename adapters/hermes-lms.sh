@@ -5,23 +5,22 @@
 # provider: lmstudio, base_url: http://127.0.0.1:1234/v1). We select it by name.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-PROMPT="$(cat)"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-# -t file,terminal enables the file-edit + shell toolsets (default is none, so
-# without this hermes just chats and never touches the filesystem).
+# -t file exposes write_file, patch, read_file, terminal (for shell commands).
+# Do NOT add the terminal toolset alongside file: combining -t file,terminal
+# causes a tool-name conflict (both expose a tool named "terminal") and hermes
+# resolves it by dropping all file tools, leaving only the process tool. The
+# model then can't write files and spins in a failure loop.
 #
-# NO-YOLO SETUP (recommended for testing hermes): instead of --yolo (which
-# bypasses all approvals), we rely on ~/.hermes/config.yaml `approvals.mode:
-# smart` — an LLM "guardian" auto-approves safe ops, denies dangerous ones, and
-# escalates uncertain ones (60s timeout -> deny). The guardian uses the same
-# local LM Studio model (approval.provider: auto). For edits to reach the host
-# sandbox, that config also needs `terminal.backend: local` (tools run on the
-# host, gated by the smart guardian). `bin/doctor` verifies this is set up.
-# Note: hermes refuses writes under /private/var (macOS mktemp); bench sandboxes
-# live under results/, which is fine.
-exec hermes \
-  --provider lmstudio \
-  -m "$MODEL_ID" \
-  -t file,terminal \
-  -z "$PROMPT" \
-  "$@"
+# --yolo bypasses the smart guardian. Without it, the guardian (an LLM call
+# against the same model) times out under bench parallelism when multiple
+# adapters compete for model slots, denying every tool call and producing 0
+# passes. Sandboxes live under results/ so --yolo is safe here.
+HERMES_ARGS=(--provider lmstudio -m "$MODEL_ID" -t file --yolo)
+if [ ! -t 0 ]; then
+  HERMES_ARGS+=(-z "$(cat)")
+fi
+
+exec hermes "${HERMES_ARGS[@]}" "$@"
