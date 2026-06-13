@@ -95,6 +95,11 @@ adapters = sorted(set(k[0] for k in latest))
 models   = sorted(set(k[1] for k in latest))
 cases    = sorted(set(k[2] for k in latest))
 
+# track runtime per (adapter, model)
+runtime_for = {}
+for (adapter, model, case), row in latest.items():
+    runtime_for[(adapter, model)] = row.get('runtime', 'lms')
+
 missing = defaultdict(lambda: defaultdict(list))
 for adapter in adapters:
     for model in models:
@@ -113,6 +118,7 @@ else:
     for adapter in sorted(missing):
         for model in sorted(missing[adapter]):
             cases_list = ','.join(missing[adapter][model])
-            print(f'  bin/bench --tool {adapter} --model {model} --cases {cases_list}')
+            runtime = runtime_for.get((adapter, model), 'lms')
+            print(f'  bin/bench --runtime {runtime} --tool {adapter} --model {model} --cases {cases_list}')
         print()
 PYEOF
