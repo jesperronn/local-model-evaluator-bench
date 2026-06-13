@@ -1,13 +1,13 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-06-13 13:14
+**Generated:** 2026-06-13 14:07
 
 ## Leaderboard — by runtime
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| lms | 1558/2269 | 68.7% | 67.5 |
+| lms | 1575/2299 | 68.5% | 67.0 |
 | ollama | 326/579 | 56.3% | 73.6 |
 | mlx | 207/387 | 53.5% | 97.2 |
 
@@ -87,6 +87,7 @@
 | lms | codex | google/gemma-4-12b-qat | 19/34 | 55.9% | 216.1 | 1 |
 | ollama | aider | gemma4-26b-qat | 15/28 | 53.6% | 166.4 | 1 |
 | lms | caveman | google/gemma-4-e2b-qat | 15/28 | 53.6% | 21.9 | 1 |
+| lms | copilot | qwen/qwen3.5-9b | 17/34 | 50.0% | 29.9 | 1 |
 | lms | codex | google/gemma-4-e4b | 15/30 | 50.0% | 100.0 | 1 |
 | lms | codex | google/gemma-4-e2b-qat | 12/28 | 42.9% | 50.7 | 1 |
 | lms | codex | google/gemma-4-e2b | 13/32 | 40.6% | 37.1 | 1 |
@@ -131,7 +132,6 @@
 | ollama | caveman | phi4-mini:latest | 0/2 | 0.0% | 17.0 | 1 |
 | mlx | copilot | /Users/jesper/.lmstudio/models/lmstudio-community/gemma-4-E2B-it-MLX-4bit | 0/2 | 0.0% | 121.0 | 1 |
 | mlx | caveman | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 0/2 | 0.0% | 0.0 | 1 |
-| lms | copilot | qwen/qwen3.5-9b | 0/4 | 0.0% | 22.0 | 1 |
 
 ## Leaderboard — by model
 
@@ -149,8 +149,8 @@
 | ollama | qwen3.6:35b-a3b-coding-mxfp8 | 63/68 | 92.6% | 81.8 |
 | lms | google/gemma-4-26b-a4b-qat | 169/194 | 87.1% | 104.2 |
 | ollama | gemma4-26b-qat | 107/124 | 86.3% | 128.4 |
-| lms | qwen/qwen3.5-9b | 143/168 | 85.1% | 126.2 |
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 55/66 | 83.3% | 163.3 |
+| lms | qwen/qwen3.5-9b | 160/198 | 80.8% | 112.1 |
 | ollama | gpt-oss-20b | 64/80 | 80.0% | 58.9 |
 | ollama | gemma4-claude | 61/78 | 78.2% | 110.7 |
 | lms | google/gemma-4-12b-qat | 119/158 | 75.3% | 173.0 |
@@ -178,7 +178,7 @@
 
 | Adapter | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| copilot | 180/221 | 81.4% | 118.5 |
+| copilot | 197/251 | 78.5% | 108.4 |
 | hermes | 568/754 | 75.3% | 91.9 |
 | caveman | 376/575 | 65.4% | 61.7 |
 | opencode | 357/561 | 63.6% | 57.5 |
