@@ -1,0 +1,33 @@
+#!/opt/homebrew/Cellar/mlx-lm/0.31.3_1/libexec/bin/python
+"""
+mlx_lm.server wrapper for Qwen3-Coder family models (30B, Next/235B, Qwen3.5-9B, etc.).
+
+These models use the qwen3_coder XML tool-call format in their chat_template:
+  <tool_call>\n<function=name>\n<parameter=key>\nvalue\n</parameter>\n</function>\n</tool_call>
+
+But their tokenizer_config.json either omits tool_parser_type entirely or sets it
+to json_tools (wrong), causing mlx_lm.server to mis-parse tool responses.
+
+This wrapper patches mlx_lm.utils._load_tokenizer to force qwen3_coder before
+the server starts. Pass the same flags as mlx_lm.server, e.g.:
+  bin/mlx-serve-qwen3-coder --model <path> --port 8080
+"""
+import sys
+import mlx_lm.tokenizer_utils as tu
+import mlx_lm.utils as mu
+
+_orig_load = tu.load
+
+
+def _patched_load(model_path, tokenizer_config_extra=None, **kwargs):
+    extra = dict(tokenizer_config_extra or {})
+    extra["tool_parser_type"] = "qwen3_coder"
+    return _orig_load(model_path, tokenizer_config_extra=extra, **kwargs)
+
+
+# Patch both the module-level name and the already-imported binding in utils
+tu.load = _patched_load
+mu._load_tokenizer = _patched_load
+
+from mlx_lm.server import main
+sys.exit(main())
