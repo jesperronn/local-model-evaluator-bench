@@ -29,6 +29,7 @@ All three failures are aider-specific and do not appear on opencode, codex, or c
 
 ## Timing observations
 
+- **hermes (Ollama):** 36–222s, avg ~83s. js-05-multiselect-filter at 222s was the slowest case. Otherwise 36–128s.
 - **aider:** 38–130s. bash-01-topwords took 130s (slow for a 3B-active model; likely the model iterated on the shell pipeline).
 - **opencode:** 45–93s. Consistent across cases.
 - **codex:** 19–74s. Fastest of the non-aider adapters for this model.

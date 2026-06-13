@@ -1,0 +1,33 @@
+#!/opt/homebrew/Cellar/mlx-lm/0.31.3_1/libexec/bin/python
+"""
+mlx_lm.server wrapper for Qwen3-Coder-Next-MLX-6bit.
+
+The model's tokenizer_config.json incorrectly specifies tool_parser_type=json_tools.
+The actual tool call format uses qwen3_coder XML format per chat_template.jinja:
+  <tool_call>\n<function=name>\n<parameter=key>\nvalue\n</parameter>\n</function>\n</tool_call>
+
+This wrapper patches mlx_lm.utils._load_tokenizer (the bound reference used by
+model loading) to override tool_parser_type before starting the server.
+"""
+import sys
+import importlib
+import mlx_lm.tokenizer_utils as tu
+import mlx_lm.utils as mu
+
+_orig_load = tu.load
+
+
+def _patched_load(model_path, tokenizer_config_extra=None, **kwargs):
+    extra = dict(tokenizer_config_extra or {})
+    # Force qwen3_coder parser: the tokenizer_config.json incorrectly says json_tools
+    # but the model uses XML-format tool calls (<function=name><parameter=k>v</parameter>)
+    extra["tool_parser_type"] = "qwen3_coder"
+    return _orig_load(model_path, tokenizer_config_extra=extra, **kwargs)
+
+
+# Patch both the module-level name and the already-imported binding in utils
+tu.load = _patched_load
+mu._load_tokenizer = _patched_load
+
+from mlx_lm.server import main
+sys.exit(main())
