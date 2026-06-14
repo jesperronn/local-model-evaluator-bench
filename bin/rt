@@ -2,13 +2,14 @@
 # bin/rt — runtime status and control.
 #
 # Usage:
-#   bin/rt [status]          show snapshot: RAM, runtimes, running bench
-#   bin/rt ram               RAM breakdown (total / used / free / Ollama)
+#   bin/rt [-v]              show snapshot: RAM, runtimes, running bench
+#   bin/rt status [-v]       same; -v adds disk usage for all downloaded models
+#   bin/rt ram               RAM breakdown (total / used / free / wired / inactive)
 #   bin/rt log [N]           tail most recent bench log (default 40 lines)
 #   bin/rt watch [N]         live-tail bench log (follow mode)
 #   bin/rt stop bench        kill any running bench process tree
 #   bin/rt stop mlx          kill mlx_lm.server on port 8080
-#   bin/rt stop ollama       unload active Ollama models
+#   bin/rt stop ollama       unload active Ollama models  (ollama stop <model>)
 #   bin/rt stop lms          unload LM Studio model
 #   bin/rt stop all          stop bench + mlx + ollama + lms
 #
@@ -19,22 +20,32 @@ source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 _ram_gb() {
-  # Returns: total_gb used_gb free_gb available_gb
-  local total pages page_size wired active speculative free compressed
+  # Returns: total_gb used_gb free_gb wired_gb inactive_gb
+  # used  = wired + active + compressed (non-reclaimable pressure)
+  # free  = free + speculative (immediately available)
+  # wired = model weights / kernel (non-swappable — the key signal on Apple Silicon)
+  # inactive = reclaimable disk cache (macOS reclaims this before swapping)
+  local total page_size wired active speculative inactive free compressed
   total=$(sysctl -n hw.memsize)
-  page_size=$(vm_stat | awk '/page size of/ { print $8 }')
-  page_size=${page_size:-4096}
-  wired=$(vm_stat | awk '/Pages wired down/ { gsub(/\./,"",$4); print $4+0 }')
-  active=$(vm_stat | awk '/Pages active:/ { gsub(/\./,"",$3); print $3+0 }')
-  speculative=$(vm_stat | awk '/Pages speculative/ { gsub(/\./,"",$3); print $3+0 }')
-  free=$(vm_stat | awk '/Pages free:/ { gsub(/\./,"",$3); print $3+0 }')
-  compressed=$(vm_stat | awk '/Pages occupied by compressor/ { gsub(/\./,"",$5); print $5+0 }')
-  # Available = free + (active-but-reclaimable via swapping is hard to quantify on AS)
-  # Practical: free + speculative pages are immediately available
+  eval "$(vm_stat | awk '
+    /page size of/              { ps = $8 }
+    /Pages free:/               { gsub(/\./,"",$3); free=$3 }
+    /Pages active:/             { gsub(/\./,"",$3); active=$3 }
+    /Pages inactive:/           { gsub(/\./,"",$3); inactive=$3 }
+    /Pages speculative/         { gsub(/\./,"",$3); spec=$3 }
+    /Pages wired down/          { gsub(/\./,"",$4); wired=$4 }
+    /Pages occupied by compressor/ { gsub(/\./,"",$5); comp=$5 }
+    END { printf "page_size=%s wired=%s active=%s inactive=%s free=%s speculative=%s compressed=%s",
+          ps, wired, active, inactive, free, spec, comp }')"
   local used=$(( (wired + active + compressed) * page_size ))
   local avail=$(( (free + speculative) * page_size ))
+  local wired_b=$(( wired * page_size ))
+  local inactive_b=$(( inactive * page_size ))
   awk -v tot="$total" -v used="$used" -v avail="$avail" \
-    'BEGIN { printf "%.0f %.0f %.0f", tot/1073741824, used/1073741824, avail/1073741824 }'
+      -v wired="$wired_b" -v inactive="$inactive_b" \
+    'BEGIN { printf "%.0f %.0f %.0f %.0f %.0f",
+             tot/1073741824, used/1073741824, avail/1073741824,
+             wired/1073741824, inactive/1073741824 }'
 }
 
 _ollama_loaded() {
@@ -73,68 +84,212 @@ _latest_bench_log() {
     | xargs -0 ls -1t 2>/dev/null | head -1
 }
 
-# ── subcommands ───────────────────────────────────────────────────────────────
-
-cmd_ram() {
-  local total used avail
-  read total used avail < <(_ram_gb)
-  local model_ram=0
-  local loaded_model; loaded_model=$(_ollama_loaded | head -1)
-  printf '%s\n' "${C_BLU}==> RAM (${total}GB total)${C_RST}"
-  printf '  %-12s %5s GB\n' "used"      "$used"
-  printf '  %-12s %5s GB\n' "free/avail" "$avail"
-  if [ -n "$loaded_model" ]; then
-    printf '  %-12s %s\n' "ollama" "$loaded_model (loaded)"
+_model_count_color() {
+  local n=$1
+  if   [ "$n" -le 4 ]; then printf '%s' "$C_GRN"
+  elif [ "$n" -le 7 ]; then printf '%s' "$C_YEL"
+  else                       printf '%s' "$C_RED"
   fi
 }
 
-cmd_status() {
-  local total used avail
-  read total used avail < <(_ram_gb)
+# ── subcommands ───────────────────────────────────────────────────────────────
 
-  printf '%s  %sGB total — %sGB used — %sGB free%s\n' \
-    "${C_BLU}RAM${C_RST}" "$total" "$used" "$avail" ""
+cmd_ram() {
+  local total used avail wired inactive
+  read total used avail wired inactive < <(_ram_gb)
+  local active=$(( used - wired ))  # approximate: used - wired ≈ active+compressed
+  printf '%s\n' "${C_BLU}==> RAM (${total}GB total)${C_RST}"
+  printf '  %-14s %4s GB  %s\n' "wired"    "$wired"    "${C_DIM}model weights + kernel (non-reclaimable)${C_RST}"
+  printf '  %-14s %4s GB  %s\n' "active"   "$active"   "${C_DIM}process working sets${C_RST}"
+  printf '  %-14s %4s GB  %s\n' "inactive" "$inactive" "${C_DIM}reclaimable disk cache${C_RST}"
+  printf '  %-14s %4s GB  %s\n' "free"     "$avail"    "${C_DIM}immediately available${C_RST}"
+  printf '  %s\n' "──────────────────────"
+  printf '  %-14s %4s GB  %s\n' "used"     "$used"     "${C_DIM}(wired + active)${C_RST}"
+  printf '  %-14s %4s GB  %s\n' "available" "$(( avail + inactive ))" \
+    "${C_DIM}(free + inactive)${C_RST}"
+  # Top RAM consumers
+  printf '\n%s\n' "${C_BLU}==> Top processes by RSS${C_RST}"
+  ps aux | sort -k4 -rn | awk 'NR<=8 {
+    pct=$4; rss=$6/1048576
+    cmd=$11; sub(/.*\//,"",cmd)
+    printf "  %5.1f%%  %5.1fGB  %s\n", pct, rss, cmd
+  }'
+}
+
+cmd_status() {
+  local verbose=0
+  [[ "${1:-}" == "-v" || "${1:-}" == "--verbose" ]] && verbose=1
+
+  local total used avail wired inactive
+  read total used avail wired inactive < <(_ram_gb)
+
+  printf '%s  %sGB total — %sGB used (%sGB wired) — %sGB free  %s\n' \
+    "${C_BLU}RAM${C_RST}" "$total" "$used" "$wired" "$avail" \
+    "${C_DIM}${inactive}GB reclaimable${C_RST}"
   echo
 
-  # LMS
-  printf '%s  ' "${C_BLU}LMS${C_RST}"
+  # ── runtimes ─────────────────────────────────────────────────────────────────
+  local lms_up_flag=0 lms_models=""
+  local ollama_up_flag=0 ollama_loaded=""
+  local mlx_up_flag=0 mlx_model=""
+
+  printf '%s     ' "${C_BLU}LMS${C_RST}"
   if lms_up 2>/dev/null; then
-    local lms_model; lms_model=$(lms_loaded_models 2>/dev/null | head -1)
-    if [ -n "$lms_model" ]; then
-      printf '%s  loaded: %s\n' "${C_GRN}up${C_RST}" "$lms_model"
+    lms_up_flag=1
+    lms_models=$(lms_loaded_models 2>/dev/null || true)
+    if [ -n "$lms_models" ]; then
+      local csv; csv=$(echo "$lms_models" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+      printf '%s  %sloaded:%s %s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}" "$csv"
     else
-      printf '%s  (no model loaded)\n' "${C_GRN}up${C_RST}"
+      printf '%s  %s(no model loaded)%s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}"
     fi
   else
     printf '%s\n' "${C_DIM}down${C_RST}"
   fi
 
-  # Ollama
   printf '%s  ' "${C_BLU}Ollama${C_RST}"
   if _ollama_up; then
-    local loaded; loaded=$(_ollama_loaded)
-    if [ -n "$loaded" ]; then
-      printf '%s  loaded: %s\n' "${C_GRN}up${C_RST}" "$(echo "$loaded" | tr '\n' '  ')"
+    ollama_up_flag=1
+    ollama_loaded=$(_ollama_loaded)
+    if [ -n "$ollama_loaded" ]; then
+      local csv; csv=$(echo "$ollama_loaded" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+      printf '%s  %sloaded:%s %s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}" "$csv"
     else
-      printf '%s  (no model loaded)\n' "${C_GRN}up${C_RST}"
+      printf '%s  %s(no model loaded)%s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}"
     fi
   else
     printf '%s\n' "${C_DIM}down${C_RST}"
   fi
 
-  # MLX
-  printf '%s  ' "${C_BLU}MLX${C_RST}"
+  printf '%s     ' "${C_BLU}MLX${C_RST}"
   if _mlx_up; then
-    local mlx_model; mlx_model=$(curl -fsS --max-time 2 http://localhost:8080/v1/models 2>/dev/null \
+    mlx_up_flag=1
+    mlx_model=$(curl -fsS --max-time 2 http://localhost:8080/v1/models 2>/dev/null \
       | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data'][0]['id'])" 2>/dev/null || echo "?")
-    printf '%s  model: %s\n' "${C_GRN}up (port 8080)${C_RST}" "$mlx_model"
+    printf '%s  %sloaded:%s %s\n' "${C_GRN}up (port 8080)${C_RST}" "${C_DIM}" "${C_RST}" "$mlx_model"
   else
     printf '%s\n' "${C_DIM}down${C_RST}"
   fi
 
+  # ── disk ─────────────────────────────────────────────────────────────────────
+  echo
+  local models_dir="${HOME}/.lmstudio/models"
+  local disk_free_gb; disk_free_gb=$(df -k "$models_dir" 2>/dev/null \
+    | awk 'NR==2 { printf "%.0f", $4/1048576 }')
+
+  # LMS sizes
+  local lms_disk_json; lms_disk_json=$(lms ls --json 2>/dev/null || echo "[]")
+  local lms_disk_gb=0 lms_disk_count=0 lms_disk_loaded=0
+  if [ "$lms_disk_json" != "[]" ] && [ -n "$lms_disk_json" ]; then
+    lms_disk_count=$(echo "$lms_disk_json" | jq 'length')
+    lms_disk_gb=$(echo "$lms_disk_json" | jq '[.[].sizeBytes] | add // 0' \
+      | awk '{printf "%.0f", $1/1073741824}')
+    [ -n "$lms_models" ] && lms_disk_loaded=$(echo "$lms_models" | wc -l | tr -d ' ')
+  fi
+
+  # Ollama sizes
+  local ollama_disk_gb=0 ollama_disk_count=0 ollama_disk_loaded=0
+  if [ "$ollama_up_flag" = 1 ]; then
+    local orows; orows=$(ollama list 2>/dev/null | tail -n +2 | grep -v '^$' || true)
+    if [ -n "$orows" ]; then
+      ollama_disk_count=$(echo "$orows" | wc -l | tr -d ' ')
+      ollama_disk_gb=$(echo "$orows" | awk '{
+        v=$3; u=$4
+        if (u=="GB") gb=v+0; else if (u=="MB") gb=v/1024; else gb=0
+        t+=gb
+      } END { printf "%.0f", t }')
+      [ -n "$ollama_loaded" ] && ollama_disk_loaded=$(echo "$ollama_loaded" | wc -l | tr -d ' ')
+    fi
+  fi
+
+  local total_disk_gb=$(( lms_disk_gb + ollama_disk_gb ))
+  local total_col="$C_GRN"
+  [ "${disk_free_gb:-200}" -lt 100 ] && total_col="$C_RED"
+
+  printf '%s  %s%sGB used%s  %s%sGB free on disk%s\n' \
+    "${C_BLU}Disk${C_RST}" \
+    "$total_col" "$total_disk_gb" "${C_RST}" \
+    "${C_DIM}" "${disk_free_gb:-?}" "${C_RST}"
+
+  # Per-runtime rows — label width padded to 8 chars to match runtime section
+  if [ "$lms_disk_count" -gt 0 ]; then
+    local col; col=$(_model_count_color "$lms_disk_count")
+    local note="${lms_disk_count} models"
+    [ "$lms_disk_loaded" -gt 0 ] && note="${lms_disk_count} models - ${lms_disk_loaded} loaded"
+    printf '  %-8s%s%sGB%s  %s(%s)%s\n' \
+      "LMS" "$col" "$lms_disk_gb" "${C_RST}" "${C_DIM}" "$note" "${C_RST}"
+  fi
+  if [ "$ollama_disk_count" -gt 0 ]; then
+    local col; col=$(_model_count_color "$ollama_disk_count")
+    local note="${ollama_disk_count} models"
+    [ "$ollama_disk_loaded" -gt 0 ] && note="${ollama_disk_count} models - ${ollama_disk_loaded} loaded"
+    printf '  %-8s%s%sGB%s  %s(%s)%s\n' \
+      "Ollama" "$col" "$ollama_disk_gb" "${C_RST}" "${C_DIM}" "$note" "${C_RST}"
+  fi
+
+  # ── next steps ───────────────────────────────────────────────────────────────
+  # Show whenever any runtime is up — these are the key operations users forget.
+  if [ "$lms_up_flag" = 1 ] || [ "$ollama_up_flag" = 1 ] || [ "$mlx_up_flag" = 1 ]; then
+    # Fetch LMS sizes once for use in unload hints
+    local lms_json_sizes="[]"
+    [ "$lms_up_flag" = 1 ] && lms_json_sizes=$(lms ls --json 2>/dev/null || echo "[]")
+
+    echo
+    printf '%s\n' "${C_BLU}Next steps${C_RST}"
+
+    # Reclaim reclaimable RAM (inactive disk cache)
+    printf '  %s\n' "${C_DIM}reclaim reclaimable RAM (inactive disk cache):${C_RST}"
+    printf '    sudo purge\n'
+
+    # Unload model from RAM (server stays up)
+    printf '  %s\n' "${C_DIM}unload model from RAM (server stays up):${C_RST}"
+    if [ "$lms_up_flag" = 1 ]; then
+      if [ -n "$lms_models" ]; then
+        while IFS= read -r m; do
+          local sz; sz=$(echo "$lms_json_sizes" \
+            | jq -r --arg k "$m" '.[] | select(.modelKey==$k) | .sizeBytes' 2>/dev/null \
+            | awk '{printf "%.0f", $1/1073741824}')
+          local sz_note=""; [ -n "$sz" ] && sz_note=" (~${sz}GB freed)"
+          printf '    bin/rt stop lms       %s\n' "${C_DIM}${m}${sz_note}${C_RST}"
+        done <<< "$lms_models"
+      else
+        printf '    bin/rt stop lms       %s\n' "${C_DIM}(nothing loaded)${C_RST}"
+      fi
+    fi
+    if [ "$ollama_up_flag" = 1 ]; then
+      if [ -n "$ollama_loaded" ]; then
+        while IFS= read -r om; do
+          printf '    bin/rt stop ollama    %s\n' "${C_DIM}${om}${C_RST}"
+        done <<< "$ollama_loaded"
+      else
+        printf '    bin/rt stop ollama    %s\n' "${C_DIM}(nothing loaded)${C_RST}"
+      fi
+    fi
+    [ "$mlx_up_flag" = 1 ] && \
+      printf '    bin/rt stop mlx       %s\n' "${C_DIM}${mlx_model:-MLX model}${C_RST}"
+
+    # Stop server entirely
+    printf '  %s\n' "${C_DIM}stop server entirely:${C_RST}"
+    [ "$lms_up_flag"    = 1 ] && printf '    lms server stop\n'
+    [ "$ollama_up_flag" = 1 ] && printf '    bin/rt stop ollama\n'
+    [ "$mlx_up_flag"    = 1 ] && printf '    bin/rt stop mlx\n'
+
+    # Delete from disk — verbose only
+    if [ "$verbose" = 1 ]; then
+      local any_models=0
+      [ -n "$lms_models" ] && any_models=1
+      [ -n "$ollama_loaded" ] && any_models=1
+      if [ "$any_models" = 1 ]; then
+        printf '  %s\n' "${C_DIM}delete model from disk:${C_RST}"
+        [ -n "$lms_models"    ] && printf '    rm -rf ~/.lmstudio/models/<publisher>/<model>/\n'
+        [ -n "$ollama_loaded" ] && printf '    ollama rm <model-name>\n'
+      fi
+    fi
+  fi
+
   echo
 
-  # Bench
+  # ── bench ────────────────────────────────────────────────────────────────────
   local bpids; bpids=$(_bench_pids)
   printf '%s  ' "${C_BLU}Bench${C_RST}"
   if [ -n "$bpids" ]; then
@@ -148,7 +303,6 @@ cmd_status() {
       printf '  last log: %s\n' "${C_DIM}${log#$HERE/}${C_RST}"
       printf '  last line: %s\n' "${C_DIM}$(tail -1 "$log" 2>/dev/null | tr -d '\000-\010\013-\037' | head -c 120)${C_RST}"
     fi
-    # Show current bench command
     local bench_cmd; bench_cmd=$(ps -p $(echo $bpids | awk '{print $1}') -o args= 2>/dev/null | head -1)
     [ -n "$bench_cmd" ] && printf '  cmd: %s\n' "${C_DIM}$bench_cmd${C_RST}"
   else
@@ -159,6 +313,76 @@ cmd_status() {
       local count; count=$(tail -n +2 "$latest_csv" 2>/dev/null | grep -c "." || echo 0)
       printf '  last run: %s  (%s results)\n' \
         "${C_DIM}$run${C_RST}" "$count"
+    fi
+  fi
+
+  # ── verbose: disk usage grouped by runtime ───────────────────────────────────
+  if [ "$verbose" = 1 ]; then
+    echo
+    printf '%s\n' "${C_BLU}Models on disk${C_RST}"
+
+    # LM Studio models
+    local lms_json; lms_json=$(lms ls --json 2>/dev/null || echo "[]")
+    if [ "$lms_json" != "[]" ] && [ -n "$lms_json" ]; then
+      local lms_total; lms_total=$(echo "$lms_json" | jq '[.[].sizeBytes] | add' \
+        | awk '{printf "%.1f", $1/1073741824}')
+      local lms_count; lms_count=$(echo "$lms_json" | jq 'length')
+      printf '  %s  %s\n' "${C_BLD}LM Studio${C_RST}" \
+        "${C_DIM}${lms_count} models, ${lms_total}GB — rm -rf ~/.lmstudio/models/<publisher>/<model>/${C_RST}"
+      local lms_loaded_list; lms_loaded_list=$(lms_loaded_models 2>/dev/null || true)
+      echo "$lms_json" | jq -r 'sort_by(-.sizeBytes) | .[] | "\(.sizeBytes) \(.modelKey)"' \
+      | while read -r bytes key; do
+          local gb; gb=$(awk -v b="$bytes" 'BEGIN { printf "%.1f", b/1073741824 }')
+          local loaded_mark=""
+          echo "$lms_loaded_list" | grep -qxF "$key" 2>/dev/null \
+            && loaded_mark="   ${C_GRN}LOADED${C_RST}"
+          printf '    %-42s %6s GB%b\n' "$key" "$gb" "$loaded_mark"
+        done
+      printf '    %s\n' "─────────────────────────────────────────────────────"
+      printf '    %-42s %6s GB\n' "total" "$lms_total"
+    else
+      printf '  %s  %s\n' "${C_BLD}LM Studio${C_RST}" "${C_DIM}(not reachable or no models downloaded)${C_RST}"
+    fi
+
+    # Ollama models
+    if _ollama_up; then
+      echo
+      local ollama_rows; ollama_rows=$(ollama list 2>/dev/null | tail -n +2 | grep -v '^$' || true)
+      local ollama_total_gb=""
+      if [ -n "$ollama_rows" ]; then
+        # ollama list columns: NAME  ID  SIZE  UNIT  MODIFIED...
+        local ollama_total; ollama_total=$(echo "$ollama_rows" \
+          | awk '{
+              v=$3; u=$4
+              if (u=="GB") gb=v+0
+              else if (u=="MB") gb=v/1024
+              else gb=0
+              total+=gb
+            } END { printf "%.1f", total }')
+        local ollama_count; ollama_count=$(echo "$ollama_rows" | wc -l | tr -d ' ')
+        printf '  %s  %s\n' "${C_BLD}Ollama${C_RST}" \
+          "${C_DIM}${ollama_count} models, ${ollama_total}GB — ollama rm <model-name> to delete${C_RST}"
+        local ollama_loaded_list; ollama_loaded_list=$(_ollama_loaded || true)
+        while IFS= read -r row; do
+          local name size unit
+          name=$(echo "$row" | awk '{print $1}')
+          size=$(echo "$row" | awk '{print $3}')
+          unit=$(echo "$row" | awk '{print $4}')
+          local loaded_mark=""
+          echo "$ollama_loaded_list" | grep -qF "$name" 2>/dev/null \
+            && loaded_mark="   ${C_GRN}LOADED${C_RST}"
+          printf '    %-42s %6s %s%b\n' "$name" "$size" "$unit" "$loaded_mark"
+        done <<< "$ollama_rows"
+      else
+        printf '  %s  %s\n' "${C_BLD}Ollama${C_RST}" "${C_DIM}(no models downloaded)${C_RST}"
+      fi
+    fi
+
+    # MLX — HF cache, harder to enumerate; just note the path
+    if [ "$mlx_up_flag" = 1 ]; then
+      echo
+      printf '  %s  %s\n' "${C_BLD}MLX${C_RST}" \
+        "${C_DIM}models in \$HF_HUB_CACHE or ~/.cache/huggingface/hub/${C_RST}"
     fi
   fi
 }
@@ -224,19 +448,31 @@ cmd_stop() {
       fi
       ;;
     ollama)
+      # Unload any running models first (graceful)
       if _ollama_up; then
         local loaded; loaded=$(_ollama_loaded)
         if [ -n "$loaded" ]; then
           while IFS= read -r model; do
             info "unloading Ollama model: $model"
-            ollama stop "$model" 2>/dev/null || true
+            if ollama stop "$model" > /dev/null 2>&1; then
+              ok "unloaded: $model"
+            else
+              warn "ollama stop failed for: $model"
+            fi
           done <<< "$loaded"
-          ok "Ollama models unloaded"
-        else
-          info "ollama: no models loaded"
         fi
+      fi
+      # Kill the app — works whether launched via desktop app or brew
+      local app_pid; app_pid=$(pgrep -f "Ollama.app/Contents/MacOS/Ollama" | head -1)
+      local srv_pid; srv_pid=$(pgrep -f "ollama serve" | head -1)
+      if [ -n "$app_pid" ]; then
+        info "stopping Ollama app (PID $app_pid)"
+        kill "$app_pid" 2>/dev/null && ok "Ollama stopped" || warn "kill failed — try: sudo kill $app_pid"
+      elif [ -n "$srv_pid" ]; then
+        info "stopping ollama serve (PID $srv_pid)"
+        kill "$srv_pid" 2>/dev/null && ok "Ollama stopped" || warn "kill failed — try: sudo kill $srv_pid"
       else
-        info "ollama: server not running"
+        info "ollama: not running"
       fi
       ;;
     lms)
@@ -271,6 +507,9 @@ cmd_stop() {
 
 CMD="${1:-status}"
 shift 2>/dev/null || true
+
+# Allow `bin/rt -v` / `bin/rt --verbose` as shorthand for `bin/rt status -v`
+[[ "$CMD" == "-v" || "$CMD" == "--verbose" ]] && { cmd_status --verbose; exit; }
 
 case "$CMD" in
   status)  cmd_status "$@";;

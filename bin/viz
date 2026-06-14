@@ -182,7 +182,7 @@ printf 'const CASE_TOTALS = %s;\n' "$case_totals_json"
 
 # ── JS logic (static) ────────────────────────────────────────────────────────
 cat << 'VIZ_END'
-const VIEWS = ['Scatter','Heatmap','Bars','Leaderboard','Table','By Task'];
+const VIEWS = ['Scatter','Heatmap','Bars','Leaderboard','Table','By Task','By Runtime'];
 
 const ADAPTER_COLORS = {
   aider:'#0969da', opencode:'#1a7f37', codex:'#d4371c',
@@ -223,7 +223,7 @@ const S = {
   tblSort:{col:'score',dir:'desc'}, tblSearch:'',
 };
 
-let C1=null, ALL_MODELS=[];
+let C1=null, C1HoveredEl=null, ALL_MODELS=[];
 
 // ─── Helpers ────────────────────────────────────────────
 // Fallback sizes for models whose names don't encode a parameter count.
@@ -594,16 +594,74 @@ function init(){
   render();
 }
 
+// ─── Hover connection-lines plugin ──────────────────────
+// afterDraw: when a scatter point is hovered, draw lines to every other point
+// that shares the same model (solid blue) or the same adapter (dashed green),
+// and label each destination so the viewer can immediately see the comparison.
+const connectionLinesPlugin={
+  id:'connectionLines',
+  afterDraw(chart){
+    if(!C1HoveredEl)return;
+    const{datasetIndex:di,index:idx}=C1HoveredEl;
+    const meta=chart.getDatasetMeta(di);
+    if(!meta||!meta.data[idx])return;
+    const src=meta.data[idx].getCenterPoint();
+    const srcPt=chart.data.datasets[di].data[idx];
+    const g=srcPt&&srcPt._g;
+    if(!g)return;
+    const ctx=chart.ctx;
+    const rels=[];
+    chart.data.datasets.forEach((ds,dsi)=>{
+      ds.data.forEach((pt,pi)=>{
+        if(dsi===di&&pi===idx)return;
+        const pg=pt&&pt._g;if(!pg)return;
+        const sameModel  =g.model   &&pg.model   ===g.model;
+        const sameAdapter=g.adapter &&pg.adapter ===g.adapter;
+        if(!sameModel&&!sameAdapter)return;
+        const dm=chart.getDatasetMeta(dsi);
+        if(!dm.data[pi])return;
+        rels.push({dst:dm.data[pi].getCenterPoint(),pg,sameModel,sameAdapter});
+      });
+    });
+    if(!rels.length)return;
+    ctx.save();
+    // lines
+    rels.forEach(r=>{
+      ctx.beginPath();
+      ctx.strokeStyle=r.sameModel?'rgba(9,105,218,.55)':'rgba(26,127,55,.45)';
+      ctx.lineWidth=r.sameModel?2:1.5;
+      ctx.setLineDash(r.sameModel?[]:[5,3]);
+      ctx.moveTo(src.x,src.y);ctx.lineTo(r.dst.x,r.dst.y);ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    // destination labels
+    ctx.font='bold 10px system-ui,sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    rels.forEach(r=>{
+      // same-model: label with the adapter; same-adapter: label with the model
+      const lbl=r.sameModel?(r.pg.adapter||''):shortModel(r.pg.model||'');
+      if(!lbl)return;
+      const tw=ctx.measureText(lbl).width,pad=4,h=14;
+      const px=r.dst.x,py=r.dst.y-20;
+      ctx.fillStyle=r.sameModel?'rgba(9,105,218,.9)':'rgba(26,127,55,.88)';
+      ctx.fillRect(px-tw/2-pad,py-h/2,tw+pad*2,h);
+      ctx.fillStyle='#fff';
+      ctx.fillText(lbl,px,py);
+    });
+    ctx.restore();
+  }
+};
+
 // ─── Render ─────────────────────────────────────────────
 function render(){
   syncURL();
-  if(C1){C1.destroy();C1=null;}
+  if(C1){C1.destroy();C1=null;C1HoveredEl=null;}
   updateModelFilterUI();
   const rows=filteredRows();
   const el=document.getElementById('view-content');
   document.getElementById('data-summary').textContent=rows.length+' rows · '+new Set(rows.map(r=>r.adapter+'|'+r.model)).size+' combos';
   if(!rows.length){el.innerHTML='<div class="card"><div class="empty">No data matches current filters.</div></div>';return;}
-  ({Scatter:vScatter,Heatmap:vHeatmap,Bars:vBars,Leaderboard:vLeaderboard,Table:vTable,'By Task':vByTask})[S.view](el,rows);
+  ({Scatter:vScatter,Heatmap:vHeatmap,Bars:vBars,Leaderboard:vLeaderboard,Table:vTable,'By Task':vByTask,'By Runtime':vByRuntime})[S.view](el,rows);
 }
 
 // ─── View 1: Scatter ────────────────────────────────────
@@ -689,8 +747,14 @@ function vScatter(el,rows){
   C1=new Chart(document.getElementById('C1'),{
     type:'scatter',
     data:{datasets},
+    plugins:[connectionLinesPlugin],
     options:{
       responsive:true,maintainAspectRatio:false,
+      onHover(event,elements){
+        C1HoveredEl=elements.length
+          ?{datasetIndex:elements[0].datasetIndex,index:elements[0].index}
+          :null;
+      },
       plugins:{
         legend:{position:'top'},
         datalabels:{
@@ -1020,6 +1084,53 @@ function vByTask(el,rows){
   el.innerHTML=html;
 }
 
+// ─── View 7: By Runtime ─────────────────────────────────
+function vByRuntime(el,rows){
+  const runtimes=[...new Set(rows.map(r=>r.runtime||''))].sort();
+  function rtAgg(rt){
+    const rrows=rows.filter(x=>(x.runtime||'')=== rt);
+    let pass=0,total=0,secs=0;
+    for(const r of rrows){pass+=r.pass;total+=r.total;secs+=r.seconds;}
+    const adapters=[...new Set(rrows.map(r=>r.adapter))];
+    const models=[...new Set(rrows.map(r=>r.model))];
+    // best combo per adapter+model
+    const map=new Map();
+    for(const r of rrows){
+      const k=r.adapter+'|'+r.model,cur=map.get(k);
+      if(!cur||r.score>cur.score||(r.score===cur.score&&r.seconds<cur.seconds))map.set(k,r);
+    }
+    const ranked=[...map.values()].sort((a,b)=>b.score-a.score||a.seconds-b.seconds);
+    return{rt,pass,total,secs,pct:total?pass/total:0,adapters,models,ranked};
+  }
+  const rtAggs=runtimes.map(rt=>rtAgg(rt)).sort((a,b)=>b.pct-a.pct||a.secs-b.secs);
+  let html='<div class="lb">';
+  rtAggs.forEach((ra,i)=>{
+    const rc=rankColor(i),sc=scoreCol(ra.pct);
+    const top=ra.ranked.slice(0,6);
+    const tags=top.map(r=>{
+      const bg=scoreColor(r.score),col=scoreCol(r.score);
+      const to=r.status.includes('timeout')?' style="outline:1px solid #6e40c9"':'';
+      return`<span class="lb-case" style="background:${bg};color:${col}"${to}>${sym(r.model)} ${shortModel(r.model)} <span style="font-size:9px;opacity:.75">${r.adapter}</span> ${fmtFrac(r.pass,r.total)}</span>`;
+    }).join('');
+    const adBadges=ra.adapters.map(a=>`<span class="badge" style="background:${ac(a)}22;color:${ac(a)};border:1px solid ${ac(a)}44">${a}</span>`).join(' ');
+    html+=`<div class="lb-row">
+      <div class="lb-rank" style="color:${rc}">#${i+1}</div>
+      <div>
+        <div class="lb-model">${ra.rt||'—'}</div>
+        <div class="lb-sub">${adBadges} <span style="color:var(--muted)">${ra.models.length} models · ${ra.ranked.length} combos</span></div>
+        <div class="lb-cases">${tags}</div>
+      </div>
+      <div class="lb-right">
+        <div class="lb-score" style="color:${sc}">${fmtFrac(ra.pass,ra.total)}</div>
+        <div class="lb-time">${fmtTime(ra.secs)}</div>
+        <div class="lb-coverage">${(ra.pct*100).toFixed(1)}%</div>
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  el.innerHTML=`<div class="card" style="padding:12px">${html}</div>`;
+}
+
 init();
 </script>
 </body>
@@ -1257,6 +1368,22 @@ awk -F, 'FNR==1{next} {latest[$1 SUBSEP $2 SUBSEP $3]=$0} END{for(k in latest)pr
       avgs = n[a]>0 ? sec[a]/n[a]   : 0
       printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", \
         pct, ad[a], p[a], t[a], pct, avgs
+    }
+  }' "$MERGED_MD" | sort -t$'\t' -k1 -rn | cut -f2-
+  echo
+  echo "## Leaderboard — by runtime"
+  echo
+  echo "| Runtime | Pass | Pass% | Avg s |"
+  echo "|---------|------|-------|-------|"
+  awk -F, 'NR>1 {
+    rt=($10==""?"-":$10)
+    p[rt]+=$4; t[rt]+=$5; sec[rt]+=$7; n[rt]++
+  }
+  END {
+    for (r in p) {
+      pct  = t[r]>0 ? 100*p[r]/t[r] : 0
+      avgs = n[r]>0 ? sec[r]/n[r]   : 0
+      printf "%09.4f\t| %s | %d/%d | %.1f%% | %.1f |\n", pct, r, p[r], t[r], pct, avgs
     }
   }' "$MERGED_MD" | sort -t$'\t' -k1 -rn | cut -f2-
 } > "$MD_OUT"
