@@ -7,7 +7,7 @@
 # exits cleanly so the bench records 0% rather than looping with connection errors.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-cat > /dev/null  # drain stdin
+if [ ! -t 0 ]; then cat > /dev/null; fi  # drain stdin when piped
 
 echo "codex-mlx: skipped — codex wire_api enum blocks chat-completions on custom providers" >&2
 exit 1

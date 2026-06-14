@@ -7,7 +7,7 @@
 # rather than logging connection errors.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-cat > /dev/null  # drain stdin
+if [ ! -t 0 ]; then cat > /dev/null; fi  # drain stdin when piped
 
 echo "caveman-mlx: skipped — caveman built-in model list required; MLX model IDs not supported" >&2
 exit 1

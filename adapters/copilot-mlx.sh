@@ -5,7 +5,11 @@
 # Start the server first: mlx_lm.server --model <path> --port 8080
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-PROMPT="$(cat)"
+
+COPILOT_ARGS=(--allow-all-tools --allow-all-paths --no-ask-user)
+if [ ! -t 0 ]; then
+  COPILOT_ARGS+=(-p "$(cat)")
+fi
 
 exec env \
   COPILOT_PROVIDER_BASE_URL="http://localhost:8080/v1" \
@@ -13,9 +17,4 @@ exec env \
   COPILOT_PROVIDER_API_KEY="mlx" \
   COPILOT_MODEL="$MODEL_ID" \
   COPILOT_OFFLINE="true" \
-  copilot \
-    --allow-all-tools \
-    --allow-all-paths \
-    --no-ask-user \
-    -p "$PROMPT" \
-    "$@"
+  copilot "${COPILOT_ARGS[@]}" "$@"

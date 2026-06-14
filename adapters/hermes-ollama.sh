@@ -4,11 +4,10 @@
 # the lmstudio provider. Same toolsets and no-yolo config as hermes.sh.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-PROMPT="$(cat)"
 
-exec hermes \
-  --provider ollama \
-  -m "$MODEL_ID" \
-  -t file,terminal \
-  -z "$PROMPT" \
-  "$@"
+HERMES_ARGS=(--provider ollama -m "$MODEL_ID" -t "file,terminal")
+if [ ! -t 0 ]; then
+  HERMES_ARGS+=(-z "$(cat)")
+fi
+
+exec hermes "${HERMES_ARGS[@]}" "$@"

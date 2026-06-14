@@ -4,13 +4,16 @@
 # /v1/chat/completions instead of /v1/responses (which Ollama doesn't support).
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
-PROMPT="$(cat)"
 
-exec codex exec \
-  --skip-git-repo-check \
-  --dangerously-bypass-approvals-and-sandbox \
-  --oss \
-  --local-provider ollama \
-  -m "$MODEL_ID" \
-  "$PROMPT" \
-  "$@"
+CODEX_ARGS=(
+  --skip-git-repo-check
+  --dangerously-bypass-approvals-and-sandbox
+  --oss
+  --local-provider ollama
+  -m "$MODEL_ID"
+)
+if [ ! -t 0 ]; then
+  CODEX_ARGS+=("$(cat)")
+fi
+
+exec codex exec "${CODEX_ARGS[@]}" "$@"
