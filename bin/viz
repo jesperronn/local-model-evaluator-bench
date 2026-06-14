@@ -1161,7 +1161,7 @@ h1{margin:0 0 4px;font-size:24px}
 .note{background:#fff8c5;border:1px solid #d4a72c;border-radius:8px;padding:10px 12px;margin-bottom:18px;font-size:12px}
 .rt{margin-bottom:26px;background:#fff;border:1px solid #d0d7de;border-radius:10px;padding:14px 14px 10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .rt h2{margin:0 0 10px;font-size:18px}
-.grid{display:grid;grid-template-columns:1.1fr 1.4fr;gap:14px}
+.grid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}
 .card{border:1px solid #d0d7de;border-radius:8px;overflow:hidden}
 .card h3{margin:0;padding:10px 12px;background:#f6f8fa;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
 table{width:100%;border-collapse:collapse}
@@ -1234,28 +1234,57 @@ function aggregate(rows){
   }).sort((x,y)=>y.score-x.score||x.secs-y.secs);
 }
 
+function buildPivot(rows){
+  const adapterSet=new Set(rows.map(r=>r.adapter));
+  const adapters=[...adapterSet].sort();
+  const modelMap=new Map();
+  for(const r of rows){
+    if(!modelMap.has(r.model)) modelMap.set(r.model,new Map());
+    const adMap=modelMap.get(r.model);
+    if(!adMap.has(r.adapter)) adMap.set(r.adapter,{pass:0,total:0,secs:0,cases:0});
+    const c=adMap.get(r.adapter);
+    c.pass+=r.pass; c.total+=r.total; c.secs+=r.seconds; c.cases++;
+  }
+  const models=[...modelMap.entries()]
+    .filter(([,adMap])=>adMap.size>=2)
+    .map(([model,adMap])=>{
+      const vals=[...adMap.values()];
+      const best=Math.max(...vals.map(c=>c.total?c.pass/c.total:0));
+      const totalCases=vals.reduce((s,c)=>s+c.cases,0);
+      return {model,adMap,best,totalCases};
+    })
+    .sort((a,b)=>b.best-a.best||b.totalCases-a.totalCases||a.model.localeCompare(b.model));
+  return {adapters,models};
+}
+
+function pivotCell(c){
+  if(!c) return '<td class="mono muted" style="text-align:center">—</td>';
+  const score=c.total?c.pass/c.total:0;
+  const avg=c.cases?Math.round(c.secs/c.cases):0;
+  return `<td class="mono" style="text-align:center"><span class="${scoreCls(score)}">${fmtFrac(c.pass,c.total)}</span><br><span class="muted" style="font-size:10px;font-weight:400">${fmtTime(avg)}</span></td>`;
+}
+
 function renderRuntime(rt, rows){
   const agg=aggregate(rows);
+  const pv=buildPivot(rows);
   const modelSet=new Set(rows.map(r=>r.model));
   const cases=new Set(rows.map(r=>r.case));
   return `<section class="rt">
     <h2>${ent('runtime',rt||'—',rt||'—')} <span class="muted" style="font-size:13px;font-weight:400">· ${rows.length} rows · ${modelSet.size} models · ${cases.size} cases</span></h2>
     <div class="grid">
       <div class="card">
-        <h3>Agent Leaderboard</h3>
-        <table>
-          <thead><tr><th>Agent</th><th>Pass</th><th>Pass %</th><th>Time</th><th>Models</th><th>Status mix</th></tr></thead>
+        <h3>Model × Adapter (avg per case)</h3>
+        ${pv.models.length===0
+          ? '<p class="muted" style="padding:12px">No models tested by 2+ adapters.</p>'
+          : `<div style="overflow-x:auto"><table style="min-width:max-content">
+          <thead><tr><th>Model</th>${pv.adapters.map(a=>`<th style="text-align:center">${ent('agent',a,a)}</th>`).join('')}</tr></thead>
           <tbody>
-            ${agg.map(a=>`<tr>
-              <td><strong>${ent('agent',a.adapter,a.adapter)}</strong></td>
-              <td class="mono">${fmtFrac(a.pass,a.total)}</td>
-              <td class="mono ${scoreCls(a.score)}">${fmtPct(a.score)}</td>
-              <td class="mono">${fmtTime(a.secs)}</td>
-              <td class="mono">${a.modelCount}</td>
-              <td class="mono tight muted">ok ${a.ok} · timeout ${a.timeout} · err ${a.error}</td>
+            ${pv.models.map(({model,adMap})=>`<tr>
+              <td style="white-space:nowrap">${ent('model',model,shortModel(model))}</td>
+              ${pv.adapters.map(a=>pivotCell(adMap.get(a)||null)).join('')}
             </tr>`).join('')}
           </tbody>
-        </table>
+        </table></div>`}
       </div>
       <div class="card">
         <h3>Top 5 Models Per Agent</h3>
