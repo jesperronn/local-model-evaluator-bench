@@ -33,5 +33,15 @@ phi4-mini:latest
 # 14B — Microsoft Phi-4; top scores on small-model benchmarks
 phi4:latest
 
-# 7B — Qwen 2.5 Coder; best-in-class coding specialist at 7B
+# 7B — Qwen 2.5 Coder (patched for agentic use: 64K context, tool-call template fix).
+# Build first: bin/setup-ollama-modelfile qwen2.5-coder-7b
+# NOTE: qwen2.5 does NOT emit <tool_call> tags — it generates raw JSON text instead.
+# Requires bin/tool-call-proxy (port 11435) to convert text tool calls to structured API.
+# Working adapters via proxy: opencode-proxy, copilot.
+# codex: blocked — model generates apply_patch but --local-provider ollama only provides
+#   exec_command; this is a model training bias issue, not a proxy limitation.
+# hermes: off-limits — hard 64K context requirement qwen2.5 cannot meet.
+qwen2.5-coder-7b
+
+# 7B — Qwen 2.5 Coder raw (no custom context/template). Only use for aider.
 qwen2.5-coder:7b

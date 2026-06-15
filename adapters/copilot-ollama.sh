@@ -14,7 +14,7 @@ if [ ! -t 0 ]; then
 fi
 
 exec env \
-  COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1" \
+  COPILOT_PROVIDER_BASE_URL="${OLLAMA_BASE_URL}" \
   COPILOT_PROVIDER_TYPE="openai" \
   COPILOT_PROVIDER_API_KEY="ollama" \
   COPILOT_MODEL="$MODEL_ID" \

@@ -5,7 +5,7 @@ set -euo pipefail
 
 AIDER_ARGS=(
   --model "openai/${MODEL_ID}"
-  --openai-api-base "http://localhost:11434/v1"
+  --openai-api-base "${OLLAMA_BASE_URL}"
   --openai-api-key "ollama"
   --no-auto-commits --no-dirty-commits --no-git
   --no-check-update --no-show-model-warnings
