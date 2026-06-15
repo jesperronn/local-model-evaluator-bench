@@ -1,0 +1,463 @@
+#!/usr/bin/env python3
+"""
+Transparent Ollama proxy that converts qwen2.5-style text tool calls to
+structured tool_calls in both the Chat Completions and Responses APIs.
+
+Problem: qwen2.5-coder:7b generates tool calls as plain JSON text:
+  {"name": "write_file", "arguments": {"path": "...", "content": "..."}}
+instead of proper API tool_calls. Callers like codex, opencode, and copilot
+only parse structured tool_calls, so the model's intent is silently ignored.
+
+Fix: this proxy intercepts completions responses and converts any content
+that matches {"name":..., "arguments":...} into proper tool_calls.
+Models that already emit proper tool_calls are passed through unchanged.
+
+Also handles:
+  - /api/pull faking for local Modelfile models not on Ollama Hub
+  - /responses path remapping (codex sends /responses, Ollama serves /v1/responses)
+  - SSE stream synthesis for Responses API (codex uses stream=true)
+
+Usage:
+  bin/tool-call-proxy [port]   # default port 11435
+  OLLAMA_BASE_URL=http://localhost:11435/v1 bin/bench --runtime ollama ...
+
+Adapters pick up OLLAMA_BASE_URL automatically (see config.sh).
+"""
+import ast
+import json
+import re
+import sys
+import urllib.request
+import urllib.error
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+UPSTREAM = "http://localhost:11434"
+DEFAULT_PORT = 11435
+
+
+def extract_tool_call(content: str) -> dict | None:
+    """Parse a JSON tool call from model text output.
+
+    Handles:
+      - Raw JSON: {"name": "fn", "arguments": {...}}
+      - Code-fenced: ```json\\n{...}\\n```
+      - Trailing backtick artifact (qwen2.5 quirk): {...}\\n```
+    """
+    s = content.strip()
+    # Strip opening fence (```json or ```)
+    s = re.sub(r"^```\w*\n?", "", s)
+    # Strip closing fence
+    s = re.sub(r"\n?```$", "", s).strip()
+    if not s.startswith("{"):
+        return None
+    try:
+        call = json.loads(s)
+    except json.JSONDecodeError:
+        # Model sometimes outputs Python-style single-quoted strings.  Use
+        # ast.literal_eval as a lenient fallback (handles ' and " quotes).
+        try:
+            call = ast.literal_eval(s)
+        except (ValueError, SyntaxError):
+            return None
+    if not isinstance(call, dict) or "name" not in call or "arguments" not in call:
+        return None
+    args = call["arguments"]
+    # qwen2.5 quirk: it sometimes puts the patch content as the dict KEY with
+    # null as the value: {"*** Begin Patch\n...": null}.  Normalize to the
+    # expected {"patch": "..."} format that codex's apply_patch handler needs.
+    if (
+        isinstance(args, dict) and len(args) == 1
+        and next(iter(args), "").lstrip().startswith(("*** Begin Patch", "**"))
+    ):
+        args = {"patch": next(iter(args))}
+    return {
+        "name": call["name"],
+        "arguments": json.dumps(args) if isinstance(args, dict) else str(args),
+    }
+
+
+def fix_completion(data: dict) -> dict:
+    """Convert text tool calls to structured tool_calls in a chat completion."""
+    for choice in data.get("choices", []):
+        msg = choice.get("message", {})
+        content = msg.get("content") or ""
+        if content and not msg.get("tool_calls"):
+            tc = extract_tool_call(content)
+            if tc:
+                msg["tool_calls"] = [{
+                    "id": "call_0",
+                    "type": "function",
+                    "function": tc,
+                }]
+                msg["content"] = None
+                choice["finish_reason"] = "tool_calls"
+    return data
+
+
+def synthesize_chat_sse(data: dict) -> bytes:
+    """Synthesize SSE chunks from a non-streaming chat completion response.
+
+    The @ai-sdk/openai-compatible SDK requests stream=true, so we convert our
+    buffered non-streaming response back into the expected SSE event format.
+    """
+    resp_id = data.get("id", "chatcmpl-0")
+    model = data.get("model", "")
+    chunks = []
+
+    for idx, choice in enumerate(data.get("choices", [])):
+        msg = choice.get("message", {})
+        tool_calls = msg.get("tool_calls")
+        content = msg.get("content")
+        finish_reason = choice.get("finish_reason", "stop")
+
+        if tool_calls:
+            # First chunk: role + tool_calls header with empty arguments
+            tc0 = tool_calls[0]
+            fn = tc0.get("function", {})
+            header_chunk = {
+                "id": resp_id, "object": "chat.completion.chunk", "model": model,
+                "choices": [{"index": idx, "delta": {
+                    "role": "assistant", "content": None,
+                    "tool_calls": [{"index": 0, "id": tc0.get("id", "call_0"),
+                                    "type": "function",
+                                    "function": {"name": fn.get("name", ""), "arguments": ""}}]
+                }, "finish_reason": None}],
+            }
+            chunks.append(f"data: {json.dumps(header_chunk)}\n\n".encode())
+            # Arguments chunk
+            args_chunk = {
+                "id": resp_id, "object": "chat.completion.chunk", "model": model,
+                "choices": [{"index": idx, "delta": {
+                    "tool_calls": [{"index": 0, "function": {"arguments": fn.get("arguments", "")}}]
+                }, "finish_reason": None}],
+            }
+            chunks.append(f"data: {json.dumps(args_chunk)}\n\n".encode())
+            # Finish chunk
+            finish_chunk = {
+                "id": resp_id, "object": "chat.completion.chunk", "model": model,
+                "choices": [{"index": idx, "delta": {}, "finish_reason": finish_reason}],
+            }
+            chunks.append(f"data: {json.dumps(finish_chunk)}\n\n".encode())
+        else:
+            # Text response: emit role chunk, content chunk, finish chunk
+            role_chunk = {
+                "id": resp_id, "object": "chat.completion.chunk", "model": model,
+                "choices": [{"index": idx, "delta": {"role": "assistant", "content": ""},
+                             "finish_reason": None}],
+            }
+            chunks.append(f"data: {json.dumps(role_chunk)}\n\n".encode())
+            if content:
+                content_chunk = {
+                    "id": resp_id, "object": "chat.completion.chunk", "model": model,
+                    "choices": [{"index": idx, "delta": {"content": content},
+                                 "finish_reason": None}],
+                }
+                chunks.append(f"data: {json.dumps(content_chunk)}\n\n".encode())
+            finish_chunk = {
+                "id": resp_id, "object": "chat.completion.chunk", "model": model,
+                "choices": [{"index": idx, "delta": {}, "finish_reason": finish_reason}],
+            }
+            chunks.append(f"data: {json.dumps(finish_chunk)}\n\n".encode())
+
+    chunks.append(b"data: [DONE]\n\n")
+    return b"".join(chunks)
+
+
+def fix_responses(data: dict) -> dict:
+    """Convert text tool calls in an OpenAI Responses API response.
+
+    qwen2.5 outputs the tool call JSON as output_text inside a message item.
+    We convert that to a proper function_call output item.
+    """
+    output = data.get("output", [])
+    new_output = []
+    converted = False
+    for item in output:
+        if item.get("type") == "message" and not converted:
+            text = ""
+            for content_block in item.get("content", []):
+                if content_block.get("type") == "output_text":
+                    text += content_block.get("text", "")
+            tc = extract_tool_call(text)
+            if tc:
+                new_output.append({
+                    "type": "function_call",
+                    "id": "fc_0",
+                    "call_id": "call_0",
+                    "name": tc["name"],
+                    "arguments": tc["arguments"],
+                    "status": "completed",
+                })
+                converted = True
+                continue
+        new_output.append(item)
+    if converted:
+        data["output"] = new_output
+        data["stop_reason"] = "tool_calls"
+        data["status"] = "completed"
+    return data
+
+
+def _sse_event(event: str, data: dict, seq: int) -> bytes:
+    """Format a single SSE event."""
+    payload = dict(data)
+    payload["sequence_number"] = seq
+    payload["type"] = event
+    return f"event: {event}\ndata: {json.dumps(payload)}\n\n".encode()
+
+
+def synthesize_sse(response: dict) -> bytes:
+    """Synthesize a minimal valid SSE stream from a non-streaming Responses API response.
+
+    Emits the minimum events codex needs to process the response.
+    """
+    resp_id = response.get("id", "resp_0")
+    events = []
+    seq = 0
+
+    base = {k: v for k, v in response.items() if k != "output"}
+    base["output"] = []
+    base["status"] = "in_progress"
+
+    events.append(_sse_event("response.created", {"response": dict(base)}, seq)); seq += 1
+    events.append(_sse_event("response.in_progress", {"response": dict(base)}, seq)); seq += 1
+
+    for out_idx, item in enumerate(response.get("output", [])):
+        item_type = item.get("type")
+
+        if item_type == "function_call":
+            # Emit function_call events
+            fc_in_progress = dict(item)
+            fc_in_progress["status"] = "in_progress"
+            fc_in_progress["arguments"] = ""
+            events.append(_sse_event("response.output_item.added",
+                {"output_index": out_idx, "item": fc_in_progress}, seq)); seq += 1
+
+            args = item.get("arguments", "")
+            events.append(_sse_event("response.function_call_arguments.delta",
+                {"output_index": out_idx, "item_id": item.get("id", "fc_0"),
+                 "call_id": item.get("call_id", "call_0"), "delta": args}, seq)); seq += 1
+
+            events.append(_sse_event("response.function_call_arguments.done",
+                {"output_index": out_idx, "item_id": item.get("id", "fc_0"),
+                 "call_id": item.get("call_id", "call_0"), "arguments": args}, seq)); seq += 1
+
+            fc_done = dict(item)
+            fc_done["status"] = "completed"
+            events.append(_sse_event("response.output_item.done",
+                {"output_index": out_idx, "item": fc_done}, seq)); seq += 1
+
+        elif item_type == "message":
+            msg_in_progress = dict(item)
+            msg_in_progress["status"] = "in_progress"
+            msg_in_progress["content"] = []
+            events.append(_sse_event("response.output_item.added",
+                {"output_index": out_idx, "item": msg_in_progress}, seq)); seq += 1
+
+            for c_idx, content_block in enumerate(item.get("content", [])):
+                events.append(_sse_event("response.content_part.added",
+                    {"output_index": out_idx, "content_index": c_idx,
+                     "item_id": item.get("id", "msg_0"),
+                     "part": {k: v for k, v in content_block.items() if k != "text"}
+                     | {"text": ""}}, seq)); seq += 1
+
+                text = content_block.get("text", "")
+                events.append(_sse_event("response.output_text.delta",
+                    {"output_index": out_idx, "content_index": c_idx,
+                     "item_id": item.get("id", "msg_0"), "delta": text}, seq)); seq += 1
+
+                events.append(_sse_event("response.output_text.done",
+                    {"output_index": out_idx, "content_index": c_idx,
+                     "item_id": item.get("id", "msg_0"), "text": text}, seq)); seq += 1
+
+                events.append(_sse_event("response.content_part.done",
+                    {"output_index": out_idx, "content_index": c_idx,
+                     "item_id": item.get("id", "msg_0"), "part": content_block}, seq)); seq += 1
+
+            events.append(_sse_event("response.output_item.done",
+                {"output_index": out_idx, "item": item}, seq)); seq += 1
+
+    final_response = dict(response)
+    final_response["status"] = "completed"
+    events.append(_sse_event("response.completed", {"response": final_response}, seq))
+
+    return b"".join(events)
+
+
+class ProxyHandler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        pass  # suppress per-request logs; errors still go to stderr
+
+    def _upstream_path(self) -> str:
+        """Map proxy path to Ollama upstream path.
+
+        codex sends requests to /responses (no /v1 prefix) when using
+        CODEX_OSS_BASE_URL, but Ollama serves the Responses API at /v1/responses.
+        /v1/responses is already correct — pass through unchanged.
+        """
+        if self.path == "/responses" or self.path.startswith("/responses?"):
+            return self.path.replace("/responses", "/v1/responses", 1)
+        return self.path  # /v1/responses and all other paths pass through unchanged
+
+    def _forward(self, body: bytes | None = None) -> tuple[int, dict, bytes]:
+        """Forward request to upstream and return (status, headers, body)."""
+        headers = {
+            k: v
+            for k, v in self.headers.items()
+            if k.lower() not in ("host", "content-length", "transfer-encoding")
+        }
+        if body is not None:
+            headers["Content-Length"] = str(len(body))
+        req = urllib.request.Request(
+            f"{UPSTREAM}{self._upstream_path()}",
+            data=body,
+            headers=headers,
+            method=self.command,
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return resp.status, dict(resp.headers), resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), e.read()
+
+    def _send(self, status: int, headers: dict, body: bytes) -> None:
+        self.send_response(status)
+        for k, v in headers.items():
+            if k.lower() not in ("transfer-encoding",):
+                self.send_header(k, v)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        status, headers, body = self._forward()
+        self._send(status, headers, body)
+
+    def _local_models(self) -> set:
+        """Return set of model names currently in Ollama."""
+        req = urllib.request.Request(f"{UPSTREAM}/api/tags", method="GET")
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read())
+                return {m["name"] for m in data.get("models", [])}
+        except Exception:
+            return set()
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+
+        is_pull = self.path == "/api/pull"
+        is_chat = "/chat/completions" in self.path
+        # Match both /responses (CODEX_OSS_BASE_URL) and /v1/responses (CODEX_OSS_PORT)
+        is_responses = (
+            self.path == "/responses" or self.path.startswith("/responses?")
+            or self.path == "/v1/responses" or self.path.startswith("/v1/responses?")
+        )
+
+        # Intercept /api/pull: return streaming success for locally-present models.
+        # This lets --local-provider ollama work with custom Modelfile models
+        # that don't exist on Ollama Hub (codex requests stream=true).
+        if is_pull:
+            try:
+                req_data = json.loads(body)
+                model_name = req_data.get("name", req_data.get("model", ""))
+                streaming = req_data.get("stream", True)
+                local = self._local_models()
+                canonical = model_name if ":" in model_name else f"{model_name}:latest"
+                if model_name in local or canonical in local:
+                    if streaming:
+                        lines = b"".join(
+                            json.dumps({"status": s}).encode() + b"\n"
+                            for s in ("verifying sha256 digest", "writing manifest", "success")
+                        )
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/x-ndjson")
+                        self.send_header("Content-Length", str(len(lines)))
+                        self.end_headers()
+                        self.wfile.write(lines)
+                    else:
+                        fake = json.dumps({"status": "success"}).encode()
+                        self._send(200, {"Content-Type": "application/json"}, fake)
+                    return
+            except Exception:
+                pass
+            status, headers, resp_body = self._forward(body)
+            self._send(status, headers, resp_body)
+            return
+
+        if is_responses:
+            # Codex sends stream=true; force non-streaming, fix tool calls, then
+            # synthesize a valid SSE stream so codex gets its expected events.
+            try:
+                req_data = json.loads(body)
+                was_streaming = req_data.get("stream", True)
+                req_data["stream"] = False
+                fwd_body = json.dumps(req_data).encode()
+            except json.JSONDecodeError:
+                was_streaming = False
+                fwd_body = body
+
+            status, headers, resp_body = self._forward(fwd_body)
+
+            try:
+                data = json.loads(resp_body)
+                data = fix_responses(data)
+                if was_streaming:
+                    sse_body = synthesize_sse(data)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("Content-Length", str(len(sse_body)))
+                    self.end_headers()
+                    self.wfile.write(sse_body)
+                else:
+                    resp_body = json.dumps(data).encode()
+                    headers["Content-Type"] = "application/json"
+                    self._send(status, headers, resp_body)
+            except (json.JSONDecodeError, KeyError):
+                self._send(status, headers, resp_body)
+            return
+
+        if is_chat:
+            # Force non-streaming to buffer the full response, then fix tool calls.
+            # If the client wanted streaming, synthesize proper SSE chunks afterward.
+            try:
+                req_data = json.loads(body)
+                was_streaming = req_data.get("stream", False)
+                req_data["stream"] = False
+                body = json.dumps(req_data).encode()
+            except json.JSONDecodeError:
+                was_streaming = False
+
+        status, headers, resp_body = self._forward(body)
+
+        if is_chat:
+            try:
+                data = json.loads(resp_body)
+                data = fix_completion(data)
+                if was_streaming:
+                    sse_body = synthesize_chat_sse(data)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("Content-Length", str(len(sse_body)))
+                    self.end_headers()
+                    self.wfile.write(sse_body)
+                    return
+                else:
+                    resp_body = json.dumps(data).encode()
+                    headers["Content-Type"] = "application/json"
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        self._send(status, headers, resp_body)
+
+
+if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
+    print(f"tool-call-proxy  :{port} → {UPSTREAM}", flush=True)
+    try:
+        HTTPServer(("", port), ProxyHandler).serve_forever()
+    except KeyboardInterrupt:
+        print("\nProxy stopped.")
