@@ -1,65 +1,125 @@
 #!/usr/bin/env bash
-# bin/smoke [model-id] — prove every installed CLI can actually drive a model
-# through LM Studio. Loads a small model, runs the trivial smoke case across all
-# adapters, and classifies each: PASS / PARTIAL (reached model, task incomplete)
-# / FAIL (couldn't reach the model — a wiring problem).
+# bin/smoke — prove every installed adapter can drive a model end-to-end.
+#
+# Runs two lightweight cases per adapter:
+#   smoke-00-hello     write a file from scratch (pure text output)
+#   smoke-01-edit-file edit an existing file     (tool-call path)
+#
+# Much faster than a full bench run — useful after:
+#   - Setting up a new model or adapter
+#   - Changing bin/tool-call-proxy
+#   - Rotating to a different runtime
+#
+# For each adapter reports: PASS / PARTIAL (reached model, task incomplete) /
+# FAIL (couldn't reach the model — a wiring problem).
+#
+# Flags:
+#   --runtime NAME  lms | ollama | mlx  (default: lms)
+#   --model/-m ID   model to test       (default: $SMOKE_MODEL for lms,
+#                                        first line of models-ollama.txt for ollama)
+#   --adapter/-t NAME  only test this adapter (default: all)
+#   --no-proxy-check   skip proxy liveness check for Ollama (default: auto)
+#   --verbose/-v       pass --verbose to bench (shows error excerpts on failure)
+#   -h/--help          show this message
+#
+# Proxy auto-detection (Ollama): if OLLAMA_BASE_URL ends in a port ≠ 11434
+# (e.g. http://localhost:11435/v1), smoke checks that bin/tool-call-proxy is
+# listening before running.  Pass --no-proxy-check to suppress.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
-MODEL="${1:-$SMOKE_MODEL}"
+RUNTIME="lms"
+MODEL=""
+PROXY_CHECK=1
+BENCH_ARGS=()
+EXTRA_BENCH_ARGS=()
 
-lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"; exit 0;;
+    --runtime)       RUNTIME="$2";  shift 2;;
+    --model|-m)      MODEL="$2";    BENCH_ARGS+=(--model "$2"); shift 2;;
+    --adapter|-t)    BENCH_ARGS+=(--adapter "$2"); shift 2;;
+    --no-proxy-check) PROXY_CHECK=0; shift;;
+    --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
+    *) warn "unknown flag: $1"; shift;;
+  esac
+done
 
-# --- ensure the model is loaded with sufficient context ---------------------
-loaded_ctx=$(lms ps --json 2>/dev/null \
-  | jq -r --arg m "$MODEL" '[.[] | select(.modelKey==$m) | .contextLength] | if length>0 then max else 0 end' \
-  2>/dev/null || echo 0)
+BENCH_ARGS+=(--runtime "$RUNTIME")
 
-if [ "${loaded_ctx:-0}" -ge "${SMOKE_CTX}" ] 2>/dev/null; then
-  ok "model already loaded: $MODEL (ctx ${loaded_ctx})"
-else
-  if [ "${loaded_ctx:-0}" -gt 0 ] 2>/dev/null; then
-    info "model loaded at ctx ${loaded_ctx} < ${SMOKE_CTX} required — reloading with ${SMOKE_CTX} ..."
-    lms unload "$MODEL" >/dev/null 2>&1 || true
+# ── Runtime-specific setup ────────────────────────────────────────────────────
+
+if [ "$RUNTIME" = "lms" ]; then
+  MODEL="${MODEL:-$SMOKE_MODEL}"
+
+  lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
+
+  loaded_ctx=$(lms ps --json 2>/dev/null \
+    | jq -r --arg m "$MODEL" '[.[] | select(.modelKey==$m) | .contextLength] | if length>0 then max else 0 end' \
+    2>/dev/null || echo 0)
+
+  if [ "${loaded_ctx:-0}" -ge "${SMOKE_CTX}" ] 2>/dev/null; then
+    ok "model already loaded: $MODEL (ctx ${loaded_ctx})"
+  else
+    if [ "${loaded_ctx:-0}" -gt 0 ] 2>/dev/null; then
+      info "model loaded at ctx ${loaded_ctx} < ${SMOKE_CTX} required — reloading ..."
+      lms unload "$MODEL" >/dev/null 2>&1 || true
+    fi
+    info "loading $MODEL (ttl ${SMOKE_TTL:-none}s, ctx ${SMOKE_CTX}) ..."
+    ensure_model_loaded "$MODEL" "${SMOKE_TTL:-}" "${SMOKE_CTX}" \
+      && ok "loaded $MODEL" \
+      || die "could not load $MODEL — check 'lms ls' or load it in the GUI"
   fi
-  info "loading $MODEL (ttl ${SMOKE_TTL:-none}s, ctx ${SMOKE_CTX}) ..."
-  ensure_model_loaded "$MODEL" "${SMOKE_TTL:-}" "${SMOKE_CTX}" \
-    && ok "loaded $MODEL" \
-    || die "could not load $MODEL — check 'lms ls' for the exact key, or load it in the GUI"
+
+elif [ "$RUNTIME" = "ollama" ]; then
+  # Proxy liveness check: if OLLAMA_BASE_URL targets a non-default port, verify proxy.
+  if [ "$PROXY_CHECK" = 1 ]; then
+    _port="${OLLAMA_BASE_URL##*:}"; _port="${_port%%/*}"
+    if [[ "$_port" =~ ^[0-9]+$ ]] && [ "$_port" != "11434" ]; then
+      if ! curl --silent --max-time 2 "http://localhost:${_port}/api/tags" > /dev/null 2>&1; then
+        err "Proxy not responding on port ${_port}."
+        err "Start it first:  bin/tool-call-proxy &"
+        err "Or pass --no-proxy-check to skip"
+        exit 1
+      fi
+      ok "proxy listening on port ${_port}"
+    fi
+  fi
 fi
 
-# --- run the smoke case across every adapter --------------------------------
-info "running smoke case across adapters: $DEFAULT_ADAPTERS"
+# ── Run the smoke cases ───────────────────────────────────────────────────────
+SMOKE_CASES="smoke-00-hello,smoke-01-edit-file"
+info "smoke: ${SMOKE_CASES//,/ · }  (runtime: $RUNTIME)"
 echo
-"$HERE/bin/bench" --cases smoke-00-hello --models "$MODEL" --timeout 120
 
-# --- classify the just-written results --------------------------------------
+"$HERE/bin/bench" --cases "$SMOKE_CASES" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}"
+
+# ── Verdict ───────────────────────────────────────────────────────────────────
 CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
 [ -f "$CSV" ] || die "no results produced"
 
 echo
-echo "${C_BLD}Smoke verdict — can each tool reach '$MODEL'?${C_RST}"
+echo "${C_BLD}Smoke verdict — can each adapter reach the model?${C_RST}"
 fails=0
-while IFS=, read -r adapter model case pass total score seconds status trials; do
+while IFS=, read -r adapter model_col case pass total score seconds status _rest; do
   [ "$adapter" = adapter ] && continue
-  if [ "$status" != ok ]; then
-    err "$(printf '%-9s FAIL    — could not reach model (%s)' "$adapter" "$status")"; fails=$((fails+1))
+  key="$adapter | $model_col"
+  if   [ "$status" != ok ]; then
+    err  "$(printf '%-40s FAIL    — could not reach model (%s)' "$key" "$status")"; fails=$((fails+1))
   elif [ "$pass" = "$total" ]; then
-    ok  "$(printf '%-9s PASS    — full path works (%ss)' "$adapter" "$seconds")"
+    ok   "$(printf '%-40s PASS    (%ss)' "$key" "$seconds")"
   else
-    warn "$(printf '%-9s PARTIAL — reached model, task incomplete (%s/%s)' "$adapter" "$pass" "$total")"
+    warn "$(printf '%-40s PARTIAL — %s/%s points (%ss)' "$key" "$pass" "$total" "$seconds")"
   fi
 done < "$CSV"
 
 echo
 if [ "$fails" -eq 0 ]; then
-  ok "all installed tools reached the model — ready to benchmark"
-  echo
-  echo "${C_DIM}Next step:${C_RST}"
-  echo "${C_DIM}  bin/bench --model $MODEL          # run the full benchmark suite${C_RST}"
+  ok "all adapters reached the model"
 else
-  warn "$fails tool(s) could not reach the model — check that adapter's flags in adapters/ (see docs/SETUP.md)"
+  warn "$fails adapter(s) could not reach the model — check the log path shown above"
 fi
-echo "${C_DIM}logs + edits: $(dirname "$CSV")/sandbox/<adapter>/...  •  details: $CSV${C_RST}"
+echo "${C_DIM}full details: $(dirname "$CSV")/results.csv${C_RST}"
 exit "$([ "$fails" -eq 0 ] && echo 0 || echo 1)"

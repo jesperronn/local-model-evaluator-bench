@@ -1,0 +1,8 @@
+{
+  "id": "smoke-01-edit-file",
+  "lang": "js",
+  "title": "Smoke test — edit an existing file",
+  "points": 1,
+  "category": "smoke",
+  "edit_files": ["src/transform.js"]
+}
