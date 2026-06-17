@@ -17,6 +17,9 @@ Options:
                                 wins per adapter+model+case)
   --save [FILE]                 write leaderboards as markdown
                                 (default: LEADERBOARD.md at repo root)
+  --prune                       delete run directories whose every result is
+                                superseded by a newer run (preview + confirm)
+  --yes                         skip confirmation prompt when used with --prune
   -h, --help                    show this help
 
 Defaults to the newest results CSV under $RESULTS_DIR.
@@ -31,6 +34,8 @@ INTERACTIVE=0
 ALL_RUNS=0
 CSV=""
 SAVE_MD=""
+PRUNE=0
+YES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -40,6 +45,8 @@ while [[ $# -gt 0 ]]; do
     -r|--runtime) RUNTIME_FILTER="$2"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     -a|--all) ALL_RUNS=1; shift ;;
+    --prune) PRUNE=1; shift ;;
+    --yes)   YES=1;   shift ;;
     --save)
       case "${2:-}" in
         ""|-*) SAVE_MD="$HERE/LEADERBOARD.md"; shift ;;
@@ -49,6 +56,75 @@ while [[ $# -gt 0 ]]; do
     *) CSV="$1"; shift ;;
   esac
 done
+
+# ── Prune: remove run directories fully superseded by newer runs ─────────────
+if [ "$PRUNE" -eq 1 ]; then
+  ALL_CSVS="$(ls -d "$RESULTS_DIR"/*/results.csv 2>/dev/null | sort -r)"
+  [ -n "$ALL_CSVS" ] || die "no results found in $RESULTS_DIR"
+
+  # Walk newest-first; a run is prunable if ALL its (adapter,model,case,runtime)
+  # keys already appear in strictly newer runs.
+  declare -A _seen
+  declare -a _prune_dirs _prune_sizes
+  while IFS= read -r csv; do
+    run_dir="$(dirname "$csv")"
+    # Collect keys for this run.
+    mapfile -t _keys < <(
+      awk -F, 'NR>1 {rt=($10!=""?$10:"lms"); print $1 FS $2 FS $3 FS rt}' "$csv"
+    )
+    if [ "${#_keys[@]}" -eq 0 ]; then
+      # Empty/header-only CSV — safe to prune.
+      _sz="$(du -sh "$run_dir" 2>/dev/null | cut -f1)"
+      _prune_dirs+=("$run_dir")
+      _prune_sizes+=("${_sz:-?}")
+    else
+      _all_seen=1
+      for _k in "${_keys[@]}"; do
+        if [ -z "${_seen[$_k]:-}" ]; then _all_seen=0; break; fi
+      done
+      if [ "$_all_seen" -eq 1 ]; then
+        _sz="$(du -sh "$run_dir" 2>/dev/null | cut -f1)"
+        _prune_dirs+=("$run_dir")
+        _prune_sizes+=("${_sz:-?}")
+      fi
+    fi
+    # Register keys from this run as covered.
+    for _k in "${_keys[@]}"; do _seen[$_k]=1; done
+  done <<< "$ALL_CSVS"
+
+  if [ "${#_prune_dirs[@]}" -eq 0 ]; then
+    ok "Nothing to prune — no fully-superseded runs found."
+    exit 0
+  fi
+
+  echo "${C_BLD}Runs to prune (all results superseded by newer runs):${C_RST}"
+  for i in "${!_prune_dirs[@]}"; do
+    printf "  %s  %s\n" "${_prune_sizes[$i]}" "$(basename "${_prune_dirs[$i]}")"
+  done
+  echo
+  _total_bytes=0
+  for d in "${_prune_dirs[@]}"; do
+    _b="$(du -sk "$d" 2>/dev/null | cut -f1)"; _total_bytes=$(( _total_bytes + ${_b:-0} ))
+  done
+  printf "  %d director%s  (~%s MB)\n" \
+    "${#_prune_dirs[@]}" \
+    "$([ "${#_prune_dirs[@]}" -eq 1 ] && echo y || echo ies)" \
+    "$(awk "BEGIN{printf \"%.1f\", $_total_bytes/1024}")"
+  echo
+
+  if [ "$YES" -ne 1 ]; then
+    printf "Delete these directories? [y/N] "
+    read -r _confirm
+    [[ "$_confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+  fi
+
+  for d in "${_prune_dirs[@]}"; do
+    rm -rf "$d"
+    echo "  ${C_DIM}removed: $(basename "$d")${C_RST}"
+  done
+  ok "Pruned ${#_prune_dirs[@]} run director$([ "${#_prune_dirs[@]}" -eq 1 ] && echo y || echo ies)."
+  exit 0
+fi
 
 if [ "$ALL_RUNS" -eq 1 ]; then
   # Merge all runs: latest result wins per (adapter,model,case).
