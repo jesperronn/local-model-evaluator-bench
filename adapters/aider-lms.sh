@@ -6,18 +6,23 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-# aider reaches the openai-compatible endpoint via these two flags + the
-# "openai/" model prefix. --yes-always auto-approves; we disable git/commits
-# and update checks so a run is non-interactive and self-contained.
 AIDER_ARGS=(
   --model "openai/${MODEL_ID}"
   --openai-api-base "$LMS_BASE_URL"
   --openai-api-key "$LMS_API_KEY"
-  --no-auto-commits --no-dirty-commits --no-git
   --no-check-update --no-show-model-warnings
 )
 if [ ! -t 0 ]; then
-  AIDER_ARGS+=(--yes-always --message "$(cat)")
+  # Pass existing source files so aider has file content in context.
+  # Without this, models must hallucinate file contents from the task description,
+  # which causes format failures on small models.
+  mapfile -t SANDBOX_FILES < <(find . -type f \
+    -not -path '*/.*' \
+    -not -name '*.log' \
+    -not -name '*.json' \
+    -not -name '*.md' \
+    2>/dev/null | sort)
+  AIDER_ARGS+=(--yes-always --no-auto-commits --no-dirty-commits --message "$(cat)" "${SANDBOX_FILES[@]}")
 fi
 
 exec aider "${AIDER_ARGS[@]}" "$@"

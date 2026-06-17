@@ -14,5 +14,9 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 if [ -t 0 ]; then
   exec opencode --model "lmstudio/${MODEL_ID}" "$@"
 else
-  exec opencode run --model "lmstudio/${MODEL_ID}" "$(cat)" "$@"
+  # Prepend CWD so the model uses real paths instead of /path/to/... placeholders.
+  PROMPT="Working directory: $(pwd)
+
+$(cat)"
+  exec opencode run --model "lmstudio/${MODEL_ID}" "${PROMPT}" "$@"
 fi

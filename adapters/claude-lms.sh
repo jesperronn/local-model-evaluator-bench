@@ -16,9 +16,9 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-CLAUDE_ARGS=(--allow-dangerously-skip-permissions)
+CLAUDE_ARGS=()
 if [ ! -t 0 ]; then
-  CLAUDE_ARGS+=(--print --bare "$(cat)")
+  CLAUDE_ARGS+=(--allow-dangerously-skip-permissions --print --bare "$(cat)")
 fi
 
 exec env \

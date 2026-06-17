@@ -12,9 +12,7 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
 export LMS_API_KEY  # codex reads the key from this env var (see -c env_key).
 
-CODEX_ARGS=(
-  --skip-git-repo-check
-  --dangerously-bypass-approvals-and-sandbox
+CODEX_COMMON=(
   -c model="$MODEL_ID"
   -c model_provider="lmstudio_local"
   -c model_providers.lmstudio_local.name="LM Studio"
@@ -22,7 +20,7 @@ CODEX_ARGS=(
   -c model_providers.lmstudio_local.env_key="LMS_API_KEY"
 )
 if [ ! -t 0 ]; then
-  CODEX_ARGS+=("$(cat)")
+  exec codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "${CODEX_COMMON[@]}" "$(cat)" "$@"
+else
+  exec codex "${CODEX_COMMON[@]}" "$@"
 fi
-
-exec codex exec "${CODEX_ARGS[@]}" "$@"

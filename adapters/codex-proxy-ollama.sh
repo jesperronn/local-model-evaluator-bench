@@ -19,15 +19,13 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 PROXY_PORT="${OLLAMA_BASE_URL##*:}"
 PROXY_PORT="${PROXY_PORT%%/*}"
 
-CODEX_ARGS=(
-  --skip-git-repo-check
-  --dangerously-bypass-approvals-and-sandbox
+CODEX_COMMON=(
   --oss
   --local-provider ollama
   -m "$MODEL_ID"
 )
 if [ ! -t 0 ]; then
-  CODEX_ARGS+=("$(cat)")
+  exec env CODEX_OSS_PORT="${PROXY_PORT}" codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "${CODEX_COMMON[@]}" "$(cat)" "$@"
+else
+  exec env CODEX_OSS_PORT="${PROXY_PORT}" codex "${CODEX_COMMON[@]}" "$@"
 fi
-
-exec env CODEX_OSS_PORT="${PROXY_PORT}" codex exec "${CODEX_ARGS[@]}" "$@"

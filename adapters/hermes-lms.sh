@@ -13,14 +13,11 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 # causes a tool-name conflict (both expose a tool named "terminal") and hermes
 # resolves it by dropping all file tools, leaving only the process tool. The
 # model then can't write files and spins in a failure loop.
-#
-# --yolo bypasses the smart guardian. Without it, the guardian (an LLM call
-# against the same model) times out under bench parallelism when multiple
-# adapters compete for model slots, denying every tool call and producing 0
-# passes. Sandboxes live under results/ so --yolo is safe here.
-HERMES_ARGS=(--provider lmstudio -m "$MODEL_ID" -t file --yolo)
+HERMES_ARGS=(--provider lmstudio -m "$MODEL_ID" -t file)
 if [ ! -t 0 ]; then
-  HERMES_ARGS+=(-z "$(cat)")
+  # --yolo bypasses the smart guardian — safe in automated bench sandboxes but
+  # unwanted in interactive sessions where the guardian provides a useful check.
+  HERMES_ARGS+=(--yolo -z "$(cat)")
 fi
 
 exec hermes "${HERMES_ARGS[@]}" "$@"

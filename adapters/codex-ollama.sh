@@ -5,15 +5,13 @@
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
 
-CODEX_ARGS=(
-  --skip-git-repo-check
-  --dangerously-bypass-approvals-and-sandbox
+CODEX_COMMON=(
   --oss
   --local-provider ollama
   -m "$MODEL_ID"
 )
 if [ ! -t 0 ]; then
-  CODEX_ARGS+=("$(cat)")
+  exec codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "${CODEX_COMMON[@]}" "$(cat)" "$@"
+else
+  exec codex "${CODEX_COMMON[@]}" "$@"
 fi
-
-exec codex exec "${CODEX_ARGS[@]}" "$@"

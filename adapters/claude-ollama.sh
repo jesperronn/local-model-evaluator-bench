@@ -15,9 +15,9 @@
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
 
-CLAUDE_ARGS=(--allow-dangerously-skip-permissions)
+CLAUDE_ARGS=()
 if [ ! -t 0 ]; then
-  CLAUDE_ARGS+=(--print --bare "$(cat)")
+  CLAUDE_ARGS+=(--allow-dangerously-skip-permissions --print --bare "$(cat)")
 fi
 
 exec env \
