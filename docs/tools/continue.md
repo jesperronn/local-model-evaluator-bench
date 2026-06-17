@@ -1,0 +1,28 @@
+# continue
+
+## Metadata
+
+| Field | Value |
+|-------|-------|
+| **Tool name** | Continue |
+| **CLI command** | none known |
+| **Version** | unknown — not yet evaluated |
+| **Adapter script** | likely not possible |
+| **How it connects** | IDE extension (VS Code + JetBrains); no headless CLI mode documented |
+| **Last reviewed** | never |
+
+## Status
+
+**not feasible as-is** — Continue is an IDE extension, not a CLI agent. No stdin/stdout interface for benchmarking.
+
+## Investigation notes
+
+Continue (continue.dev) has excellent local model support via Ollama, LM Studio, and OpenAI-compatible providers, configured through `~/.continue/config.json`. However, the interaction model is chat and autocomplete inside the editor — not a shell-driven prompt→edit loop.
+
+Angles that could change this:
+
+- **`@continuedev/core` npm package** — check if it exposes a headless or programmatic API that could be scripted
+- **Continue CLI mode** — check if any unreleased or experimental CLI has landed since last review
+- **JetBrains Junie** is the JetBrains-native equivalent and has the same constraint
+
+Until a headless mode is documented, Continue is better evaluated as a user experience (IDE UX, autocomplete quality) rather than benchmarked in this harness. Revisit if a CLI entry point appears.
