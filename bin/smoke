@@ -29,6 +29,26 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
+# Pre-scan for --runtime so --help shows the right suffix-stripped list.
+_help_runtime="lms"; _prev=""
+for _a in "$@"; do [ "$_prev" = "--runtime" ] && _help_runtime="$_a"; _prev="$_a"; done
+
+show_help() {
+  awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
+  echo
+  echo "Available adapters:"
+  ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
+    | xargs -I{} basename {} .sh \
+    | sed "s/-${_help_runtime}$//" \
+    | sort -u \
+    | awk -F- '{
+        key=$1
+        if (key in grp) grp[key]=grp[key]" "$0
+        else { ord[++n]=key; grp[key]=$0 }
+      }
+      END { for(i=1;i<=n;i++) print "  "grp[ord[i]] }'
+}
+
 RUNTIME="lms"
 MODEL=""
 PROXY_CHECK=1
@@ -37,7 +57,7 @@ EXTRA_BENCH_ARGS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    -h|--help) awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"; exit 0;;
+    -h|--help) show_help; exit 0;;
     --runtime)       RUNTIME="$2";  shift 2;;
     --model|-m)      MODEL="$2";    BENCH_ARGS+=(--model "$2"); shift 2;;
     --adapter|-t)    BENCH_ARGS+=(--adapter "$2"); shift 2;;
