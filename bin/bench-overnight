@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# bin/bench-overnight — run bench across low-footprint models with lms+ollama
+# restart between each model to prevent memory leaks and crashes.
+#
+# Usage:
+#   bin/bench-overnight                      # default model list
+#   bin/bench-overnight --models a,b,c       # override model list
+#   bin/bench-overnight --tool aider,codex   # override adapter list
+#   Any extra flags are forwarded to bin/bench.
+#
+# Default models (low memory footprint; skips qwen3-coder-next 80B MoE):
+#   qwen/qwen3.5-9b
+#   qwen/qwen3.6-35b-a3b
+#   qwen/qwen3-coder-30b
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+
+DEFAULT_OVERNIGHT_MODELS=(
+  "qwen/qwen3.5-9b"
+  "qwen/qwen3.6-35b-a3b"
+  "qwen/qwen3-coder-30b"
+)
+
+MODELS_OVERRIDE=""
+BENCH_EXTRA_ARGS=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --models|--model|-m) MODELS_OVERRIDE="$2"; shift 2;;
+    *) BENCH_EXTRA_ARGS+=("$1"); shift;;
+  esac
+done
+
+if [ -n "$MODELS_OVERRIDE" ]; then
+  IFS=',' read -ra MODELS <<< "$MODELS_OVERRIDE"
+else
+  MODELS=("${DEFAULT_OVERNIGHT_MODELS[@]}")
+fi
+
+restart_services() {
+  local label="${1:-}"
+  info "${label:+[$label] }stopping lms server and ollama..."
+  lms server stop 2>/dev/null || true
+  # Ollama: stop any running serve process
+  pkill -f "ollama serve" 2>/dev/null || true
+  # Give processes a moment to shut down cleanly
+  sleep 8
+  info "${label:+[$label] }starting lms server..."
+  lms server start 2>/dev/null || true
+  sleep 5
+  # Verify lms is up
+  if ! lms_up 2>/dev/null; then
+    warn "lms server did not come up cleanly — retrying once..."
+    lms server stop 2>/dev/null || true
+    sleep 5
+    lms server start 2>/dev/null || true
+    sleep 5
+    lms_up || die "lms server failed to start after retry"
+  fi
+  info "${label:+[$label] }services ready"
+}
+
+info "overnight bench: ${#MODELS[@]} model(s): ${MODELS[*]}"
+info "extra bench flags: ${BENCH_EXTRA_ARGS[*]:-none}"
+echo
+
+TOTAL=${#MODELS[@]}
+IDX=0
+
+for model in "${MODELS[@]}"; do
+  IDX=$((IDX + 1))
+  echo
+  info "[$IDX/$TOTAL] $(date '+%Y-%m-%d %H:%M:%S')  starting: $model"
+
+  restart_services "$model"
+
+  "$HERE/bin/bench" --model "$model" "${BENCH_EXTRA_ARGS[@]}"
+
+  info "[$IDX/$TOTAL] $(date '+%Y-%m-%d %H:%M:%S')  completed: $model"
+done
+
+echo
+info "$(date '+%Y-%m-%d %H:%M:%S')  all models done — stopping services"
+lms server stop 2>/dev/null || true
+pkill -f "ollama serve" 2>/dev/null || true
+info "done"

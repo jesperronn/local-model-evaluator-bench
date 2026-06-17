@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# bin/build-llmrun — generate a standalone llmrun launcher and install it to PATH.
+# Re-run whenever adapters, config, or project layout changes.
+#
+# The generated llmrun script:
+#   - has no source/lib dependencies (fully standalone, safe to place in dotfiles)
+#   - has the adapter directory baked in as a default (override: LLMRUN_ADAPTERS)
+#   - points to (not inlines) the adapters in this project, keeping them DRY;
+#     on a different machine set LLMRUN_ADAPTERS=/path/to/adapters in your shell rc
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+
+DEST_OVERRIDE=""
+DRY_RUN=0
+for _a in "$@"; do
+  case "$_a" in
+    --dest=*)    DEST_OVERRIDE="${_a#--dest=}";;
+    --dry-run)   DRY_RUN=1;;
+  esac
+done
+
+# ── Generate ──────────────────────────────────────────────────────────────────
+TMPFILE="$(mktemp /tmp/llmrun.XXXXXX)"
+trap 'rm -f "$TMPFILE"' EXIT
+
+sed \
+  -e "s|@@DATE@@|$(date '+%Y-%m-%d')|g" \
+  -e "s|@@PROJECT@@|$HERE|g" \
+  -e "s|@@ADAPTERS@@|$HERE/adapters|g" \
+  -e "s|@@LMS_URL@@|$LMS_BASE_URL|g" \
+  -e "s|@@LMS_KEY@@|$LMS_API_KEY|g" \
+  << 'TEMPLATE' > "$TMPFILE"
+#!/usr/bin/env bash
+# llmrun — universal adapter launcher (standalone)
+# Generated: @@DATE@@
+# Source project: @@PROJECT@@
+# Regenerate: cd @@PROJECT@@ && bin/build-llmrun
+#
+# Usage:
+#   llmrun [--tool <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [prompt...]
+#
+# All three flags fall back to fzf pickers when not given.
+# Adapters live in the source project — set LLMRUN_ADAPTERS to override.
+set -uo pipefail
+
+# ── Baked-in paths (env vars override) ───────────────────────────────────────
+_ADAPTERS="${LLMRUN_ADAPTERS:-@@ADAPTERS@@}"
+_PROJECT="${LLMRUN_PROJECT:-@@PROJECT@@}"
+_LMS_URL="${LMS_BASE_URL:-@@LMS_URL@@}"
+_LMS_KEY="${LMS_API_KEY:-@@LMS_KEY@@}"
+
+# ── Inline helpers ────────────────────────────────────────────────────────────
+if [ -t 1 ]; then
+  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'
+  C_BLU=$'\033[34m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'; C_BLD=$'\033[1m'
+else
+  C_RED=; C_GRN=; C_YEL=; C_BLU=; C_DIM=; C_RST=; C_BLD=
+fi
+info()      { printf '%s\n' "${C_BLU}==>${C_RST} $*"; }
+warn()      { printf '%s\n' "${C_YEL}[WARN]${C_RST} $*" >&2; }
+err()       { printf '%s\n' "${C_RED}[FAIL]${C_RST} $*" >&2; }
+die()       { err "$*"; exit 1; }
+read_list() { grep -vE '^\s*(#|$)' "$1" 2>/dev/null || true; }
+lms_up()    { curl -fsS --max-time 5 "$_LMS_URL/models" >/dev/null 2>&1; }
+ollama_up() { curl -fsS --max-time 5 "http://localhost:11434/api/tags" >/dev/null 2>&1; }
+mlx_up()    { curl -fsS --max-time 5 "http://localhost:8080/v1/models" >/dev/null 2>&1; }
+
+trap 'echo; warn "Interrupted"; exit 130' INT TERM
+
+TOOL=""; RUNTIME=""; MODEL=""; PROMPT_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --tool|-t)    TOOL="$2";    shift 2;;
+    --runtime|-r) RUNTIME="$2"; shift 2;;
+    --model|-m)   MODEL="$2";   shift 2;;
+    -h|--help)
+      awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
+      exit 0;;
+    --) shift; PROMPT_ARGS=("$@"); break;;
+    -*) die "unknown option: $1";;
+    *)  PROMPT_ARGS=("$@"); break;;
+  esac
+done
+
+command -v fzf >/dev/null 2>&1 || die "fzf not installed — brew install fzf"
+[ -d "$_ADAPTERS" ] || die "adapter directory not found: $_ADAPTERS — set LLMRUN_ADAPTERS or regenerate: cd @@PROJECT@@ && bin/build-llmrun"
+
+# ── Phase 1: Select ───────────────────────────────────────────────────────────
+all_adapters() { ls "$_ADAPTERS"/*.sh 2>/dev/null | xargs -I{} basename {} .sh; }
+all_tools()    { all_adapters | sed -E 's/-(lms|ollama|mlx)$//' | sort -u; }
+
+if [ -z "$TOOL" ]; then
+  tools="$(all_tools)"
+  [ -z "$tools" ] && die "no adapters found in $_ADAPTERS"
+  TOOL="$(printf '%s\n' "$tools" | fzf --prompt='Tool    > ' --header='Select a tool')"
+  [ -z "$TOOL" ] && die "no tool selected"
+fi
+
+if [ -z "$RUNTIME" ]; then
+  runtimes="$(all_adapters | grep -E "^${TOOL}-" | grep -oE '(lms|ollama|mlx)$' | sort -u)"
+  [ -z "$runtimes" ] && die "no adapters found for tool '$TOOL' in $_ADAPTERS"
+  rt_count="$(printf '%s\n' "$runtimes" | wc -l | tr -d ' ')"
+  if [ "$rt_count" = 1 ]; then
+    RUNTIME="$runtimes"
+    info "runtime: $RUNTIME (only option for $TOOL)"
+  else
+    RUNTIME="$(printf '%s\n' "$runtimes" | fzf --prompt='Runtime > ' --header='Select a runtime')"
+    [ -z "$RUNTIME" ] && die "no runtime selected"
+  fi
+fi
+
+if [ -z "$MODEL" ]; then
+  case "$RUNTIME" in
+    lms)
+      model_list="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
+      [ -z "$model_list" ] && die "no models found via 'lms ls' — is LM Studio running?"
+      ;;
+    ollama)
+      model_list="$(read_list "$_PROJECT/models-ollama.txt")"
+      [ -z "$model_list" ] && die "no models in $_PROJECT/models-ollama.txt"
+      ;;
+    mlx)
+      model_list="$(read_list "$_PROJECT/models-mlx.txt")"
+      [ -z "$model_list" ] && die "no models in $_PROJECT/models-mlx.txt"
+      ;;
+    *)
+      die "unknown runtime '$RUNTIME' — expected lms, ollama, or mlx"
+      ;;
+  esac
+  MODEL="$(printf '%s\n' "$model_list" | fzf --prompt='Model   > ' --header='Select a model')"
+  [ -z "$MODEL" ] && die "no model selected"
+fi
+
+# ── Phase 2: Validate ─────────────────────────────────────────────────────────
+ADAPTER_FILE="$_ADAPTERS/${TOOL}-${RUNTIME}.sh"
+if [ ! -f "$ADAPTER_FILE" ]; then
+  err "no adapter for ${TOOL}-${RUNTIME}"
+  printf '\nAvailable combos:\n'
+  all_adapters | sed 's/^/  /'
+  printf '\nTry a different --tool or --runtime.\n'
+  exit 1
+fi
+
+case "$RUNTIME" in
+  lms)    lms_up    || die "LM Studio not reachable at $_LMS_URL — start with: lms server start";;
+  ollama) ollama_up || die "Ollama not reachable at localhost:11434 — start with: ollama serve";;
+  mlx)    mlx_up    || die "mlx_lm.server not reachable at localhost:8080 — start with: python -m mlx_lm.server --model <id>";;
+esac
+
+if ! command -v "$TOOL" >/dev/null 2>&1; then
+  hint="$(grep -m1 '^# Adapter:' "$ADAPTER_FILE" | sed 's/^# Adapter:[[:space:]]*//')"
+  err "tool binary '$TOOL' not found on PATH"
+  [ -n "$hint" ] && printf '\n%s\n' "$hint"
+  exit 1
+fi
+
+# ── Phase 3: Exec ─────────────────────────────────────────────────────────────
+echo "${C_DIM}Rerun: llmrun --tool $TOOL --runtime $RUNTIME --model $MODEL${C_RST}"
+info "launching ${C_BLD}${TOOL}${C_RST} via ${C_BLD}${RUNTIME}${C_RST} with model ${C_BLD}${MODEL}${C_RST}"
+export MODEL_ID="$MODEL"
+if [ "${#PROMPT_ARGS[@]}" -gt 0 ]; then
+  printf '%s' "${PROMPT_ARGS[*]}" | exec "$ADAPTER_FILE"
+else
+  exec "$ADAPTER_FILE"
+fi
+TEMPLATE
+
+chmod +x "$TMPFILE"
+
+# ── Dry-run: diff generated script against installed llmrun ───────────────────
+if [ "$DRY_RUN" = 1 ]; then
+  existing="$(command -v llmrun 2>/dev/null || true)"
+  if [ -z "$existing" ]; then
+    info "llmrun not installed — rebuild needed"
+    exit 1
+  fi
+  # Strip the Generated date line before diffing (it always differs by design)
+  if diff <(grep -v '^# Generated:' "$existing") \
+          <(grep -v '^# Generated:' "$TMPFILE") >/dev/null 2>&1; then
+    info "llmrun is up to date ($(grep '^# Generated:' "$existing" | awk '{print $3}'))"
+    exit 0
+  else
+    warn "llmrun is stale — diff:"
+    diff <(grep -v '^# Generated:' "$existing") \
+         <(grep -v '^# Generated:' "$TMPFILE") || true
+    exit 1
+  fi
+fi
+
+# ── Pick install location ─────────────────────────────────────────────────────
+existing="$(command -v llmrun 2>/dev/null || true)"
+existing_dir=""
+[ -n "$existing" ] && existing_dir="$(dirname "$existing")"
+
+path_dirs="$(printf '%s' "$PATH" | tr ':' '\n' | sort -u | while read -r d; do
+  [ -d "$d" ] && [ -w "$d" ] && printf '%s\n' "$d"
+done || true)"
+
+[ -z "$path_dirs" ] && die "no writable directories found in PATH — add one first"
+
+if [ -n "$DEST_OVERRIDE" ]; then
+  selected="$DEST_OVERRIDE"
+elif [ -n "$existing_dir" ]; then
+  info "llmrun already installed at $existing"
+  selected="$(printf '%s\n' "$path_dirs" \
+    | fzf --prompt='Install to > ' \
+          --header='Re-install llmrun — press Enter to keep same location' \
+          --query="$existing_dir" \
+          --select-1 || true)"
+else
+  selected="$(printf '%s\n' "$path_dirs" \
+    | fzf --prompt='Install to > ' \
+          --header='Select a PATH directory for llmrun' || true)"
+fi  # end DEST_OVERRIDE / existing / new
+
+[ -z "$selected" ] && die "no install location selected"
+
+DEST="$selected/llmrun"
+cp "$TMPFILE" "$DEST"
+chmod +x "$DEST"
+
+printf '%s\n' "${C_GRN}[OK]${C_RST} installed: $DEST"
+if [ -n "$existing" ] && [ "$existing" != "$DEST" ]; then
+  warn "old copy still at $existing — remove it or it will shadow the new one"
+fi
+printf '%s\n' "${C_DIM}Regenerate: cd $HERE && bin/build-llmrun${C_RST}"

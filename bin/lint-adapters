@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# bin/lint-adapters — static checks for all adapter scripts.
+#
+# Checks:
+#   1. Bash syntax (bash -n)
+#   2. Bypass flags only inside non-interactive branches
+#      Bypass flags that must never appear at top-level (outside [ ! -t 0 ]):
+#        --yes-always, --dangerously-bypass-approvals-and-sandbox,
+#        --allow-dangerously-skip-permissions, --auto-approve, --yolo,
+#        --no-git, --no-auto-commits, --no-dirty-commits
+#
+# Exit 0 = all clean, exit 1 = failures found.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+
+BYPASS_PATTERN='--yes-always|--dangerously-bypass-approvals-and-sandbox|--allow-dangerously-skip-permissions|--auto-approve|--yolo|--no-git\b|--no-auto-commits|--no-dirty-commits|--no-ask-user|--allow-all-tools|--allow-all-paths'
+
+if [ -t 1 ]; then
+  C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_YEL=$'\033[33m'
+  C_BLD=$'\033[1m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
+else
+  C_GRN=; C_RED=; C_YEL=; C_BLD=; C_DIM=; C_RST=
+fi
+ok()   { printf '%s\n' "${C_GRN}[OK]${C_RST}   $*"; }
+fail() { printf '%s\n' "${C_RED}[FAIL]${C_RST} $*"; }
+warn() { printf '%s\n' "${C_YEL}[WARN]${C_RST} $*"; }
+
+failures=0
+
+for adapter in "$HERE/adapters"/*.sh; do
+  name="$(basename "$adapter")"
+
+  # 1. Syntax check
+  if ! bash -n "$adapter" 2>/tmp/lint-syntax-err; then
+    fail "$name  syntax error: $(cat /tmp/lint-syntax-err)"
+    failures=$((failures + 1))
+    continue
+  fi
+
+  # 2. Bypass flags at top-level (outside any `if [ ! -t 0 ]` block)
+  #    Strategy: strip lines inside if [ ! -t 0 ] ... fi blocks, then grep for bypass flags.
+  #    We use awk: track depth when we enter/exit the non-interactive if-block.
+  toplevel="$(awk '
+    /if \[ ! -t 0 \]/ { depth++; next }
+    depth > 0 && /^[[:space:]]*fi[[:space:]]*(#.*)?$/ { depth--; next }
+    depth > 0 { next }
+    { print }
+  ' "$adapter")"
+
+  if echo "$toplevel" | grep -qE -e "$BYPASS_PATTERN"; then
+    bad_lines="$(echo "$toplevel" | grep -nE -e "$BYPASS_PATTERN")"
+    fail "$name  bypass flag outside non-interactive branch:"
+    echo "$bad_lines" | while IFS= read -r line; do
+      printf '         %s%s%s\n' "${C_DIM}" "$line" "${C_RST}"
+    done
+    failures=$((failures + 1))
+  else
+    ok "$name"
+  fi
+done
+
+echo
+if [ "$failures" -eq 0 ]; then
+  printf '%s\n' "${C_GRN}${C_BLD}All adapters clean.${C_RST}"
+else
+  printf '%s\n' "${C_RED}${C_BLD}$failures adapter(s) failed.${C_RST}"
+fi
+exit "$([ "$failures" -eq 0 ] && echo 0 || echo 1)"
