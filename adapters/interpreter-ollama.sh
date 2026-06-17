@@ -15,7 +15,7 @@ OI_CONFIG=(
 )
 
 if [ ! -t 0 ]; then
-  exec interpreter exec "${OI_CONFIG[@]}" "$(cat)"
+  exec interpreter exec -s workspace-write "${OI_CONFIG[@]}" "$(cat)"
 else
   exec interpreter "${OI_CONFIG[@]}" "$@"
 fi

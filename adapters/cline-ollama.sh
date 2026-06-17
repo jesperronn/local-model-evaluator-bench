@@ -21,22 +21,13 @@ else
 fi
 
 DATA_DIR="$HOME/.cline-ollama-adapter"
-mkdir -p "$DATA_DIR/settings"
-cat > "$DATA_DIR/settings/providers.json" << JSON
-{
-  "version": 1,
-  "lastUsedProvider": "ollama",
-  "providers": {
-    "ollama": {
-      "settings": {
-        "provider": "ollama",
-        "model": "$MODEL_ID"
-      },
-      "tokenSource": "migration"
-    }
-  }
-}
-JSON
+# auth initialises the SQLite DBs and writes providers.json in one step.
+# Ollama doesn't use a real key; "ollama" is a required placeholder.
+"$CLINE" auth ollama \
+  --data-dir "$DATA_DIR" \
+  --apikey  "ollama" \
+  --modelid "$MODEL_ID" \
+  --baseurl "$OLLAMA_BASE_URL" >/dev/null 2>&1
 
 CLINE_ARGS=(
   --data-dir "$DATA_DIR"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Adapter: cline -> LM Studio (via openai-compatible provider).
-# Writes an isolated data-dir with openai-compatible provider config pointing
-# at LMS_BASE_URL, overwritten each run so model and URL stay current.
+# Uses `cline auth` to configure an isolated data-dir with an openai-compatible
+# provider pointing at LMS_BASE_URL, overwritten each run.
 # NOTE: pnpm global install is broken (global/v11 missing). The adapter falls
 # back to the latest cli-darwin-arm64 binary found in the pnpm store.
 # Fix permanently with: pnpm install -g cline
@@ -20,24 +20,12 @@ else
 fi
 
 DATA_DIR="$HOME/.cline-lms-adapter"
-mkdir -p "$DATA_DIR/settings"
-cat > "$DATA_DIR/settings/providers.json" << JSON
-{
-  "version": 1,
-  "lastUsedProvider": "openai-compatible",
-  "providers": {
-    "openai-compatible": {
-      "settings": {
-        "provider": "openai-compatible",
-        "apiKey": "$LMS_API_KEY",
-        "model": "$MODEL_ID",
-        "baseUrl": "$LMS_BASE_URL"
-      },
-      "tokenSource": "manual"
-    }
-  }
-}
-JSON
+# auth initialises the SQLite DBs and writes providers.json in one step.
+"$CLINE" auth openai-compatible \
+  --data-dir "$DATA_DIR" \
+  --apikey  "$LMS_API_KEY" \
+  --modelid "$MODEL_ID" \
+  --baseurl "$LMS_BASE_URL" >/dev/null 2>&1
 
 CLINE_ARGS=(
   --data-dir "$DATA_DIR"
