@@ -5,26 +5,27 @@
 | Field | Value |
 |-------|-------|
 | **Tool name** | Kilo Code |
-| **CLI command** | `kilocode` (likely) |
-| **Version** | unknown — not yet evaluated |
-| **Adapter script** | not yet written |
-| **How it connects** | TBD — Kilo Code is a Cline fork; likely shares the same openai-compatible provider architecture |
-| **Last reviewed** | never |
+| **CLI command** | `kilo` |
+| **npm package** | `@kilocode/cli` |
+| **Version** | 7.3.46 |
+| **Adapter script** | not written — not feasible (see Status) |
+| **How it connects** | N/A |
+| **Last reviewed** | 2026-06-18 |
 
 ## Status
 
-**not evaluated** — candidate for local model support.
+**not feasible** — kilo validates all model IDs against kilo.ai's cloud backend. Even with `OPENAI_BASE_URL` set, `kilo run --model openai/<anything>` errors with "Model not found" because the model list is fetched from kilo.ai, not the local endpoint. BYOK (bring-your-own-key) openai-compatible providers require interactive `kilo auth login -p openai-compatible` which writes credentials to a SQLite DB and authenticates via kilo.ai — not scriptable non-interactively.
+
+Kilo is cloud-first by design. Local model support is not exposed without going through their auth flow.
 
 ## Investigation notes
 
-Kilo Code is a fork of Cline. If it shares the same architecture, the adapter approach should be nearly identical to `adapters/cline-lms.sh`: write a `providers.json` into an isolated `--data-dir` pointing at LM Studio or Ollama.
+Investigated 2026-06-18:
 
-Things to check:
+- `kilo run -m openai/qwen3.6-35b-a3b --auto` with `OPENAI_BASE_URL=http://localhost:1234/v1` → "Model not found: openai/qwen3.6-35b-a3b" (kilo.ai validates the model list server-side)
+- `kilo models` shows only kilo.ai-registered models; no local/custom endpoint option
+- Config file (`~/.config/kilo/kilo.jsonc`) has `model` field but only accepts kilo.ai model IDs
+- BYOK openai-compatible provider exists in the bundle (`openai-compatible` in auth provider list) but requires interactive login that stores credentials in `~/.local/share/kilo/kilo.db` via kilo.ai's OAuth flow
+- No `--data-dir` flag (unlike cline); provider config is global and DB-backed
 
-- Install: check kilocode.ai or `npm install -g kilocode`
-- Does it accept `--data-dir` like cline?
-- Does it use the same `providers.json` format as cline (v1 with `openai-compatible` key)?
-- Does `--auto-approve true` work the same way for headless runs?
-- Any divergence from cline in the CLI flag interface?
-
-If the data-dir approach works, `adapters/kilocode-lms.sh` is a copy-paste of `adapters/cline-lms.sh` with `cline` replaced by `kilocode`.
+**If kilo adds local/offline provider support in a future version**, the adapter would likely be similar to cline: configure the openai-compatible provider non-interactively and pass `--auto` for unattended runs.
