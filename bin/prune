@@ -13,7 +13,6 @@ RUNTIME=all
 DRY_RUN=false
 INTERACTIVE=false
 
-LMS_MODELS_ROOT="${HOME}/.lmstudio/models"
 HF_CACHE="${HOME}/.cache/huggingface/hub"
 
 DIM='\033[2m'
@@ -65,8 +64,10 @@ fmt_bytes() {
 }
 
 fmt_age_s() {
-  local diff=$(( $(date +%s) - ${1:-0} ))
-  if   (( diff <= 0    )); then printf "unknown"
+  local s="${1:-0}"
+  (( s == 0 )) && { printf "—"; return; }
+  local diff=$(( $(date +%s) - s ))
+  if   (( diff <= 0    )); then printf "just now"
   elif (( diff < 3600  )); then printf "%dm ago" $(( diff / 60 ))
   elif (( diff < 86400 )); then printf "%dh ago" $(( diff / 3600 ))
   elif (( diff < 604800)); then printf "%dd ago" $(( diff / 86400 ))
@@ -83,27 +84,80 @@ dir_bytes()  { du -sk "$1" 2>/dev/null | awk '{print $1*1024}' || echo 0; }
 collect_lms() {
   command -v lms >/dev/null 2>&1 || { warn "lms not found — skipping lms runtime"; return; }
 
-  local ls_json ps_json
-  ls_json=$(lms ls --json 2>/dev/null || echo "[]")
-  ps_json=$(lms ps --json 2>/dev/null || echo "[]")
-  [[ "$ls_json" == "[]" ]] && return
+  # Python resolves modelKey → disk directory (same heuristic as bin/lms_update).
+  # Outputs TSV: key  size_bytes  last_used_s  disk_dir
+  python3 <<'PYEOF' | awk -F'\t' 'OFS="\t"{print "lms",$1,$2,$3,$4}'
+import json, re, subprocess, sys
+from pathlib import Path
 
-  local entries
-  entries=$(echo "$ls_json" | jq -r --argjson ps "$ps_json" '
-    ($ps | map({key: .modelKey, value: (.lastUsedTime // 0)}) | from_entries) as $lu |
-    .[] | [.modelKey, (.sizeBytes | tostring), .path, ($lu[.modelKey] // 0 | tostring)] | @tsv
-  ')
+try:
+    lms_models = json.loads(subprocess.check_output(["lms", "ls", "--json"], stderr=subprocess.DEVNULL))
+    ps_models  = json.loads(subprocess.check_output(["lms", "ps",  "--json"], stderr=subprocess.DEVNULL))
+except Exception:
+    sys.exit(0)
 
-  while IFS=$'\t' read -r key size path last_used_ms; do
-    local disk_path="${LMS_MODELS_ROOT}/${path}"
-    local last_used_s
-    if [[ "$last_used_ms" == "0" ]]; then
-      last_used_s=$(path_mtime "$disk_path")
-    else
-      last_used_s=$(( last_used_ms / 1000 ))
-    fi
-    echo "lms	$key	$size	$last_used_s	$disk_path"
-  done <<< "$entries"
+loaded      = {m["modelKey"]: m.get("lastUsedTime") or 0 for m in ps_models}
+models_root = Path.home() / ".lmstudio/models/lmstudio-community"
+cache_path  = Path.home() / ".lmstudio/.internal/gguf-metadata-cache.json"
+
+quant_map = {}
+for m in lms_models:
+    sv = m.get("selectedVariant", "")
+    quant_map[m["modelKey"]] = sv.split("@")[1].lower() if "@" in sv else ""
+is_mlx = {m["modelKey"]: m.get("format", "") == "safetensors" for m in lms_models}
+
+def score(hf_dir, key):
+    hf_t  = set(re.findall(r"[a-z0-9]+", hf_dir.lower()))
+    key_t = set(re.findall(r"[a-z0-9]+", key.lower()))
+    if ("qat" in hf_t) != ("qat" in key_t): return -1
+    if ("mlx" in hf_t) != is_mlx.get(key, False): return -1
+    return len(hf_t & key_t)
+
+key_to_dir = {}
+
+if cache_path.exists():
+    with open(cache_path) as f:
+        cache = json.load(f)
+    for path_str, _ in cache["json"]["map"]:
+        if "lmstudio-community" not in path_str: continue
+        rel    = path_str.split("lmstudio-community/")[1]
+        hf_dir = rel.split("/")[0]
+        fname  = Path(rel).name
+        m = re.search(r"[_-](Q\d[^._-]*(?:[_-][KkMm]+)*)\.gguf$", fname, re.IGNORECASE)
+        if not m: continue
+        quant = m.group(1).lower().replace("-", "_")
+        best, best_s = None, 0
+        for mod in lms_models:
+            k = mod["modelKey"]
+            if quant_map[k] != quant: continue
+            s = score(hf_dir, k)
+            if s > best_s: best_s, best = s, k
+        if best and best_s >= 3:
+            key_to_dir[best] = hf_dir
+
+if models_root.exists():
+    for dir_path in sorted(models_root.iterdir()):
+        hf_dir = dir_path.name
+        if any(v == hf_dir for v in key_to_dir.values()): continue
+        best, best_s = None, 0
+        for mod in lms_models:
+            s = score(hf_dir, mod["modelKey"])
+            if s > best_s: best_s, best = s, mod["modelKey"]
+        if best and best_s >= 3 and best not in key_to_dir:
+            key_to_dir[best] = hf_dir
+
+for m in lms_models:
+    key     = m["modelKey"]
+    size    = m.get("sizeBytes", 0)
+    hf_dir  = key_to_dir.get(key, "")
+    disk    = str(models_root / hf_dir) if hf_dir else ""
+    ts_ms   = loaded.get(key, 0)
+    if ts_ms == 0 and disk:
+        p = Path(disk)
+        if p.exists():
+            ts_ms = int(p.stat().st_mtime * 1000)
+    print(f"{key}\t{size}\t{int(ts_ms/1000)}\t{disk}")
+PYEOF
 }
 
 collect_ollama() {
@@ -135,6 +189,7 @@ collect_mlx() {
     if [[ "$model" == /* ]]; then
       dir="$model"
     else
+      # HuggingFace id: mlx-community/Foo → ~/.cache/huggingface/hub/models--mlx-community--Foo
       dir="${HF_CACHE}/models--${model//\//--}"
     fi
 
@@ -181,53 +236,54 @@ print_table() {
 
 # ── interactive fzf picker ────────────────────────────────────────────────────
 
-if $INTERACTIVE; then
+do_interactive() {
   command -v fzf >/dev/null 2>&1 || die "fzf not installed (brew install fzf)"
 
-  # Build fzf display lines — encode the row index at the end for recovery
-  fzf_lines=()
+  local fzf_lines=()
   while IFS=$'\t' read -r rt id size last_used_s _target; do
+    local size_str last_str
     size_str=$(fmt_bytes "$size")
     last_str=$(fmt_age_s "$last_used_s")
     fzf_lines+=("$(printf "%-8s  %-7s  %-10s  %s" "[$rt]" "$size_str" "$last_str" "$id")")
   done <<< "$entries_tsv"
 
+  local selected
   selected=$(printf '%s\n' "${fzf_lines[@]}" | \
     fzf --multi \
         --prompt='Remove > ' \
         --header='TAB = toggle  ENTER = confirm  ESC = cancel' \
         2>/dev/null || true)
 
-  [[ -z "$selected" ]] && { echo "Nothing selected."; exit 0; }
+  [[ -z "$selected" ]] && { echo "Nothing selected."; return; }
 
-  # Match selected lines back to TSV entries by model id (last field in display)
-  to_remove=()
+  # Recover TSV rows by matching model id (last field of each display line)
+  local to_remove=()
   while IFS= read -r line; do
-    # model id is the last space-delimited field
+    # id is the last whitespace-delimited token after the fixed columns
     local sel_id="${line##*  }"
-    sel_id="${sel_id#"${sel_id%%[![:space:]]*}"}"  # ltrim
-    while IFS=$'\t' read -r _rt row_id _size _ts target; do
-      [[ "$row_id" == "$sel_id" ]] && to_remove+=("$_rt	$row_id	$target") && break
+    sel_id="${sel_id#"${sel_id%%[![:space:]]*}"}"
+    local rt row_id size ts target
+    while IFS=$'\t' read -r rt row_id size ts target; do
+      [[ "$row_id" == "$sel_id" ]] && to_remove+=("$rt	$row_id	$target") && break
     done <<< "$entries_tsv"
   done <<< "$selected"
 
-  if (( ${#to_remove[@]} == 0 )); then
-    echo "Nothing matched."
-    exit 0
-  fi
+  (( ${#to_remove[@]} == 0 )) && { echo "Nothing matched."; return; }
 
-  # Compute padding for aligned OK/FAILED
-  max_len=0
+  # Align OK/FAILED column
+  local max_len=0
   for entry in "${to_remove[@]}"; do
-    IFS=$'\t' read -r rt id _target <<< "$entry"
-    plain="Removing [$rt] $id..."
+    local rt id _t
+    IFS=$'\t' read -r rt id _t <<< "$entry"
+    local plain="Removing [$rt] $id..."
     (( ${#plain} > max_len )) && max_len=${#plain}
   done
 
   for entry in "${to_remove[@]}"; do
+    local rt id target
     IFS=$'\t' read -r rt id target <<< "$entry"
-    plain="Removing [$rt] $id..."
-    pad=$(( max_len - ${#plain} ))
+    local plain="Removing [$rt] $id..."
+    local pad=$(( max_len - ${#plain} ))
 
     printf "${DIM}Removing${RESET} ${BOLD}[%s]${RESET} %s..." "$rt" "$id"
 
@@ -239,17 +295,21 @@ if $INTERACTIVE; then
     local ok=false
     case "$rt" in
       lms)
-        # Unload if resident, then delete the on-disk directory
-        if lms ps --json 2>/dev/null | jq -e --arg k "$id" '.[] | select(.modelKey==$k)' >/dev/null 2>&1; then
-          lms unload "$id" >/dev/null 2>&1 || true
+        if [[ -z "$target" ]]; then
+          ok=false
+        else
+          # Unload from memory first if resident
+          lms ps --json 2>/dev/null \
+            | jq -e --arg k "$id" '.[] | select(.modelKey==$k)' >/dev/null 2>&1 \
+            && lms unload "$id" >/dev/null 2>&1 || true
+          rm -rf "$target" && ok=true
         fi
-        [ -d "$target" ] && rm -rf "$target" && ok=true
         ;;
       ollama)
         ollama rm "$target" >/dev/null 2>&1 && ok=true
         ;;
       mlx)
-        [ -d "$target" ] && rm -rf "$target" && ok=true
+        [[ -d "$target" ]] && rm -rf "$target" && ok=true
         ;;
     esac
 
@@ -259,9 +319,13 @@ if $INTERACTIVE; then
       printf "%*s${RED_BOLD}FAILED${RESET}\n" $(( pad + 1 )) ""
     fi
   done
+}
 
+# ── main ──────────────────────────────────────────────────────────────────────
+
+if $INTERACTIVE; then
+  do_interactive
 else
-  # Plain listing mode
   $DRY_RUN && printf "${DIM}(dry-run — use --interactive to select models for removal)${RESET}\n\n"
   print_table
   echo
