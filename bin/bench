@@ -13,6 +13,8 @@
 #   --trials   N       repeat each (tool,model,case) N times; results.csv records
 #                      the MEDIAN score & seconds (run-to-run variance is material,
 #                      so a single trial is untrustworthy). default: 1
+#   --resume [RUN_ID]  resume a previous run; skip already-completed cases.
+#                      RUN_ID defaults to the most recent run if omitted.
 #   --list             print the resolved axes and exit
 #   --interactive/-i   fzf pickers for model and tool; skips a picker if that
 #                      flag was already given (e.g. --tool hermes -i only picks model)
@@ -34,6 +36,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
 trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
+trap '' PIPE  # don't die when stdout pipe breaks (e.g. bin/bench | tee)
 
 # ── Model aliases: cross-runtime short names ──────────────────────────────────
 # models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id
@@ -92,7 +95,7 @@ show_help() {
   read_list "$mfile" | sed 's/^/  /'
 }
 
-ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"
+ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --tool|-t)           ADAPTERS="$2"; shift 2;;
@@ -104,6 +107,9 @@ while [ $# -gt 0 ]; do
     --list)              LIST=1; shift;;
     --interactive|-i)    INTERACTIVE=1; shift;;
     --verbose|-v)        VERBOSE=1; shift;;
+    --resume)
+      if [[ "${2:-}" =~ ^[0-9]{8}-[0-9]{6}$ ]]; then RESUME="$2"; shift 2
+      else RESUME="latest"; shift; fi;;
     -h|--help)  show_help "$_help_runtime"; exit 0;;
     *) die "unknown option: $1";;
   esac
@@ -235,15 +241,35 @@ for _m in "${MODEL_ARR[@]}"; do
 done
 preflight_check_models "$RUNTIME" "${RESOLVED_MODEL_ARR[@]}"
 
-RUN_ID="$(date +%Y%m%d-%H%M%S)"
-RUN_DIR="$RESULTS_DIR/$RUN_ID"
-mkdir -p "$RUN_DIR"
-CSV="$RUN_DIR/results.csv"
-echo "adapter,model,case,pass,total,score,seconds,status,trials,runtime" > "$CSV"
+# Resolve --resume to an existing run, or start a fresh one.
+declare -A _DONE=()
+if [ -n "$RESUME" ]; then
+  if [ "$RESUME" = "latest" ]; then
+    RUN_ID="$(ls -dt "$RESULTS_DIR"/[0-9]*/ 2>/dev/null | head -1 | xargs -I{} basename {})"
+    [ -z "$RUN_ID" ] && die "no previous run found to resume"
+  else
+    RUN_ID="$RESUME"
+  fi
+  RUN_DIR="$RESULTS_DIR/$RUN_ID"
+  [ -d "$RUN_DIR" ] || die "run $RUN_ID not found in $RESULTS_DIR"
+  CSV="$RUN_DIR/results.csv"
+  [ -f "$CSV" ] || die "no results.csv in $RUN_DIR"
+  while IFS=, read -r _a _m _c _rest; do
+    [ "$_a" = adapter ] && continue
+    _DONE["$_a,$_m,$_c"]=1
+  done < "$CSV"
+  info "resuming run $RUN_ID — skipping ${#_DONE[@]} already-completed cases"
+else
+  RUN_ID="$(date +%Y%m%d-%H%M%S)"
+  RUN_DIR="$RESULTS_DIR/$RUN_ID"
+  mkdir -p "$RUN_DIR"
+  CSV="$RUN_DIR/results.csv"
+  echo "adapter,model,case,pass,total,score,seconds,status,trials,runtime" > "$CSV"
+fi
 # Per-trial detail (one row per trial) kept alongside the median summary so the
 # variance behind each median stays inspectable.
 TRIALS_CSV="$RUN_DIR/trials.csv"
-[ "$TRIALS" -gt 1 ] && echo "adapter,model,case,trial,pass,total,score,seconds,status" > "$TRIALS_CSV"
+[ "$TRIALS" -gt 1 ] && [ ! -f "$TRIALS_CSV" ] && echo "adapter,model,case,trial,pass,total,score,seconds,status" > "$TRIALS_CSV"
 
 # Collect run configuration + system snapshot into run.json so results are
 # reproducible and comparable across machines / BENCH_PARALLEL settings.
@@ -314,7 +340,7 @@ write_run_meta() {
 EOF
 }
 
-write_run_meta "$RUN_DIR/run.json"
+[ ! -f "$RUN_DIR/run.json" ] && write_run_meta "$RUN_DIR/run.json"
 
 info "run $RUN_ID  —  ${#ADAPTER_ARR[@]} adapters x ${#MODEL_ARR[@]} models x ${#CASE_ARR[@]} cases x ${TRIALS} trial(s)  --parallel $BENCH_PARALLEL"
 echo
@@ -409,6 +435,12 @@ for model_alias in "${MODEL_ARR[@]}"; do
       [ -f "$case_src/meta.json" ] || { warn "no case $case_id — skipping"; continue; }
 
       base_sandbox="$RUN_DIR/sandbox/$adapter/$(fs_safe "$model_alias")/$case_id"
+
+      # Skip if already completed in a resumed run.
+      if [ -n "${_DONE[$adapter,$model_alias,$case_id]+x}" ]; then
+        echo "${C_DIM}  skip (done) $adapter | $model_alias | $case_id${C_RST}"
+        continue
+      fi
 
       # --- run N trials, collecting per-trial pass/seconds/status ----------
       scores=(); secs=(); statuses=(); total=0; n_ok=0
