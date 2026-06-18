@@ -1,90 +1,332 @@
 #!/usr/bin/env bash
-# bin/outdated — check whether local LM Studio models are behind HuggingFace.
+# bin/outdated — check whether locally installed models are behind their upstream.
 #
-# For each model directory under ~/.lmstudio/models/lmstudio-community/, queries
-# the HF API for lastModified and compares against the newest local file's mtime.
-# Reports STALE (HF is newer), ok (local is current), or skips incomplete downloads.
+# Usage: bin/outdated [--help] [--verbose] [--runtime lms,ollama,mlx]
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
-MODELS_ROOT="${HOME}/.lmstudio/models/lmstudio-community"
-HF_ORG="lmstudio-community"
-HF_API="https://huggingface.co/api/models/${HF_ORG}"
+# ── arg parsing ──────────────────────────────────────────────────────────────
+VERBOSE=0
+RUNTIMES="lms,ollama,mlx"
 
-[ -d "$MODELS_ROOT" ] || die "models dir not found: $MODELS_ROOT"
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [OPTIONS]
 
-stale=0; up_to_date=0; skipped=0; errors=0
+Check whether locally installed models are behind their upstream source.
 
-printf "  %-45s  %-7s  %-10s  %s\n" "MODEL" "STATUS" "LOCAL" "HF"
-printf "  %s\n" "$(printf '%.0s-' {1..75})"
+Options:
+  --runtime LIST   Comma-separated runtimes to check (default: lms,ollama,mlx)
+  --verbose        Show extra debug info (API responses, skipped dirs)
+  --help           Show this help
 
-for dir in "$MODELS_ROOT"/*/; do
-  name="$(basename "$dir")"
+Runtimes:
+  lms     LM Studio — scans ~/.lmstudio/models/lmstudio-community/
+          and compares each model against the HuggingFace API lastModified date.
 
-  # Skip incomplete downloads (any .part files present)
-  if find "$dir" -maxdepth 2 -name "*.part" 2>/dev/null | grep -q .; then
-    printf "  %-45s  ${C_DIM}%-7s${C_RST}\n" "$name" "partial"
-    (( skipped++ )) || true
-    continue
-  fi
+  ollama  Ollama — reads \`ollama list\` and compares each model's local digest
+          against the Ollama registry manifest digest.  If they differ the
+          model is STALE.  Re-pull with: ollama pull <name>
 
-  # Newest local file mtime as epoch seconds
-  local_epoch="$(find "$dir" -type f 2>/dev/null \
-    | xargs stat -f "%m" 2>/dev/null \
-    | sort -rn | head -1)"
-  if [ -z "$local_epoch" ]; then
-    printf "  %-45s  ${C_DIM}%-7s${C_RST}\n" "$name" "empty"
-    (( skipped++ )) || true
-    continue
-  fi
+  mlx     MLX models cached via HuggingFace hub (~/.cache/huggingface/hub/).
+          Only mlx-community models are checked.  Compared against the
+          HuggingFace API lastModified date.  Re-download with:
+            mlx_lm.manage --update mlx-community/<model>
+          or just delete the cached dir and let the tool re-pull on next use.
 
-  # Query HF API
-  hf_json="$(curl -sf --max-time 10 "${HF_API}/${name}" 2>/dev/null || true)"
-  if [ -z "$hf_json" ]; then
-    printf "  %-45s  ${C_YEL}%-7s${C_RST}  (HF API unreachable)\n" "$name" "?"
-    (( errors++ )) || true
-    sleep 0.5
-    continue
-  fi
+Exit codes:
+  0  All checked models are up to date (or none found)
+  1  One or more stale models detected
 
-  hf_ts="$(printf '%s' "$hf_json" \
-    | python3 -c "import json,sys; print(json.load(sys.stdin).get('lastModified',''))" 2>/dev/null || true)"
-  if [ -z "$hf_ts" ]; then
-    printf "  %-45s  ${C_DIM}%-7s${C_RST}  (no lastModified in response)\n" "$name" "?"
-    (( skipped++ )) || true
-    sleep 0.3
-    continue
-  fi
+Examples:
+  bin/outdated
+  bin/outdated --runtime ollama
+  bin/outdated --runtime lms,mlx
+  bin/outdated --verbose --runtime ollama
+  bin/outdated --runtime lms --verbose
+EOF
+}
 
-  # Convert HF ISO-8601 timestamp to epoch for comparison
-  hf_epoch="$(python3 -c \
-    "from datetime import datetime; print(int(datetime.fromisoformat('${hf_ts}'.replace('Z','+00:00')).timestamp()))" \
-    2>/dev/null || true)"
-  if [ -z "$hf_epoch" ]; then
-    printf "  %-45s  ${C_YEL}%-7s${C_RST}  (date parse error: ${hf_ts})\n" "$name" "?"
-    (( errors++ )) || true
-    sleep 0.3
-    continue
-  fi
-
-  local_date="$(date -r "$local_epoch" "+%Y-%m-%d")"
-  hf_date="${hf_ts:0:10}"
-
-  if [ "$hf_epoch" -gt "$local_epoch" ]; then
-    printf "  %-45s  ${C_RED}%-7s${C_RST}  %-10s  %s\n" "$name" "STALE" "$local_date" "$hf_date"
-    (( stale++ )) || true
-  else
-    printf "  %-45s  ${C_GRN}%-7s${C_RST}  %-10s  %s\n" "$name" "ok" "$local_date" "$hf_date"
-    (( up_to_date++ )) || true
-  fi
-
-  sleep 0.3  # be gentle with HF API
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)    usage; exit 0 ;;
+    --verbose|-v) VERBOSE=1; shift ;;
+    --runtime)    RUNTIMES="${2:?--runtime requires a value}"; shift 2 ;;
+    --runtime=*)  RUNTIMES="${1#--runtime=}"; shift ;;
+    *)            die "Unknown option: $1  (try --help)" ;;
+  esac
 done
 
+runtime_enabled() { [[ ",$RUNTIMES," == *",$1,"* ]]; }
+
+# ── shared helpers ───────────────────────────────────────────────────────────
+HF_API_BASE="https://huggingface.co/api/models"
+GLOBAL_STALE=0
+
+hf_last_modified() {
+  local org="$1" model="$2"
+  local json
+  json="$(curl -sf --max-time 10 "${HF_API_BASE}/${org}/${model}" 2>/dev/null || true)"
+  [ "$VERBOSE" = "1" ] && [ -n "$json" ] && printf '  %s[verbose hf]%s %s\n' "$C_DIM" "$C_RST" "$json" >&2
+  [ -n "$json" ] || { printf ''; return; }
+  printf '%s' "$json" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('lastModified',''))" 2>/dev/null || true
+}
+
+iso_to_epoch() {
+  python3 -c \
+    "from datetime import datetime; print(int(datetime.fromisoformat('$1'.replace('Z','+00:00')).timestamp()))" \
+    2>/dev/null || true
+}
+
+print_rt_header() {
+  local rt="$1"
+  printf "\n  ${C_BLD}[%s]${C_RST}\n" "$rt"
+  printf "  %-48s  %-7s  %-10s  %s\n" "MODEL" "STATUS" "LOCAL" "UPSTREAM"
+  printf "  %s\n" "$(printf '%.0s-' {1..78})"
+}
+
+# ── LM Studio ───────────────────────────────────────────────────────────────
+check_lms() {
+  local models_root="${HOME}/.lmstudio/models/lmstudio-community"
+  local hf_org="lmstudio-community"
+  local stale=0 ok=0 skipped=0 errors=0
+
+  if [ ! -d "$models_root" ]; then
+    warn "lms: models dir not found: $models_root"
+    return
+  fi
+
+  print_rt_header "lms"
+
+  for dir in "$models_root"/*/; do
+    [ -d "$dir" ] || continue
+    local name; name="$(basename "$dir")"
+
+    if find "$dir" -maxdepth 2 -name "*.part" 2>/dev/null | grep -q .; then
+      printf "  %-48s  ${C_DIM}%-7s${C_RST}\n" "$name" "partial"
+      (( skipped++ )) || true; continue
+    fi
+
+    local local_epoch
+    local_epoch="$(find "$dir" -type f 2>/dev/null \
+      | xargs stat -f "%m" 2>/dev/null | sort -rn | head -1)"
+    if [ -z "$local_epoch" ]; then
+      printf "  %-48s  ${C_DIM}%-7s${C_RST}\n" "$name" "empty"
+      (( skipped++ )) || true; continue
+    fi
+
+    local hf_ts; hf_ts="$(hf_last_modified "$hf_org" "$name")"
+    if [ -z "$hf_ts" ]; then
+      printf "  %-48s  ${C_YEL}%-7s${C_RST}  (HF API unreachable)\n" "$name" "?"
+      (( errors++ )) || true; sleep 0.5; continue
+    fi
+
+    local hf_epoch; hf_epoch="$(iso_to_epoch "$hf_ts")"
+    if [ -z "$hf_epoch" ]; then
+      printf "  %-48s  ${C_YEL}%-7s${C_RST}  (date parse error: %s)\n" "$name" "?" "$hf_ts"
+      (( errors++ )) || true; sleep 0.3; continue
+    fi
+
+    local local_date hf_date
+    local_date="$(date -r "$local_epoch" "+%Y-%m-%d")"
+    hf_date="${hf_ts:0:10}"
+
+    if [ "$hf_epoch" -gt "$local_epoch" ]; then
+      printf "  %-48s  ${C_RED}%-7s${C_RST}  %-10s  %s\n" "$name" "STALE" "$local_date" "$hf_date"
+      (( stale++ )) || true
+    else
+      printf "  %-48s  ${C_GRN}%-7s${C_RST}  %-10s  %s\n" "$name" "ok" "$local_date" "$hf_date"
+      (( ok++ )) || true
+    fi
+    sleep 0.3
+  done
+
+  printf "\n  lms: %d stale  %d ok  %d skipped  %d errors\n" "$stale" "$ok" "$skipped" "$errors"
+  if [ "$stale" -gt 0 ]; then
+    printf "  ${C_DIM}Re-download: lms get lmstudio-community/<name>${C_RST}\n"
+    GLOBAL_STALE=$(( GLOBAL_STALE + stale ))
+  fi
+}
+
+# ── Ollama ───────────────────────────────────────────────────────────────────
+check_ollama() {
+  if ! command -v ollama >/dev/null 2>&1; then
+    warn "ollama: binary not found — skipping"
+    return
+  fi
+
+  local stale=0 ok=0 skipped=0 errors=0
+
+  # Collect models first so we can skip the header if there are none
+  local -a model_lines=()
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    model_lines+=("$line")
+  done < <(ollama list 2>/dev/null | tail -n +2)
+
+  if [ "${#model_lines[@]}" -eq 0 ]; then
+    [ "$VERBOSE" = "1" ] && warn "ollama: no models installed"
+    return
+  fi
+
+  print_rt_header "ollama"
+
+  for line in "${model_lines[@]}"; do
+    local full_name local_id
+    full_name="$(awk '{print $1}' <<< "$line")"
+    local_id="$(awk '{print $2}' <<< "$line")"   # 12-char digest prefix
+    [ -z "$full_name" ] && continue
+
+    local model_base tag namespace
+    model_base="${full_name%%:*}"
+    tag="${full_name##*:}"
+    [ "$tag" = "$model_base" ] && tag="latest"
+
+    # Split optional namespace (e.g. "user/model" vs "phi4")
+    if [[ "$model_base" == */* ]]; then
+      namespace="${model_base%%/*}"
+      model_base="${model_base#*/}"
+    else
+      namespace="library"
+    fi
+
+    # Fetch registry manifest digest (OCI)
+    local reg_url="https://registry.ollama.ai/v2/${namespace}/${model_base}/manifests/${tag}"
+    local reg_headers reg_http
+    reg_headers="$(curl -sfI --max-time 10 --write-out '\nHTTP_STATUS:%{http_code}' \
+      -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+      "$reg_url" 2>/dev/null || true)"
+    reg_http="$(printf '%s' "$reg_headers" | grep "HTTP_STATUS:" | sed 's/.*HTTP_STATUS://')"
+    [ "$VERBOSE" = "1" ] && printf '  %s[verbose ollama] http=%s%s\n' "$C_DIM" "$reg_http" "$C_RST" >&2
+
+    if [ "$reg_http" = "404" ]; then
+      printf "  %-48s  ${C_DIM}%-7s${C_RST}  (local modelfile, not in registry)\n" "$full_name" "local"
+      (( skipped++ )) || true; sleep 0.1; continue
+    fi
+    if [ -z "$reg_headers" ] || [ -z "$reg_http" ] || [ "$reg_http" != "200" ]; then
+      printf "  %-48s  ${C_YEL}%-7s${C_RST}  (registry unreachable)\n" "$full_name" "?"
+      (( errors++ )) || true; sleep 0.3; continue
+    fi
+
+    # ollama-content-digest: <sha256hex>  (no "sha256:" prefix)
+    local reg_digest reg_push_time
+    reg_digest="$(printf '%s' "$reg_headers" \
+      | grep -i "ollama-content-digest" | awk '{print $2}' | tr -d '[:space:]')"
+    reg_push_time="$(printf '%s' "$reg_headers" \
+      | grep -i "ollama-push-time" | awk '{print $2}' | tr -d '[:space:]')"
+    [ "$VERBOSE" = "1" ] && printf '  %s[verbose ollama] local=%s reg=%s%s\n' \
+      "$C_DIM" "$local_id" "${reg_digest:0:12}" "$C_RST" >&2
+
+    if [ -z "$reg_digest" ]; then
+      printf "  %-48s  ${C_YEL}%-7s${C_RST}  (no digest in registry response)\n" "$full_name" "?"
+      (( errors++ )) || true; sleep 0.3; continue
+    fi
+
+    local reg_date=""
+    if [ -n "$reg_push_time" ]; then
+      reg_date="$(date -r "$reg_push_time" "+%Y-%m-%d" 2>/dev/null || true)"
+    fi
+
+    # Compare: local_id is 12-char prefix of the full sha256 digest
+    local reg_prefix="${reg_digest:0:12}"
+    if [ "$local_id" = "$reg_prefix" ]; then
+      printf "  %-48s  ${C_GRN}%-7s${C_RST}  %s\n" "$full_name" "ok" "$local_id"
+      (( ok++ )) || true
+    else
+      printf "  %-48s  ${C_RED}%-7s${C_RST}  local:%-12s  reg:%-12s  %s\n" \
+        "$full_name" "STALE" "$local_id" "$reg_prefix" "$reg_date"
+      (( stale++ )) || true
+    fi
+    sleep 0.2
+  done
+
+  printf "\n  ollama: %d stale  %d ok  %d errors\n" "$stale" "$ok" "$errors"
+  if [ "$stale" -gt 0 ]; then
+    printf "  ${C_DIM}Re-pull stale models: ollama pull <name>${C_RST}\n"
+    GLOBAL_STALE=$(( GLOBAL_STALE + stale ))
+  fi
+}
+
+# ── MLX (HuggingFace hub cache) ──────────────────────────────────────────────
+check_mlx() {
+  local hf_cache="${HOME}/.cache/huggingface/hub"
+  local hf_org="mlx-community"
+  local stale=0 ok=0 skipped=0 errors=0
+
+  if [ ! -d "$hf_cache" ]; then
+    [ "$VERBOSE" = "1" ] && warn "mlx: HF hub cache not found: $hf_cache"
+    return
+  fi
+
+  # Collect matching dirs first to skip header when nothing found
+  local -a cache_dirs=()
+  while IFS= read -r d; do
+    cache_dirs+=("$d")
+  done < <(find "$hf_cache" -maxdepth 1 -type d -name "models--${hf_org}--*" 2>/dev/null | sort)
+
+  if [ "${#cache_dirs[@]}" -eq 0 ]; then
+    [ "$VERBOSE" = "1" ] && warn "mlx: no mlx-community models found in $hf_cache"
+    return
+  fi
+
+  print_rt_header "mlx"
+
+  for cache_dir in "${cache_dirs[@]}"; do
+    local dir_name; dir_name="$(basename "$cache_dir")"
+    local model_name="${dir_name#models--${hf_org}--}"
+
+    local local_epoch
+    local_epoch="$(find "$cache_dir" -type f 2>/dev/null \
+      | xargs stat -f "%m" 2>/dev/null | sort -rn | head -1)"
+    if [ -z "$local_epoch" ]; then
+      printf "  %-48s  ${C_DIM}%-7s${C_RST}\n" "$model_name" "empty"
+      (( skipped++ )) || true; continue
+    fi
+
+    local hf_ts; hf_ts="$(hf_last_modified "$hf_org" "$model_name")"
+    if [ -z "$hf_ts" ]; then
+      printf "  %-48s  ${C_YEL}%-7s${C_RST}  (HF API unreachable)\n" "$model_name" "?"
+      (( errors++ )) || true; sleep 0.5; continue
+    fi
+
+    local hf_epoch; hf_epoch="$(iso_to_epoch "$hf_ts")"
+    if [ -z "$hf_epoch" ]; then
+      printf "  %-48s  ${C_YEL}%-7s${C_RST}  (date parse error)\n" "$model_name" "?"
+      (( errors++ )) || true; sleep 0.3; continue
+    fi
+
+    local local_date hf_date
+    local_date="$(date -r "$local_epoch" "+%Y-%m-%d")"
+    hf_date="${hf_ts:0:10}"
+
+    if [ "$hf_epoch" -gt "$local_epoch" ]; then
+      printf "  %-48s  ${C_RED}%-7s${C_RST}  %-10s  %s\n" "$model_name" "STALE" "$local_date" "$hf_date"
+      (( stale++ )) || true
+    else
+      printf "  %-48s  ${C_GRN}%-7s${C_RST}  %-10s  %s\n" "$model_name" "ok" "$local_date" "$hf_date"
+      (( ok++ )) || true
+    fi
+    sleep 0.3
+  done
+
+  printf "\n  mlx: %d stale  %d ok  %d skipped  %d errors\n" "$stale" "$ok" "$skipped" "$errors"
+  if [ "$stale" -gt 0 ]; then
+    printf "  ${C_DIM}Re-download: delete ~/.cache/huggingface/hub/models--mlx-community--<name> and re-run tool${C_RST}\n"
+    GLOBAL_STALE=$(( GLOBAL_STALE + stale ))
+  fi
+}
+
+# ── dispatch ─────────────────────────────────────────────────────────────────
+runtime_enabled lms    && check_lms
+runtime_enabled ollama && check_ollama
+runtime_enabled mlx    && check_mlx
+
 echo
-printf "  %d stale  %d ok  %d skipped  %d errors\n" \
-  "$stale" "$up_to_date" "$skipped" "$errors"
-if [ "$stale" -gt 0 ]; then
-  echo "  ${C_DIM}Re-download stale models with:  lms get ${HF_ORG}/<name>${C_RST}"
+if [ "$GLOBAL_STALE" -gt 0 ]; then
+  printf "  ${C_RED}%d stale model(s) found across all runtimes.${C_RST}\n" "$GLOBAL_STALE"
+  exit 1
+else
+  printf "  ${C_GRN}All checked models are up to date.${C_RST}\n"
 fi
