@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# bin/prune — list and permanently remove downloaded models.
+# Supports lms (LM Studio), ollama, and mlx runtimes.
+# Listing is safe; deletion requires --interactive (fzf picker).
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+
+RUNTIME=all
+DRY_RUN=false
+INTERACTIVE=false
+
+LMS_MODELS_ROOT="${HOME}/.lmstudio/models"
+HF_CACHE="${HOME}/.cache/huggingface/hub"
+
+DIM='\033[2m'
+BOLD='\033[1m'
+GREEN_BOLD='\033[1;32m'
+RED_BOLD='\033[1;31m'
+RESET='\033[0m'
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [options]
+
+List and permanently remove downloaded models.
+Without --interactive, prints a table and exits (no deletion).
+
+Options:
+  --runtime=RT        Filter to a single runtime: lms, ollama, mlx, all (default: all)
+  -i, --interactive   Pick models to remove via fzf, then delete
+  --dry-run           With --interactive: preview what would be removed
+  -h, --help          Show this help
+
+Last-used sources:
+  lms     Loaded models: from lms ps --json (lastUsedTime); unloaded: dir mtime
+  ollama  Manifest file mtime
+  mlx     Model dir mtime
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --runtime=*)       RUNTIME="${arg#--runtime=}" ;;
+    -i|--interactive)  INTERACTIVE=true ;;
+    --dry-run)         DRY_RUN=true ;;
+    --help|-h)         usage; exit 0 ;;
+    *) echo "Unknown option: $arg" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+case "$RUNTIME" in lms|ollama|mlx|all) ;; *) die "unknown runtime: $RUNTIME" ;; esac
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+fmt_bytes() {
+  awk -v b="$1" 'BEGIN{
+    if (b>=1073741824) printf "%.1fG", b/1073741824
+    else if (b>=1048576) printf "%.1fM", b/1048576
+    else printf "%dK", b/1024
+  }'
+}
+
+fmt_age_s() {
+  local diff=$(( $(date +%s) - ${1:-0} ))
+  if   (( diff <= 0    )); then printf "unknown"
+  elif (( diff < 3600  )); then printf "%dm ago" $(( diff / 60 ))
+  elif (( diff < 86400 )); then printf "%dh ago" $(( diff / 3600 ))
+  elif (( diff < 604800)); then printf "%dd ago" $(( diff / 86400 ))
+  else                          printf "%dw ago" $(( diff / 604800 ))
+  fi
+}
+
+path_mtime() { stat -f "%m" "$1" 2>/dev/null || echo 0; }
+dir_bytes()  { du -sk "$1" 2>/dev/null | awk '{print $1*1024}' || echo 0; }
+
+# ── collectors ────────────────────────────────────────────────────────────────
+# Each outputs TSV rows: runtime<TAB>model_id<TAB>size_bytes<TAB>last_used_s<TAB>delete_target
+
+collect_lms() {
+  command -v lms >/dev/null 2>&1 || { warn "lms not found — skipping lms runtime"; return; }
+
+  local ls_json ps_json
+  ls_json=$(lms ls --json 2>/dev/null || echo "[]")
+  ps_json=$(lms ps --json 2>/dev/null || echo "[]")
+  [[ "$ls_json" == "[]" ]] && return
+
+  local entries
+  entries=$(echo "$ls_json" | jq -r --argjson ps "$ps_json" '
+    ($ps | map({key: .modelKey, value: (.lastUsedTime // 0)}) | from_entries) as $lu |
+    .[] | [.modelKey, (.sizeBytes | tostring), .path, ($lu[.modelKey] // 0 | tostring)] | @tsv
+  ')
+
+  while IFS=$'\t' read -r key size path last_used_ms; do
+    local disk_path="${LMS_MODELS_ROOT}/${path}"
+    local last_used_s
+    if [[ "$last_used_ms" == "0" ]]; then
+      last_used_s=$(path_mtime "$disk_path")
+    else
+      last_used_s=$(( last_used_ms / 1000 ))
+    fi
+    echo "lms	$key	$size	$last_used_s	$disk_path"
+  done <<< "$entries"
+}
+
+collect_ollama() {
+  command -v ollama >/dev/null 2>&1 || { warn "ollama not found — skipping ollama runtime"; return; }
+
+  local manifest_root="${HOME}/.ollama/models/manifests"
+
+  ollama list 2>/dev/null | awk 'NR>1' | while read -r name _id size unit _rest; do
+    local size_bytes=0
+    case "$unit" in
+      GB) size_bytes=$(awk -v s="$size" 'BEGIN{printf "%.0f", s*1073741824}') ;;
+      MB) size_bytes=$(awk -v s="$size" 'BEGIN{printf "%.0f", s*1048576}') ;;
+    esac
+    local tag="${name##*:}" ns="${name%%:*}"
+    local mpath
+    mpath=$(find "$manifest_root" -name "$tag" -path "*/${ns}/*" 2>/dev/null | head -1 || true)
+    local last_used_s=0
+    [ -n "$mpath" ] && last_used_s=$(path_mtime "$mpath")
+    echo "ollama	$name	$size_bytes	$last_used_s	$name"
+  done
+}
+
+collect_mlx() {
+  local models_file="${HERE}/models-mlx.txt"
+  [ -f "$models_file" ] || { warn "models-mlx.txt not found — skipping mlx runtime"; return; }
+
+  while IFS= read -r model; do
+    local dir
+    if [[ "$model" == /* ]]; then
+      dir="$model"
+    else
+      dir="${HF_CACHE}/models--${model//\//--}"
+    fi
+
+    local size_bytes=0 last_used_s=0
+    if [ -d "$dir" ]; then
+      size_bytes=$(dir_bytes "$dir")
+      last_used_s=$(path_mtime "$dir")
+    fi
+    echo "mlx	$model	$size_bytes	$last_used_s	$dir"
+  done < <(read_list "$models_file")
+}
+
+# ── gather all entries ────────────────────────────────────────────────────────
+# TSV: runtime  model_id  size_bytes  last_used_s  delete_target
+
+gather_entries() {
+  case "$RUNTIME" in
+    lms)    collect_lms ;;
+    ollama) collect_ollama ;;
+    mlx)    collect_mlx ;;
+    all)    collect_lms; collect_ollama; collect_mlx ;;
+  esac
+}
+
+entries_tsv=$(gather_entries)
+
+if [[ -z "$entries_tsv" ]]; then
+  echo "No models found."
+  exit 0
+fi
+
+# ── display table ─────────────────────────────────────────────────────────────
+
+print_table() {
+  printf "${BOLD}%-8s  %-7s  %-10s  %s${RESET}\n" "Runtime" "Size" "Last used" "Model"
+  printf '%0.s─' {1..80}; echo
+  while IFS=$'\t' read -r rt id size last_used_s _target; do
+    local size_str last_str
+    size_str=$(fmt_bytes "$size")
+    last_str=$(fmt_age_s "$last_used_s")
+    printf "%-8s  %-7s  %-10s  %s\n" "[$rt]" "$size_str" "$last_str" "$id"
+  done <<< "$entries_tsv"
+}
+
+# ── interactive fzf picker ────────────────────────────────────────────────────
+
+if $INTERACTIVE; then
+  command -v fzf >/dev/null 2>&1 || die "fzf not installed (brew install fzf)"
+
+  # Build fzf display lines — encode the row index at the end for recovery
+  fzf_lines=()
+  while IFS=$'\t' read -r rt id size last_used_s _target; do
+    size_str=$(fmt_bytes "$size")
+    last_str=$(fmt_age_s "$last_used_s")
+    fzf_lines+=("$(printf "%-8s  %-7s  %-10s  %s" "[$rt]" "$size_str" "$last_str" "$id")")
+  done <<< "$entries_tsv"
+
+  selected=$(printf '%s\n' "${fzf_lines[@]}" | \
+    fzf --multi \
+        --prompt='Remove > ' \
+        --header='TAB = toggle  ENTER = confirm  ESC = cancel' \
+        2>/dev/null || true)
+
+  [[ -z "$selected" ]] && { echo "Nothing selected."; exit 0; }
+
+  # Match selected lines back to TSV entries by model id (last field in display)
+  to_remove=()
+  while IFS= read -r line; do
+    # model id is the last space-delimited field
+    local sel_id="${line##*  }"
+    sel_id="${sel_id#"${sel_id%%[![:space:]]*}"}"  # ltrim
+    while IFS=$'\t' read -r _rt row_id _size _ts target; do
+      [[ "$row_id" == "$sel_id" ]] && to_remove+=("$_rt	$row_id	$target") && break
+    done <<< "$entries_tsv"
+  done <<< "$selected"
+
+  if (( ${#to_remove[@]} == 0 )); then
+    echo "Nothing matched."
+    exit 0
+  fi
+
+  # Compute padding for aligned OK/FAILED
+  max_len=0
+  for entry in "${to_remove[@]}"; do
+    IFS=$'\t' read -r rt id _target <<< "$entry"
+    plain="Removing [$rt] $id..."
+    (( ${#plain} > max_len )) && max_len=${#plain}
+  done
+
+  for entry in "${to_remove[@]}"; do
+    IFS=$'\t' read -r rt id target <<< "$entry"
+    plain="Removing [$rt] $id..."
+    pad=$(( max_len - ${#plain} ))
+
+    printf "${DIM}Removing${RESET} ${BOLD}[%s]${RESET} %s..." "$rt" "$id"
+
+    if $DRY_RUN; then
+      printf "%*s${GREEN_BOLD}dry-run${RESET}\n" $(( pad + 1 )) ""
+      continue
+    fi
+
+    local ok=false
+    case "$rt" in
+      lms)
+        # Unload if resident, then delete the on-disk directory
+        if lms ps --json 2>/dev/null | jq -e --arg k "$id" '.[] | select(.modelKey==$k)' >/dev/null 2>&1; then
+          lms unload "$id" >/dev/null 2>&1 || true
+        fi
+        [ -d "$target" ] && rm -rf "$target" && ok=true
+        ;;
+      ollama)
+        ollama rm "$target" >/dev/null 2>&1 && ok=true
+        ;;
+      mlx)
+        [ -d "$target" ] && rm -rf "$target" && ok=true
+        ;;
+    esac
+
+    if $ok; then
+      printf "%*s${GREEN_BOLD}OK${RESET}\n" $(( pad + 1 )) ""
+    else
+      printf "%*s${RED_BOLD}FAILED${RESET}\n" $(( pad + 1 )) ""
+    fi
+  done
+
+else
+  # Plain listing mode
+  $DRY_RUN && printf "${DIM}(dry-run — use --interactive to select models for removal)${RESET}\n\n"
+  print_table
+  echo
+  total=$(echo "$entries_tsv" | wc -l | tr -d ' ')
+  total_bytes=$(echo "$entries_tsv" | awk -F'\t' '{sum+=$3} END{print sum+0}')
+  printf "${DIM}%d models, %s total${RESET}\n" "$total" "$(fmt_bytes "$total_bytes")"
+fi
