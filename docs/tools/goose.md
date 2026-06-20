@@ -50,7 +50,23 @@ brew install block/tap/goose
 
 ## Status
 
-**under-evaluation** — smoke-tested 2026-06-18 (lms runtime). 9/10 cases pass; qwen3.5-9b fails `smoke-01-edit-file` (PARTIAL — reached the model but produced no edit). All larger models pass 100%. Full benchmark with `qwen/qwen3.6-35b-a3b` in progress.
+**stable** — full 10-case benchmark completed 2026-06-18 (lms runtime, `qwen/qwen3.6-35b-a3b`): 36/36 points (1.00).
+
+### Full benchmark results (2026-06-18, lms, run `20260618-190652`)
+
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| bash-01-topwords | 4/4 (1.00) | 47s | ok |
+| js-01-slugify-bug | 4/4 (1.00) | 42s | ok |
+| js-02-debounce-feature | 4/4 (1.00) | 52s | ok |
+| js-03-multifile-cache | 5/5 (1.00) | 51s | ok |
+| js-04-multifile-rename | 3/3 (1.00) | 43s | ok |
+| js-05-multiselect-filter | 5/5 (1.00) | 86s | ok |
+| js-06-lint-and-test | 4/4 (1.00) | 110s | ok |
+| smoke-00-hello | 2/2 (1.00) | 19s | ok |
+| smoke-01-edit-file | 2/2 (1.00) | 18s | ok |
+| ts-01-groupby | 3/3 (1.00) | 54s | ok |
+| **Total** | **36/36 (1.00)** | | |
 
 ### Smoke results (2026-06-18, lms)
 

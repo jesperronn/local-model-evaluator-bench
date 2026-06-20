@@ -38,11 +38,40 @@ Open Interpreter's code-execution loop is inherently iterative — the model see
 
 ## Known issues
 
-**Needs full benchmark run:** only smoke-tested so far (see Status). The code-execution edit approach may behave differently from patch-based adapters on real coding cases — worth verifying on js-01 through ts-01 to understand failure modes.
+**Code quality for file edits:** unlike diff-based adapters, Open Interpreter writes code to edit files (e.g. Python `pathlib` writes or shell `sed`). If the model generates correct logic but incorrect file-write code, edits may corrupt the target file rather than fail cleanly.
+
+## Test suite inclusion
+
+**Excluded from `DEFAULT_ADAPTERS` and routine smoke runs.**
+
+Open Interpreter has significant cold-start overhead: Python/OI initialisation adds 15–30 s to every run before the model even sees the prompt. This makes it slow as a default in the smoke suite (where speed of diagnosis matters) and inflates wall-clock time in full bench runs. To include it in a run, pass it explicitly:
+
+```sh
+bin/smoke --adapter interpreter
+bin/bench --adapter interpreter
+```
+
+The adapter itself is fully functional — see the benchmark results below.
 
 ## Status
 
-**under-evaluation** — adapter is functional; 100% on both smoke cases across 5 models (run `20260618-072539`, lms runtime). Not yet run on the full 10-case benchmark. Next step: `bin/bench --adapter interpreter` with a capable model to establish a full baseline.
+**stable** — full 10-case benchmark completed 2026-06-18 (lms runtime, `qwen/qwen3.6-35b-a3b`): 36/36 points (1.00).
+
+### Full benchmark results (2026-06-18, lms, run `20260618-190652`)
+
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| bash-01-topwords | 4/4 (1.00) | 160s | ok |
+| js-01-slugify-bug | 4/4 (1.00) | 64s | ok |
+| js-02-debounce-feature | 4/4 (1.00) | 50s | ok |
+| js-03-multifile-cache | 5/5 (1.00) | 84s | ok |
+| js-04-multifile-rename | 3/3 (1.00) | 72s | ok |
+| js-05-multiselect-filter | 5/5 (1.00) | 129s | ok |
+| js-06-lint-and-test | 4/4 (1.00) | 115s | ok |
+| smoke-00-hello | 2/2 (1.00) | 17s | ok |
+| smoke-01-edit-file | 2/2 (1.00) | 17s | ok |
+| ts-01-groupby | 3/3 (1.00) | 29s | ok |
+| **Total** | **36/36 (1.00)** | | |
 
 ### Smoke results (2026-06-18, lms)
 

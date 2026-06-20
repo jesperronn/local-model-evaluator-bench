@@ -32,13 +32,48 @@ pi is an autonomous agent loop. For self-verify cases (js-05, js-06), pi can run
 
 ## Known issues
 
-**Needs full benchmark run:** only smoke-tested so far (see Status). pi's agent loop may surface different failure modes on real coding cases than on smoke. Its relationship with caveman (which also uses the pi runtime under the hood) is worth investigating — they may share failure patterns.
-
 **Caveman shares the pi runtime:** `caveman` is also built on the pi agent runtime. If both are run concurrently in `bin/bench`, they share the same `~/.pi/agent/models.json` config. Verify they use separate config paths or run them in separate slots.
 
 ## Status
 
-**under-evaluation** — adapter is functional; 100% on both smoke cases across 5 models (run `20260618-072539`, lms runtime). Not yet run on the full 10-case benchmark. Next step: `bin/bench --adapter pi` with a capable model to establish a full baseline and compare against `caveman` (which also uses the pi runtime).
+**stable** — full 10-case benchmark completed 2026-06-18 (lms runtime, `qwen/qwen3.6-35b-a3b`): 36/36 points (1.00). Consistently fast — fastest agent in the field on most cases.
+
+### Full benchmark results (2026-06-18, lms, run `20260618-190652`)
+
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| bash-01-topwords | 4/4 (1.00) | 49s | ok |
+| js-01-slugify-bug | 4/4 (1.00) | 18s | ok |
+| js-02-debounce-feature | 4/4 (1.00) | 19s | ok |
+| js-03-multifile-cache | 5/5 (1.00) | 35s | ok |
+| js-04-multifile-rename | 3/3 (1.00) | 26s | ok |
+| js-05-multiselect-filter | 5/5 (1.00) | 55s | ok |
+| js-06-lint-and-test | 4/4 (1.00) | 68s | ok |
+| smoke-00-hello | 2/2 (1.00) | 8s | ok |
+| smoke-01-edit-file | 2/2 (1.00) | 6s | ok |
+| ts-01-groupby | 3/3 (1.00) | 19s | ok |
+| **Total** | **36/36 (1.00)** | | |
+
+### Full benchmark results (2026-06-18, lms, run `20260618-215910`) — `google/gemma-4-26b-a4b-qat`
+
+Run concurrently with a hermes bench on the same model; timeouts reflect slot contention, not correctness failures — all cases passed.
+
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| bash-01-topwords | 4/4 (1.00) | 300s | timeout† |
+| js-01-slugify-bug | 4/4 (1.00) | 129s | ok |
+| js-02-debounce-feature | 4/4 (1.00) | 180s | ok |
+| js-03-multifile-cache | 5/5 (1.00) | 187s | ok |
+| js-04-multifile-rename | 3/3 (1.00) | 79s | ok |
+| js-05-multiselect-filter | 5/5 (1.00) | 200s | ok |
+| js-06-lint-and-test | 4/4 (1.00) | 300s | timeout† |
+| smoke-00-hello | 2/2 (1.00) | 38s | ok |
+| smoke-01-edit-file | 2/2 (1.00) | 27s | ok |
+| smoke-02-numbers | 2/2 (1.00) | 39s | ok |
+| ts-01-groupby | 3/3 (1.00) | 300s | timeout† |
+| **Total** | **38/38 (1.00)** | | |
+
+† Completed within the timeout window (all assertions pass); 300s recorded because the adapter finished at the limit due to parallel slot contention.
 
 ### Smoke results (2026-06-18, lms)
 

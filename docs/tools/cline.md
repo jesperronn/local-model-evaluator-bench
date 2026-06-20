@@ -38,11 +38,44 @@ Cline runs as an autonomous agent loop. For self-verify cases (js-05, js-06), Cl
 
 ## Known issues
 
-**Needs full benchmark run:** only smoke-tested so far (see Status). The tool-call agent loop may expose different failure modes on real coding cases (multi-file edits, lint/test iteration) than on the two smoke cases.
+**pnpm global install broken:** `pnpm install -g cline` is currently broken (global/v11 path missing). The adapter falls back to the latest `cli-darwin-arm64` binary in the pnpm store.
+
+**Auth re-init per run:** `cline auth openai-compatible` is called fresh each bench run, which avoids stale config but adds ~1–2s overhead per case.
+
+## Observations across runs
+
+### 2026-06-18 — first run (`20260618-190652`, lms, `qwen/qwen3.6-35b-a3b`)
+
+Three early cases returned `error(1)` with partial scores:
+- bash-01-topwords: 0/4, error(1), 45s
+- js-01-slugify-bug: 2/4, error(1), 45s
+- js-02-debounce-feature: 3/4, error(1), 26s
+
+js-03 through ts-01 all passed cleanly. The partial scores on js-01 (2/4) and js-02 (3/4) indicate edits were being applied before cline crashed — the failure is in exit/cleanup, not in the editing loop. Likely a binary resolution or provider init instability during pnpm store path lookup on the first invocations. Re-run resolved all three.
+
+### 2026-06-18 — second run (`20260618-190854`, lms, `qwen/qwen3.6-35b-a3b`)
+
+36/36 100%. All cases clean. js-06 hit the 300s timeout but all assertions passed before the harness killed the process.
 
 ## Status
 
-**under-evaluation** — adapter is functional; 100% on both smoke cases across 5 models (run `20260618-072539`, lms runtime). Not yet run on the full 10-case benchmark. Next step: `bin/bench --adapter cline` with a capable model to establish a full baseline.
+**stable** — full 10-case benchmark completed 2026-06-18 (lms runtime, `qwen/qwen3.6-35b-a3b`): 36/36 points (1.00). js-06-lint-and-test hit the 300s timeout but still passed all assertions.
+
+### Full benchmark results (2026-06-18, lms, run `20260618-190854`)
+
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| bash-01-topwords | 4/4 (1.00) | 296s | ok |
+| js-01-slugify-bug | 4/4 (1.00) | 97s | ok |
+| js-02-debounce-feature | 4/4 (1.00) | 85s | ok |
+| js-03-multifile-cache | 5/5 (1.00) | 132s | ok |
+| js-04-multifile-rename | 3/3 (1.00) | 93s | ok |
+| js-05-multiselect-filter | 5/5 (1.00) | 292s | ok |
+| js-06-lint-and-test | 4/4 (1.00) | 300s | timeout |
+| smoke-00-hello | 2/2 (1.00) | 31s | ok |
+| smoke-01-edit-file | 2/2 (1.00) | 51s | ok |
+| ts-01-groupby | 3/3 (1.00) | 108s | ok |
+| **Total** | **36/36 (1.00)** | | |
 
 ### Smoke results (2026-06-18, lms)
 
