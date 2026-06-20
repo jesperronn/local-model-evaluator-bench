@@ -22,19 +22,8 @@
 # 9B (MLX-4bit) — same weights as qwen/qwen3.5-9b in lms; enables runtime comparison; smallest here
 /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit
 
-# 2B (MLX-4bit) — Gemma 4 E2B; smallest MLX model available locally
-/Users/jesper/.lmstudio/models/lmstudio-community/gemma-4-E2B-it-MLX-4bit
-
 # Download these before running (mlx_lm.server fetches from HuggingFace on first load):
-#   huggingface-cli download mlx-community/Phi-4-mini-instruct-4bit
-#   huggingface-cli download mlx-community/Phi-4-4bit
 #   huggingface-cli download mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
-
-# 3.8B — Microsoft Phi-4 mini (scores 7% — likely tool-call format mismatch with mlx_lm.server)
-mlx-community/Phi-4-mini-instruct-4bit
-
-# 14B — Microsoft Phi-4 (scores 9% — likely tool-call format mismatch with mlx_lm.server)
-mlx-community/Phi-4-4bit
 
 # 7B — Qwen 2.5 Coder coding specialist
 mlx-community/Qwen2.5-Coder-7B-Instruct-4bit

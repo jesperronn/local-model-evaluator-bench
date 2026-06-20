@@ -23,10 +23,6 @@
 # (lms alias: qwen3.6-35b-a3b → maps to qwen3.6:35b-a3b-coding-mxfp8 in ollama)
 qwen/qwen3.6-35b-a3b
 
-# Phi-4 family — download in LM Studio then uncomment:
-#   microsoft/phi-4-mini  (3.8B, strong reasoning for size)
-#   microsoft/phi-4       (14B, top small-model benchmark scores)
-
 # 9B
 qwen/qwen3.5-9b
 

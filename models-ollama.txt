@@ -11,6 +11,9 @@
 # 35B MoE (3.6B active) — maps to qwen/qwen3.6-35b-a3b in LM Studio
 qwen3.6:35b-a3b-coding-mxfp8
 
+# 35B MoE (3.6B active) — MLX variant; maps to qwen3.6-35b-mlx alias
+qwen3.6:35b-mlx
+
 # 26B MoE (4B active) — Gemma 4 26B, MLX-quantized by Ollama; maps to google/gemma-4-26b-a4b-qat in lms
 gemma4:26b-mlx
 
@@ -23,15 +26,7 @@ gemma4-claude
 gpt-oss:20b
 
 # Pull these before running (ollama pull <id>):
-#   ollama pull phi4-mini:latest
-#   ollama pull phi4:latest
 #   ollama pull qwen2.5-coder:7b
-
-# 3.8B — Microsoft Phi-4 mini; strong reasoning for size
-phi4-mini:latest
-
-# 14B — Microsoft Phi-4; top scores on small-model benchmarks
-phi4:latest
 
 # 7B — Qwen 2.5 Coder (patched for agentic use: 64K context, tool-call template fix).
 # Build first: bin/setup-ollama-modelfile qwen2.5-coder-7b
