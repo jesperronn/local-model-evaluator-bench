@@ -8,12 +8,10 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-# -t file exposes write_file, patch, read_file, terminal (for shell commands).
-# Do NOT add the terminal toolset alongside file: combining -t file,terminal
-# causes a tool-name conflict (both expose a tool named "terminal") and hermes
-# resolves it by dropping all file tools, leaving only the process tool. The
-# model then can't write files and spins in a failure loop.
-HERMES_ARGS=(--provider lmstudio -m "$MODEL_ID" -t file)
+# -t file,terminal: both toolsets work together since v0.17.0 (the tool-name
+# conflict present in v0.16.0 is fixed). Enables write_file, patch, read_file,
+# search_files, process, AND direct shell execution via terminal.
+HERMES_ARGS=(--provider lmstudio -m "$MODEL_ID" -t file,terminal)
 if [ ! -t 0 ]; then
   # --yolo bypasses the smart guardian — safe in automated bench sandboxes but
   # unwanted in interactive sessions where the guardian provides a useful check.
