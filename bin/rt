@@ -12,6 +12,7 @@
 #   bin/rt stop ollama       unload active Ollama models  (ollama stop <model>)
 #   bin/rt stop lms          unload LM Studio model
 #   bin/rt stop all          stop bench + mlx + ollama + lms
+#   bin/rt who [lms|ollama|all]  show which processes are connected to a runtime
 #
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -316,6 +317,15 @@ print(status,queued,age)
     local bench_cmd; bench_cmd=$(ps -p $(echo $bpids | awk '{print $1}') -o args= 2>/dev/null | head -1)
     printf '%s  %s\n' "${C_YEL}RUNNING${C_RST}" "${C_DIM}${bench_cmd}${C_RST}"
     printf '  results so far: %s\n' "$results_count"
+    # Heartbeat: time since last CSV row was written
+    if [ -n "$latest_csv" ]; then
+      local csv_age_s; csv_age_s=$(( $(date +%s) - $(stat -f %m "$latest_csv" 2>/dev/null || echo 0) ))
+      if [ "$csv_age_s" -gt 300 ]; then
+        printf '  %slast result written %ss ago — may be stuck%s\n' "${C_YEL}" "$csv_age_s" "${C_RST}"
+      else
+        printf '  last result written %ss ago\n' "${C_DIM}$csv_age_s${C_RST}"
+      fi
+    fi
     local act; act=$(_lms_activity)
     if [ -n "$act" ]; then
       local mstatus mqueued mage_ms mage_s
@@ -423,6 +433,109 @@ print(status,queued,age)
         "${C_DIM}models in \$HF_HUB_CACHE or ~/.cache/huggingface/hub/${C_RST}"
     fi
   fi
+}
+
+_port_clients() {
+  # List ESTABLISHED connections to a port, excluding the listening server process.
+  # Output: PID COMMAND CONNECTION  (one line per unique PID)
+  local port=$1
+  local server_pid; server_pid=$(lsof -i :"$port" 2>/dev/null | awk '/LISTEN/ {print $2}' | head -1)
+  lsof -i :"$port" 2>/dev/null \
+    | awk -v spid="${server_pid:-NONE}" \
+        'NR>1 && /ESTABLISHED/ && $2 != spid { print $2, $1, $9 }' \
+    | sort -u
+}
+
+_lms_ps_info() {
+  # Returns "<model_id> <status> <queued>" or empty if nothing is loaded.
+  lms ps --json 2>/dev/null \
+    | python3 -c "
+import json,sys
+rows=json.load(sys.stdin)
+if not rows: sys.exit(0)
+m=rows[0]
+print(m.get('identifier','?'), m.get('status','?'), m.get('queued',0))
+" 2>/dev/null
+}
+
+cmd_who() {
+  local target="${1:-all}"
+
+  _who_lms() {
+    printf '%s' "${C_BLU}==> LMS${C_RST}"
+    if ! lms_up 2>/dev/null; then
+      printf '  %s(not running)%s\n' "${C_DIM}" "${C_RST}"; return
+    fi
+
+    local ps_info; ps_info=$(_lms_ps_info)
+    local model="" mstatus="" mqueued=""
+    [ -n "$ps_info" ] && read model mstatus mqueued <<< "$ps_info"
+
+    if [ -n "$model" ]; then
+      local status_col="$C_DIM"
+      [ "$mstatus" = "PROCESSINGPROMPT" ] && status_col="$C_YEL"
+      [ "$mstatus" = "READY" ]            && status_col="$C_GRN"
+      printf '  %s — %s%s%s' "$model" "$status_col" "$mstatus" "${C_RST}"
+      [ "${mqueued:-0}" -gt 0 ] && printf '  %s(queued: %s)%s' "${C_DIM}" "$mqueued" "${C_RST}"
+      printf '\n'
+    else
+      printf '  %s(no model loaded)%s\n' "${C_DIM}" "${C_RST}"
+    fi
+
+    local clients; clients=$(_port_clients 1234)
+    if [ -n "$clients" ]; then
+      printf '  %sclients on :1234%s\n' "${C_DIM}" "${C_RST}"
+      while IFS= read -r line; do
+        local pid cmd conn
+        read pid cmd conn <<< "$line"
+        printf '    %-12s %-6s  %s\n' "$cmd" "$pid" "$conn"
+      done <<< "$clients"
+      if [ "$mstatus" = "PROCESSINGPROMPT" ]; then
+        printf '\n  %sTip:%s model is busy — kill the client to unblock:\n' "${C_YEL}" "${C_RST}"
+        while IFS= read -r line; do
+          local pid cmd
+          read pid cmd _ <<< "$line"
+          printf '    kill %s    %s# %s%s\n' "$pid" "${C_DIM}" "$cmd" "${C_RST}"
+        done <<< "$clients"
+      fi
+    else
+      printf '  %s(no external clients on :1234)%s\n' "${C_DIM}" "${C_RST}"
+    fi
+  }
+
+  _who_ollama() {
+    printf '%s' "${C_BLU}==> Ollama${C_RST}"
+    if ! _ollama_up; then
+      printf '  %s(not running)%s\n' "${C_DIM}" "${C_RST}"; return
+    fi
+
+    local loaded; loaded=$(_ollama_loaded)
+    if [ -n "$loaded" ]; then
+      local csv; csv=$(echo "$loaded" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+      printf '  %sloaded:%s %s\n' "${C_DIM}" "${C_RST}" "$csv"
+    else
+      printf '  %s(no model loaded)%s\n' "${C_DIM}" "${C_RST}"
+    fi
+
+    local clients; clients=$(_port_clients 11434)
+    if [ -n "$clients" ]; then
+      printf '  %sclients on :11434%s\n' "${C_DIM}" "${C_RST}"
+      while IFS= read -r line; do
+        local pid cmd conn
+        read pid cmd conn <<< "$line"
+        printf '    %-12s %-6s  %s\n' "$cmd" "$pid" "$conn"
+      done <<< "$clients"
+    else
+      printf '  %s(no external clients on :11434)%s\n' "${C_DIM}" "${C_RST}"
+    fi
+  }
+
+  case "$target" in
+    lms)    _who_lms ;;
+    ollama) _who_ollama ;;
+    all)    _who_lms; echo; _who_ollama ;;
+    *)      die "unknown who target: $target (valid: lms ollama all)" ;;
+  esac
 }
 
 _strip_ctrl() {
@@ -555,8 +668,9 @@ case "$CMD" in
   log)     cmd_log    "$@";;
   watch)   cmd_watch  "$@";;
   stop)    cmd_stop   "$@";;
+  who)     cmd_who    "$@";;
   -h|--help|help)
-    sed -n '2,12p' "$0"
+    sed -n '2,13p' "$0"
     ;;
   *)
     die "unknown command: $CMD (run bin/rt --help)"
