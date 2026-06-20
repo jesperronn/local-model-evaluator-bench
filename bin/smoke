@@ -110,7 +110,7 @@ elif [ "$RUNTIME" = "ollama" ]; then
 fi
 
 # ── Run the smoke cases ───────────────────────────────────────────────────────
-SMOKE_CASES="smoke-00-hello,smoke-01-edit-file"
+SMOKE_CASES="smoke-00-hello,smoke-01-edit-file,smoke-02-numbers"
 info "smoke: ${SMOKE_CASES//,/ · }  (runtime: $RUNTIME)"
 echo
 

@@ -1,0 +1,8 @@
+{
+  "id": "smoke-02-numbers",
+  "lang": "text",
+  "title": "Smoke test — fill in missing Fibonacci number",
+  "points": 1,
+  "category": "smoke",
+  "edit_files": ["numbers.txt"]
+}
