@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# SonarQube lint script
+# Usage:
+#   bin/lint                        (default: --dirty)
+#   bin/lint --all                  validate all files
+#   bin/lint --dirty                validate dirty files
+#   bin/lint -1 / -2 / -3 etc       validate files changed in last N commits
+#   bin/lint --sha abcdef           validate files changed in commit abcdef
+#   bin/lint path/to/dir            validate files in path(s)
+
+SONAR_PROJECT="PUT_YOUR_PROJECT_KEY_HERE"
+
+if [[ -z "${SONAR_URL:-}" ]]; then
+  echo "ERROR: SONAR_URL is not set" >&2
+  exit 1
+fi
+
+if [[ -z "${SONAR_TOKEN:-}" ]]; then
+  echo "ERROR: SONAR_TOKEN is not set" >&2
+  exit 1
+fi
+
+MODE="dirty"
+DRY_RUN=false
+TARGET_FILES=()
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all)
+      MODE="all"
+      shift
+      ;;
+    --dirty)
+      MODE="dirty"
+      shift
+      ;;
+    --sha)
+      MODE="sha"
+      if [[ -z "${2:-}" ]]; then
+        echo "ERROR: --sha requires an argument" >&2
+        exit 1
+      fi
+      SHA="$2"
+      shift 2
+      ;;
+    -[0-9]*)
+      MODE="num"
+      NUM="${1#-}"
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    -*)
+      echo "ERROR: Unknown option: $1" >&2
+      echo "Usage: $0 [--all|--dirty|-N|--sha <sha> [paths...]]" >&2
+      exit 1
+      ;;
+    *)
+      MODE="path"
+      TARGET_FILES+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# Default to --dirty
+if [[ "$MODE" == "dirty" ]] && [[ ${#TARGET_FILES[@]} -eq 0 ]]; then
+  MODE="dirty"
+fi
+
+# Resolve files based on mode
+case "$MODE" in
+  all)
+    echo "Running SonarQube analysis on all files..."
+    SONAR_ARGS=(
+      "-Dsonar.projectKey=${SONAR_PROJECT}"
+      "-Dsonar.sources=."
+    )
+    ;;
+  dirty)
+    echo "Running SonarQube analysis on dirty files..."
+    # Modified, added, copied, renamed files + untracked
+    DIRTY_FILES=$(git diff --name-only --diff-filter=ACMRT 2>/dev/null || true)
+    UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null || true)
+    ALL_FILES=$(printf '%s\n%s' "$DIRTY_FILES" "$UNTRACKED" | grep -v '^$' || true)
+
+    if [[ -z "$ALL_FILES" ]]; then
+      echo "No dirty files to scan."
+      exit 0
+    fi
+
+    # Convert to relative paths for sonar
+    REL_PATHS=()
+    while IFS= read -r f; do
+      REL_PATHS+=("-Dsonar.sources=$f")
+    done <<< "$ALL_FILES"
+    SONAR_ARGS=("${REL_PATHS[@]}")
+    ;;
+  num)
+    echo "Running SonarQube analysis on files changed in last ${NUM} commits..."
+    CHANGED_FILES=$(git diff --name-only HEAD~${NUM}..HEAD 2>/dev/null || true)
+
+    if [[ -z "$CHANGED_FILES" ]]; then
+      echo "No files changed in last ${NUM} commits."
+      exit 0
+    fi
+
+    REL_PATHS=()
+    while IFS= read -r f; do
+      REL_PATHS+=("-Dsonar.sources=$f")
+    done <<< "$CHANGED_FILES"
+    SONAR_ARGS=("${REL_PATHS[@]}")
+    ;;
+  sha)
+    echo "Running SonarQube analysis on files changed in commit ${SHA}..."
+    CHANGED_FILES=$(git show --name-only --format="" "$SHA" 2>/dev/null | grep -v '^$' || true)
+
+    if [[ -z "$CHANGED_FILES" ]]; then
+      echo "No files changed in commit ${SHA}."
+      exit 0
+    fi
+
+    REL_PATHS=()
+    while IFS= read -r f; do
+      REL_PATHS+=("-Dsonar.sources=$f")
+    done <<< "$CHANGED_FILES"
+    SONAR_ARGS=("${REL_PATHS[@]}")
+    ;;
+  path)
+    if [[ ${#TARGET_FILES[@]} -eq 0 ]]; then
+      echo "ERROR: No paths provided" >&2
+      exit 1
+    fi
+    echo "Running SonarQube analysis on specified paths..."
+    REL_PATHS=()
+    for p in "${TARGET_FILES[@]}"; do
+      REL_PATHS+=("-Dsonar.sources=$p")
+    done
+    SONAR_ARGS=("${REL_PATHS[@]}")
+    ;;
+esac
+
+# Run SonarQube scanner
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "DRY RUN — would run:"
+  echo "  sonar-scanner"
+  echo "    -Dsonar.host.url=\"${SONAR_URL}\""
+  echo "    -Dsonar.login=\"${SONAR_TOKEN}\""
+  for arg in "${SONAR_ARGS[@]}"; do
+    echo "    $arg"
+  done
+else
+  sonar-scanner \
+    -Dsonar.host.url="${SONAR_URL}" \
+    -Dsonar.login="${SONAR_TOKEN}" \
+    "${SONAR_ARGS[@]}"
+fi
