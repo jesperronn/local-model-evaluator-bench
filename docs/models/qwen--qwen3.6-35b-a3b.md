@@ -9,13 +9,14 @@
 | **Parameter count** | 35B total, 3B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-12 |
+| **Last run** | 2026-06-18 |
 | **LMS entry removed** | 2026-06-10 |
-| **Doc updated** | 2026-06-12 |
+| **LMS entry re-added** | 2026-06-18 (qwen3.6-27b removed; 35b-a3b returned) |
+| **Doc updated** | 2026-06-18 |
 
 ## Results summary
 
-The strongest general model in the suite. hermes (via Ollama), opencode, and codex all score 100%; caveman 92.9% via Ollama. aider scores 92.9% (LMS). Despite 35B total params, the 3B active architecture keeps it fast. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+The strongest general model in the suite. hermes (via Ollama), opencode, and codex all score 100%; caveman 92.9% via Ollama. aider scores 92.9% (LMS). New adapters evaluated 2026-06-18 on LMS: cline 100%, goose 100%, interpreter 100%, pi 100% — all four achieve perfect scores. Despite 35B total params, the 3B active architecture keeps it fast. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
 ## Failure patterns
 
@@ -34,16 +35,26 @@ All three failures are aider-specific and do not appear on opencode, codex, or c
 - **opencode:** 45–93s. Consistent across cases.
 - **codex:** 19–74s. Fastest of the non-aider adapters for this model.
 - **caveman:** 24–69s. Similar to codex.
+- **pi (LMS):** 6–68s. Fastest adapter of the 2026-06-18 batch. js-06 lint self-verify at 68s.
+- **goose (LMS):** 18–110s. js-06 at 110s; otherwise 18–86s. No lingering observed.
+- **interpreter (LMS):** 17–160s. bash-01-topwords slowest at 160s (OI writes shell code, then executes — cold Python startup adds overhead). Single-pass clean on all cases.
+- **cline (LMS):** 31–300s. bash-01 slowest at 296s; js-05 at 292s; js-06 hit the 300s timeout (edit completed, harness killed process). Notably slower than other tool-call adapters — cline's agent loop has more turn overhead.
 
 ## Known issues
 
 **hermes error(1) — historic (resolved 2026-06-11):** hermes was broken on all models; fixed by switching to `backend: local`. Results now available via Ollama (34/34 100%) and LMS hermes.
 
+## Observations across runs
+
+### 2026-06-18 — LMS batch (runs `20260618-190652`, `20260618-190854`)
+
+Four new adapters tested on LMS runtime: goose, interpreter, pi (all 36/36 100%, run `20260618-190652`), and cline (36/36 100%, run `20260618-190854` — the first cline run had error(1) on 3 cases due to binary init instability; see [cline.md](../tools/cline.md)). All perform identically to the best previous adapters. Model was re-added to `models.txt` after `qwen/qwen3.6-27b` was removed on 2026-06-12 for dominating performance gap. LMS now serves the MLX variant (not GGUF).
+
 ## Status
 
-**model: active** — perfect scores on three adapters; top-ranked model in the suite. Still benchmarked via Ollama as `qwen3.6:35b-a3b-coding-mxfp8` (MLX/mxfp8).
+**keep** — perfect scores across all 8 adapters tested (aider, codex, opencode, caveman, hermes, pi, goose, interpreter, cline). Top-ranked model in the suite. Only aider shows adapter-specific failures (js-03, js-04, js-06 — known format issue).
 
-**LMS entry removed 2026-06-10** — `qwen/qwen3.6-35b-a3b` (GGUF) dropped from `models.txt` for two reasons: (1) the identical model already runs via Ollama in MLX format, making the GGUF entry redundant; (2) moving to an all-MLX LMS runtime for consistency. Replaced in `models.txt` by `qwen/qwen3.6-27b` (MLX-6bit, already downloaded), which covers the same model family at 27B dense instead of 35B MoE.
+**LMS entry history:** removed 2026-06-10 (replaced by qwen3.6-27b); re-added 2026-06-18 after qwen3.6-27b was removed for being strictly dominated (35.7% accuracy, 253s avg vs 94%+ and 48s avg for this model).
 
 ## Comparison within family
 
