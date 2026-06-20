@@ -75,6 +75,15 @@ makes future tuning legible. Example:
 | `--no-auto-commits` | sandbox has no git; commits would error |
 | `--no-check-update` | avoid network call on every run |
 
+### Better alternatives
+When is this tool *not* the right choice? Name specific alternatives and the conditions under which they win:
+
+- Which other adapters consistently outscore this one, and on what case types?
+- When should you reach for a different tool instead?
+- If this tool has a niche where it clearly leads, name it here too.
+
+Keep it concrete — a sentence per alternative is enough. This section makes the eval page actionable for someone choosing between tools.
+
 ### Known issues
 Concrete, reproducible problems with the tool itself (not model-specific):
 

@@ -55,6 +55,15 @@ completes the task. Often more informative than a hard FAIL because they show
   status=timeout with a correct result)
 - Any cases where the model is notably slow or fast relative to its size class
 
+### Better alternatives
+When is this model *not* the right pick? Name specific alternatives at similar or smaller size and the conditions under which they win:
+
+- Which models at the same or lower parameter count outperform this one, and on what task types?
+- Which quantisation variant or family member is the better default?
+- If this model has a niche where it clearly leads (speed, a specific adapter, a task type), name it.
+
+Keep it concrete — one sentence per alternative. This section makes the eval page actionable for someone choosing between models.
+
 ### Known issues
 Concrete, reproducible problems observed across runs:
 

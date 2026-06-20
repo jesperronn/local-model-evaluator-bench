@@ -92,6 +92,10 @@ Key rules:
   "performs poorly on multi-file tasks" — write "js-04-multifile-rename
   fails on all adapters (0/1 each): the model likely produces an inconsistent
   rename — the ESM import fails to load when only one file is updated."
+- **Better alternatives** is required. Name concrete models at the same or
+  smaller size that outperform this one, and the conditions under which they
+  win. Also note any niche where this model clearly leads. One sentence per
+  alternative is enough.
 - **Status** must be one of: keep / rerun / update / remove. Include a
   one-line rationale.
 - **Do not** reproduce the full score table from `BENCHMARK-RESULTS.md`.
@@ -119,6 +123,10 @@ Follow `docs/TOOL-EVAL-REQUIREMENTS.md` exactly.
 **Adapter flags** — document every non-default flag in the script with a
 one-line rationale. Read the adapter script comments; they often explain the
 why already.
+
+**Better alternatives** is required. Name concrete tools that consistently
+outscore this one and the conditions under which they win. Also note any niche
+where this adapter clearly leads. One sentence per alternative.
 
 **Status** must be one of: stable / needs-tuning / broken / under-evaluation /
 retired.
