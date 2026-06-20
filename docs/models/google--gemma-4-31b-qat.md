@@ -4,6 +4,7 @@
 
 | Field | Value |
 |-------|-------|
+| **Status** | AVOID — broken tool calling (7.1%, smoke test only) |
 | **Model key** | `google/gemma-4-31b-qat` |
 | **Family / arch** | Gemma 4, <!-- TODO: dense or MoE? -->, 31B, QAT |
 | **Parameter count** | 31B |
@@ -26,4 +27,8 @@ Same as google/gemma-4-31b: the 2/4 on js-01 across all adapters is the only non
 
 ## Status
 
-**rerun** — same status as gemma-4-31b. Verify the model key resolves to an instruct-tuned QAT variant and re-run after `bin/smoke` confirmation. If the 31b key issue is resolved for the fp16 variant, rerun both.
+**avoid** — broken tool calling. Identical pattern to `google/gemma-4-31b`: 2/28 (7.1%) on all adapters, zero real tool calls succeed. The fact that both the fp16 and QAT 31b variants show exactly the same failure pattern makes a model-key/variant mismatch extremely likely — both probably point to non-instruct checkpoints.
+
+**Cleanup:** remove `google/gemma-4-31b-qat` from `models.txt` alongside `google/gemma-4-31b`. Only re-add after verifying the key resolves to an instruction-tuned QAT variant and `bin/smoke` confirms all adapters can reach it.
+
+See also: [Models to Avoid in LEADERBOARD.md](../../LEADERBOARD.md#models-to-avoid)

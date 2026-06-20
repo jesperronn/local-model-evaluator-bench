@@ -4,6 +4,7 @@
 
 | Field | Value |
 |-------|-------|
+| **Status** | AVOID — unusable tool calling (13.6%, infra failures + capability gap) |
 | **Model key** | `google/gemma-4-12b` |
 | **Family / arch** | Gemma 4, dense, 12B (fp16) |
 | **Parameter count** | 12B |
@@ -34,4 +35,8 @@ aider-only: 10–300s per case. All other adapters: 0–15s (infrastructure fail
 
 ## Status
 
-**rerun** — infrastructure failures invalidated 4 of 5 adapters. Re-run in a clean session with `bin/smoke google/gemma-4-12b` first to confirm all adapters can reach the model, then `bin/bench --model google/gemma-4-12b`. Remove from models.txt if the key is no longer valid.
+**avoid** — broken/unusable tool calling. Overall score 13.6% (19/140), but this combines genuine aider results (36%) with infrastructure-failure zeros across codex, caveman, and opencode. Even the "genuine" aider results (36%) are too weak to be useful — two timeouts and consistent failures on multi-file and self-verify cases. The QAT sibling (`google/gemma-4-12b-qat`) scored 59.9% with clean infrastructure but was removed for being dominated by `qwen/qwen3.5-9b`. This fp16 variant has both a capability gap and a tool-calling reliability problem.
+
+**Cleanup:** remove `google/gemma-4-12b` from `models.txt` and unload from LM Studio. If you need a 12B Gemma, prefer `google/gemma-4-12b-qat` — but note that model was also removed as dominated; `qwen/qwen3.5-9b` is the better alternative at this size.
+
+See also: [Models to Avoid in LEADERBOARD.md](../../LEADERBOARD.md#models-to-avoid)

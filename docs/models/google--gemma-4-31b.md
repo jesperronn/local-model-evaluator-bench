@@ -4,6 +4,7 @@
 
 | Field | Value |
 |-------|-------|
+| **Status** | AVOID — broken tool calling (7.1%, smoke test only) |
 | **Model key** | `google/gemma-4-31b` |
 | **Family / arch** | Gemma 4, <!-- TODO: dense or MoE? -->, 31B (fp16) |
 | **Parameter count** | 31B |
@@ -26,4 +27,8 @@ No usable benchmark data. All adapters score near-zero across all cases in 1–5
 
 ## Status
 
-**rerun** — results are unusable. Verify: (1) the model key resolves to the instruct-tuned variant, (2) run `bin/smoke` before `bin/bench`. If the key refers to a base model, remove from models.txt.
+**avoid** — broken tool calling. Scores 2/28 (7.1%) across all adapters — the only passes are the trivial first two sub-checks of `js-01-slugify-bug` (basic text output). Zero real tool calls succeed. The near-identical failure pattern on both the fp16 and QAT 31b variants rules out a random infrastructure fault; the most likely cause is a non-instruct or misconfigured model variant. Do not use for agentic coding work.
+
+**Cleanup:** remove `google/gemma-4-31b` from `models.txt` and unload from LM Studio. If you want a verified instruct variant, check the LM Studio model page and confirm the key ends in `-instruct` or `-it`. Re-add only after a successful `bin/smoke google/gemma-4-31b` run confirms all adapters can reach it.
+
+See also: [Models to Avoid in LEADERBOARD.md](../../LEADERBOARD.md#models-to-avoid)
