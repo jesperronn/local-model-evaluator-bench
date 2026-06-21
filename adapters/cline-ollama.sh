@@ -23,11 +23,11 @@ fi
 DATA_DIR="$HOME/.cline-ollama-adapter"
 # auth initialises the SQLite DBs and writes providers.json in one step.
 # Ollama doesn't use a real key; "ollama" is a required placeholder.
+# ollama provider uses localhost:11434 by default; --baseurl is not supported.
 "$CLINE" auth ollama \
   --data-dir "$DATA_DIR" \
   --apikey  "ollama" \
-  --modelid "$MODEL_ID" \
-  --baseurl "$OLLAMA_BASE_URL" >/dev/null 2>&1
+  --modelid "$MODEL_ID" >/dev/null 2>&1
 
 CLINE_ARGS=(
   --data-dir "$DATA_DIR"

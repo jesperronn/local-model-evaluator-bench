@@ -5,7 +5,7 @@
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
 
-CAVEMAN_ARGS=(--provider ollama --model "$MODEL_ID")
+CAVEMAN_ARGS=(--provider ollama --model "$MODEL_ID" --thinking off)
 if [ ! -t 0 ]; then
   CAVEMAN_ARGS+=(--print "$(cat)")
 fi
