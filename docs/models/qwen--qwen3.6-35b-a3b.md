@@ -30,6 +30,10 @@ All three failures are aider-specific and do not appear on opencode, codex, or c
 
 ## Timing observations
 
+> **Ollama note:** For Ollama runs, prefer `qwen3.6:35b-mlx` over
+> `qwen3.6:35b-a3b-coding-mxfp8` — the MLX variant is ~3.3× faster (24s vs 81s
+> avg on smoke tests). See [qwen--qwen3.6-35b-mlx.md](qwen--qwen3.6-35b-mlx.md).
+
 - **hermes (Ollama):** 36–222s, avg ~83s. js-05-multiselect-filter at 222s was the slowest case. Otherwise 36–128s.
 - **aider:** 38–130s. bash-01-topwords took 130s (slow for a 3B-active model; likely the model iterated on the shell pipeline).
 - **opencode:** 45–93s. Consistent across cases.

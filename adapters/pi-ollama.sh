@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Adapter: pi -> Ollama (via OpenAI-compatible API).
-# pi does not have a native ollama provider; we point --provider openai at
-# Ollama's OpenAI-compatible endpoint (localhost:11434/v1).
+# Adapter: pi -> Ollama.
+# Requires ~/.pi/agent/models.json to have an "ollama" provider entry with
+# the target models listed (pi builds its provider registry from that file).
 # Install: npm install -g @earendil-works/pi-coding-agent
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
@@ -13,10 +13,7 @@ command -v pi >/dev/null 2>&1 || {
   exit 1
 }
 
-export OPENAI_BASE_URL="http://localhost:11434/v1"
-export OPENAI_API_KEY="ollama"
-
-PI_ARGS=(--provider openai --model "$MODEL_ID")
+PI_ARGS=(--provider ollama --model "$MODEL_ID")
 
 if [ ! -t 0 ]; then
   exec pi "${PI_ARGS[@]}" -p "$(cat)"
