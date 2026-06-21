@@ -166,7 +166,11 @@ cmd_status() {
   if _mlx_up; then
     mlx_up_flag=1
     mlx_model=$(curl -fsS --max-time 2 http://localhost:8080/v1/models 2>/dev/null \
-      | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data'][0]['id'])" 2>/dev/null || echo "?")
+      | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data'][0]['id'])" 2>/dev/null)
+    if [ -z "$mlx_model" ] || [ "$mlx_model" = "?" ]; then
+      mlx_model=$(ps aux | grep 'mlx_lm.server' | grep -v grep \
+        | grep -o -- '--model [^ ]*' | awk '{print $2}' | xargs basename 2>/dev/null || echo "?")
+    fi
     printf '%s  %sloaded:%s %s\n' "${C_GRN}up (port 8080)${C_RST}" "${C_DIM}" "${C_RST}" "$mlx_model"
   else
     printf '%s\n' "${C_DIM}down${C_RST}"
