@@ -5,6 +5,9 @@
 # Run bench against these with: bin/bench --runtime mlx
 # Ordered by benchmark score (top scorers first).
 
+# 35B A3B (MLX-4bit) — same weights as qwen/qwen3.6-35b-a3b + qwen3.6:35b-mlx (ollama); apples-to-apples runtime comparison
+/Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-35B-A3B-MLX-4bit
+
 # 30B coder (MLX-4bit) — local LM Studio copy; maps to qwen/qwen3-coder-30b
 /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit
 

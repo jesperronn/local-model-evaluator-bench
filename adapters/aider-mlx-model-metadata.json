@@ -1,0 +1,23 @@
+{
+  "openai//Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-35B-A3B-MLX-4bit": {
+    "max_tokens": 32768,
+    "max_input_tokens": 131072,
+    "max_output_tokens": 32768,
+    "input_cost_per_token": 0,
+    "output_cost_per_token": 0
+  },
+  "openai//Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit": {
+    "max_tokens": 32768,
+    "max_input_tokens": 131072,
+    "max_output_tokens": 32768,
+    "input_cost_per_token": 0,
+    "output_cost_per_token": 0
+  },
+  "openai//Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-Next-MLX-6bit": {
+    "max_tokens": 32768,
+    "max_input_tokens": 131072,
+    "max_output_tokens": 32768,
+    "input_cost_per_token": 0,
+    "output_cost_per_token": 0
+  }
+}
