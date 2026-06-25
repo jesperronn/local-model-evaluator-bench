@@ -26,6 +26,12 @@ qwen/qwen3.6-35b-a3b
 # 9B
 qwen/qwen3.5-9b
 
+# 24B dense — Devstral Small 2 (Mistral, 2512). Agentic coding specialist,
+# 256K context, Apache-2.0. Fits a 32GB Mac. SWE-Bench Verified 68.0%.
+# lms alias: devstral2-small. Download: lms get mistralai/devstral-small-2-2512
+# Confirm exact modelKey after download: lms ls --json | jq -r '.[].modelKey'
+mistralai/devstral-small-2-2512
+
 # 26B (MoE, 4B active)
 google/gemma-4-26b-a4b-qat
 # Non-QAT full-precision counterpart. Commented until downloaded in LM Studio.
@@ -44,3 +50,10 @@ qwen/qwen3-coder-30b
 
 # 80B (sparse MoE, 10B active — 60 GB at MLX-6bit)
 qwen/qwen3-coder-next
+
+# 123B dense — Devstral 2 (Mistral, 2512). Large agentic coding model,
+# 256K context, Apache-2.0. SWE-Bench Verified 72.2%. LARGE: likely exceeds
+# available RAM — run alone, after unloading every other model. May not fit.
+# lms alias: devstral2. Download: lms get mistralai/devstral-2-2512
+# Confirm exact modelKey after download: lms ls --json | jq -r '.[].modelKey'
+mistralai/devstral-2-2512
