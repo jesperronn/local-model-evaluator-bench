@@ -1,0 +1,126 @@
+#!/usr/bin/env node
+/**
+ * pi-patch-edit-shim — reapply the qwen3-coder edit-tool compatibility shim.
+ *
+ * Why: pi's `edit` tool requires a nested `edits: [{oldText,newText}]` param.
+ * qwen3-coder emits flat Hermes/Qwen <parameter=NAME> XML tool calls that cannot
+ * encode a nested array-of-objects, so LM Studio's parser mangles them: the
+ * oldText content (with a literal "<parameter=oldText>" prefix) lands in the
+ * `edits` string while newText arrives as a sibling key, failing validation.
+ * This injects a recovery shim into prepareEditArguments so the mangled call is
+ * rebuilt into a valid edits[] array.
+ *
+ * Idempotent. Run after every `pi` upgrade/reinstall (it gets wiped each time).
+ * If pi's edit.js changes shape, this bails loudly instead of patching blindly.
+ *
+ * Usage: pi-patch-edit-shim [--check]   (--check = report status, do not write)
+ */
+"use strict";
+const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+
+const checkOnly = process.argv.includes("--check");
+
+function findEditJs() {
+  let root;
+  try {
+    root = execSync("npm root -g", { encoding: "utf8" }).trim();
+  } catch {
+    // Fall back to resolving the pi binary's symlink target.
+    const pi = execSync("command -v pi", { encoding: "utf8" }).trim();
+    const real = fs.realpathSync(pi); // .../dist/cli.js
+    root = path.resolve(path.dirname(real), "..", "..", "..");
+  }
+  return path.join(
+    root,
+    "@earendil-works/pi-coding-agent/dist/core/tools/edit.js"
+  );
+}
+
+const HELPER = `// qwen3-coder (and other Hermes/Qwen XML tool-call models) cannot encode a
+// nested array-of-objects parameter like edits: [{oldText,newText}]. The flat
+// <parameter=NAME>...</parameter> syntax forces them to emit oldText/newText as
+// separate params, which the upstream parser mangles: the oldText content (with
+// a literal "<parameter=oldText>" tag prefix) lands in the \`edits\` string while
+// newText arrives as a sibling key. Recover the {oldText,newText} pair here.
+function recoverXmlParameterEdits(args) {
+    if (typeof args.edits !== "string" || !args.edits.includes("<parameter=")) {
+        return false;
+    }
+    // Pull every <parameter=NAME>value segment out of the mangled blob. Each
+    // value runs until the next <parameter= tag, a closing </parameter>, or EOF.
+    const found = {};
+    const re = /<parameter=([A-Za-z0-9_]+)>\\n?([\\s\\S]*?)(?=<parameter=|<\\/parameter>|$)/g;
+    let m;
+    while ((m = re.exec(args.edits)) !== null) {
+        let value = m[2];
+        // Trim a single trailing newline left before the consumed close tag.
+        if (value.endsWith("\\n"))
+            value = value.slice(0, -1);
+        found[m[1]] = value;
+    }
+    const oldText = typeof found.oldText === "string" ? found.oldText : typeof args.oldText === "string" ? args.oldText : undefined;
+    const newText = typeof found.newText === "string" ? found.newText : typeof args.newText === "string" ? args.newText : undefined;
+    if (typeof oldText !== "string" || typeof newText !== "string") {
+        return false;
+    }
+    args.edits = [{ oldText, newText }];
+    delete args.oldText;
+    delete args.newText;
+    return true;
+}
+function prepareEditArguments(input) {`;
+
+// Anchor: the start of prepareEditArguments, immediately following its
+// JSON-string parse block. We inject the helper before the function and the
+// recovery call after the existing JSON.parse try/catch.
+const FN_ANCHOR = "function prepareEditArguments(input) {";
+const CALL_ANCHOR = `    if (typeof args.edits === "string") {
+        try {
+            const parsed = JSON.parse(args.edits);
+            if (Array.isArray(parsed))
+                args.edits = parsed;
+        }
+        catch { }
+    }`;
+const CALL_REPLACEMENT =
+  CALL_ANCHOR +
+  `
+    // qwen3-coder & friends mangle nested edits into XML-tagged strings.
+    if (typeof args.edits === "string") {
+        recoverXmlParameterEdits(args);
+    }`;
+
+function main() {
+  const file = findEditJs();
+  if (!fs.existsSync(file)) {
+    console.error(`pi edit.js not found at: ${file}\nIs pi installed? (npm i -g @earendil-works/pi-coding-agent)`);
+    process.exit(2);
+  }
+  const src = fs.readFileSync(file, "utf8");
+
+  if (src.includes("function recoverXmlParameterEdits(")) {
+    console.log(`Already patched: ${file}`);
+    process.exit(0);
+  }
+  if (checkOnly) {
+    console.log(`NOT patched: ${file}`);
+    process.exit(1);
+  }
+
+  if (!src.includes(FN_ANCHOR) || !src.includes(CALL_ANCHOR)) {
+    console.error(
+      `Anchors not found in ${file}.\n` +
+        `pi's edit.js has changed shape — review it and update this script before reapplying.`
+    );
+    process.exit(3);
+  }
+
+  let out = src.replace(FN_ANCHOR, HELPER);
+  out = out.replace(CALL_ANCHOR, CALL_REPLACEMENT);
+  fs.writeFileSync(file, out, "utf8");
+  console.log(`Patched: ${file}`);
+}
+
+main();

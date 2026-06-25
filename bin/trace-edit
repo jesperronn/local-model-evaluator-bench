@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# trace-edit — run ONE (adapter, model, case) and dump its tool-call trace.
+#
+# Purpose: the benchmark pass-rate cannot reveal the qwen3-coder edit-tool
+# failure — a model that can't encode pi's nested edits:[{oldText,newText}]
+# param falls back to `write` and still scores 1.00 (see docs/tools/pi.md).
+# To actually observe what tool calls a model emits — for this bug or any real
+# agentic debugging — run the case here and inspect the captured session.
+#
+# It copies the case workdir into an isolated sandbox, runs the adapter there
+# (pi/caveman persist a full session JSONL keyed by the sandbox cwd), then
+# analyses that transcript with bin/trace-tool-calls.
+#
+# Usage:
+#   bin/trace-edit <adapter> <model> [case]
+#
+# Worked examples:
+#   # Does qwen3-coder-30b emit a clean nested edit via pi+LM Studio? (default case)
+#   bin/trace-edit pi-lms qwen/qwen3-coder-30b
+#
+#   # Same model through caveman (shares pi's runtime) on an explicit case:
+#   bin/trace-edit caveman-lms qwen/qwen3-coder-30b smoke-01-edit-file
+#
+#   # Breadth check — does another Hermes-format model hit the mangling?
+#   bin/trace-edit pi-lms qwen/qwen3.6-35b-a3b
+#
+# Output ends with bin/trace-tool-calls' verdict: "✓ nested array edits[]"
+# (clean) vs "⚠ MANGLED XML" (the failure). The bench score for this case is
+# 1.00 either way (model recovers via `write`), so the trace is the only signal.
+#
+# Default case: smoke-01-edit-file. Requires the model loaded in the runtime,
+# and exclusive use of LM Studio (it will load the model — don't run while
+# another model is generating, to avoid RAM contention).
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+
+ADAPTER="${1:?usage: trace-edit <adapter> <model> [case]}"
+MODEL="${2:?usage: trace-edit <adapter> <model> [case]}"
+CASE="${3:-smoke-01-edit-file}"
+
+ADAPTER_SH="$ADAPTERS_DIR/$ADAPTER.sh"
+[ -f "$ADAPTER_SH" ] || { echo "no such adapter: $ADAPTER_SH" >&2; exit 1; }
+CASE_DIR="$CASES_DIR/$CASE"
+[ -d "$CASE_DIR/workdir" ] || { echo "no workdir for case: $CASE" >&2; exit 1; }
+
+# Isolated sandbox under results/traces/ — unique cwd ⇒ unique session slug.
+mkdir -p "$RESULTS_DIR/traces"  # must exist before we count it (pipefail + set -e)
+STAMP="$(find "$RESULTS_DIR/traces" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
+SANDBOX="$RESULTS_DIR/traces/${ADAPTER}__${MODEL//\//_}__${CASE}__${STAMP}"
+rm -rf "$SANDBOX"; mkdir -p "$SANDBOX"
+cp -R "$CASE_DIR/workdir/." "$SANDBOX/"
+
+echo "trace-edit: $ADAPTER × $MODEL × $CASE"
+echo "  sandbox: $SANDBOX"
+
+# Run the adapter in the sandbox with the task as the prompt on stdin.
+set +e
+( cd "$SANDBOX" && MODEL_ID="$MODEL" "$ADAPTER_SH" < "$CASE_DIR/task.md" ) \
+  > "$SANDBOX/.trace-stdout.log" 2> "$SANDBOX/.trace-stderr.log"
+RC=$?
+set -e
+echo "  adapter exit: $RC  (stdout/stderr in $SANDBOX/.trace-*.log)"
+echo
+
+# Analyse the captured pi/caveman session transcript for this sandbox cwd.
+"$(dirname "${BASH_SOURCE[0]}")/trace-tool-calls" "$SANDBOX"

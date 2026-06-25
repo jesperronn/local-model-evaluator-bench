@@ -63,6 +63,26 @@ Because the unit is "tests passed", scores are comparable across models and
 across runs, and a new model needs *zero* manual grading — add it to
 `models.txt` and re-run.
 
+## Workarounds and fairness
+
+A model's tool calls sometimes need an **adapter-level shim or wrapper** to work
+with a given tool — e.g. qwen3-coder emits flat Hermes/Qwen `<parameter=NAME>`
+XML tool calls that cannot encode a tool's nested array-of-objects parameter, so
+the call is mangled and rejected. (Concrete case: pi's `edit` tool, see
+[docs/tools/pi.md](tools/pi.md).)
+
+**Policy: score *with* a working shim/wrapper, not as-shipped.** The goal is to
+find the best `(tool, model)` pairing in practice, and a small adapter shim is a
+realistic part of running a model locally — penalising the model for a tool's
+strict schema would be unfair and would hide otherwise-capable models.
+
+**But the shim must be recorded.** Every tool card and model card carries a
+**`Workarounds needed:`** line stating what was required for the scored result
+(e.g. `Workarounds needed: shim — pi edit-tool XML recovery`, or `none`). A score
+achieved with a workaround is not the same as one achieved out of the box, and
+the card must make that visible. The shim itself should live in / be applied by
+the adapter so benchmark runs stay reproducible.
+
 ## Speed (co-equal with accuracy)
 
 Every row records `seconds` — wall-clock for the tool+model to complete the

@@ -10,7 +10,8 @@
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-12 |
-| **Doc updated** | 2026-06-12 |
+| **Doc updated** | 2026-06-25 |
+| **Workarounds needed** | **shim — pi edit-tool XML recovery** (safety net for flat-XML tool-call paths that can't encode nested `edits:[{oldText,newText}]`; **path-dependent — not reproduced on the bench's structured-tool_calls path**, see [tools/pi.md](../tools/pi.md) and [SCORING.md](../SCORING.md#workarounds-and-fairness)). None known for codex / opencode / aider. |
 
 ## Results summary
 
@@ -27,6 +28,8 @@ One of the top-performing models in the suite. opencode, codex, and caveman all 
 **Adapter-specific — opencode, bash-01-topwords (3/4):** opencode scores 3/4 (75%) where codex and caveman score 4/4. The model produces a correct pipeline for 3 of 4 input variations but one edge case (likely empty-line handling or locale sort) fails.
 
 **Status note — codex js-06, ts-01 (error(1) with full pass):** codex scored 4/4 on js-06 and 3/3 on ts-01 but logged error(1) status. The edit was applied correctly; codex exited non-zero after finishing. This is a codex lingering/exit-code issue, not a model failure.
+
+**Tool-format incompatibility — pi `edit` tool, PATH-dependent (2026-06-25):** on a flat-XML tool-call path the model emits `<parameter=NAME>` XML that can't encode pi's nested `edits:[{oldText,newText}]` param; the parser mangles it, pi rejects it (`edits.0 must be object`), and the model recovers via `write`. **Not intrinsic to qwen3-coder:** a captured bench trace shows it emitting a clean nested `edit` via `pi --provider lmstudio` (structured tool_calls). The trigger is the client/template path, not the model — see [tools/pi.md](../tools/pi.md). Fixed for scoring with a recovery shim, now applied automatically by all pi/caveman adapters (see [tools/pi.md](../tools/pi.md)). Likely affects other Hermes-format qwen models (qwen2.5-coder, qwen3.6-35b) — **untested**. Note: `smoke-01-edit-file` *cannot* detect this by score (the model recovers via `write` and still scores 1.00); breadth must be confirmed by inspecting tool-call traces, not pass-rate.
 
 ## Timing observations
 

@@ -5,3 +5,4 @@ node_modules/
 .aider*
 .cave/
 bench1.txt
+__pycache__/

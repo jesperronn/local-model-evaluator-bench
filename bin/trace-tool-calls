@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""
+trace-tool-calls — pretty-print and diagnose a pi/caveman session transcript.
+
+pi and caveman persist every session as a JSONL transcript under
+  ~/.pi/agent/sessions/--<slugified-cwd>--/<timestamp>_<uuid>.jsonl
+containing the full message stream: assistant text, tool calls (with raw
+arguments), and tool results. This tool renders that stream compactly and
+flags the qwen3-coder edit-tool failure signature so you can see, for any run
+(benchmark or real agentic work), exactly what tool calls a model emitted and
+whether the nested-schema × flat-XML problem occurred.
+
+Usage:
+  bin/trace-tool-calls <session.jsonl>          # a specific transcript
+  bin/trace-tool-calls <sandbox-dir>            # finds the session by cwd slug
+  bin/trace-tool-calls --latest                 # most recent session anywhere
+
+Worked examples:
+  # Inspect what a bench run actually did (any pi/caveman sandbox):
+  bin/trace-tool-calls results/20260618-002222/sandbox/pi/qwen_qwen3-coder-30b/smoke-01-edit-file
+
+  # Debug the last real agentic session you ran by hand (not a bench run):
+  bin/trace-tool-calls --latest
+
+  # Point straight at a stored transcript:
+  bin/trace-tool-calls ~/.pi/agent/sessions/--Users-...--/2026-..._<uuid>.jsonl
+
+Output: one line per assistant text / tool call / error, then a summary with a
+verdict. Each `edit` call is tagged "✓ nested array edits[]" (clean) or
+"⚠ MANGLED XML" (the failure below). Exit 0 = clean, 1 = failure signature.
+
+The failure signature (see docs/tools/pi.md): a model that cannot encode pi's
+nested edits:[{oldText,newText}] param emits a flat <parameter=NAME> XML blob
+that LM Studio mangles into the `edits` *string*; pi then rejects it
+(`edits.0 must be object`) and the model falls back to the `write` tool. A
+clean run shows a single structured `edit` call with an array `edits` value.
+
+IMPORTANT (2026-06 finding): this failure is PATH-dependent, not a structural
+property of any model. Captured bench traces show qwen3-coder-30b emitting a
+perfectly clean nested `edit` via `pi --provider lmstudio` (structured
+tool_calls). The mangling appears only on paths where the model is driven
+through a Hermes/Qwen <parameter=> prompt-template instead of structured
+tool_calls. Always confirm with a real trace before assuming a model is hit.
+"""
+import glob
+import json
+import os
+import sys
+
+SESSIONS_ROOT = os.path.expanduser("~/.pi/agent/sessions")
+
+
+def slugify_cwd(path: str) -> str:
+    """Reproduce pi's session-dir slug: '/a/b' -> '--a-b--'."""
+    p = os.path.realpath(path)
+    return "--" + p.strip("/").replace("/", "-") + "--"
+
+
+def resolve_session(arg: str) -> str:
+    if arg == "--latest":
+        cands = glob.glob(os.path.join(SESSIONS_ROOT, "*", "*.jsonl"))
+        if not cands:
+            sys.exit("no sessions found under " + SESSIONS_ROOT)
+        return max(cands, key=os.path.getmtime)
+    if arg.endswith(".jsonl") and os.path.isfile(arg):
+        return arg
+    if os.path.isdir(arg):
+        slug_dir = os.path.join(SESSIONS_ROOT, slugify_cwd(arg))
+        cands = glob.glob(os.path.join(slug_dir, "*.jsonl"))
+        if not cands:
+            sys.exit(f"no session transcript found for {arg}\n  looked in: {slug_dir}")
+        return max(cands, key=os.path.getmtime)
+    sys.exit(f"not a .jsonl file or directory: {arg}")
+
+
+def analyze(path: str) -> int:
+    edit_calls = write_calls = mangled = edit_errors = 0
+    print(f"# {path}\n")
+    for line in open(path):
+        try:
+            o = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        m = o.get("message")
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        if role == "assistant":
+            for c in m.get("content", []):
+                if not isinstance(c, dict):
+                    continue
+                if c.get("type") == "text" and c.get("text", "").strip():
+                    print(f"  · {c['text'].strip().splitlines()[0][:100]}")
+                elif c.get("type") == "toolCall":
+                    name = c.get("name")
+                    args = c.get("arguments", {})
+                    flat = json.dumps(args)
+                    flag = ""
+                    if name == "edit":
+                        edit_calls += 1
+                        if isinstance(args.get("edits"), str) and "<parameter=" in args["edits"]:
+                            mangled += 1
+                            flag = "  ⚠ MANGLED XML (flat <parameter=> in edits string)"
+                        elif isinstance(args.get("edits"), list):
+                            flag = "  ✓ nested array edits[]"
+                    elif name == "write":
+                        write_calls += 1
+                    print(f"  → {name}({flat[:120]}{'…' if len(flat) > 120 else ''}){flag}")
+        elif role == "toolResult":
+            if m.get("isError"):
+                txt = "".join(
+                    c.get("text", "") for c in m.get("content", []) if isinstance(c, dict)
+                )
+                if m.get("toolName") == "edit":
+                    edit_errors += 1
+                print(f"  ✗ ERROR [{m.get('toolName')}]: {txt[:120]}")
+
+    print("\n# summary")
+    print(f"  edit calls       : {edit_calls}")
+    print(f"  write calls      : {write_calls}")
+    print(f"  mangled-XML edits: {mangled}")
+    print(f"  edit errors      : {edit_errors}")
+    verdict = (
+        "FAILURE SIGNATURE PRESENT — flat-XML mangling hit pi's nested edit schema"
+        if mangled or edit_errors
+        else "clean — model encoded nested edits[] correctly (no XML mangling)"
+        if edit_calls
+        else "no edit calls (model may have used write, or never edited)"
+    )
+    print(f"  verdict          : {verdict}")
+    return 1 if (mangled or edit_errors) else 0
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    sys.exit(analyze(resolve_session(sys.argv[1])))

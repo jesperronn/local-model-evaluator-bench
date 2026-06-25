@@ -165,6 +165,12 @@ runs), so `--trials N` repeats each `(tool, model, case)` and records the
 Results land in `results/<timestamp>/`: a `results.csv` plus a per-run sandbox
 with each tool's edits and logs (`.bench.log`) for inspection.
 
+When a pass-rate alone can't explain a result, inspect the model's actual tool
+calls: `bin/trace-edit <adapter> <model> [case]` runs one triple and dumps its
+pi/caveman session transcript via `bin/trace-tool-calls` (which also reads any
+stored session or `--latest`) — flagging e.g. the qwen3-coder edit-tool
+mangling that a `write`-fallback hides from the score. See [docs/tools/pi.md](docs/tools/pi.md).
+
 ## Layout
 
 ```
