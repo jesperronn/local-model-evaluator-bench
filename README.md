@@ -69,6 +69,7 @@ of it?** Tool choice matters as much as model choice, especially on smaller mode
 - [docs/CASES.md](docs/CASES.md) — **precise spec of every test case + the run
   procedure** (enough to recreate each case's code in another framework).
 - [docs/SCORING.md](docs/SCORING.md) — how scoring (accuracy + speed) works.
+- [docs/TESTING-STRATEGY.md](docs/TESTING-STRATEGY.md) — the gated funnel (L0 wiring → L1 qualify+prune → L2 core bench → L3 confidence) for deciding how much effort to spend per combo.
 - [docs/SETUP.md](docs/SETUP.md) — LM Studio, per-tool provider config, IDE
   extensions, and the hermes no-yolo setup.
 - [docs/extensions/](docs/extensions/) — IDE extension / plugin recommendations
