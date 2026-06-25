@@ -29,6 +29,32 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
+# ── Model aliases: cross-runtime short names (mirrors bin/bench) ───────────────
+# models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id
+# Pass --model <alias>; the local lms load/ps calls below need the resolved id.
+declare -A _ALIAS_MAP
+_ALIASES_FILE="$HERE/models-aliases.conf"
+if [ -f "$_ALIASES_FILE" ]; then
+  while IFS=$'\t' read -r _al _lms _mlx _oll; do
+    [[ "$_al" =~ ^[[:space:]]*# || -z "${_al// /}" ]] && continue
+    _ALIAS_MAP["${_al}:lms"]="$_lms"
+    _ALIAS_MAP["${_al}:mlx"]="$_mlx"
+    _ALIAS_MAP["${_al}:ollama"]="$_oll"
+  done < "$_ALIASES_FILE"
+fi
+# Returns the runtime-specific id for a name, or the name itself if not an alias.
+# Returns empty string when alias exists but maps to "-" for this runtime.
+resolve_model() {
+  local name="$1" rt="$2" key rid
+  key="${name}:${rt}"
+  if [[ -v "_ALIAS_MAP[$key]" ]]; then
+    rid="${_ALIAS_MAP[$key]}"
+    [ "$rid" = "-" ] && echo "" || echo "$rid"
+  else
+    echo "$name"
+  fi
+}
+
 # Pre-scan for --runtime so --help shows the right suffix-stripped list.
 _help_runtime="lms"; _prev=""
 for _a in "$@"; do [ "$_prev" = "--runtime" ] && _help_runtime="$_a"; _prev="$_a"; done
@@ -74,23 +100,28 @@ BENCH_ARGS+=(--runtime "$RUNTIME")
 if [ "$RUNTIME" = "lms" ]; then
   MODEL="${MODEL:-$SMOKE_MODEL}"
 
+  # Resolve any alias to the lms-specific id for the local load/ps calls below.
+  # (--model passed downstream to bench stays the alias; bench resolves it itself.)
+  LMS_ID="$(resolve_model "$MODEL" lms)"
+  [ -z "$LMS_ID" ] && die "model '$MODEL' has no lms id in models-aliases.conf"
+
   lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
 
   loaded_ctx=$(lms ps --json 2>/dev/null \
-    | jq -r --arg m "$MODEL" '[.[] | select(.modelKey==$m) | .contextLength] | if length>0 then max else 0 end' \
+    | jq -r --arg m "$LMS_ID" '[.[] | select(.modelKey==$m) | .contextLength] | if length>0 then max else 0 end' \
     2>/dev/null || echo 0)
 
   if [ "${loaded_ctx:-0}" -ge "${SMOKE_CTX}" ] 2>/dev/null; then
-    ok "model already loaded: $MODEL (ctx ${loaded_ctx})"
+    ok "model already loaded: $LMS_ID (ctx ${loaded_ctx})"
   else
     if [ "${loaded_ctx:-0}" -gt 0 ] 2>/dev/null; then
       info "model loaded at ctx ${loaded_ctx} < ${SMOKE_CTX} required — reloading ..."
-      lms unload "$MODEL" >/dev/null 2>&1 || true
+      lms unload "$LMS_ID" >/dev/null 2>&1 || true
     fi
-    info "loading $MODEL (ttl ${SMOKE_TTL:-none}s, ctx ${SMOKE_CTX}) ..."
-    ensure_model_loaded "$MODEL" "${SMOKE_TTL:-}" "${SMOKE_CTX}" \
-      && ok "loaded $MODEL" \
-      || die "could not load $MODEL — check 'lms ls' or load it in the GUI"
+    info "loading $LMS_ID (ttl ${SMOKE_TTL:-none}s, ctx ${SMOKE_CTX}) ..."
+    ensure_model_loaded "$LMS_ID" "${SMOKE_TTL:-}" "${SMOKE_CTX}" \
+      && ok "loaded $LMS_ID" \
+      || die "could not load $LMS_ID — check 'lms ls' or load it in the GUI"
   fi
 
 elif [ "$RUNTIME" = "ollama" ]; then
