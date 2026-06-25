@@ -12,6 +12,7 @@ source "$HERE/lib/common.sh"
 RUNTIME=all
 DRY_RUN=false
 INTERACTIVE=false
+UNUSED=false
 
 HF_CACHE="${HOME}/.cache/huggingface/hub"
 
@@ -31,6 +32,8 @@ Without --interactive, prints a table and exits (no deletion).
 Options:
   --runtime=RT        Filter to a single runtime: lms, ollama, mlx, all (default: all)
   -i, --interactive   Pick models to remove via fzf, then delete
+  --unused            Only show/offer models NOT referenced by the bench lists
+                      (models.txt, models-mlx.txt, models-ollama.txt, aliases)
   --dry-run           With --interactive: preview what would be removed
   -h, --help          Show this help
 
@@ -45,6 +48,7 @@ for arg in "$@"; do
   case "$arg" in
     --runtime=*)       RUNTIME="${arg#--runtime=}" ;;
     -i|--interactive)  INTERACTIVE=true ;;
+    --unused)          UNUSED=true ;;
     --dry-run)         DRY_RUN=true ;;
     --help|-h)         usage; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; usage >&2; exit 1 ;;
@@ -84,79 +88,96 @@ dir_bytes()  { du -sk "$1" 2>/dev/null | awk '{print $1*1024}' || echo 0; }
 collect_lms() {
   command -v lms >/dev/null 2>&1 || { warn "lms not found — skipping lms runtime"; return; }
 
-  # Python resolves modelKey → disk directory (same heuristic as bin/lms_update).
-  # Outputs TSV: key  size_bytes  last_used_s  disk_dir
+  # Resolve modelKey → concrete weights dir using LM Studio's own index
+  # (~/.lmstudio/.internal/model-index-cache.json), the authoritative source of
+  # truth — no filename/token guessing. Each emitted row is one concrete weights
+  # directory; the delete target lists the concrete dir plus any tiny hub-pointer
+  # dir (pipe-separated) so both are removed together. Also surfaces orphan dirs
+  # on disk that the index doesn't reference (e.g. unsupported/stale downloads).
+  #
+  # Outputs TSV: model_id  size_bytes  last_used_s  delete_target(s, '|'-joined)
   python3 <<'PYEOF' | awk -F'\t' 'OFS="\t"{print "lms",$1,$2,$3,$4}'
-import json, re, subprocess, sys
+import json, subprocess, sys
 from pathlib import Path
 
+home        = Path.home()
+index_path  = home / ".lmstudio/.internal/model-index-cache.json"
+comm_root   = home / ".lmstudio/models/lmstudio-community"
+
 try:
-    lms_models = json.loads(subprocess.check_output(["lms", "ls", "--json"], stderr=subprocess.DEVNULL))
-    ps_models  = json.loads(subprocess.check_output(["lms", "ps",  "--json"], stderr=subprocess.DEVNULL))
+    ps_models = json.loads(subprocess.check_output(["lms", "ps", "--json"], stderr=subprocess.DEVNULL))
 except Exception:
+    ps_models = []
+# lastUsedTime (ms) for currently-loaded models, keyed by modelKey
+loaded = {m.get("modelKey"): (m.get("lastUsedTime") or 0) for m in ps_models}
+
+if not index_path.exists():
     sys.exit(0)
+with open(index_path) as f:
+    index = json.load(f)
 
-loaded      = {m["modelKey"]: m.get("lastUsedTime") or 0 for m in ps_models}
-models_root = Path.home() / ".lmstudio/models/lmstudio-community"
-cache_path  = Path.home() / ".lmstudio/.internal/gguf-metadata-cache.json"
+# Group every index entry by its concrete weights dir, so the hub virtual model
+# and the bare community entry collapse into a single deletable unit.
+groups = {}  # concrete_dir -> {ids:set, pointers:set, size:int, mtime_ms:int}
+for m in index.get("models", []):
+    concrete = m.get("concreteModelDirAbsolutePath") or m.get("containingDirAbsolutePath")
+    if not concrete:
+        continue
+    g = groups.setdefault(concrete, {"ids": set(), "pointers": set(), "size": 0, "mtime": 0})
+    for ident in m.get("autoIdentifiers", []) or []:
+        if "/" in ident and "@" not in ident:   # prefer publisher/key form, skip quant aliases
+            g["ids"].add(ident)
+    container = m.get("containingDirAbsolutePath")
+    if container and container != concrete:
+        g["pointers"].add(container)            # tiny hub-pointer dir
+    g["size"]  = max(g["size"], m.get("sizeBytes", 0))
+    g["mtime"] = max(g["mtime"], m.get("containingDirMtime", 0))
 
-quant_map = {}
-for m in lms_models:
-    sv = m.get("selectedVariant", "")
-    quant_map[m["modelKey"]] = sv.split("@")[1].lower() if "@" in sv else ""
-is_mlx = {m["modelKey"]: m.get("format", "") == "safetensors" for m in lms_models}
+referenced = set(groups.keys())
 
-def score(hf_dir, key):
-    hf_t  = set(re.findall(r"[a-z0-9]+", hf_dir.lower()))
-    key_t = set(re.findall(r"[a-z0-9]+", key.lower()))
-    if ("qat" in hf_t) != ("qat" in key_t): return -1
-    if ("mlx" in hf_t) != is_mlx.get(key, False): return -1
-    return len(hf_t & key_t)
+# A hub pointer dir can be shared by sibling variants (e.g. qwen3-coder-30b
+# @4bit and @8bit). Only delete a pointer alongside a concrete dir when it is
+# uniquely owned, otherwise removing one variant would break the sibling.
+ptr_owners = {}
+for concrete, g in groups.items():
+    for p in g["pointers"]:
+        ptr_owners.setdefault(p, set()).add(concrete)
+for concrete, g in groups.items():
+    g["pointers"] = {p for p in g["pointers"] if len(ptr_owners[p]) == 1}
 
-key_to_dir = {}
+def best_id(ids, concrete):
+    if ids:
+        return sorted(ids, key=len)[0]
+    return Path(concrete).name
 
-if cache_path.exists():
-    with open(cache_path) as f:
-        cache = json.load(f)
-    for path_str, _ in cache["json"]["map"]:
-        if "lmstudio-community" not in path_str: continue
-        rel    = path_str.split("lmstudio-community/")[1]
-        hf_dir = rel.split("/")[0]
-        fname  = Path(rel).name
-        m = re.search(r"[_-](Q\d[^._-]*(?:[_-][KkMm]+)*)\.gguf$", fname, re.IGNORECASE)
-        if not m: continue
-        quant = m.group(1).lower().replace("-", "_")
-        best, best_s = None, 0
-        for mod in lms_models:
-            k = mod["modelKey"]
-            if quant_map[k] != quant: continue
-            s = score(hf_dir, k)
-            if s > best_s: best_s, best = s, k
-        if best and best_s >= 3:
-            key_to_dir[best] = hf_dir
-
-if models_root.exists():
-    for dir_path in sorted(models_root.iterdir()):
-        hf_dir = dir_path.name
-        if any(v == hf_dir for v in key_to_dir.values()): continue
-        best, best_s = None, 0
-        for mod in lms_models:
-            s = score(hf_dir, mod["modelKey"])
-            if s > best_s: best_s, best = s, mod["modelKey"]
-        if best and best_s >= 3 and best not in key_to_dir:
-            key_to_dir[best] = hf_dir
-
-for m in lms_models:
-    key     = m["modelKey"]
-    size    = m.get("sizeBytes", 0)
-    hf_dir  = key_to_dir.get(key, "")
-    disk    = str(models_root / hf_dir) if hf_dir else ""
-    ts_ms   = loaded.get(key, 0)
-    if ts_ms == 0 and disk:
-        p = Path(disk)
+for concrete, g in sorted(groups.items()):
+    if not Path(concrete).exists():   # index cache is stale after a deletion — trust disk
+        continue
+    mid     = best_id(g["ids"], concrete)
+    # last-used: prefer loaded lastUsedTime, else concrete dir mtime, else index mtime
+    ts_ms   = 0
+    for ident in g["ids"]:
+        ts_ms = max(ts_ms, loaded.get(ident, 0))
+    if ts_ms == 0:
+        p = Path(concrete)
         if p.exists():
             ts_ms = int(p.stat().st_mtime * 1000)
-    print(f"{key}\t{size}\t{int(ts_ms/1000)}\t{disk}")
+        else:
+            ts_ms = g["mtime"]
+    targets = "|".join([concrete, *sorted(g["pointers"])])
+    print(f"{mid}\t{g['size']}\t{int(ts_ms/1000)}\t{targets}")
+
+# Orphans: weights dirs on disk the index never references (unsupported arch,
+# stale/interrupted downloads). These are pure reclaimable space.
+if comm_root.exists():
+    for d in sorted(comm_root.iterdir()):
+        if not d.is_dir() or str(d) in referenced:
+            continue
+        try:
+            size = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+        except OSError:
+            size = 0
+        print(f"(orphan) {d.name}\t{size}\t{int(d.stat().st_mtime * 1000)}\t{d}")
 PYEOF
 }
 
@@ -216,7 +237,55 @@ gather_entries() {
 
 entries_tsv=$(gather_entries)
 
+# ── --unused filter ─────────────────────────────────────────────────────────
+# Keep only entries NOT referenced by any bench list. A model counts as "used"
+# if its id, any delete-target path, or that path's basename appears in:
+#   models.txt, models-ollama.txt (publisher/key ids)
+#   models-mlx.txt               (absolute concrete dir paths)
+#   models-aliases.conf          (target column)
+
+build_used() {
+  local f
+  for f in models.txt models-ollama.txt models-mlx.txt; do
+    [[ -f "$HERE/$f" ]] && grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$HERE/$f"
+  done
+  [[ -f "$HERE/models-aliases.conf" ]] && awk '!/^[[:space:]]*#/ && NF>=2 {print $2}' "$HERE/models-aliases.conf"
+}
+
+# Match is by exact id/path/basename first; then a token-subset fallback so a
+# freshly-downloaded model not yet in LM Studio's index (shown by its dir name,
+# e.g. "Devstral-2-123B-Instruct-2512-GGUF") still matches its bench-list id
+# ("mistralai/devstral-2-2512"). This avoids flagging wanted models as unused.
+filter_unused() {
+  UNUSED_USED="$(build_used)" ENTRIES="$entries_tsv" python3 <<'PYEOF'
+import os, re
+def toks(s): return set(re.findall(r"[a-z0-9]+", s.lower()))
+used = [u.strip() for u in os.environ["UNUSED_USED"].splitlines() if u.strip()]
+used_exact = set(used)
+used_base  = {os.path.basename(u) for u in used}
+used_tok   = [toks(u.split("/")[-1]) for u in used]
+
+for line in os.environ["ENTRIES"].splitlines():
+    if not line.strip():
+        continue
+    rt, mid, size, ts, target = line.split("\t")
+    paths = [p for p in target.split("|") if p]
+    is_used = (mid in used_exact
+               or any(p in used_exact or os.path.basename(p) in used_base for p in paths))
+    if not is_used:
+        cand = [toks(mid.split("/")[-1])] + [toks(os.path.basename(p)) for p in paths]
+        is_used = any(ut and any(ut <= ct for ct in cand) for ut in used_tok)
+    if not is_used:
+        print(line)
+PYEOF
+}
+
+if $UNUSED; then
+  entries_tsv=$(filter_unused)
+fi
+
 if [[ -z "$entries_tsv" ]]; then
+  $UNUSED && { echo "No unused models — everything on disk is referenced by a bench list."; exit 0; }
   echo "No models found."
   exit 0
 fi
@@ -298,11 +367,21 @@ do_interactive() {
         if [[ -z "$target" ]]; then
           ok=false
         else
-          # Unload from memory first if resident
-          lms ps --json 2>/dev/null \
-            | jq -e --arg k "$id" '.[] | select(.modelKey==$k)' >/dev/null 2>&1 \
-            && lms unload "$id" >/dev/null 2>&1 || true
-          rm -rf "$target" && ok=true
+          # Unload from memory first if resident (best-effort; skip for orphans)
+          if [[ "$id" != "(orphan) "* ]]; then
+            lms ps --json 2>/dev/null \
+              | jq -e --arg k "$id" '.[] | select(.modelKey==$k)' >/dev/null 2>&1 \
+              && lms unload "$id" >/dev/null 2>&1 || true
+          fi
+          # target may be several '|'-joined dirs (concrete weights + hub pointer)
+          ok=true
+          local _oldifs="$IFS" path
+          IFS='|'
+          for path in $target; do
+            IFS="$_oldifs"
+            [[ -n "$path" && -e "$path" ]] && { rm -rf "$path" || ok=false; }
+          done
+          IFS="$_oldifs"
         fi
         ;;
       ollama)
