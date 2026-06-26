@@ -9,7 +9,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
-PRIMARY_MODEL="${1:-qwen/qwen3.6-35b-a3b}"
+PRIMARY_MODEL="qwen/qwen3.6-35b-a3b"
 INCLUDE_DEVSTRAL=0
 INCLUDE_HARD=0
 
@@ -41,9 +41,10 @@ if [[ "$PRIMARY_MODEL" == *"qwen3.6-35b"* ]]; then
   fi
 fi
 
-# Build command: skip external tool adapters, use only lms
-# External adapters (forge, gptme, mini-swe-agent, swe-agent) require tools not installed
-ADAPTERS="aider,caveman,claude,cline,codex,copilot,goose,opencode,pi"
+# Build command: skip adapters with config issues
+# Broken: caveman (unknown provider), claude (malformed API response)
+# Not installed: forge, gptme, mini-swe-agent, swe-agent (external tools)
+ADAPTERS="aider,cline,codex,copilot,goose,opencode,pi"
 # hermes requires special config — comment out if not configured
 
 DIFFICULTY="easy,medium"
