@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+# bin/stale — emit a worklist of (adapter,model,case) triples that need a (re)run.
+#
+# The benchmark has no built-in "needs rerun" tracking: a result row in
+# results/<run>/results.csv is just whatever was true the night it ran. This
+# tool reconstructs that, by comparing each desired combo against the most
+# recent result we have for it and deciding whether it is:
+#
+#   missing  — never run for this runtime
+#   failed   — last result's status was not "ok" (infra/tool failure, timeout,
+#              error — NOT a low score; a genuine model miss is a real result)
+#   stale    — an input changed AFTER the producing run started, so the result
+#              no longer reflects current code. Inputs checked, per combo:
+#                global : config.sh, lib/common.sh, bin/bench  (affect everything)
+#                adapter: adapters/<adapter>-<runtime>.sh  (or <adapter>.sh)
+#                case   : newest file under cases/<case>/
+#                shim   : bin/pi-patch-edit-shim  (pi + caveman only)
+#
+# "Producing run started" is taken from the RUN_ID timestamp (results/<id>/),
+# so any input touched after the run began re-qualifies the combo. Conservative
+# by design: a false "stale" only costs an extra rerun overnight.
+#
+# Output: CSV on stdout  ->  adapter,model,case,runtime,reason
+#         counts + breakdown on stderr.
+# Feed straight into:  bin/bench-overnight --worklist <file>
+#
+# Flags (axis flags mirror bin/bench so the desired matrix matches a real run):
+#   --tool/-t a,b        adapters    (default: $DEFAULT_ADAPTERS)
+#   --models/--model/-m  models      (default: per-runtime models file)
+#   --cases a,b          cases       (default: all cases/)
+#   --runtime RUNTIME    lms|ollama|mlx (default: lms) — picks models file + adapter variant
+#   --missing-only       emit only never-run combos
+#   --stale-only         emit only input-changed combos
+#   --failed-only        emit only last-status-not-ok combos
+#   --header             print a CSV header row (off by default, so output pipes clean)
+#   --list               human summary only; no CSV on stdout
+#
+# Test override hooks (used by bin/stale.test.sh; ignore in normal use):
+#   STALE_RESULTS_DIR, STALE_CASES_DIR, STALE_ADAPTERS_DIR, STALE_MODELS_FILE,
+#   STALE_CONFIG_SH, STALE_COMMON_SH, STALE_BENCH, STALE_SHIM
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+# Apply test overrides (no-ops in normal use).
+RESULTS_DIR="${STALE_RESULTS_DIR:-$RESULTS_DIR}"
+CASES_DIR="${STALE_CASES_DIR:-$CASES_DIR}"
+ADAPTERS_DIR="${STALE_ADAPTERS_DIR:-$ADAPTERS_DIR}"
+MODELS_FILE="${STALE_MODELS_FILE:-$MODELS_FILE}"
+CONFIG_SH="${STALE_CONFIG_SH:-$HERE/config.sh}"
+COMMON_SH="${STALE_COMMON_SH:-$HERE/lib/common.sh}"
+BENCH_BIN="${STALE_BENCH:-$HERE/bin/bench}"
+SHIM_BIN="${STALE_SHIM:-$HERE/bin/pi-patch-edit-shim}"
+
+ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; RUNTIME="lms"
+ONLY=""; HEADER=0; LIST=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --tool|-t)           ADAPTERS="$2"; shift 2;;
+    --models|--model|-m) MODELS="$2";   shift 2;;
+    --cases)             CASES="$2";    shift 2;;
+    --difficulty)        DIFFICULTY="$2"; shift 2;;
+    --runtime)           RUNTIME="$2";  shift 2;;
+    --missing-only)      ONLY="missing"; shift;;
+    --stale-only)        ONLY="stale";   shift;;
+    --failed-only)       ONLY="failed";  shift;;
+    --header)            HEADER=1; shift;;
+    --list)              LIST=1; shift;;
+    -h|--help)           awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"; exit 0;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+case "$RUNTIME" in
+  lms)    RT_MODELS_FILE="$MODELS_FILE";;
+  ollama) RT_MODELS_FILE="$HERE/models-ollama.txt";;
+  mlx)    RT_MODELS_FILE="$HERE/models-mlx.txt";;
+  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx)";;
+esac
+
+# ── Resolve the desired axes (same precedence as bin/bench) ──────────────────
+[ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
+IFS=',' read -ra ADAPTER_ARR <<< "$ADAPTERS"
+if [ -n "$MODELS" ]; then IFS=',' read -ra MODEL_ARR <<< "$MODELS"
+else mapfile -t MODEL_ARR < <(read_list "$RT_MODELS_FILE"); fi
+if [ -n "$CASES" ]; then IFS=',' read -ra CASE_ARR <<< "$CASES"
+else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] && basename "$d"; done); fi
+
+[ "${#MODEL_ARR[@]}" -gt 0 ] || die "no models resolved (runtime $RUNTIME, file $(basename "$RT_MODELS_FILE"))"
+[ "${#CASE_ARR[@]}" -gt 0 ] || die "no cases resolved under $CASES_DIR"
+
+# --difficulty easy,medium → restrict to cases of that tier (small-model gating).
+if [ -n "$DIFFICULTY" ]; then
+  _filtered=()
+  for _c in "${CASE_ARR[@]}"; do
+    _d="$(sed -nE 's/.*"difficulty"[[:space:]]*:[[:space:]]*"([a-z]+)".*/\1/p' "$CASES_DIR/$_c/meta.json" 2>/dev/null)"
+    case ",$DIFFICULTY," in *",${_d:-unknown},"*) _filtered+=("$_c");; esac
+  done
+  CASE_ARR=("${_filtered[@]}")
+  [ "${#CASE_ARR[@]}" -gt 0 ] || die "no cases match --difficulty $DIFFICULTY"
+fi
+
+# ── mtime helpers (macOS stat) ───────────────────────────────────────────────
+mtime() { stat -f %m "$1" 2>/dev/null || echo 0; }              # 0 if absent
+dir_mtime() {                                                    # newest file in tree (0 if none)
+  local m
+  m="$(find "$1" -type f -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)"
+  echo "${m:-0}"
+}
+run_epoch() {                                                    # RUN_ID 20260625-211608 -> epoch
+  date -j -f "%Y%m%d-%H%M%S" "$1" +%s 2>/dev/null || echo 0
+}
+
+# Global inputs invalidate every combo when changed.
+GLOBAL_MTIME=0
+for f in "$CONFIG_SH" "$COMMON_SH" "$BENCH_BIN"; do
+  m="$(mtime "$f")"; [ "$m" -gt "$GLOBAL_MTIME" ] && GLOBAL_MTIME="$m"
+done
+SHIM_MTIME="$(mtime "$SHIM_BIN")"
+
+# Adapter file for this runtime (prefer <adapter>-<runtime>.sh).
+adapter_mtime() {
+  local a="$1" f="$ADAPTERS_DIR/$1-$RUNTIME.sh"
+  [ -f "$f" ] || f="$ADAPTERS_DIR/$a.sh"
+  mtime "$f"
+}
+adapter_exists() {
+  [ -f "$ADAPTERS_DIR/$1-$RUNTIME.sh" ] || [ -f "$ADAPTERS_DIR/$1.sh" ]
+}
+
+# Cache per-case and per-adapter input mtimes (each computed once).
+declare -A _CASE_MT _ADP_MT
+case_mtime()  { [ -n "${_CASE_MT[$1]+x}" ] || _CASE_MT[$1]="$(dir_mtime "$CASES_DIR/$1")"; echo "${_CASE_MT[$1]}"; }
+adp_mtime()   { [ -n "${_ADP_MT[$1]+x}"  ] || _ADP_MT[$1]="$(adapter_mtime "$1")";        echo "${_ADP_MT[$1]}"; }
+
+# ── Scan existing results newest-first: latest epoch + status per combo ──────
+# Key: "adapter|model|case" restricted to this runtime (CSV last column).
+declare -A _DONE_EPOCH _DONE_STATUS
+if [ -d "$RESULTS_DIR" ]; then
+  while IFS= read -r run_dir; do
+    rid="$(basename "$run_dir")"
+    csv="$run_dir/results.csv"
+    [ -f "$csv" ] || continue
+    ep="$(run_epoch "$rid")"
+    while IFS=, read -r a m c _pass _total _score _secs status _trials rt; do
+      [ "$a" = adapter ] && continue
+      [ -n "${rt:-}" ] || rt="lms"            # older rows predate the runtime column
+      [ "$rt" = "$RUNTIME" ] || continue
+      key="$a|$m|$c"
+      # Newest-first scan: first sighting wins; don't overwrite with older runs.
+      [ -n "${_DONE_EPOCH[$key]+x}" ] && continue
+      _DONE_EPOCH[$key]="$ep"
+      _DONE_STATUS[$key]="$status"
+    done < "$csv"
+  done < <(ls -dt "$RESULTS_DIR"/[0-9]*-[0-9]*/ 2>/dev/null)
+fi
+
+# ── Decide each desired combo ────────────────────────────────────────────────
+emit() {  # adapter model case reason
+  printf '%s,%s,%s,%s,%s\n' "$1" "$2" "$3" "$RUNTIME" "$4"
+}
+
+[ "$HEADER" = 1 ] && [ "$LIST" = 0 ] && echo "adapter,model,case,runtime,reason"
+
+n_missing=0; n_failed=0; n_stale=0; n_ok=0; n_skip_adapter=0
+WORKLIST="$(mktemp)"
+for adapter in "${ADAPTER_ARR[@]}"; do
+  if ! adapter_exists "$adapter"; then n_skip_adapter=$((n_skip_adapter+1)); continue; fi
+  a_mt="$(adp_mtime "$adapter")"
+  shim_applies=0
+  case "$adapter" in pi|caveman) shim_applies=1;; esac
+  for model in "${MODEL_ARR[@]}"; do
+    for case_id in "${CASE_ARR[@]}"; do
+      c_mt="$(case_mtime "$case_id")"
+      # newest input across all sources that affect this combo
+      newest="$GLOBAL_MTIME"
+      [ "$a_mt" -gt "$newest" ] && newest="$a_mt"
+      [ "$c_mt" -gt "$newest" ] && newest="$c_mt"
+      [ "$shim_applies" = 1 ] && [ "$SHIM_MTIME" -gt "$newest" ] && newest="$SHIM_MTIME"
+
+      key="$adapter|$model|$case_id"
+      reason=""
+      if [ -z "${_DONE_EPOCH[$key]+x}" ]; then
+        reason="missing"; n_missing=$((n_missing+1))
+      elif [ "${_DONE_STATUS[$key]}" != "ok" ]; then
+        reason="failed(${_DONE_STATUS[$key]})"; n_failed=$((n_failed+1))
+      elif [ "$newest" -gt "${_DONE_EPOCH[$key]}" ]; then
+        reason="stale"; n_stale=$((n_stale+1))
+      else
+        n_ok=$((n_ok+1)); continue
+      fi
+
+      # Apply --*-only filter (match on the reason's leading word).
+      if [ -n "$ONLY" ]; then
+        case "$reason" in "$ONLY"*) ;; *) continue;; esac
+      fi
+      emit "$adapter" "$model" "$case_id" "$reason" >> "$WORKLIST"
+    done
+  done
+done
+
+[ "$LIST" = 0 ] && cat "$WORKLIST"
+n_emit="$(wc -l < "$WORKLIST" | tr -d ' ')"
+rm -f "$WORKLIST"
+
+{
+  echo
+  info "stale scan ($RUNTIME): ${#ADAPTER_ARR[@]} adapters x ${#MODEL_ARR[@]} models x ${#CASE_ARR[@]} cases"
+  echo "  ${C_DIM}missing : $n_missing${C_RST}"
+  echo "  ${C_DIM}failed  : $n_failed${C_RST}"
+  echo "  ${C_DIM}stale   : $n_stale${C_RST}"
+  echo "  ${C_DIM}current : $n_ok (skipped)${C_RST}"
+  [ "$n_skip_adapter" -gt 0 ] && echo "  ${C_DIM}no adapter file: $n_skip_adapter (skipped)${C_RST}"
+  info "worklist rows emitted: $n_emit"
+} >&2

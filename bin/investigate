@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# bin/investigate — triage failing / suspicious (adapter,model,case) combos and
+# classify each as auto-fixable (known tool-call signature) vs a genuine model
+# failure. This is the deterministic spine of the investigation loop: it gathers
+# evidence and proposes an action, but does NOT mutate adapters or shims — that
+# decision (and any fix + backprop §V invariant) is the driver's job.
+#
+# Why it exists: a green bench score does not mean the tool calls were correct.
+# pi/caveman + qwen3-coder can fail their nested `edit` schema, fall back to
+# `write`, and still score 1.00 (see docs/tools/pi.md). The only signal is the
+# session transcript, which bin/trace-edit captures and bin/trace-tool-calls
+# classifies. This wraps that into a per-combo verdict + a markdown report.
+#
+# Usage:
+#   bin/investigate <adapter> <model> [case]      # one combo
+#   bin/investigate --worklist FILE [--runtime R] # many (CSV from bin/stale or a
+#                                                 # results.csv of failures)
+#   bin/investigate --failures RUN_ID             # all non-ok rows of a bench run
+#
+# Each combo yields one of:
+#   signature:mangled-xml  -> pi/caveman edit schema hit flat-XML mangling.
+#                             Action: ensure bin/pi-patch-edit-shim applied; rerun.
+#   clean                  -> structured edit calls; failure (if any) is genuine.
+#                             Action: record on docs/tools/<tool>.md; backprop §V.
+#   no-edit                -> model never called edit (used write / never edited).
+#   no-transcript          -> adapter is not pi/caveman; inspect the bench log.
+#
+# Report: results/investigations/<stamp>.md  (also printed to stdout).
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+RUNTIME="lms"; WORKLIST=""; FAILURES_RUN=""
+POSITIONAL=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --runtime)   RUNTIME="$2"; shift 2;;
+    --worklist)  WORKLIST="$2"; shift 2;;
+    --failures)  FAILURES_RUN="$2"; shift 2;;
+    -h|--help)   awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"; exit 0;;
+    -*)          die "unknown option: $1";;
+    *)           POSITIONAL+=("$1"); shift;;
+  esac
+done
+
+# ── Build the candidate list: lines of "adapter<TAB>model<TAB>case" ──────────
+CANDIDATES="$(mktemp)"
+if [ -n "$FAILURES_RUN" ]; then
+  csv="$RESULTS_DIR/$FAILURES_RUN/results.csv"
+  [ -f "$csv" ] || die "no results.csv for run $FAILURES_RUN"
+  # non-ok rows only; also flag pi/caveman rows that PASSED (score-blind risk).
+  awk -F, 'NR>1 && ($8!="ok" || $1=="pi" || $1=="caveman"){print $1"\t"$2"\t"$3}' "$csv" > "$CANDIDATES"
+elif [ -n "$WORKLIST" ]; then
+  [ -f "$WORKLIST" ] || die "worklist not found: $WORKLIST"
+  awk -F, 'NF>=3 && $1!="adapter" && $1!=""{print $1"\t"$2"\t"$3}' "$WORKLIST" > "$CANDIDATES"
+elif [ "${#POSITIONAL[@]}" -ge 2 ]; then
+  printf '%s\t%s\t%s\n' "${POSITIONAL[0]}" "${POSITIONAL[1]}" "${POSITIONAL[2]:-smoke-01-edit-file}" > "$CANDIDATES"
+else
+  die "give <adapter> <model> [case], or --worklist FILE, or --failures RUN_ID"
+fi
+
+N="$(wc -l < "$CANDIDATES" | tr -d ' ')"
+[ "$N" -gt 0 ] || { info "no candidates to investigate"; rm -f "$CANDIDATES"; exit 0; }
+
+mkdir -p "$RESULTS_DIR/investigations"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+REPORT="$RESULTS_DIR/investigations/$STAMP.md"
+{
+  echo "# Investigation $STAMP"
+  echo
+  echo "Runtime: \`$RUNTIME\` — $N candidate(s)."
+  echo
+  echo "| adapter | model | case | verdict | action |"
+  echo "|---|---|---|---|---|"
+} > "$REPORT"
+
+info "investigating $N combo(s) — report: ${REPORT#"$HERE"/}"
+echo
+
+n_sig=0; n_clean=0; n_noedit=0; n_notrace=0
+while IFS=$'\t' read -r adapter model case_id; do
+  [ -z "$adapter" ] && continue
+  verdict=""; action=""
+
+  case "$adapter" in
+    pi|caveman)
+      # trace-edit wants the adapter *filename* (pi-lms), runtime-qualified.
+      adp="$adapter-$RUNTIME"
+      [ -f "$ADAPTERS_DIR/$adp.sh" ] || adp="$adapter"
+      info "trace: $adp x $model x $case_id"
+      trace_out="$("$HERE/bin/trace-edit" "$adp" "$model" "$case_id" 2>&1)"; trace_rc=$?
+      if grep -q "MANGLED XML" <<<"$trace_out"; then
+        verdict="signature:mangled-xml"
+        action="apply bin/pi-patch-edit-shim, rerun (see docs/tools/pi.md)"
+        n_sig=$((n_sig+1))
+      elif grep -q "no edit calls" <<<"$trace_out"; then
+        verdict="no-edit"
+        action="model used write/never edited — inspect task fit"
+        n_noedit=$((n_noedit+1))
+      elif [ "$trace_rc" -eq 0 ]; then
+        verdict="clean"
+        action="tool calls fine — any failure is genuine; record on docs/tools/$adapter.md + backprop §V"
+        n_clean=$((n_clean+1))
+      else
+        verdict="edit-error"
+        action="edit calls errored — read transcript above; likely shim/schema gap"
+        n_sig=$((n_sig+1))
+      fi
+      # Stash the full trace next to the report for the driver to read.
+      printf '%s\n' "$trace_out" > "$RESULTS_DIR/investigations/$STAMP.$adapter.$(fs_safe "$model").$case_id.trace.txt"
+      ;;
+    *)
+      verdict="no-transcript"
+      # Point at the most recent bench log for this combo, if one exists.
+      logf="$(ls -t "$RESULTS_DIR"/[0-9]*/sandbox/"$adapter"/"$(fs_safe "$model")"/"$case_id"/.bench.log \
+              "$RESULTS_DIR"/[0-9]*/sandbox/"$adapter"/"$(fs_safe "$model")"/"$case_id"/trial-*/.bench.log \
+              2>/dev/null | head -1)"
+      if [ -n "$logf" ]; then action="inspect ${logf#"$HERE"/}"; else action="rerun with: bin/bench --tool $adapter --model $model --cases $case_id --verbose"; fi
+      n_notrace=$((n_notrace+1))
+      ;;
+  esac
+
+  echo "| $adapter | $model | $case_id | $verdict | $action |" >> "$REPORT"
+  printf '  %-22s %s | %s | %s\n' "$verdict" "$adapter" "$model" "$case_id"
+done < "$CANDIDATES"
+rm -f "$CANDIDATES"
+
+{
+  echo
+  echo "## Summary"
+  echo "- signature (auto-fixable): $n_sig"
+  echo "- clean (genuine failure / record + backprop): $n_clean"
+  echo "- no-edit: $n_noedit"
+  echo "- no-transcript (inspect log): $n_notrace"
+} >> "$REPORT"
+
+echo
+info "done — $n_sig signature, $n_clean clean, $n_noedit no-edit, $n_notrace no-transcript"
+info "report: ${REPORT#"$HERE"/}"
