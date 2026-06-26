@@ -10,7 +10,7 @@
 | **Parameter count** | 24B |
 | **Context window** | 256K |
 | **License** | Apache-2.0 |
-| **Disk size** | <!-- TODO after download --> |
+| **Disk size** | 15.2 GB (GGUF, lmstudio-community Q4) |
 | **Added** | 2026-06-25 |
 | **Last run** | — (not yet run) |
 | **Doc updated** | 2026-06-25 |

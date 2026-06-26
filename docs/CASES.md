@@ -44,11 +44,11 @@ shell assertions. No `npm install` is ever required.
 
 ```
 cases/<id>/
-  meta.json     # id, lang, title, points, category, edit_files[, visible_tests]
+  meta.json     # id, lang, title, points, category, difficulty, edit_files[, visible_tests]
   task.md       # the exact prompt handed to the tool (stdin)
   workdir/      # starter files copied into the sandbox (the editable code)
   check/
-    run.sh      # grader: prints RESULT pass=N total=N
+    run.sh      # grader: prints RESULT pass=N total=N (+ per-check CHECK lines)
     <pristine test/fixture/linter files>
 ```
 
@@ -62,6 +62,36 @@ cases/<id>/
 | `cli` | write/fix a shell script |
 | `multi-file` | a change spanning ≥2 files |
 | `self-verify` | test/lint suite ships in the workdir; the agent is told to **run it and iterate to green**. Grader re-runs pristine copies. |
+
+### Difficulty (`difficulty`)
+
+A declared tier used to **gate weaker/smaller models** to the work they can plausibly
+do. Filter any run with `bin/bench --difficulty easy,medium` (also on `bin/stale`).
+
+| tier | what it covers | small-model fit |
+|------|----------------|-----------------|
+| `easy` | smoke — one trivial edit to one file | any tool-calling model |
+| `medium` | a real single-file task (bugfix / feature / cli) | the target band |
+| `hard` | multi-file changes or self-verify (must run tools and iterate) | reserved for capable models |
+
+The tiers reflect *what makes a case hard for a small model* — spanning files and
+tool-iteration — not raw `points`.
+
+### Per-check decomposition (grader contract)
+
+Each grader is already broken into **atomic checks** (`RESULT pass=N total=N` means
+N of M independent checks passed). Graders also emit one machine line per check:
+
+```
+CHECK <pass|fail> <id>
+```
+
+`bin/bench` records these to `results/<run>/checks.csv`
+(`adapter,model,case,trial,status,check`), so you can see **which** sub-step a model
+failed — e.g. a small model that nails the logic but fails the `lint` check, or only
+the `punctuation run -> single hyphen` case. Write graders with the helpers in
+[`lib/grader.sh`](../lib/grader.sh) (`check_pass` / `check_fail` / `check_eq` /
+`tap_to_checks` / `emit_result`); the `RESULT` line stays authoritative for scoring.
 
 ---
 

@@ -20,7 +20,8 @@ which numbers are measured vs inferred.
 | Extension | IDE | Page | Status |
 |-----------|-----|------|--------|
 | Cline | VS Code | [cline.md](cline.md) | heuristic — no direct Cline runs yet |
-| Continue | VS Code / JetBrains | _planned_ | — |
+| Continue | VS Code / JetBrains | _planned_ | — see [tools/continue.md](../tools/continue.md) for headless feasibility notes |
+| Cursor | VS Code fork | _planned_ | — GUI-only, no headless mode; explore manual eval procedure |
 | Roo Code | VS Code | _planned_ | — |
 | ProxyAI (CodeGPT) | JetBrains | _planned_ | — |
 
