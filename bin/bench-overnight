@@ -6,7 +6,17 @@
 #   bin/bench-overnight                      # default model list
 #   bin/bench-overnight --models a,b,c       # override model list
 #   bin/bench-overnight --tool aider,codex   # override adapter list
+#   bin/bench-overnight --worklist FILE      # drive from a bin/stale worklist
+#   bin/bench-overnight --stale              # run bin/stale now, then bench it
 #   Any extra flags are forwarded to bin/bench.
+#
+# Worklist mode (--worklist / --stale): instead of a full model x adapter x case
+# matrix, run only what bin/stale flagged. The worklist's CSV rows
+# (adapter,model,case,runtime,reason) are grouped BY MODEL — so each model is
+# still loaded exactly once — and for that model bench runs the union of its
+# flagged adapters x union of its flagged cases into a FRESH run dir. Note: the
+# union can re-run a few already-current combos (cross-product overshoot); that
+# is intentional, it costs idle overnight time and leaves no stale rows behind.
 #
 # Default models (low memory footprint; skips qwen3-coder-next 80B MoE):
 #   qwen/qwen3.5-9b
@@ -24,20 +34,18 @@ DEFAULT_OVERNIGHT_MODELS=(
 )
 
 MODELS_OVERRIDE=""
+WORKLIST=""
+STALE_NOW=0
 BENCH_EXTRA_ARGS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --models|--model|-m) MODELS_OVERRIDE="$2"; shift 2;;
+    --worklist)          WORKLIST="$2"; shift 2;;
+    --stale)             STALE_NOW=1; shift;;
     *) BENCH_EXTRA_ARGS+=("$1"); shift;;
   esac
 done
-
-if [ -n "$MODELS_OVERRIDE" ]; then
-  IFS=',' read -ra MODELS <<< "$MODELS_OVERRIDE"
-else
-  MODELS=("${DEFAULT_OVERNIGHT_MODELS[@]}")
-fi
 
 restart_services() {
   local label="${1:-}"
@@ -61,6 +69,59 @@ restart_services() {
   fi
   info "${label:+[$label] }services ready"
 }
+
+# ── Worklist mode: bench only the combos bin/stale flagged ───────────────────
+if [ "$STALE_NOW" = 1 ] || [ -n "$WORKLIST" ]; then
+  if [ "$STALE_NOW" = 1 ]; then
+    WORKLIST="$(mktemp)"
+    info "scanning for stale/missing/failed combos..."
+    # Forward any --runtime/--tool/--cases the user passed through to bin/stale.
+    "$HERE/bin/stale" "${BENCH_EXTRA_ARGS[@]}" > "$WORKLIST"
+    BENCH_EXTRA_ARGS=()   # consumed by stale; don't also pass to bench
+  fi
+  [ -f "$WORKLIST" ] || die "worklist not found: $WORKLIST"
+
+  # Group rows by model: deduped adapter-set + case-set, so each model loads once.
+  declare -A _MODEL_ADAPTERS _MODEL_CASES
+  _MODEL_ORDER=()
+  while IFS=, read -r a m c _rt _reason; do
+    [ "$a" = adapter ] && continue           # skip a header row if present
+    [ -z "${a// /}" ] && continue            # skip blanks
+    [ -n "${_MODEL_ADAPTERS[$m]+x}" ] || _MODEL_ORDER+=("$m")
+    case ",${_MODEL_ADAPTERS[$m]:-}," in *",$a,"*) ;; *) _MODEL_ADAPTERS[$m]="${_MODEL_ADAPTERS[$m]:+${_MODEL_ADAPTERS[$m]},}$a";; esac
+    case ",${_MODEL_CASES[$m]:-}," in *",$c,"*) ;; *) _MODEL_CASES[$m]="${_MODEL_CASES[$m]:+${_MODEL_CASES[$m]},}$c";; esac
+  done < "$WORKLIST"
+
+  [ "${#_MODEL_ORDER[@]}" -gt 0 ] || { info "worklist empty — nothing to (re)run"; exit 0; }
+
+  info "worklist mode: ${#_MODEL_ORDER[@]} model(s) to (re)run"
+  echo
+  TOTAL=${#_MODEL_ORDER[@]}; IDX=0
+  for model in "${_MODEL_ORDER[@]}"; do
+    IDX=$((IDX + 1))
+    echo
+    info "[$IDX/$TOTAL] $(date '+%Y-%m-%d %H:%M:%S')  starting: $model"
+    info "  adapters: ${_MODEL_ADAPTERS[$model]}"
+    info "  cases:    ${_MODEL_CASES[$model]}"
+    restart_services "$model"
+    "$HERE/bin/bench" --model "$model" \
+      --tool "${_MODEL_ADAPTERS[$model]}" --cases "${_MODEL_CASES[$model]}" \
+      "${BENCH_EXTRA_ARGS[@]}"
+    info "[$IDX/$TOTAL] $(date '+%Y-%m-%d %H:%M:%S')  completed: $model"
+  done
+  echo
+  info "$(date '+%Y-%m-%d %H:%M:%S')  worklist done — stopping services"
+  lms server stop 2>/dev/null || true
+  pkill -f "ollama serve" 2>/dev/null || true
+  info "done"
+  exit 0
+fi
+
+if [ -n "$MODELS_OVERRIDE" ]; then
+  IFS=',' read -ra MODELS <<< "$MODELS_OVERRIDE"
+else
+  MODELS=("${DEFAULT_OVERNIGHT_MODELS[@]}")
+fi
 
 info "overnight bench: ${#MODELS[@]} model(s): ${MODELS[*]}"
 info "extra bench flags: ${BENCH_EXTRA_ARGS[*]:-none}"

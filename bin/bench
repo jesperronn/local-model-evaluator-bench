@@ -9,7 +9,28 @@
 #   --tool/-t a,b      CLI tools/adapters to run  (default: $DEFAULT_ADAPTERS)
 #   --models/--model/-m a,b  model ids            (default: models.txt)
 #   --cases    a,b     case ids                   (default: all cases/)
-#   --timeout  N       per-trial timeout, seconds (default: 300)
+#   --difficulty t,t   keep only cases of these tiers (easy|medium|hard) from
+#                      meta.json — gates small/weak models to easier tiers; hard
+#                      (multi-file, self-verify) is reserved. See TESTING-STRATEGY.md
+#   --timeout  N       per-trial HARD ceiling, seconds (default: 300)
+#   --warmup   N       first-byte budget, seconds (default: 180; 0 disables the
+#                      whole watchdog). Time allowed from trial start until the
+#                      FIRST progress artifact appears — covers a big model's
+#                      load (on JIT runtimes) + prompt ingest + first turn. Make
+#                      this generous for 70B+; it should exceed the slowest cold
+#                      first-token you expect.
+#   --stall    N       no-progress watchdog, seconds (default: 120; 0 disables).
+#                      Once the first artifact has appeared, abort if no further
+#                      progress artifact advances for N seconds — a file write in
+#                      the sandbox, a pi/caveman transcript turn, or growth of the
+#                      adapter's .bench.log. Tighter than --warmup because by now
+#                      the model is known to be productive.
+#                      Both are distinct from --timeout (the hard ceiling): they
+#                      catch models that hang or loop without emitting the
+#                      deliverable instead of burning the full ceiling. Aborted
+#                      trials get status=stall; on lms the abort is tagged
+#                      generating (rambling/looping) vs idle (hung), and the log
+#                      records which phase fired (warmup vs stall).
 #   --trials   N       repeat each (tool,model,case) N times; results.csv records
 #                      the MEDIAN score & seconds (run-to-run variance is material,
 #                      so a single trial is untrustworthy). default: 1
@@ -95,13 +116,16 @@ show_help() {
   read_list "$mfile" | sed 's/^/  /'
 }
 
-ADAPTERS=""; MODELS=""; CASES=""; TIMEOUT=300; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""
+ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --tool|-t)           ADAPTERS="$2"; shift 2;;
     --models|--model|-m) MODELS="$2";   shift 2;;
     --cases)             CASES="$2";    shift 2;;
+    --difficulty)        DIFFICULTY="$2"; shift 2;;
     --timeout)           TIMEOUT="$2";  shift 2;;
+    --warmup)            WARMUP="$2";   shift 2;;
+    --stall)             STALL="$2";    shift 2;;
     --trials)            TRIALS="$2";   shift 2;;
     --runtime)           RUNTIME="$2";  shift 2;;
     --list)              LIST=1; shift;;
@@ -151,6 +175,16 @@ fi
 
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
 [[ "$TRIALS" =~ ^[1-9][0-9]*$ ]] || die "--trials must be a positive integer (got: $TRIALS)"
+[[ "$STALL" =~ ^[0-9]+$ ]]  || die "--stall must be a non-negative integer seconds (got: $STALL)"
+[[ "$WARMUP" =~ ^[0-9]+$ ]] || die "--warmup must be a non-negative integer seconds (got: $WARMUP)"
+# --warmup is the master switch: 0 disables the whole watchdog (warmup + stall).
+[ "$WARMUP" -eq 0 ] && STALL=0
+if [ "$WARMUP" -gt 0 ] && [ "$WARMUP" -ge "$TIMEOUT" ]; then
+  warn "--warmup ($WARMUP) >= --timeout ($TIMEOUT): the first-byte watchdog can never fire before the hard ceiling"
+fi
+if [ "$STALL" -gt 0 ] && [ "$STALL" -ge "$TIMEOUT" ]; then
+  warn "--stall ($STALL) >= --timeout ($TIMEOUT): the no-progress watchdog can never fire before the hard ceiling"
+fi
 
 # ── Runtime: set base URL, API key, and default models file ──────────────────
 case "$RUNTIME" in
@@ -174,6 +208,19 @@ if [ -n "$MODELS" ]; then IFS=',' read -ra MODEL_ARR <<< "$MODELS";
 else mapfile -t MODEL_ARR < <(read_list "$RUNTIME_MODELS_FILE"); fi
 if [ -n "$CASES" ]; then IFS=',' read -ra CASE_ARR <<< "$CASES";
 else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] && basename "$d"; done); fi
+
+# --difficulty easy,medium → keep only cases whose meta.json difficulty matches.
+# The funnel gates small/weak models to easy/medium and reserves hard (multi-file,
+# self-verify) for models that have earned it. See docs/TESTING-STRATEGY.md.
+if [ -n "$DIFFICULTY" ]; then
+  _filtered=()
+  for _c in "${CASE_ARR[@]}"; do
+    _d="$(sed -nE 's/.*"difficulty"[[:space:]]*:[[:space:]]*"([a-z]+)".*/\1/p' "$CASES_DIR/$_c/meta.json" 2>/dev/null)"
+    case ",$DIFFICULTY," in *",${_d:-unknown},"*) _filtered+=("$_c");; esac
+  done
+  CASE_ARR=("${_filtered[@]}")
+  [ "${#CASE_ARR[@]}" -gt 0 ] || die "no cases match --difficulty $DIFFICULTY"
+fi
 
 if [ "$LIST" = 1 ]; then
   echo "runtime:  $RUNTIME"; echo "adapters: ${ADAPTER_ARR[*]}"; echo "models:   ${MODEL_ARR[*]}"; echo "cases:    ${CASE_ARR[*]}"; exit 0
@@ -270,6 +317,10 @@ fi
 # variance behind each median stays inspectable.
 TRIALS_CSV="$RUN_DIR/trials.csv"
 [ "$TRIALS" -gt 1 ] && [ ! -f "$TRIALS_CSV" ] && echo "adapter,model,case,trial,pass,total,score,seconds,status" > "$TRIALS_CSV"
+# Per-check decomposition: one row per CHECK line a grader emits (see
+# lib/grader.sh). Lets you see WHICH sub-step a model failed, not just pass/total.
+CHECKS_CSV="$RUN_DIR/checks.csv"
+[ ! -f "$CHECKS_CSV" ] && echo "adapter,model,case,trial,status,check" > "$CHECKS_CSV"
 
 # Collect run configuration + system snapshot into run.json so results are
 # reproducible and comparable across machines / BENCH_PARALLEL settings.
@@ -321,6 +372,8 @@ write_run_meta() {
     "context": $BENCH_CONTEXT,
     "ttl_minutes": $BENCH_TTL_MINUTES,
     "timeout_seconds": $TIMEOUT,
+    "warmup_seconds": $WARMUP,
+    "stall_seconds": $STALL,
     "trials": $TRIALS
   },
   "axes": {
@@ -342,8 +395,44 @@ EOF
 
 [ ! -f "$RUN_DIR/run.json" ] && write_run_meta "$RUN_DIR/run.json"
 
-info "run $RUN_ID  —  ${#ADAPTER_ARR[@]} adapters x ${#MODEL_ARR[@]} models x ${#CASE_ARR[@]} cases x ${TRIALS} trial(s)  --parallel $BENCH_PARALLEL"
+if [ "$WARMUP" -eq 0 ]; then _wd_note="watchdog off"
+else _wd_note="warmup ${WARMUP}s, stall ${STALL}s"; [ "$STALL" -eq 0 ] && _wd_note="warmup ${WARMUP}s, stall off"; fi
+info "run $RUN_ID  —  ${#ADAPTER_ARR[@]} adapters x ${#MODEL_ARR[@]} models x ${#CASE_ARR[@]} cases x ${TRIALS} trial(s)  --parallel $BENCH_PARALLEL  (timeout ${TIMEOUT}s, ${_wd_note})"
 echo
+
+# pi/caveman persist a live session transcript keyed by the sandbox cwd slug
+# ('/a/b' -> '--a-b--'). Each assistant turn / tool call appends a record, so the
+# dir mtime is a real-time progress signal. Mirrors bin/trace-tool-calls' slug.
+_pi_session_dir() {
+  local sb; sb="$(cd "$1" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/.pi/agent/sessions/--%s--' "$HOME" "$(printf '%s' "${sb#/}" | tr '/' '-')"
+}
+
+# Newest mtime (epoch) across every progress artifact for a trial: a file write
+# in the sandbox (the deliverable), a pi/caveman transcript turn, or growth of
+# the adapter's stdout log. Excludes .git churn and our own probe log. Prints 0
+# when nothing is found.
+progress_epoch() {
+  local sb="$1" best=0 m sd
+  m="$(find "$sb" -type f -not -path '*/.git/*' -not -name '.lms-stream.log' \
+         -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)"
+  [ -n "$m" ] && [ "$m" -gt "$best" ] && best="$m"
+  sd="$(_pi_session_dir "$sb")" || sd=""
+  if [ -n "$sd" ] && [ -d "$sd" ]; then
+    m="$(find "$sd" -type f -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)"
+    [ -n "$m" ] && [ "$m" -gt "$best" ] && best="$m"
+  fi
+  printf '%s' "$best"
+}
+
+# Recursively signal a process and all its descendants (subshell -> timeout ->
+# bash adapter -> node/pi). Plain `kill <pid>` hits only the subshell and leaves
+# the model process generating; we must walk the tree.
+kill_tree() {
+  local p="$1" sig="${2:-TERM}" c
+  for c in $(pgrep -P "$p" 2>/dev/null); do kill_tree "$c" "$sig"; done
+  kill -"$sig" "$p" 2>/dev/null
+}
 
 # Run one (adapter,model,case) trial in its own sandbox; echo "pass total elapsed status".
 run_trial() {
@@ -357,11 +446,73 @@ run_trial() {
 
   local start status="ok" rc elapsed
   start=$(date +%s)
+
+  # lms token probe (diagnostic): capture the server log during the trial so a
+  # stall can be classified as generating (model looping/rambling) vs idle (hung
+  # or crashed). Lightweight log subscription; trials never run concurrently.
+  local lmslog="" lms_pid=""
+  if [ "$WARMUP" -gt 0 ] && [ "$RUNTIME" = lms ] && command -v lms >/dev/null 2>&1; then
+    lmslog="$sandbox/.lms-stream.log"
+    ( lms log stream --stats >"$lmslog" 2>/dev/null ) & lms_pid=$!
+  fi
+
+  # Launch the adapter under the hard ceiling, backgrounded so the watchdog can
+  # poll progress and abort early on a no-progress stall.
   ( cd "$sandbox" && MODEL_ID="$model" run_timeout "$TIMEOUT" \
-      bash "$adapter_sh" <"$case_src/task.md" ) >"$logf" 2>&1
-  rc=$?
-  [ $rc -eq 124 ] && status="timeout"
-  [ $rc -ne 0 ] && [ $rc -ne 124 ] && status="error($rc)"
+      bash "$adapter_sh" <"$case_src/task.md" ) >"$logf" 2>&1 &
+  local apid=$!
+
+  # Two-phase watchdog (disabled when WARMUP=0):
+  #   warmup phase — start until the FIRST progress artifact: allow $WARMUP secs
+  #                  (big-model load on JIT runtimes + prompt ingest + first turn).
+  #   stall phase  — after the first artifact: reset on each new artifact; abort
+  #                  if none advances for $STALL secs (tighter — model is known
+  #                  productive by now).
+  # The lms probe only LABELS the abort (generating vs idle); it deliberately does
+  # NOT extend the budget, so a model rambling forever in one turn is still caught.
+  #
+  # Early-error fast path: don't wait out the budget when a fatal adapter/runtime
+  # failure is already in the log — abort within a tick. Patterns are kept tight
+  # to infra/tool failures that ~never appear in healthy output (NOT a bare
+  # "error", which is common in model prose). For pi, log output mid-run is
+  # adapter/runtime stderr anyway (model text flushes only at the end).
+  local _ERR_RE='command not found|: not found|not installed|ECONNREFUSED|[Cc]onnection refused|fetch failed|Traceback \(most recent call last\)|Cannot find module|ENOENT|out of memory|CUDA (error|out of memory)|model_not_found|HTTP error (4|5)[0-9][0-9]|panic:|FATAL'
+  local last_prog="$start" first_seen=0 abort_reason="" phase budget
+  while kill -0 "$apid" 2>/dev/null; do
+    sleep 2
+    kill -0 "$apid" 2>/dev/null || break
+    [ "$WARMUP" -gt 0 ] || continue
+
+    # Fast path: a fatal error is already visible — abort now, don't wait.
+    if grep -qaE "$_ERR_RE" "$logf" 2>/dev/null; then
+      printf 'WATCHDOG: fatal error in log — aborting trial early\n' >>"$logf"
+      abort_reason="error"
+      kill_tree "$apid" TERM; ( sleep 5; kill_tree "$apid" KILL ) &
+      break
+    fi
+
+    local p; p="$(progress_epoch "$sandbox")"
+    if [ -n "$p" ] && [ "$p" -gt "$last_prog" ]; then last_prog="$p"; first_seen=1; fi
+    if [ "$first_seen" = 1 ]; then phase="stall"; budget="$STALL"; else phase="warmup"; budget="$WARMUP"; fi
+    if [ "$budget" -gt 0 ] && [ $(( $(date +%s) - last_prog )) -ge "$budget" ]; then
+      local genx="idle"
+      if [ -n "$lmslog" ] && [ -f "$lmslog" ] && [ "$(wc -c <"$lmslog" 2>/dev/null || echo 0)" -gt 64 ]; then
+        genx="generating"
+      fi
+      printf 'WATCHDOG: %s phase — no progress for %ss (lms: %s) — aborting trial\n' "$phase" "$budget" "$genx" >>"$logf"
+      abort_reason="stall"
+      kill_tree "$apid" TERM
+      ( sleep 5; kill_tree "$apid" KILL ) &
+      break
+    fi
+  done
+  wait "$apid"; rc=$?
+
+  [ -n "$lms_pid" ] && kill_tree "$lms_pid" TERM 2>/dev/null
+
+  if [ -n "$abort_reason" ]; then status="$abort_reason"
+  elif [ $rc -eq 124 ]; then status="timeout"
+  elif [ $rc -ne 0 ]; then status="error($rc)"; fi
   elapsed=$(( $(date +%s) - start ))
 
   local grade_out line pass total
@@ -370,7 +521,19 @@ run_trial() {
   line="$(printf '%s\n' "$grade_out" | grep -E '^RESULT ' | tail -1)"
   pass="$(sed -nE 's/.*pass=([0-9]+).*/\1/p' <<<"$line")"; pass="${pass:-0}"
   total="$(sed -nE 's/.*total=([0-9]+).*/\1/p' <<<"$line")"; total="${total:-0}"
+  # Stash any per-check CHECK lines for the caller to fold into checks.csv.
+  printf '%s\n' "$grade_out" | grep -E '^CHECK (pass|fail) ' > "$sandbox/.checks" || true
   printf '%s %s %s %s\n' "$pass" "$total" "$elapsed" "$status"
+}
+
+# Append a sandbox's .checks lines to checks.csv, tagged with the combo + trial.
+record_checks() {  # adapter model_alias case_id trial sandbox
+  local f="$5/.checks"
+  [ -f "$f" ] || return 0
+  while read -r _kw st cid; do
+    [ -z "$st" ] && continue
+    printf '%s,%s,%s,%s,%s,%s\n' "$1" "$2" "$3" "$4" "$st" "${cid//,/;}" >> "$CHECKS_CSV"
+  done < "$f"
 }
 
 # Unload all running instances of a model by their exact lms-ps identifier (e.g.
@@ -506,6 +669,8 @@ for model_alias in "${MODEL_ARR[@]}"; do
           rm -f "$_trial_out"
         fi
 
+        record_checks "$adapter" "$model_alias" "$case_id" "$t" "$sandbox"
+
         total="$t_total"
         if [ "$t_total" -gt 0 ]; then t_score="$(awk "BEGIN{printf \"%.4f\", $t_pass/$t_total}")"; else t_score="0"; fi
         scores+=("$t_score"); secs+=("$t_elapsed"); statuses+=("$t_status")
@@ -538,7 +703,7 @@ for model_alias in "${MODEL_ARR[@]}"; do
         echo "      ${C_DIM}log: ${logf#"$HERE"/}${C_RST}"
         if [ "$VERBOSE" = 1 ] && [ -f "$logf" ]; then
           # Grader signals: MISS:/RESULT; adapter/runtime: errors, refusals.
-          _err_lines="$(grep -aiE 'MISS:|^RESULT |error|refus|not ok|failed|exception|traceback|cannot|denied|no such' "$logf" \
+          _err_lines="$(grep -aiE 'WATCHDOG:|MISS:|^RESULT |error|refus|not ok|failed|exception|traceback|cannot|denied|no such' "$logf" \
             | grep -av '[⠁-⣿]' | tail -20)"
           [ -n "$_err_lines" ] && printf '%s\n' "$_err_lines" | sed "s/^/        ${C_DIM}| /; s/$/${C_RST}/"
           _log_lines="$(wc -l < "$logf" | tr -d ' ')"
