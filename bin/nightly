@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# bin/nightly — prepare and run nightly bench focusing on lms backend
+# Usage:
+#   bin/nightly                    # run with defaults (qwen3.6-35b, easy+medium cases)
+#   bin/nightly --model qwen3-coder-30b
+#   bin/nightly --all-cases        # include hard cases too
+#   bin/nightly --devstral         # after qwen3.6-35b finishes, also run devstral2-small
+
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+
+PRIMARY_MODEL="${1:-qwen/qwen3.6-35b-a3b}"
+INCLUDE_DEVSTRAL=0
+INCLUDE_HARD=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --model) PRIMARY_MODEL="$2"; shift 2;;
+    --devstral) INCLUDE_DEVSTRAL=1; shift;;
+    --all-cases) INCLUDE_HARD=1; shift;;
+    --help)
+      echo "nightly bench runner (lms focused)"
+      echo "Flags: --model M, --devstral, --all-cases"
+      exit 0
+      ;;
+    *) shift;;
+  esac
+done
+
+echo "=== Nightly Bench Run ==="
+echo "Primary model: $PRIMARY_MODEL"
+echo "Time: $(date)"
+echo ""
+
+# Check if another agent is using the model (if qwen3.6-35b)
+if [[ "$PRIMARY_MODEL" == *"qwen3.6-35b"* ]]; then
+  if lms ps 2>/dev/null | grep -q "GENERATING"; then
+    echo "⚠ WARNING: Another agent is currently using qwen3.6-35b-a3b (GENERATING state)"
+    echo "   Bench will run but may slow that agent. Press Ctrl-C to abort."
+    sleep 3
+  fi
+fi
+
+# Build command: skip external tool adapters, use only lms
+# External adapters (forge, gptme, mini-swe-agent, swe-agent) require tools not installed
+ADAPTERS="aider,caveman,claude,cline,codex,copilot,goose,opencode,pi"
+# hermes requires special config — comment out if not configured
+
+DIFFICULTY="easy,medium"
+[ "$INCLUDE_HARD" -eq 1 ] && DIFFICULTY="easy,medium,hard"
+
+echo "Difficulty tiers: $DIFFICULTY"
+echo "Adapters: $ADAPTERS (lms backend only; skipping external tools)"
+echo ""
+
+# Run primary model (qwen3.6-35b or specified)
+echo "Starting primary run with $PRIMARY_MODEL..."
+bin/bench \
+  --tool "$ADAPTERS" \
+  --model "$PRIMARY_MODEL" \
+  --difficulty "$DIFFICULTY" \
+  --timeout 300 \
+  --warmup 180 \
+  --stall 120
+
+if [ "$INCLUDE_DEVSTRAL" -eq 1 ]; then
+  echo ""
+  echo "=== Secondary run: devstral-small-2-2512 ==="
+  sleep 2
+
+  bin/bench \
+    --tool "$ADAPTERS" \
+    --model "mistralai/devstral-small-2-2512" \
+    --difficulty "$DIFFICULTY" \
+    --timeout 300 \
+    --warmup 180 \
+    --stall 120
+fi
+
+echo ""
+echo "=== Nightly bench complete ==="
+echo "Results saved to results/"
+ls -lth results/results.csv 2>/dev/null | head -1
