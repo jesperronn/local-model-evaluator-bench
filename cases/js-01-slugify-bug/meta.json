@@ -4,5 +4,8 @@
   "title": "Fix the slugify bug",
   "points": 4,
   "category": "bugfix",
-  "edit_files": ["src/slugify.js"]
+  "difficulty": "medium",
+  "edit_files": [
+    "src/slugify.js"
+  ]
 }

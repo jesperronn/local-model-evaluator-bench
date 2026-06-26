@@ -4,5 +4,8 @@
   "title": "Implement debounce",
   "points": 5,
   "category": "feature",
-  "edit_files": ["src/debounce.js"]
+  "difficulty": "medium",
+  "edit_files": [
+    "src/debounce.js"
+  ]
 }

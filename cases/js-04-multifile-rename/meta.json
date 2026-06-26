@@ -4,5 +4,9 @@
   "title": "Rename a function across two files",
   "points": 4,
   "category": "multi-file",
-  "edit_files": ["src/temperature.js", "src/weather.js"]
+  "difficulty": "hard",
+  "edit_files": [
+    "src/temperature.js",
+    "src/weather.js"
+  ]
 }

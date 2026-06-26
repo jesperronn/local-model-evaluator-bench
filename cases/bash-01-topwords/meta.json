@@ -4,5 +4,8 @@
   "title": "Write a top-words CLI script",
   "points": 4,
   "category": "cli",
-  "edit_files": ["bin/topwords.sh"]
+  "difficulty": "medium",
+  "edit_files": [
+    "bin/topwords.sh"
+  ]
 }

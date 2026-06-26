@@ -4,7 +4,11 @@
   "title": "Convert single-select filter to multi-select (iterate to green)",
   "points": 4,
   "category": "self-verify",
-  "edit_files": ["src/filter.js", "index.html"],
+  "difficulty": "hard",
+  "edit_files": [
+    "src/filter.js",
+    "index.html"
+  ],
   "visible_tests": true,
   "note": "Tests ship in the workdir so the agent can run `npm test` and iterate. Grader re-runs a pristine copy."
 }

@@ -4,5 +4,8 @@
   "title": "Implement a typed groupBy",
   "points": 4,
   "category": "feature",
-  "edit_files": ["src/groupBy.ts"]
+  "difficulty": "medium",
+  "edit_files": [
+    "src/groupBy.ts"
+  ]
 }
