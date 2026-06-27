@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Adapter: mini-swe-agent v2 -> LM Studio (OpenAI-compatible).
 # mini-swe-agent v2 is the minimal SWE-agent variant (<100 lines agent code).
-# Install: pip install mini-swe-agent
+# Install: python3 -m pip install --break-system-packages mini-swe-agent
 # Routes through LiteLLM (litellm_model class by default in v2).
 # Local model config: OPENAI_API_BASE + OPENAI_API_KEY env vars.
 # Contract: CWD is the sandbox to edit. Prompt arrives on stdin. $MODEL_ID set.
@@ -11,6 +11,7 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
 export OPENAI_API_BASE="$LMS_BASE_URL"
 export OPENAI_API_KEY="$LMS_API_KEY"
+export MINI_CONFIG_INTERACTIVE=0
 
 # mini-swe-agent v2 requires the Python bin to be on PATH
 export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"

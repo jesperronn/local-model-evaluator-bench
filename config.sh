@@ -48,7 +48,7 @@ export BENCH_PARALLEL="${BENCH_PARALLEL:-3}"
 # smart in ~/.hermes/config.yaml) so its tools edit the host sandbox under an
 # LLM approval guardian instead of --yolo. `bin/doctor` verifies it. If not set
 # up, drop hermes from this list.
-DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,opencode,codex,caveman,hermes,cline,pi,goose,mini-swe-agent,openhands}"
+DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,opencode,codex,caveman,hermes,cline,pi,goose,openhands}"
 
 # Repo root, resolved regardless of where you invoke from.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
