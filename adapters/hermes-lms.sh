@@ -13,9 +13,9 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 # search_files, process, AND direct shell execution via terminal.
 HERMES_ARGS=(--provider lmstudio -m "$MODEL_ID" -t file,terminal)
 if [ ! -t 0 ]; then
-  # --yolo bypasses the smart guardian — safe in automated bench sandboxes but
-  # unwanted in interactive sessions where the guardian provides a useful check.
-  HERMES_ARGS+=(--yolo -z "$(cat)")
+  # Interactive approval mode: the smart guardian will ask for confirmations
+  # on potentially risky actions. This provides safety signals during automation.
+  HERMES_ARGS+=(-z "$(cat)")
 fi
 
 exec hermes "${HERMES_ARGS[@]}" "$@"

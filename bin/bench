@@ -54,7 +54,7 @@
 #                      preferred over adapters/<name>.sh for that runtime.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/lib/versions.sh"
 
 trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
 trap '' PIPE  # don't die when stdout pipe breaks (e.g. bin/bench | tee)
@@ -363,10 +363,49 @@ write_run_meta() {
   models_json="$(  printf '"%s",' "${MODEL_ARR[@]}"   | sed 's/,$//')"
   cases_json="$(   printf '"%s",' "${CASE_ARR[@]}"    | sed 's/,$//')"
 
+  # Collect version information for runtime and adapters
+  local run_date run_time
+  run_date="$(date -d @${RUN_ID%-*} +%Y-%m-%d 2>/dev/null || date -j -f '%Y%m%d-%H%M%S' "$RUN_ID" +%Y-%m-%d)"
+  run_time="$(echo "$RUN_ID" | cut -d'-' -f2 | sed 's/\(..\)/\1:/g;s/:$//')"
+
+  # Build versions JSON
+  local runtime_info runtime_name runtime_ver runtime_src
+  runtime_info="$(get_runtime_version "$RUNTIME")"
+  IFS=$'\t' read -r runtime_name runtime_ver runtime_src <<<"$runtime_info"
+
+  local agents_json="{"
+  local first=true
+  for adapter in "${ADAPTER_ARR[@]}"; do
+    local ag_info agent_name agent_ver agent_src
+    ag_info="$(get_version_info "$adapter" "$RUNTIME")"
+    IFS=$'\t' read -r agent_name agent_ver agent_src <<<"$ag_info"
+
+    if [ "$first" = true ]; then
+      first=false
+    else
+      agents_json+=","
+    fi
+    # Escape quotes in version strings for JSON
+    agent_ver="${agent_ver//\"/\\\"}"
+    agent_src="${agent_src//\"/\\\"}"
+    agents_json+="\"$agent_name\":{\"version\":\"$agent_ver\",\"source\":\"$agent_src\"}"
+  done
+  agents_json+="}"
+
   cat >"$out" <<EOF
 {
   "run_id": "$RUN_ID",
+  "run_date": "$run_date",
+  "run_time": "$run_time",
   "runtime": "$RUNTIME",
+  "versions": {
+    "runtime": {
+      "name": "$runtime_name",
+      "version": "$runtime_ver",
+      "source": "$runtime_src"
+    },
+    "agents": $agents_json
+  },
   "bench": {
     "parallel": $BENCH_PARALLEL,
     "context": $BENCH_CONTEXT,

@@ -34,7 +34,7 @@ CLINE_ARGS=(
 )
 
 if [ ! -t 0 ]; then
-  exec "$CLINE" "${CLINE_ARGS[@]}" --auto-approve true "$(cat)"
+  exec "$CLINE" "${CLINE_ARGS[@]}" "$(cat)"
 else
   exec "$CLINE" "${CLINE_ARGS[@]}" --tui
 fi
