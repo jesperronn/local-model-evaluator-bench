@@ -44,15 +44,17 @@ Last-used sources:
 EOF
 }
 
-for arg in "$@"; do
-  case "$arg" in
-    --runtime=*)       RUNTIME="${arg#--runtime=}" ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --runtime=*)       RUNTIME="${1#--runtime=}" ;;
+    --runtime)         RUNTIME="${2:?--runtime requires a value}"; shift ;;
     -i|--interactive)  INTERACTIVE=true ;;
     --unused)          UNUSED=true ;;
     --dry-run)         DRY_RUN=true ;;
     --help|-h)         usage; exit 0 ;;
-    *) echo "Unknown option: $arg" >&2; usage >&2; exit 1 ;;
+    *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
   esac
+  shift
 done
 
 case "$RUNTIME" in lms|ollama|mlx|all) ;; *) die "unknown runtime: $RUNTIME" ;; esac
