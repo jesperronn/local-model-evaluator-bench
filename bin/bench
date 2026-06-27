@@ -643,6 +643,16 @@ for model_alias in "${MODEL_ARR[@]}"; do
     [ -f "$adapter_sh" ] || { warn "no adapter $adapter.sh — skipping"; continue; }
     command -v "$adapter" >/dev/null 2>&1 || { warn "$adapter not installed — skipping"; continue; }
 
+    # For lms, confirm the model is still loaded before each adapter — it can
+    # crash or be evicted between adapters (e.g. OOM on a model that was
+    # marginal at load time), causing silent wrong-model responses or API 400s.
+    if [ "$RUNTIME" = lms ]; then
+      if ! lms ps --json 2>/dev/null | jq -e --arg m "$model" 'any(.[]; .modelKey == $m)' >/dev/null 2>&1; then
+        warn "model $model no longer loaded before $adapter — skipping remaining adapters for this model"
+        break
+      fi
+    fi
+
     for case_id in "${CASE_ARR[@]}"; do
       case_src="$CASES_DIR/$case_id"
       [ -f "$case_src/meta.json" ] || { warn "no case $case_id — skipping"; continue; }
