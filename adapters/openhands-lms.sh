@@ -13,6 +13,9 @@ export LLM_BASE_URL="$LMS_BASE_URL"
 export LLM_MODEL="openai/${MODEL_ID}"
 export OPENHANDS_SUPPRESS_BANNER=1
 
+# Ensure openhands is on PATH (uv tool install puts it in ~/.local/bin)
+export PATH="$HOME/.local/bin:$PATH"
+
 if [ ! -t 0 ]; then
   TASK="$(cat)"
   exec openhands \
