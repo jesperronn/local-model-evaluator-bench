@@ -174,6 +174,17 @@ if [ "$INTERACTIVE" = 1 ]; then
 fi
 
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
+
+# Warn about slow/weak agents if selected
+_slow_agents="pi|opencode|codex|interpreter|copilot"
+_weak_agents="copilot|caveman|hermes|interpreter|claude"
+if echo "$ADAPTERS" | grep -qE "$(echo $_slow_agents | tr '|' ' ')"; then
+  warn "Selected slow agents (pi/opencode/codex/interpreter/copilot). Expect 100-500s per case. See docs/AGENT-SELECTION.md"
+fi
+if echo "$ADAPTERS" | grep -qE "$(echo $_weak_agents | tr '|' ' ')"; then
+  warn "Selected lower-performing agents. See docs/AGENT-SELECTION.md for recommendations."
+fi
+
 [[ "$TRIALS" =~ ^[1-9][0-9]*$ ]] || die "--trials must be a positive integer (got: $TRIALS)"
 [[ "$STALL" =~ ^[0-9]+$ ]]  || die "--stall must be a non-negative integer seconds (got: $STALL)"
 [[ "$WARMUP" =~ ^[0-9]+$ ]] || die "--warmup must be a non-negative integer seconds (got: $WARMUP)"

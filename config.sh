@@ -48,7 +48,12 @@ export BENCH_PARALLEL="${BENCH_PARALLEL:-3}"
 # smart in ~/.hermes/config.yaml) so its tools edit the host sandbox under an
 # LLM approval guardian instead of --yolo. `bin/doctor` verifies it. If not set
 # up, drop hermes from this list.
-DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,opencode,codex,caveman,hermes,cline,pi,goose,openhands}"
+# All adapters available for testing. Guidance on which to prefer:
+#   ✨ Recommended: openhands (fast+accurate), cline (100% accurate), aider (reliable)
+#   ⚠️  Caution: goose (slow), pi (very slow), opencode (very slow)
+#   ❌ Not recommended: codex, copilot, caveman, hermes, interpreter, claude
+# See docs/AGENT-SELECTION.md for performance matrix and use-case guidance.
+DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot}"
 
 # Repo root, resolved regardless of where you invoke from.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
