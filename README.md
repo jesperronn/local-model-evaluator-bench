@@ -171,18 +171,57 @@ pi/caveman session transcript via `bin/trace-tool-calls` (which also reads any
 stored session or `--latest`) — flagging e.g. the qwen3-coder edit-tool
 mangling that a `write`-fallback hides from the score. See [docs/tools/pi.md](docs/tools/pi.md).
 
-## Layout
+## File structure
 
 ```
-config.sh            endpoint + defaults (edit to match your setup)
-models.txt           models under test — one LM Studio id per line
-adapters/<cli>.sh    how each CLI is driven non-interactively against LM Studio
-cases/<id>/          task.md (prompt) + workdir/ (starter) + check/ (hidden grader)
-lib/                 shared bash helpers + the node:test scorer
-bin/doctor preflight  bin/smoke wiring check  bin/bench run matrix
-bin/report leaderboard  bin/gen-evals eval-page bundle  bin/viz HTML dashboard
-docs/                CASES.md (per-case spec), SCORING.md, SETUP.md, ADDING-CASES.md
+config.sh            endpoint URL + defaults (BENCH_CONTEXT, BENCH_PARALLEL, etc.)
+models.txt           models under test — one LM Studio / Ollama / MLX id per line
+adapters/<name>.sh   how each CLI/extension is driven non-interactively against a local server
+cases/<id>/          task.md (prompt) + workdir/ (starter code) + check/ (hidden grader)
+lib/                 shared bash helpers (common.sh, grader.sh, node-test-score.sh, versions.sh)
+results/<ts>/        per-run output: results.csv, sandbox with logs (.bench.log), traces/
+config-templates/    example Modelfiles, agent model JSONs, config snippets
+docs/                CASES.md, SCORING.md, SETUP.md, ADDING-CASES.md, troubleshooting guides
 ```
+
+## All scripts
+
+### Core pipeline
+- `bin/setup` — check and install tools used by the bench
+- `bin/doctor` — preflight: server, CLIs, models, cases
+- `bin/smoke` — load a small model, verify every adapter can drive it (PASS/PARTIAL/FAIL)
+- `bin/bench` — run the full matrix (adapters × models × cases), grade, score
+- `bin/report` — merge runs into the leaderboard (`--all --save` persists LEADERBOARD.md)
+- `bin/gen-evals` — build per-model / per-tool eval pages from results
+- `bin/viz` — rebuild the interactive HTML dashboard at `results/index.html`
+
+### Iteration & debugging
+- `bin/bench --list` — show what would run, without running
+- `bin/bench -i` — fzf pickers for models and tools
+- `bin/bench --trials N` — repeat each (tool, model, case) N×, record medians
+- `bin/investigate` — triage failing/suspicious combos; classifies as auto-fixable vs genuine model issue
+- `bin/stale` — emit a worklist of (adapter, model, case) triples needing a (re)run
+- `bin/trace-edit <adapter> <model> [case]` — run one triple and dump its session transcript
+- `bin/trace-tool-calls` — read any stored session or `--latest`, flag mangling (e.g. qwen3-coder edit-tool)
+
+### Maintenance & ops
+- `bin/bench-overnight` — run bench across low-footprint models with lms+ollama, restarts between models
+- `bin/nightly` — prepare and run nightly bench focusing on lms backend
+- `bin/lms_gc` — unload LM Studio models not used in the last N minutes
+- `bin/lms_update` — re-download outdated LM Studio models
+- `bin/prune` — list and remove downloaded models (lms, ollama, mlx)
+- `bin/outdated` — check whether locally installed models are behind their upstream
+- `bin/rt` — runtime status and control
+- `bin/stale.test.sh` — tests for `bin/stale`
+
+### Adapter & model tooling
+- `bin/lint` — static checks for project scripts
+- `bin/lint-adapters` — static checks for adapter scripts specifically
+- `bin/setup-ollama-modelfile` — build custom Ollama model variants (64K context, low temp)
+- `bin/tool-call-proxy` — Ollama proxy converting qwen2.5-style text tool calls
+- `bin/build-llmrun` — generate a standalone llmrun launcher and install to PATH
+- `bin/pi-patch-edit-shim` — reapply the qwen3-coder edit-tool compatibility shim
+- `bin/mlx-serve-qwen3-coder` — MLX server wrapper for Qwen3-Coder family models
 
 ## Adding things
 
