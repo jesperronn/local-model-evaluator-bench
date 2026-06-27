@@ -15,6 +15,8 @@ Options:
   -i, --interactive             use fzf to select tool(s) and model(s)
   -a, --all                     merge all runs under results/ (latest result
                                 wins per adapter+model+case)
+  --speed                       show speed comparison (avg seconds per case),
+                                sorted fastest first
   --save [FILE]                 write leaderboards as markdown
                                 (default: LEADERBOARD.md at repo root)
   --prune                       delete run directories whose every result is
@@ -32,6 +34,7 @@ MODEL_FILTER=""
 RUNTIME_FILTER=""
 INTERACTIVE=0
 ALL_RUNS=0
+SPEED=0
 CSV=""
 SAVE_MD=""
 PRUNE=0
@@ -45,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     -r|--runtime) RUNTIME_FILTER="$2"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;
     -a|--all) ALL_RUNS=1; shift ;;
+    --speed) SPEED=1; shift ;;
     --prune) PRUNE=1; shift ;;
     --yes)   YES=1;   shift ;;
     --save)
@@ -274,6 +278,21 @@ END {
       pct, ad[a], p[a], t[a], pct, avgs
   }
 }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+
+# Speed comparison (if requested)
+if [ "$SPEED" -eq 1 ]; then
+  echo
+  echo "${C_BLD}Speed Comparison — by adapter (fastest first)${C_RST}"
+  printf "  %-9s %8s %7s %7s\n" "ADAPTER" "CASES" "avg s" "Pass%"
+  awk -F, 'NR>1 { ad[$1]=$1; p[$1]+=$4; t[$1]+=$5; sec[$1]+=$7; n[$1]++ }
+  END {
+    for (a in p) {
+      pct  = t[a]>0 ? 100*p[a]/t[a] : 0
+      avgs = n[a]>0 ? sec[a]/n[a]   : 0
+      printf "%09.2f\t  %-9s %4d/%-4d %7.1f %7.1f%%\n", avgs, ad[a], n[a], n[a], avgs, pct
+    }
+  }' "$WORK_CSV" | sort -t$'\t' -k1 -n | cut -f2-
+fi
 
 if [ -n "$SAVE_MD" ]; then
   src_label="$CSV"
