@@ -220,6 +220,18 @@ else mapfile -t MODEL_ARR < <(read_list "$RUNTIME_MODELS_FILE"); fi
 if [ -n "$CASES" ]; then IFS=',' read -ra CASE_ARR <<< "$CASES";
 else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] && basename "$d"; done); fi
 
+# Filter out adapters marked as broken in compat.json for the first resolved model
+# and current runtime. This prevents wasting time on known-incompatible adapters.
+if [ ${#MODEL_ARR[@]} -gt 0 ]; then
+  _first_model="${MODEL_ARR[0]}"
+  _filtered="$(filter_broken_adapters "$(IFS=','; printf '%s' "${ADAPTER_ARR[*]}")" "$_first_model" "$RUNTIME")"
+  if [ -n "$_filtered" ]; then
+    warn_filtered_adapters "$(IFS=','; printf '%s' "${ADAPTER_ARR[*]}")" "$_filtered" "$_first_model" "$RUNTIME"
+    IFS=',' read -ra ADAPTER_ARR <<< "$_filtered"
+  fi
+  [ ${#ADAPTER_ARR[@]} -gt 0 ] || die "no adapters available (all filtered due to incompatibilities)"
+fi
+
 # --difficulty easy,medium → keep only cases whose meta.json difficulty matches.
 # The funnel gates small/weak models to easy/medium and reserves hard (multi-file,
 # self-verify) for models that have earned it. See docs/TESTING-STRATEGY.md.

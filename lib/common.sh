@@ -77,3 +77,65 @@ ensure_model_loaded() {
   fi
   return 1
 }
+
+# Filter adapters to exclude those marked as broken in compat.json.
+# Usage: filter_broken_adapters <adapters_csv> <model> <runtime>
+# Returns comma-separated list of working adapters (or original if no compat.json).
+filter_broken_adapters() {
+  local adapters_csv="$1" model="$2" runtime="$3"
+  local compat_file="${REPO_ROOT}/compat.json"
+
+  [ -f "$compat_file" ] || { echo "$adapters_csv"; return 0; }
+  [ -z "$adapters_csv" ] && return 0
+
+  local result=()
+  IFS=',' read -ra adapter_arr <<< "$adapters_csv"
+
+  for adapter in "${adapter_arr[@]}"; do
+    local compat_key="${adapter}:${model}:${runtime}"
+    local status
+    status="$(jq -r --arg k "$compat_key" '.[$k].status // "none"' "$compat_file" 2>/dev/null || echo "none")"
+
+    # Skip if status is "open" (broken); include if "resolved", "none", or jq fails
+    if [ "$status" != "open" ]; then
+      result+=("$adapter")
+    fi
+  done
+
+  printf '%s' "$(IFS=','; printf '%s' "${result[*]}")"
+}
+
+# Pretty-print adapters filtered out due to known incompatibilities.
+# Usage: warn_filtered_adapters <original_csv> <filtered_csv> <model> <runtime>
+warn_filtered_adapters() {
+  local orig="$1" filtered="$2" model="$3" runtime="$4"
+  local compat_file="${REPO_ROOT}/compat.json"
+
+  [ -f "$compat_file" ] || return 0
+
+  # Find which adapters were filtered
+  IFS=',' read -ra orig_arr <<< "$orig"
+  IFS=',' read -ra filt_arr <<< "$filtered"
+
+  declare -A filt_set
+  for a in "${filt_arr[@]}"; do filt_set[$a]=1; done
+
+  local skipped=()
+  for a in "${orig_arr[@]}"; do
+    [ -z "${filt_set[$a]:-}" ] && skipped+=("$a")
+  done
+
+  if [ ${#skipped[@]} -gt 0 ]; then
+    warn "skipping ${#skipped[@]} adapter(s) with known incompatibilities for $model on $runtime:"
+    for a in "${skipped[@]}"; do
+      local compat_key="${a}:${model}:${runtime}"
+      local symptom
+      symptom="$(jq -r --arg k "$compat_key" '.[$k].symptom // ""' "$compat_file" 2>/dev/null)"
+      if [ -n "$symptom" ]; then
+        echo "      ${C_DIM}${a}: ${symptom:0:100}${C_RST}"
+      else
+        echo "      ${C_DIM}${a}${C_RST}"
+      fi
+    done
+  fi
+}

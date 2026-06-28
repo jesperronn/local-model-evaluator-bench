@@ -66,6 +66,10 @@ of it?** Tool choice matters as much as model choice, especially on smaller mode
 
 ## Documentation
 
+**Getting started:**
+- [docs/WORKFLOW.md](docs/WORKFLOW.md) — **the complete workflow**: adding adapters & models, running smoke tests, interpreting results, managing incompatibilities, re-evaluating abandoned adapters.
+
+**Reference:**
 - [docs/CASES.md](docs/CASES.md) — **precise spec of every test case + the run
   procedure** (enough to recreate each case's code in another framework).
 - [docs/SCORING.md](docs/SCORING.md) — how scoring (accuracy + speed) works.

@@ -22,6 +22,7 @@
 #   --verbose/-v       pass --verbose to bench (shows error excerpts on failure)
 #   --dry-run/-n       print the plan (runtime, model, cases, resolved adapter
 #                      files) and exit — no runtime checks, no trials
+#   --skip-compat-update  don't update compat.json with results (default: update)
 #   -h/--help          show this message
 #
 # Proxy auto-detection (Ollama): if OLLAMA_BASE_URL ends in a port ≠ 11434
@@ -81,6 +82,7 @@ RUNTIME="lms"
 MODEL=""
 PROXY_CHECK=1
 DRY_RUN=0
+UPDATE_COMPAT=1
 BENCH_ARGS=()
 EXTRA_BENCH_ARGS=()
 ADAPTER_OVERRIDE=""
@@ -94,6 +96,7 @@ while [ $# -gt 0 ]; do
     --no-proxy-check) PROXY_CHECK=0; shift;;
     --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
     --dry-run|-n)    DRY_RUN=1; shift;;
+    --skip-compat-update) UPDATE_COMPAT=0; shift;;
     *) warn "unknown flag: $1"; shift;;
   esac
 done
@@ -335,6 +338,10 @@ update_compat() {
 }
 
 RUN_JSON="$RUN_DIR/run.json"
-[ -f "$RUN_JSON" ] && update_compat "$CSV" "$RUN_JSON"
+if [ "$UPDATE_COMPAT" = 1 ] && [ -f "$RUN_JSON" ]; then
+  update_compat "$CSV" "$RUN_JSON"
+else
+  [ "$UPDATE_COMPAT" = 0 ] && info "skipped compat.json update (--skip-compat-update)"
+fi
 
 exit "$([ "$fails" -eq 0 ] && echo 0 || echo 1)"
