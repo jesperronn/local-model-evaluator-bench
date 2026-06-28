@@ -287,9 +287,12 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "MISS: hello.txt not created",
-    "status": "open",
+    "status": "resolved",
     "last_seen": "2026-06-28",
-    "last_run_id": "20260628-234727"
+    "last_run_id": "20260628-234727",
+    "resolved_date": "2026-06-29",
+    "resolved_run_id": "20260629-002508",
+    "resolved_agent_version": "3.0.31"
   },
   "caveman:google/gemma-4-e4b:lms": {
     "adapter": "caveman",
