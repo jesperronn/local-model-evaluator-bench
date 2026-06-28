@@ -11,9 +11,9 @@
 | **License** | <!-- TODO — verify from HuggingFace card --> |
 | **Disk size** | 24.36 GB (GGUF, lmstudio-community) |
 | **Added** | 2026-06-28 |
-| **Last run** | — (not yet run) |
+| **Last run** | 2026-06-28 aider (stalled, incomplete) |
 | **Doc updated** | 2026-06-28 |
-| **Workarounds needed** | <!-- TODO — determine on first run --> |
+| **Workarounds needed** | Increase watchdog timeout to 300s+ for agentic adapters (aider, swe-agent), or exclude from agentic workflows |
 
 ## Download
 
@@ -36,8 +36,9 @@ Expected: PASS on all adapters.
 
 ## Performance notes
 
-<!-- Populated after first full run -->
+**⚠️ CRITICAL: Too slow for agentic tasks.** Generation stalls exceed 120s, causing watchdog timeouts. Task: js-02-debounce-feature (aider + zai-org/glm-4.7-flash) — took 593s total with watchdog abort during code generation. Not viable for tasks requiring real-time interaction (e.g., aider, mini-swe-agent).
 
 ## Observations across runs
 
 - 2026-06-28 (initial): smoke test passed; model performs [pending full bench run]
+- 2026-06-28 (aider trial): **STALLED** — js-02-debounce-feature test. Watchdog abort at 120s during LMS code generation. Completed 3/4 tests (59.3s stall, 593s total). Model generates too slowly for agentic workflow. Recommend: remove from aider rotation or increase watchdog timeout substantially.
