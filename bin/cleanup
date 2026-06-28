@@ -10,7 +10,7 @@
 #   --all           Equivalent to --logs --scratch --sandboxes 7 --empty
 #
 # By default, runs in dry-run mode and prints what would be deleted.
-# Pass --delete to actually remove files.
+# Pass -f/--force to actually remove files.
 
 set -uo pipefail
 
@@ -40,7 +40,7 @@ while [ $# -gt 0 ]; do
                       fi;;
     --empty)          DO_EMPTY=1; shift;;
     --all)            DO_LOGS=1; DO_SCRATCH=1; DO_SANDBOXES=1; DO_EMPTY=1; shift;;
-    --delete)         DELETE=1; shift;;
+    -f|--force)       DELETE=1; shift;;
     -h|--help)        usage;;
     *) die "unknown option: $1";;
   esac
@@ -146,7 +146,7 @@ if [ "$removed_items" -gt 0 ]; then
     ok "Removed $removed_items item(s), freed $(fmt_size "$removed_bytes")"
   else
     warn "Dry run — $removed_items item(s), $(fmt_size "$removed_bytes") would be freed"
-    echo "  Run with ${C_BLD}--delete${C_RST} to apply."
+    echo "  Run with ${C_BLD}--force${C_RST} to apply."
   fi
 else
   ok "Nothing to clean up."
