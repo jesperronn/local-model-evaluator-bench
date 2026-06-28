@@ -10,7 +10,7 @@ AIDER_ARGS=(
   --model "openai/${MODEL_ID}"
   --openai-api-base "$LMS_BASE_URL"
   --openai-api-key "$LMS_API_KEY"
-  --no-check-update --no-show-model-warnings
+  --no-check-update --no-show-model-warnings --no-gitignore
 )
 if [ ! -t 0 ]; then
   # Pass existing source files so aider has file content in context.

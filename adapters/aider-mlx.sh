@@ -10,7 +10,7 @@ AIDER_ARGS=(
   --openai-api-base "http://localhost:8080/v1"
   --openai-api-key "mlx"
   --model-metadata-file "${SCRIPT_DIR}/aider-mlx-model-metadata.json"
-  --no-check-update --no-show-model-warnings
+  --no-check-update --no-show-model-warnings --no-gitignore
 )
 if [ ! -t 0 ]; then
   mapfile -t SANDBOX_FILES < <(find . -type f \

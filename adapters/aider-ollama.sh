@@ -8,7 +8,7 @@ AIDER_ARGS=(
   --openai-api-base "${OLLAMA_BASE_URL}"
   --openai-api-key "ollama"
   --edit-format diff
-  --no-check-update --no-show-model-warnings
+  --no-check-update --no-show-model-warnings --no-gitignore
 )
 if [ ! -t 0 ]; then
   AIDER_ARGS+=(--yes-always --no-auto-commits --no-dirty-commits --no-git --message "$(cat)")
