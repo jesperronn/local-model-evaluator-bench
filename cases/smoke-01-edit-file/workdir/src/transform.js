@@ -1,3 +1,3 @@
 export function transform(s) {
-  return s.toUpperCase();
+  return s.toLowerCase();
 }

@@ -201,8 +201,16 @@ CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
 
 echo
 echo "${C_BLD}Smoke verdict — one line per (adapter × case)${C_RST}"
-fails=0
+# Extract model ID from run.json for verification
 RUN_DIR="$(dirname "$CSV")"
+RUN_JSON="$RUN_DIR/run.json"
+if [ -f "$RUN_JSON" ]; then
+  MODEL_ID="$(jq -r '.axes.models[0] // "unknown"' "$RUN_JSON" 2>/dev/null || echo "")"
+  if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "unknown" ]; then
+    echo "${C_DIM}→ model: $MODEL_ID${C_RST}"
+  fi
+fi
+fails=0
 while IFS=, read -r adapter model_col case pass total score seconds status _rest; do
   [ "$adapter" = adapter ] && continue
   key="$(printf '%-12s %-22s %s' "$adapter" "$model_col" "$case")"

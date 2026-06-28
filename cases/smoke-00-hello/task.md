@@ -1,6 +1,5 @@
-Create a file named `hello.txt` in the current directory whose entire contents
-are exactly:
+Create a file named `hello.txt` with the exact content:
 
 OK
 
-Do not create any other files. Do not add explanations to the file.
+(The model will be logged separately — this test confirms your adapter can reach the model.)
