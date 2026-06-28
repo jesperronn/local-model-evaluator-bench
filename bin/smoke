@@ -231,7 +231,12 @@ case " ${EXTRA_BENCH_ARGS[*]} " in
   *) EXTRA_BENCH_ARGS+=(--verbose) ;;
 esac
 
-bench_args=("--cases" "$SMOKE_CASES" "--adapter" "$_smoke_adapters")
+bench_args=("--cases" "$SMOKE_CASES" "--agent" "$_smoke_adapters")
+# Inject the resolved smoke model unless the user already passed --model.
+case " ${BENCH_ARGS[*]} " in
+  *" --model "*) ;;
+  *) [ -n "$MODEL" ] && bench_args+=(--model "$MODEL") ;;
+esac
 if [ "$RETRYING_BROKEN" = 1 ]; then
   bench_args+=("--skip-compat-filter")
 fi

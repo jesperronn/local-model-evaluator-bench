@@ -19,7 +19,7 @@ export PREFERRED_MODEL_ID="${PREFERRED_MODEL_ID:-qwen/qwen3.6-35b-a3b}"
 
 # Model used by `bin/smoke` to verify every tool can reach LM Studio. Pick a
 # small, fast one — the smoke case is trivial, so capability doesn't matter.
-export SMOKE_MODEL="${SMOKE_MODEL:-google/gemma-4-e2b}"
+export SMOKE_MODEL="${SMOKE_MODEL:-google/gemma-4-e4b}"
 # Context window for the smoke model. Must be ≥64000 so all adapters (including
 # Hermes, which enforces a 64K floor) can reach it.
 export SMOKE_CTX="${SMOKE_CTX:-64000}"

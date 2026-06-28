@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Adapter: codex -> LM Studio.
+# Tool: codex-cli 0.142.3, 2026-06-29
 # Codex talks to any OpenAI-compatible endpoint via a custom model_provider.
 # We pass the provider definition inline with -c overrides so no edit to
 # ~/.codex/config.toml is required. NOTE: `lmstudio` is a RESERVED built-in
@@ -8,7 +9,7 @@
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 #
 # Known model incompatibilities (revisit when adapter/model updates):
-#   any LMS model  — codex-cli 0.142.3, 2026-06-28
+#   any LMS model  — codex-cli 0.142.3, 2026-06-29
 #     codex_models_manager logs "failed to refresh available models: missing
 #     field `models`" on startup — codex expects Ollama-shaped {models:[...]},
 #     LMS returns OpenAI-shaped {data:[...]}. Harmless; codex still functions.
@@ -24,10 +25,9 @@ CODEX_COMMON=(
   -c model_providers.lmstudio_local.name="LM Studio"
   -c model_providers.lmstudio_local.base_url="$LMS_BASE_URL"
   -c model_providers.lmstudio_local.env_key="LMS_API_KEY"
-  # LM Studio implements OpenAI Chat Completions, not the Responses API.
-  # Without wire_api="chat", codex sends Responses-API-shaped tool outputs
-  # and LMS rejects them with `Invalid type for 'input'` (invalid_union).
-  -c model_providers.lmstudio_local.wire_api="chat"
+  # codex 0.142.3 dropped wire_api="chat" support; "responses" is now the only
+  # valid value. LMS ≥0.3.x accepts Responses-API-shaped tool outputs.
+  -c model_providers.lmstudio_local.wire_api="responses"
 )
 if [ ! -t 0 ]; then
   exec codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "${CODEX_COMMON[@]}" "$(cat)" "$@"

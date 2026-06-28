@@ -238,7 +238,10 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "MISS: _ still present in file",
-    "status": "open"
+    "status": "resolved",
+    "resolved_date": "2026-06-28",
+    "resolved_run_id": "20260628-234727",
+    "resolved_agent_version": " 1.39.0"
   },
   "copilot:google/gemma-4-e4b:lms": {
     "adapter": "copilot",
@@ -248,7 +251,9 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "└ Failed to parse patch: The first line of the patch must be '*** Begin Patch'",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-06-28",
+    "last_run_id": "20260628-234727"
   },
   "opencode:google/gemma-4-e4b:lms": {
     "adapter": "opencode",
@@ -258,7 +263,9 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "\u001b[0m✗ \u001b[0mGlob \"\" failed",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-06-28",
+    "last_run_id": "20260628-234727"
   },
   "codex:google/gemma-4-e4b:lms": {
     "adapter": "codex",
@@ -268,7 +275,9 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "Error loading config.toml: `wire_api = \"chat\"` is no longer supported.",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-06-28",
+    "last_run_id": "20260628-234727"
   },
   "cline:google/gemma-4-e4b:lms": {
     "adapter": "cline",
@@ -278,7 +287,9 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "MISS: hello.txt not created",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-06-28",
+    "last_run_id": "20260628-234727"
   },
   "caveman:google/gemma-4-e4b:lms": {
     "adapter": "caveman",
@@ -288,7 +299,9 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "Error: caveman adapter for LM Studio is not supported.",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-06-28",
+    "last_run_id": "20260628-234727"
   },
   "openhands:google/gemma-4-e4b:lms": {
     "adapter": "openhands",
@@ -298,6 +311,21 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "MISS: _ still present in file",
-    "status": "open"
+    "status": "resolved",
+    "resolved_date": "2026-06-28",
+    "resolved_run_id": "20260628-234727",
+    "resolved_agent_version": "1.16.0"
+  },
+  "pi:google/gemma-4-e4b:lms": {
+    "adapter": "pi",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": "0.80.2",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-234727",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open",
+    "last_seen": "2026-06-28",
+    "last_run_id": "20260628-234727"
   }
 }
