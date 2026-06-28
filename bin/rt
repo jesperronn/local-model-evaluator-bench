@@ -328,8 +328,47 @@ print(status,queued,age)
     local results_count=0
     [ -n "$latest_csv" ] && results_count=$(tail -n +2 "$latest_csv" 2>/dev/null | grep -c "." || echo 0)
     local bench_cmd; bench_cmd=$(ps -p $(echo $bpids | awk '{print $1}') -o args= 2>/dev/null | head -1)
+
+    # Calculate total expected results from bench command
+    # Total = num_adapters × num_models × num_cases × num_trials
+    local total_expected=0
+    local count_adapters=1 count_models=1 count_cases=1 count_trials=1
+
+    # Extract adapters count
+    if [[ "$bench_cmd" =~ --tool[=[:space:]]([^[:space:]]+) ]]; then
+      count_adapters=$(( $(echo "${BASH_REMATCH[1]}" | grep -o ',' | wc -l) + 1 ))
+    else
+      # No --tool specified: infer from CSV if available
+      if [ -n "$latest_csv" ]; then
+        count_adapters=$(tail -n +2 "$latest_csv" 2>/dev/null | awk -F, '{print $1}' | sort -u | wc -l)
+      else
+        count_adapters=1
+      fi
+    fi
+
+    # Extract models count
+    if [[ "$bench_cmd" =~ --model[s]?[=[:space:]]([^[:space:]]+) ]]; then
+      count_models=$(( $(echo "${BASH_REMATCH[1]}" | grep -o ',' | wc -l) + 1 ))
+    fi
+
+    # Extract cases count
+    if [[ "$bench_cmd" =~ --cases[=[:space:]]([^[:space:]]+) ]]; then
+      count_cases=$(( $(echo "${BASH_REMATCH[1]}" | grep -o ',' | wc -l) + 1 ))
+    fi
+
+    # Extract trials count
+    if [[ "$bench_cmd" =~ --trials[=[:space:]]([^[:space:]]+) ]]; then
+      count_trials=$(echo "${BASH_REMATCH[1]}" | grep -oE '[0-9]+' | head -1)
+    fi
+
+    total_expected=$(( count_adapters * count_models * count_cases * count_trials ))
+
     printf '%s  %s\n' "${C_YEL}RUNNING${C_RST}" "${C_DIM}${bench_cmd}${C_RST}"
-    printf '  results so far: %s\n' "$results_count"
+    if [ "$total_expected" -gt 0 ]; then
+      printf '  results so far: %s/%s\n' "$results_count" "$total_expected"
+    else
+      printf '  results so far: %s\n' "$results_count"
+    fi
     # Heartbeat: time since last CSV row was written
     if [ -n "$latest_csv" ]; then
       local csv_age_s; csv_age_s=$(( $(date +%s) - $(stat -f %m "$latest_csv" 2>/dev/null || echo 0) ))
@@ -552,7 +591,8 @@ cmd_who() {
 }
 
 _strip_ctrl() {
-  tr -d '\000-\010\013-\037\200-\237' \
+  # Remove control chars but preserve ESC (octal 033 = decimal 27) which is needed for ANSI color codes
+  tr -d '\000-\010\013-\032\034-\037\200-\237' \
     | sed 's/[⠁⠂⠄⠈⠐⠠⡀⢀⠃⠅⠆⠉⠊⠌⠑⠒⠔⠘⠡⠢⠤⠨⠰⡁⡂⡄⡈⡐⡠⢁⢂⢄⢈⢐⢠⣀⠇⠋⠍⠎⠓⠕⠖⠙⠚⠜⠣⠦⠩⠪⠬⠱⠲⠴⠸⡃⡅⡆⡉⡊⡌⡑⡒⡔⡘⡡⡢⡤⡨⡰⢃⢅⢆⢉⢊⢌⢑⢒⢔⢘⢡⢢⢤⢨⢰⣁⣂⣄⣈⣐⣠]//g'
 }
 
@@ -573,7 +613,7 @@ cmd_watch() {
   [ -z "$log" ] && die "no bench log found (run a bench first)"
   local rel="${log#$HERE/}"
   local case_label; case_label=$(echo "$rel" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
-  info "watching: $case_label  (Ctrl-C to stop)"
+  info "watching: $case_label  (Ctrl-C exits watch; test continues)"
   # macOS tail -f: follows the file as it grows
   tail -"$n" -f "$log" | _strip_ctrl
 }
