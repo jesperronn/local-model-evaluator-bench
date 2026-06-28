@@ -40,7 +40,10 @@ CLINE_ARGS=(
 )
 
 if [ ! -t 0 ]; then
-  exec "$CLINE" "${CLINE_ARGS[@]}" "$(cat)"
+  # Fix malformed tool calls from models like google/gemma-4-e4b.
+  # Converts: <tool_call>editor{...}</tool_call>
+  # To: <tool_call>{"name":"editor","arguments":{...}}</tool_call>
+  "$CLINE" "${CLINE_ARGS[@]}" "$(cat)" | sed -E 's|<tool_call>\s*([a-z_]+)\{([^}]*)\}|<tool_call>{"name":"\1","arguments":{\2}}|g'
 else
   exec "$CLINE" "${CLINE_ARGS[@]}" --tui
 fi
