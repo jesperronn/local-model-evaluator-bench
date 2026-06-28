@@ -84,7 +84,7 @@ bin/report --all --speed
 
 Filter to recommended agents only:
 ```bash
-bin/report --all --model qwen/qwen3.6-35b-a3b --adapter openhands,cline,aider
+bin/report --all --model qwen/qwen3.6-35b-a3b --agent openhands,cline,aider
 ```
 
 Show by accuracy (default leaderboard):

@@ -56,7 +56,7 @@ rounds. Where a case is single-pass, 6-bit is 2–3× slower (token rate dominat
 MLX only — no LMS or Ollama variant. Run with:
 
 ```
-bin/bench --runtime mlx --model gemma4-26b-6bit --adapter hermes --timeout 450
+bin/bench --runtime mlx --model gemma4-26b-6bit --agent hermes --timeout 450
 ```
 
 ## Status

@@ -17,7 +17,7 @@
 #   --runtime NAME  lms | ollama | mlx  (default: lms)
 #   --model/-m ID   model to test       (default: $SMOKE_MODEL for lms,
 #                                        first line of models-ollama.txt for ollama)
-#   --adapter/-t NAME  only test this adapter (default: all)
+#   --agent/-t NAME  only test this adapter (default: all)
 #   --retry-broken[=ADAPTERS]  retry adapters marked as broken in compat.json
 #                                (default: all broken adapters; or comma-separated list)
 #   --no-proxy-check   skip proxy liveness check for Ollama (default: auto)
@@ -96,7 +96,7 @@ while [ $# -gt 0 ]; do
     -h|--help) show_help; exit 0;;
     --runtime)       RUNTIME="$2";  shift 2;;
     --model|-m)      MODEL="$2";    BENCH_ARGS+=(--model "$2"); shift 2;;
-    --adapter|-t)    ADAPTER_OVERRIDE="$2"; BENCH_ARGS+=(--adapter "$2"); shift 2;;
+    --agent|-t)    ADAPTER_OVERRIDE="$2"; BENCH_ARGS+=(--agent "$2"); shift 2;;
     --no-proxy-check) PROXY_CHECK=0; shift;;
     --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
     --dry-run|-n)    DRY_RUN=1; shift;;

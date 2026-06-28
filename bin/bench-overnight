@@ -5,7 +5,7 @@
 # Usage:
 #   bin/bench-overnight                      # default model list
 #   bin/bench-overnight --models a,b,c       # override model list
-#   bin/bench-overnight --adapter aider,codex   # override adapter list
+#   bin/bench-overnight --agent aider,codex   # override adapter list
 #   bin/bench-overnight --worklist FILE      # drive from a bin/stale worklist
 #   bin/bench-overnight --stale              # run bin/stale now, then bench it
 #   Any extra flags are forwarded to bin/bench.
@@ -75,7 +75,7 @@ if [ "$STALE_NOW" = 1 ] || [ -n "$WORKLIST" ]; then
   if [ "$STALE_NOW" = 1 ]; then
     WORKLIST="$(mktemp)"
     info "scanning for stale/missing/failed combos..."
-    # Forward any --runtime/--adapter/--cases the user passed through to bin/stale.
+    # Forward any --runtime/--agent/--cases the user passed through to bin/stale.
     "$HERE/bin/stale" "${BENCH_EXTRA_ARGS[@]}" > "$WORKLIST"
     BENCH_EXTRA_ARGS=()   # consumed by stale; don't also pass to bench
   fi
@@ -105,7 +105,7 @@ if [ "$STALE_NOW" = 1 ] || [ -n "$WORKLIST" ]; then
     info "  cases:    ${_MODEL_CASES[$model]}"
     restart_services "$model"
     "$HERE/bin/bench" --model "$model" \
-      --adapter "${_MODEL_ADAPTERS[$model]}" --cases "${_MODEL_CASES[$model]}" \
+      --agent "${_MODEL_ADAPTERS[$model]}" --cases "${_MODEL_CASES[$model]}" \
       "${BENCH_EXTRA_ARGS[@]}"
     info "[$IDX/$TOTAL] $(date '+%Y-%m-%d %H:%M:%S')  completed: $model"
   done

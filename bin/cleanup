@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# bin/cleanup — reclaim disk space from results, logs, and scratch files.
+#
+# Targets (all opt-in; nothing deleted without a flag):
+#   --logs          Root-level *.log files (benchmark-*.log, nightly-*.log)
+#   --scratch       results/_run_*.out files
+#   --sandboxes N   Strip sandbox/ dirs from runs older than N days (default: 7)
+#                   Keeps results.csv + run.json; removes the agent workdir.
+#   --empty         Remove results dirs with no run.json (aborted / pre-versioning)
+#   --all           Equivalent to --logs --scratch --sandboxes 7 --empty
+#
+# By default, runs in dry-run mode and prints what would be deleted.
+# Pass --delete to actually remove files.
+
+set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+
+DO_LOGS=0
+DO_SCRATCH=0
+DO_SANDBOXES=0
+SANDBOX_DAYS=7
+DO_EMPTY=0
+DELETE=0
+
+usage() {
+  awk 'NR>1 && /^[^#]/{exit} NR>1{gsub(/^# ?/,""); print}' "$0"
+  exit 0
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --logs)           DO_LOGS=1; shift;;
+    --scratch)        DO_SCRATCH=1; shift;;
+    --sandboxes)      DO_SANDBOXES=1; shift
+                      if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then
+                        SANDBOX_DAYS="$1"; shift
+                      fi;;
+    --empty)          DO_EMPTY=1; shift;;
+    --all)            DO_LOGS=1; DO_SCRATCH=1; DO_SANDBOXES=1; DO_EMPTY=1; shift;;
+    --delete)         DELETE=1; shift;;
+    -h|--help)        usage;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+if [ "$DO_LOGS" = 0 ] && [ "$DO_SCRATCH" = 0 ] && [ "$DO_SANDBOXES" = 0 ] && [ "$DO_EMPTY" = 0 ]; then
+  usage
+fi
+
+removed_bytes=0
+removed_items=0
+
+fmt_size() {
+  local b="$1"
+  if   [ "$b" -ge $((1024*1024*1024)) ]; then printf '%.1fG' "$(echo "scale=1; $b/1073741824" | bc)"
+  elif [ "$b" -ge $((1024*1024))      ]; then printf '%.0fM' "$(echo "scale=0; $b/1048576"    | bc)"
+  elif [ "$b" -ge 1024                ]; then printf '%.0fK' "$(echo "scale=0; $b/1024"        | bc)"
+  else printf '%dB' "$b"
+  fi
+}
+
+du_bytes() {
+  # macOS du -sk gives kibibytes; multiply by 1024
+  local k; k="$(du -sk "$1" 2>/dev/null | awk '{print $1}')"
+  echo $(( ${k:-0} * 1024 ))
+}
+
+remove() {
+  # remove <path> <label>
+  local path="$1" label="$2"
+  local sz; sz="$(du_bytes "$path")"
+  if [ "$DELETE" = 1 ]; then
+    rm -rf "$path"
+    printf '  %s  %s %s\n' "${C_RED}removed${C_RST}" "$(fmt_size "$sz")" "$label"
+  else
+    printf '  %s  %s %s\n' "${C_YEL}would remove${C_RST}" "$(fmt_size "$sz")" "$label"
+  fi
+  removed_bytes=$(( removed_bytes + sz ))
+  removed_items=$(( removed_items + 1 ))
+}
+
+# ── Root-level log files ─────────────────────────────────────────────────────
+if [ "$DO_LOGS" = 1 ]; then
+  info "Checking root log files…"
+  found=0
+  for f in "$HERE"/*.log; do
+    [ -f "$f" ] || continue
+    remove "$f" "$(basename "$f")"
+    found=1
+  done
+  [ "$found" = 0 ] && echo "  (none found)"
+  echo
+fi
+
+# ── results/_run_*.out scratch files ─────────────────────────────────────────
+if [ "$DO_SCRATCH" = 1 ]; then
+  info "Checking scratch files in results/…"
+  found=0
+  for f in "$RESULTS_DIR"/_run_*.out; do
+    [ -f "$f" ] || continue
+    remove "$f" "results/$(basename "$f")"
+    found=1
+  done
+  [ "$found" = 0 ] && echo "  (none found)"
+  echo
+fi
+
+# ── Empty / aborted runs (no run.json) ───────────────────────────────────────
+if [ "$DO_EMPTY" = 1 ]; then
+  info "Checking for aborted runs (no run.json)…"
+  found=0
+  while IFS= read -r run_dir; do
+    [ -f "$run_dir/run.json" ] && continue
+    remove "$run_dir" "results/$(basename "$run_dir")/"
+    found=1
+  done < <(ls -dt "$RESULTS_DIR"/[0-9]*-[0-9]*/ 2>/dev/null)
+  [ "$found" = 0 ] && echo "  (none found)"
+  echo
+fi
+
+# ── Sandbox dirs from old runs ───────────────────────────────────────────────
+if [ "$DO_SANDBOXES" = 1 ]; then
+  info "Checking sandbox dirs older than ${SANDBOX_DAYS} days…"
+  cutoff=$(( $(date +%s) - SANDBOX_DAYS * 86400 ))
+  found=0
+  while IFS= read -r run_dir; do
+    sandbox="$run_dir/sandbox"
+    [ -d "$sandbox" ] || continue
+    rid="$(basename "$run_dir")"
+    # Parse timestamp from RUN_ID: YYYYMMDD-HHMMSS
+    run_epoch="$(date -j -f "%Y%m%d-%H%M%S" "$rid" +%s 2>/dev/null || echo 0)"
+    [ "$run_epoch" -lt "$cutoff" ] || continue
+    remove "$sandbox" "results/$rid/sandbox/"
+    found=1
+  done < <(ls -dt "$RESULTS_DIR"/[0-9]*-[0-9]*/ 2>/dev/null)
+  [ "$found" = 0 ] && echo "  (none found)"
+  echo
+fi
+
+# ── Summary ──────────────────────────────────────────────────────────────────
+if [ "$removed_items" -gt 0 ]; then
+  if [ "$DELETE" = 1 ]; then
+    ok "Removed $removed_items item(s), freed $(fmt_size "$removed_bytes")"
+  else
+    warn "Dry run — $removed_items item(s), $(fmt_size "$removed_bytes") would be freed"
+    echo "  Run with ${C_BLD}--delete${C_RST} to apply."
+  fi
+else
+  ok "Nothing to clean up."
+fi

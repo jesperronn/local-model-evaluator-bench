@@ -3,7 +3,7 @@
 **Status**: proposed
 **Created**: 2026-06-13T14:52Z
 **Created by**: opencode (lmstudio/qwen/qwen3.6-35b-a3b)
-**Input question**: "lets consider if we can use findings of this project to build a launcher (adapter) so that with one command we can launch interactively or preselect with --adapter --runtime --model flags, will fail with useful next steps if launcher is missing / model is missing / runtime is missing, the command can be rebuilt any times based on future findings and research in this project"
+**Input question**: "lets consider if we can use findings of this project to build a launcher (adapter) so that with one command we can launch interactively or preselect with --agent --runtime --model flags, will fail with useful next steps if launcher is missing / model is missing / runtime is missing, the command can be rebuilt any times based on future findings and research in this project"
 **Planning time**: ~12 minutes
 **Primary name**: `llmrun`
 **Contenders**: `llmstart`, `llmtool`
@@ -28,16 +28,16 @@ One command that works whether you pass flags or need a picker:
 
 ```bash
 # Pre-selected
-llmrun --adapter opencode --runtime lms --model qwen3.6-35b-a3b --case js-03-multifile-cache
+llmrun --agent opencode --runtime lms --model qwen3.6-35b-a3b --case js-03-multifile-cache
 
 # Interactive (all four axes)
 llmrun
 
 # Interactive (two axes already given — skips those pickers)
-llmrun --adapter hermes
+llmrun --agent hermes
 
 # Dry run — show what would execute
-llmrun --adapter aider --model qwen3.5-9b --case js-01-slugify-bug --dry-run
+llmrun --agent aider --model qwen3.5-9b --case js-01-slugify-bug --dry-run
 ```
 
 Fails fast with **actionable next steps** when something is missing, not a cryptic error.
@@ -129,7 +129,7 @@ If no `<tool>-<runtime>.sh` exists, show available runtimes for that tool.
 # No adapter for this (tool, runtime) pair:
 [FAIL] No adapter for hermes + mlx
   Available adapters: hermes-lms.sh, hermes-ollama.sh
-  Run:  llmrun --adapter hermes --runtime lms   (or ollama)
+  Run:  llmrun --agent hermes --runtime lms   (or ollama)
 ```
 
 ### 4. Interactive picker flow
@@ -172,7 +172,7 @@ When you add a model, adapter, or case, `llmrun` picks it up automatically.
 
 ### Phase 1 — Core
 
-- Parse flags: `--adapter`, `--runtime`, `--model`, `--case`, `--list`, `--interactive`
+- Parse flags: `--agent`, `--runtime`, `--model`, `--case`, `--list`, `--interactive`
 - Discovery from config files + CLI checks
 - Validation with actionable error messages
 - Execute the right adapter with resolved model id
@@ -207,8 +207,8 @@ lib/launch-common.sh  # shared: discovery, validation, resolution
 
 | Today | With `llmrun` |
 |-------|---------------|
-| `lms load <id>` + `adapters/aider-lms.sh` | `llmrun --adapter aider --model qwen3.5-9b` |
-| `lms load <id>` + `adapters/opencode-lms.sh` | `llmrun --adapter opencode --model qwen3.5-9b` |
+| `lms load <id>` + `adapters/aider-lms.sh` | `llmrun --agent aider --model qwen3.5-9b` |
+| `lms load <id>` + `adapters/opencode-lms.sh` | `llmrun --agent opencode --model qwen3.5-9b` |
 | Manual adapter discovery | Auto-discovers all `<tool>-<runtime>.sh` on PATH |
 | Manual model lookup | Resolves aliases, checks loaded state, offers to load |
 

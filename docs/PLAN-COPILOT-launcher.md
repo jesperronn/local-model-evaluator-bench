@@ -8,7 +8,7 @@
 | **Session start** | 2026-06-13T14:49:01Z (Europe/Copenhagen, UTC+2) |
 | **Plan created** | 2026-06-13T14:52:31Z |
 | **Duration** | ~3.5 minutes |
-| **Input question** | "we need to add copilot (local) and claude (local) to the list tools since it is possible." → "lets consider if we can use findings of this project to build a launcher (adapter) so that with one command we can launch interactively or preselect with --adapter --runtime --model flags, will fail with useful next steps if launcher/model/runtime is missing, the command can be rebuilt any times based on future findings" → "How would we plan to do this??" |
+| **Input question** | "we need to add copilot (local) and claude (local) to the list tools since it is possible." → "lets consider if we can use findings of this project to build a launcher (adapter) so that with one command we can launch interactively or preselect with --agent --runtime --model flags, will fail with useful next steps if launcher/model/runtime is missing, the command can be rebuilt any times based on future findings" → "How would we plan to do this??" |
 | **Tool** | GitHub Copilot CLI — model `qwen/qwen3.6-35b-a3b` (model ID: qwen/qwen3.6-35b-a3b) |
 | **Chosen name** | `llmrun` |
 | **Contenders** | `llmstart`, `llmtool` |
@@ -31,7 +31,7 @@ A single `llmrun` command that:
 ### Entry
 
 ```
-bin/launch [--adapter <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [prompt...]
+bin/launch [--agent <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [prompt...]
 ```
 
 ### Phase 1 — Select

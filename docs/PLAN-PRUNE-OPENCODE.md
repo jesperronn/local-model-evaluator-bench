@@ -32,7 +32,7 @@ The challenge: **don't delete runs that are actually unique** (different case co
 ### Entry
 
 ```
-bin/prune [--auto] [--interactive] [--archive] [--dry-run] [--runtime <lms|ollama|mlx>] [--date-before YYYY-MM-DD] [--date-after YYYY-MM-DD] [--adapter <name>] [--model <id>]
+bin/prune [--auto] [--interactive] [--archive] [--dry-run] [--runtime <lms|ollama|mlx>] [--date-before YYYY-MM-DD] [--date-after YYYY-MM-DD] [--agent <name>] [--model <id>]
 ```
 
 ### Deduplication key
@@ -96,7 +96,7 @@ Before grouping, apply filters:
 | `--runtime <lms|ollama|mlx>` | Only consider runs with this runtime |
 | `--date-before YYYY-MM-DD` | Only runs before this date |
 | `--date-after YYYY-MM-DD` | Only runs after this date |
-| `--adapter <name>` | Only runs with this adapter |
+| `--agent <name>` | Only runs with this adapter |
 | `--model <id>` | Only runs with this model |
 
 Filters combine with AND logic.

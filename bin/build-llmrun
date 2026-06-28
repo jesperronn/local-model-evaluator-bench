@@ -39,7 +39,7 @@ sed \
 # Regenerate: cd @@PROJECT@@ && bin/build-llmrun
 #
 # Usage:
-#   llmrun [--adapter <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [prompt...]
+#   llmrun [--agent <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [prompt...]
 #
 # All three flags fall back to fzf pickers when not given.
 # Adapters live in the source project — set LLMRUN_ADAPTERS to override.
@@ -72,7 +72,7 @@ trap 'echo; warn "Interrupted"; exit 130' INT TERM
 TOOL=""; RUNTIME=""; MODEL=""; PROMPT_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --adapter|-t)    TOOL="$2";    shift 2;;
+    --agent|-t)    TOOL="$2";    shift 2;;
     --runtime|-r) RUNTIME="$2"; shift 2;;
     --model|-m)   MODEL="$2";   shift 2;;
     -h|--help)
@@ -162,7 +162,7 @@ if [ ! -f "$ADAPTER_FILE" ]; then
   err "no adapter for ${TOOL}-${RUNTIME}"
   printf '\nAvailable combos:\n'
   all_adapters | sed 's/^/  /'
-  printf '\nTry a different --adapter or --runtime.\n'
+  printf '\nTry a different --agent or --runtime.\n'
   exit 1
 fi
 
@@ -180,7 +180,7 @@ if ! command -v "$TOOL" >/dev/null 2>&1; then
 fi
 
 # ── Phase 3: Exec ─────────────────────────────────────────────────────────────
-echo "${C_DIM}Rerun: llmrun --adapter $TOOL --runtime $RUNTIME --model $MODEL${C_RST}"
+echo "${C_DIM}Rerun: llmrun --agent $TOOL --runtime $RUNTIME --model $MODEL${C_RST}"
 info "launching ${C_BLD}${TOOL}${C_RST} via ${C_BLD}${RUNTIME}${C_RST} with model ${C_BLD}${MODEL}${C_RST}"
 export MODEL_ID="$MODEL"
 if [ "${#PROMPT_ARGS[@]}" -gt 0 ]; then

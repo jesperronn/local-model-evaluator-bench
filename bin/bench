@@ -6,7 +6,7 @@
 # pass/total. Results land in results/<timestamp>/results.csv plus per-run logs.
 #
 # Flags:
-#   --adapter/-a a,b   CLI adapters to run  (default: $DEFAULT_ADAPTERS)
+#   --agent/-a a,b   CLI adapters to run  (default: $DEFAULT_ADAPTERS)
 #   --models/--model/-m a,b  model ids            (default: models.txt)
 #   --cases    a,b     case ids                   (default: all cases/)
 #   --difficulty t,t   keep only cases of these tiers (easy|medium|hard) from
@@ -38,7 +38,7 @@
 #                      RUN_ID defaults to the most recent run if omitted.
 #   --list             print the resolved axes and exit
 #   --interactive/-i   fzf pickers for model and adapter; skips a picker if that
-#                      flag was already given (e.g. --adapter hermes -i only picks model)
+#                      flag was already given (e.g. --agent hermes -i only picks model)
 #   --verbose/-v       on every non-pass trial, print the .bench.log path plus a
 #                      short error excerpt inline (so failures are diagnosable
 #                      without hunting through results/<ts>/sandbox/)
@@ -121,7 +121,7 @@ show_help() {
 ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""; SKIP_COMPAT_FILTER=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --adapter|-a)        ADAPTERS="$2"; shift 2;;
+    --agent|-a)        ADAPTERS="$2"; shift 2;;
     --models|--model|-m) MODELS="$2";   shift 2;;
     --cases)             CASES="$2";    shift 2;;
     --difficulty)        DIFFICULTY="$2"; shift 2;;
@@ -173,7 +173,7 @@ if [ "$INTERACTIVE" = 1 ]; then
     ADAPTERS="$(printf '%s\n' "$sel_tools" | paste -sd',' -)"
   fi
 
-  echo "${C_DIM}Rerun: bin/bench --runtime $RUNTIME --adapter $ADAPTERS --model $MODELS${C_RST}"
+  echo "${C_DIM}Rerun: bin/bench --runtime $RUNTIME --agent $ADAPTERS --model $MODELS${C_RST}"
 fi
 
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
