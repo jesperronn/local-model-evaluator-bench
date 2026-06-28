@@ -38,5 +38,26 @@
     "run_id": "20260628-073902",
     "symptom": "Failed to parse patch: model doesn't emit *** Begin Patch envelope; cascades to 400 Invalid messages",
     "status": "open"
+  },
+  "copilot:qwen/qwen3-coder-30b:lms": {
+    "adapter": "copilot",
+    "model": "qwen/qwen3-coder-30b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-084533",
+    "symptom": "Failed to parse patch: The first line of the patch must be '*** Begin Patch'; coder models don't emit Codex-style envelopes",
+    "status": "open",
+    "note": "Fundamental incompatibility: copilot CLI expects cloud-style responses with Codex patch format; local coder models don't produce this format reliably"
+  },
+  "opencode:qwen/qwen3-coder-30b:lms": {
+    "adapter": "opencode",
+    "model": "qwen/qwen3-coder-30b",
+    "runtime": "lms",
+    "agent_version": "1.17.11",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-084504",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m\"Model unloaded.\"",
+    "status": "open"
   }
 }

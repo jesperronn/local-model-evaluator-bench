@@ -13,7 +13,7 @@ This benchmark includes 11 agents. **All are available for testing**, but perfor
 | ⚠️ **pi** | 151s/case | 87% | Fair | Exploring; know tool-call formats work |
 | ⚠️ **opencode** | 543s/case | 71% | Fair | Exploratory; benchmarking only |
 | ❌ **codex** | 363s/case | 76% | Poor | Avoid; too slow, not accurate enough |
-| ❌ **copilot** | 453s/case | 63% | Poor | Avoid; very slow, low accuracy |
+| ❌ **copilot** | 453s/case | 63% | Poor | Avoid; very slow; patch format incompatible with coder models |
 | ⚠️ **caveman** | 77s/case | 60% | Poor | Text-based fallback; weak results; LMS adapter unsupported |
 | ❌ **hermes** | 87s/case | 59% | Poor | Needs special config; lower accuracy |
 | ❌ **interpreter** | 71s/case | 98% | Experimental | Research only; high overhead |
