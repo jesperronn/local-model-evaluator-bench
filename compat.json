@@ -1,0 +1,42 @@
+{
+  "caveman:nvidia/nemotron-3-nano-omni:lms": {
+    "adapter": "caveman",
+    "model": "nvidia/nemotron-3-nano-omni",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-073902",
+    "symptom": "Error: Unknown provider \"lmstudio\". npm caveman-code does not support local providers.",
+    "status": "open"
+  },
+  "opencode:nvidia/nemotron-3-nano-omni:lms": {
+    "adapter": "opencode",
+    "model": "nvidia/nemotron-3-nano-omni",
+    "runtime": "lms",
+    "agent_version": "1.17.11",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-073902",
+    "symptom": "UnknownError: Unexpected server error — opencode tool-call parser rejects model output within 2s",
+    "status": "open"
+  },
+  "goose:nvidia/nemotron-3-nano-omni:lms": {
+    "adapter": "goose",
+    "model": "nvidia/nemotron-3-nano-omni",
+    "runtime": "lms",
+    "agent_version": "1.39.0",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-073902",
+    "symptom": "LM Studio jinja template error: Cannot apply filter \"string\" to type: NullValue — model's chat_template is buggy",
+    "status": "open"
+  },
+  "copilot:nvidia/nemotron-3-nano-omni:lms": {
+    "adapter": "copilot",
+    "model": "nvidia/nemotron-3-nano-omni",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-073902",
+    "symptom": "Failed to parse patch: model doesn't emit *** Begin Patch envelope; cascades to 400 Invalid messages",
+    "status": "open"
+  }
+}
