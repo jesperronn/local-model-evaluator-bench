@@ -52,6 +52,8 @@
 #                        mlx    → models-mlx.txt
 #                      Adapters: if adapters/<name>-<runtime>.sh exists it is
 #                      preferred over adapters/<name>.sh for that runtime.
+#   --skip-compat-filter  don't filter out adapters marked as broken in compat.json
+#                      (used by bin/smoke --retry-broken to test broken adapters)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/lib/versions.sh"
@@ -116,7 +118,7 @@ show_help() {
   read_list "$mfile" | sed 's/^/  /'
 }
 
-ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""
+ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""; SKIP_COMPAT_FILTER=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --adapter|-a)        ADAPTERS="$2"; shift 2;;
@@ -131,6 +133,7 @@ while [ $# -gt 0 ]; do
     --list)              LIST=1; shift;;
     --interactive|-i)    INTERACTIVE=1; shift;;
     --verbose|-v)        VERBOSE=1; shift;;
+    --skip-compat-filter) SKIP_COMPAT_FILTER=1; shift;;
     --resume)
       if [[ "${2:-}" =~ ^[0-9]{8}-[0-9]{6}$ ]]; then RESUME="$2"; shift 2
       else RESUME="latest"; shift; fi;;
@@ -222,7 +225,8 @@ else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] 
 
 # Filter out adapters marked as broken in compat.json for the first resolved model
 # and current runtime. This prevents wasting time on known-incompatible adapters.
-if [ ${#MODEL_ARR[@]} -gt 0 ]; then
+# (Skip this when --skip-compat-filter is used, e.g. by bin/smoke --retry-broken)
+if [ "$SKIP_COMPAT_FILTER" = 0 ] && [ ${#MODEL_ARR[@]} -gt 0 ]; then
   _first_model="${MODEL_ARR[0]}"
   _filtered="$(filter_broken_adapters "$(IFS=','; printf '%s' "${ADAPTER_ARR[*]}")" "$_first_model" "$RUNTIME")"
   if [ -n "$_filtered" ]; then

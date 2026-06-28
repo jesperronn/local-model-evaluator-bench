@@ -105,6 +105,113 @@ filter_broken_adapters() {
   printf '%s' "$(IFS=','; printf '%s' "${result[*]}")"
 }
 
+# Get adapters marked as broken (status="open") for a given model+runtime.
+# Usage: get_broken_adapters <model> <runtime> [adapter_list]
+# Returns comma-separated list of broken adapters; if adapter_list is given,
+# only return those that are both in the list and marked broken.
+get_broken_adapters() {
+  local model="$1" runtime="$2" adapter_filter="${3:-}"
+  local compat_file="${REPO_ROOT}/compat.json"
+
+  [ -f "$compat_file" ] || return 0
+
+  local broken_adapters=()
+
+  # If a filter list is provided, only check those adapters.
+  if [ -n "$adapter_filter" ]; then
+    IFS=',' read -ra adapter_arr <<< "$adapter_filter"
+  else
+    # Otherwise, extract all adapters from compat.json that match this model+runtime.
+    adapter_arr=()
+    while IFS= read -r line; do
+      [[ "$line" =~ ^([^:]+):[^:]+:$runtime$ ]] && adapter_arr+=("${BASH_REMATCH[1]}")
+    done < <(jq -r "keys[]" "$compat_file" 2>/dev/null | grep ":$runtime\$")
+  fi
+
+  # Deduplicate adapter list and check each unique adapter.
+  declare -A seen_adapters
+  for adapter in "${adapter_arr[@]}"; do
+    [ -n "${seen_adapters[$adapter]:-}" ] && continue
+    seen_adapters[$adapter]=1
+
+    local compat_key="${adapter}:${model}:${runtime}"
+    local status
+    status="$(jq -r --arg k "$compat_key" '.[$k].status // "none"' "$compat_file" 2>/dev/null || echo "none")"
+    if [ "$status" = "open" ]; then
+      broken_adapters+=("$adapter")
+    fi
+  done
+
+  if [ ${#broken_adapters[@]} -gt 0 ]; then
+    printf '%s' "$(IFS=','; printf '%s' "${broken_adapters[*]}")"
+  fi
+}
+
+# Show a detailed diff of compat.json changes (before/after JSON strings).
+# Usage: show_compat_diff <before_json> <after_json>
+# Highlights entries that were removed (tests now pass) or updated (symptom changed).
+show_compat_diff() {
+  local before_json="$1" after_json="$2"
+
+  # Extract keys and compare.
+  local before_keys after_keys
+  before_keys="$(echo "$before_json" | jq -r 'keys[]' 2>/dev/null | sort)"
+  after_keys="$(echo "$after_json" | jq -r 'keys[]' 2>/dev/null | sort)"
+
+  local removed=() updated=()
+
+  # Find removed entries (in before, not in after).
+  while IFS= read -r key; do
+    [ -z "$key" ] && continue
+    if ! echo "$after_json" | jq -e --arg k "$key" '.[$k]' >/dev/null 2>&1; then
+      removed+=("$key")
+    else
+      # Check if the entry changed (simplified: compare the whole entry as JSON).
+      local before_val after_val
+      before_val="$(echo "$before_json" | jq --arg k "$key" '.[$k]' 2>/dev/null)"
+      after_val="$(echo "$after_json" | jq --arg k "$key" '.[$k]' 2>/dev/null)"
+      if [ "$before_val" != "$after_val" ]; then
+        updated+=("$key")
+      fi
+    fi
+  done <<< "$before_keys"
+
+  # Print summary if anything changed.
+  if [ ${#removed[@]} -gt 0 ] || [ ${#updated[@]} -gt 0 ]; then
+    echo
+    echo "${C_BLD}compat.json changes${C_RST}  ${C_DIM}compat.json${C_RST}"
+
+    # Show removed entries (tests passed, adapter now works).
+    if [ ${#removed[@]} -gt 0 ]; then
+      for key in "${removed[@]}"; do
+        local old_entry
+        old_entry="$(echo "$before_json" | jq --arg k "$key" '.[$k]' 2>/dev/null)"
+        echo "  ${C_GRN}−${C_RST}  \"${key}\": ${old_entry},"
+      done
+    fi
+
+    # Show updated entries (status or symptom changed).
+    if [ ${#updated[@]} -gt 0 ]; then
+      for key in "${updated[@]}"; do
+        local before_entry after_entry
+        before_entry="$(echo "$before_json" | jq --arg k "$key" '.[$k]' 2>/dev/null)"
+        after_entry="$(echo "$after_json" | jq --arg k "$key" '.[$k]' 2>/dev/null)"
+
+        # Check if status changed to resolved.
+        local before_status after_status
+        before_status="$(echo "$before_entry" | jq -r '.status' 2>/dev/null)"
+        after_status="$(echo "$after_entry" | jq -r '.status' 2>/dev/null)"
+
+        if [ "$before_status" = "open" ] && [ "$after_status" = "resolved" ]; then
+          echo "  ${C_GRN}✓${C_RST}  \"${key}\": status changed from \"open\" → \"resolved\""
+        else
+          echo "  ${C_YEL}~${C_RST}  \"${key}\": ${before_entry} → ${after_entry}"
+        fi
+      done
+    fi
+  fi
+}
+
 # Pretty-print adapters filtered out due to known incompatibilities.
 # Usage: warn_filtered_adapters <original_csv> <filtered_csv> <model> <runtime>
 warn_filtered_adapters() {

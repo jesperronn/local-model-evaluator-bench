@@ -18,6 +18,8 @@
 #   --model/-m ID   model to test       (default: $SMOKE_MODEL for lms,
 #                                        first line of models-ollama.txt for ollama)
 #   --adapter/-t NAME  only test this adapter (default: all)
+#   --retry-broken[=ADAPTERS]  retry adapters marked as broken in compat.json
+#                                (default: all broken adapters; or comma-separated list)
 #   --no-proxy-check   skip proxy liveness check for Ollama (default: auto)
 #   --verbose/-v       pass --verbose to bench (shows error excerpts on failure)
 #   --dry-run/-n       print the plan (runtime, model, cases, resolved adapter
@@ -83,6 +85,8 @@ MODEL=""
 PROXY_CHECK=1
 DRY_RUN=0
 UPDATE_COMPAT=1
+RETRY_BROKEN_MODE=""
+RETRY_BROKEN_LIST=""
 BENCH_ARGS=()
 EXTRA_BENCH_ARGS=()
 ADAPTER_OVERRIDE=""
@@ -97,6 +101,16 @@ while [ $# -gt 0 ]; do
     --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
     --dry-run|-n)    DRY_RUN=1; shift;;
     --skip-compat-update) UPDATE_COMPAT=0; shift;;
+    --retry-broken*)
+      arg="$1"
+      if [[ "$arg" == *"="* ]]; then
+        RETRY_BROKEN_MODE="select"
+        RETRY_BROKEN_LIST="${arg#*=}"
+      else
+        RETRY_BROKEN_MODE="all"
+      fi
+      shift
+      ;;
     *) warn "unknown flag: $1"; shift;;
   esac
 done
@@ -105,8 +119,32 @@ BENCH_ARGS+=(--runtime "$RUNTIME")
 
 # Resolve adapter list early so --dry-run can print it without touching runtimes.
 SMOKE_CASES="smoke-00-hello,smoke-01-edit-file,smoke-02-numbers"
+RETRYING_BROKEN=0
+
 if [ -n "$ADAPTER_OVERRIDE" ]; then
   _smoke_adapters="$ADAPTER_OVERRIDE"
+elif [ -n "$RETRY_BROKEN_MODE" ]; then
+  # Retry mode: fetch broken adapters for this model+runtime.
+  # Resolve model name first (needed for compat.json lookup).
+  RETRY_MODEL="${MODEL:-$SMOKE_MODEL}"
+  if [ -z "$RETRY_MODEL" ]; then
+    die "--retry-broken requires --model or \$SMOKE_MODEL to be set"
+  fi
+
+  # Handle select vs all mode.
+  if [ "$RETRY_BROKEN_MODE" = "select" ]; then
+    _broken="$(get_broken_adapters "$RETRY_MODEL" "$RUNTIME" "$RETRY_BROKEN_LIST")"
+  else
+    _broken="$(get_broken_adapters "$RETRY_MODEL" "$RUNTIME")"
+  fi
+
+  if [ -z "$_broken" ]; then
+    warn "no broken adapters found for $RETRY_MODEL on $RUNTIME"
+    exit 0
+  fi
+
+  _smoke_adapters="$_broken"
+  RETRYING_BROKEN=1
 else
   _smoke_adapters="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot}"
 fi
@@ -193,7 +231,11 @@ case " ${EXTRA_BENCH_ARGS[*]} " in
   *) EXTRA_BENCH_ARGS+=(--verbose) ;;
 esac
 
-"$HERE/bin/bench" --cases "$SMOKE_CASES" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}"
+bench_args=("--cases" "$SMOKE_CASES")
+if [ "$RETRYING_BROKEN" = 1 ]; then
+  bench_args+=("--skip-compat-filter")
+fi
+"$HERE/bin/bench" "${bench_args[@]}" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}"
 
 # ── Verdict ───────────────────────────────────────────────────────────────────
 CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
@@ -350,7 +392,19 @@ update_compat() {
 
 RUN_JSON="$RUN_DIR/run.json"
 if [ "$UPDATE_COMPAT" = 1 ] && [ -f "$RUN_JSON" ]; then
+  # For retry runs, capture compat.json before update to show the diff.
+  COMPAT_BEFORE=""
+  if [ "$RETRYING_BROKEN" = 1 ]; then
+    COMPAT_BEFORE="$(cat "$HERE/compat.json" 2>/dev/null || echo '{}')"
+  fi
+
   update_compat "$CSV" "$RUN_JSON"
+
+  # Show diff for retry runs.
+  if [ "$RETRYING_BROKEN" = 1 ] && [ -n "$COMPAT_BEFORE" ]; then
+    COMPAT_AFTER="$(cat "$HERE/compat.json")"
+    show_compat_diff "$COMPAT_BEFORE" "$COMPAT_AFTER"
+  fi
 else
   [ "$UPDATE_COMPAT" = 0 ] && info "skipped compat.json update (--skip-compat-update)"
 fi
