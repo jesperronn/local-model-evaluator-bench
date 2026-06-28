@@ -126,7 +126,7 @@ The four stages, each one script. Run them in order (or the one-liner at the end
 ```bash
 # 1. START — run the matrix (adapters x models x cases), grade, score.
 bin/bench                              # everything: all adapters x all models.txt x all cases
-bin/bench --tool hermes --trials 3     # one adapter, 3 trials → records the MEDIAN
+bin/bench --adapter hermes --trials 3     # one adapter, 3 trials → records the MEDIAN
 
 # 2. INGEST — merge runs into the leaderboard.
 bin/report --all                       # merge ALL runs (latest result per adapter+model+case)
@@ -143,7 +143,7 @@ bin/viz                                # regenerate results/index.html from all 
 One-liner for the common case:
 
 ```bash
-bin/bench --tool hermes --trials 3 && bin/report --all --save && bin/viz
+bin/bench --adapter hermes --trials 3 && bin/report --all --save && bin/viz
 ```
 
 > **Context window — Hermes needs ≥64K.** `config.sh` sets `BENCH_CONTEXT=65536`.
@@ -155,7 +155,7 @@ bin/bench --tool hermes --trials 3 && bin/report --all --save && bin/viz
 Narrow a run while iterating:
 
 ```bash
-bin/bench --tool aider,opencode --models qwen/qwen3-coder-30b --cases js-01-slugify-bug
+bin/bench --adapter aider,opencode --models qwen/qwen3-coder-30b --cases js-01-slugify-bug
 bin/bench --trials 3 --cases js-01-slugify-bug   # repeat each triple 3x, record medians
 bin/bench --list          # show what would run, without running
 bin/bench -i              # fzf pickers for models and tools

@@ -10,7 +10,7 @@ usage() {
 Usage: $(basename "$0") [options] [results.csv]
 
 Options:
-  -t, --tool TOOL[,TOOL...]    filter by adapter/tool (comma-separated)
+  -t, --adapter TOOL[,TOOL...]    filter by adapter/tool (comma-separated)
   -m, --model MODEL[,MODEL...]  filter by model (comma-separated)
   -i, --interactive             use fzf to select tool(s) and model(s)
   -a, --all                     merge all runs under results/ (latest result
@@ -43,7 +43,7 @@ YES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage ;;
-    -t|--tool)    TOOL_FILTER="$2";    shift 2 ;;
+    -t|--adapter)    TOOL_FILTER="$2";    shift 2 ;;
     -m|--model)   MODEL_FILTER="$2";   shift 2 ;;
     -r|--runtime) RUNTIME_FILTER="$2"; shift 2 ;;
     -i|--interactive) INTERACTIVE=1; shift ;;

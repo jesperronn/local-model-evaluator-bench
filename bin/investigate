@@ -115,7 +115,7 @@ while IFS=$'\t' read -r adapter model case_id; do
       logf="$(ls -t "$RESULTS_DIR"/[0-9]*/sandbox/"$adapter"/"$(fs_safe "$model")"/"$case_id"/.bench.log \
               "$RESULTS_DIR"/[0-9]*/sandbox/"$adapter"/"$(fs_safe "$model")"/"$case_id"/trial-*/.bench.log \
               2>/dev/null | head -1)"
-      if [ -n "$logf" ]; then action="inspect ${logf#"$HERE"/}"; else action="rerun with: bin/bench --tool $adapter --model $model --cases $case_id --verbose"; fi
+      if [ -n "$logf" ]; then action="inspect ${logf#"$HERE"/}"; else action="rerun with: bin/bench --adapter $adapter --model $model --cases $case_id --verbose"; fi
       n_notrace=$((n_notrace+1))
       ;;
   esac

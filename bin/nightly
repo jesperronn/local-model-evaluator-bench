@@ -57,7 +57,7 @@ echo ""
 # Run primary model (qwen3.6-35b or specified)
 echo "Starting primary run with $PRIMARY_MODEL..."
 bin/bench \
-  --tool "$ADAPTERS" \
+  --adapter "$ADAPTERS" \
   --model "$PRIMARY_MODEL" \
   --difficulty "$DIFFICULTY" \
   --timeout 300 \
@@ -70,7 +70,7 @@ if [ "$INCLUDE_DEVSTRAL" -eq 1 ]; then
   sleep 2
 
   bin/bench \
-    --tool "$ADAPTERS" \
+    --adapter "$ADAPTERS" \
     --model "mistralai/devstral-small-2-2512" \
     --difficulty "$DIFFICULTY" \
     --timeout 300 \

@@ -92,7 +92,7 @@ while [ $# -gt 0 ]; do
     -h|--help) show_help; exit 0;;
     --runtime)       RUNTIME="$2";  shift 2;;
     --model|-m)      MODEL="$2";    BENCH_ARGS+=(--model "$2"); shift 2;;
-    --adapter|-t)    ADAPTER_OVERRIDE="$2"; BENCH_ARGS+=(--tool "$2"); shift 2;;
+    --adapter|-t)    ADAPTER_OVERRIDE="$2"; BENCH_ARGS+=(--adapter "$2"); shift 2;;
     --no-proxy-check) PROXY_CHECK=0; shift;;
     --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
     --dry-run|-n)    DRY_RUN=1; shift;;

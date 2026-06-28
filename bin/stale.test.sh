@@ -46,7 +46,7 @@ run_stale() {  # extra args -> CSV stdout only (stderr discarded)
   STALE_ADAPTERS_DIR="$TMP/adapters" STALE_MODELS_FILE="$TMP/models.txt" \
   STALE_CONFIG_SH="$TMP/config.sh" STALE_COMMON_SH="$TMP/common.sh" \
   STALE_BENCH="$TMP/bench" STALE_SHIM="$TMP/shim" \
-  bash "$STALE" --tool aider,pi --cases c1 "$@" 2>/dev/null
+  bash "$STALE" --adapter aider,pi --cases c1 "$@" 2>/dev/null
 }
 
 # 1. Baseline: aider is ok+current -> skipped; pi failed -> emitted as failed.

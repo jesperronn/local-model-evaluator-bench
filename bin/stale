@@ -25,7 +25,7 @@
 # Feed straight into:  bin/bench-overnight --worklist <file>
 #
 # Flags (axis flags mirror bin/bench so the desired matrix matches a real run):
-#   --tool/-t a,b        adapters    (default: $DEFAULT_ADAPTERS)
+#   --adapter/-t a,b        adapters    (default: $DEFAULT_ADAPTERS)
 #   --models/--model/-m  models      (default: per-runtime models file)
 #   --cases a,b          cases       (default: all cases/)
 #   --runtime RUNTIME    lms|ollama|mlx (default: lms) — picks models file + adapter variant
@@ -56,7 +56,7 @@ ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; RUNTIME="lms"
 ONLY=""; HEADER=0; LIST=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --tool|-t)           ADAPTERS="$2"; shift 2;;
+    --adapter|-t)           ADAPTERS="$2"; shift 2;;
     --models|--model|-m) MODELS="$2";   shift 2;;
     --cases)             CASES="$2";    shift 2;;
     --difficulty)        DIFFICULTY="$2"; shift 2;;
