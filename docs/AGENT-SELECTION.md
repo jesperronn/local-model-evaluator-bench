@@ -14,7 +14,7 @@ This benchmark includes 11 agents. **All are available for testing**, but perfor
 | ⚠️ **opencode** | 543s/case | 71% | Fair | Exploratory; benchmarking only |
 | ❌ **codex** | 363s/case | 76% | Poor | Avoid; too slow, not accurate enough |
 | ❌ **copilot** | 453s/case | 63% | Poor | Avoid; very slow, low accuracy |
-| ❌ **caveman** | 77s/case | 60% | Poor | Text-based fallback; weak results |
+| ⚠️ **caveman** | 77s/case | 60% | Poor | Text-based fallback; weak results; LMS adapter unsupported |
 | ❌ **hermes** | 87s/case | 59% | Poor | Needs special config; lower accuracy |
 | ❌ **interpreter** | 71s/case | 98% | Experimental | Research only; high overhead |
 
@@ -66,8 +66,11 @@ Pass rate by agent:
 ❌ **Don't:** Run codex or copilot expecting competitive results (very slow, weak)
 ✅ **Do:** Run openhands first; fast + accurate baseline
 
-❌ **Don't:** Use caveman/hermes without understanding their limitations
-✅ **Do:** Read their docs (docs/tools/caveman.md, docs/tools/hermes.md) first
+❌ **Don't:** Use caveman-lms without checking adapter status; it requires npm caveman-code custom-provider support
+✅ **Do:** Use caveman with ollama/mlx runtimes, or read docs/tools/caveman.md for details
+
+❌ **Don't:** Use hermes without understanding its limitations
+✅ **Do:** Read docs/tools/hermes.md first
 
 ❌ **Don't:** Blame an agent's output quality before checking its recommendation tier
 ✅ **Do:** Consult this guide; some agents are for exploration, not production
