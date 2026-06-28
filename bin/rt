@@ -599,13 +599,47 @@ cmd_log() {
 
 cmd_watch() {
   local n="${1:-40}"
-  local log; log=$(_latest_bench_log)
-  [ -z "$log" ] && die "no bench log found (run a bench first)"
-  local rel="${log#$HERE/}"
-  local case_label; case_label=$(echo "$rel" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
-  info "watching: $case_label  (Ctrl-C exits watch; test continues)"
-  # macOS tail -f: follows the file as it grows
-  tail -"$n" -f "$log" | _strip_ctrl
+
+  # Find the latest run directory
+  local run; run=$(ls -1dt "$HERE"/results/*/ 2>/dev/null | grep -v "_bad_runs" | head -1)
+  [ -z "$run" ] && die "no bench logs found (run a bench first)"
+
+  # Find all .bench.log files in this run that were recently modified (active benches)
+  # First try logs modified in last 5 minutes, then fall back to all logs
+  local logs; logs=$(find "$run/sandbox" -name ".bench.log" -type f -mmin -5 -print0 2>/dev/null \
+    | xargs -0 ls -1t 2>/dev/null)
+
+  if [ -z "$logs" ]; then
+    # Fallback: use the most recent log if nothing modified in last 5 minutes
+    logs=$(_latest_bench_log)
+  fi
+
+  if [ -z "$logs" ]; then
+    die "no bench logs found in $run"
+  fi
+
+  local log_count; log_count=$(echo "$logs" | wc -l)
+
+  if [ "$log_count" -eq 1 ]; then
+    # Single log: watch normally
+    local log="$logs"
+    local rel="${log#$HERE/}"
+    local case_label; case_label=$(echo "$rel" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
+    info "watching: $case_label  (Ctrl-C exits watch; test continues)"
+    tail -"$n" -f "$log" | _strip_ctrl
+  else
+    # Multiple logs: watch all with labels
+    info "watching: $log_count concurrent tests  (Ctrl-C exits watch; tests continue)"
+    # Use tail -f with label prefix for each log
+    # We need a process for each log that prefixes output
+    (
+      echo "$logs" | while read -r log; do
+        local label; label=$(echo "$log" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
+        tail -"$n" -f "$log" 2>/dev/null | sed "s/^/${C_DIM}[$label]${C_RST} /" &
+      done
+      wait
+    ) | _strip_ctrl
+  fi
 }
 
 cmd_stop() {

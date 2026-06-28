@@ -169,5 +169,135 @@
     "run_id": "20260628-162048",
     "symptom": "MISS: hello.txt not created",
     "status": "open"
+  },
+  "pi:qwen/qwen3.6-27b:lms": {
+    "adapter": "pi",
+    "model": "qwen/qwen3.6-27b",
+    "runtime": "lms",
+    "agent_version": "0.80.2",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-170324",
+    "symptom": "Warning: Model \"qwen/qwen3.6-27b\" not found for provider \"lmstudio\". Using custom model id.",
+    "status": "open"
+  },
+  "codex:qwen/qwen3.6-27b:lms": {
+    "adapter": "codex",
+    "model": "qwen/qwen3.6-27b",
+    "runtime": "lms",
+    "agent_version": "codex-cli 0.142.3",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-170324",
+    "symptom": "Error loading config.toml: `wire_api = \"chat\"` is no longer supported.",
+    "status": "open"
+  },
+  "caveman:qwen/qwen3.6-27b:lms": {
+    "adapter": "caveman",
+    "model": "qwen/qwen3.6-27b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-170324",
+    "symptom": "Error: caveman adapter for LM Studio is not supported.",
+    "status": "open"
+  },
+  "openhands:qwen/qwen3.6-27b:lms": {
+    "adapter": "openhands",
+    "model": "qwen/qwen3.6-27b",
+    "runtime": "lms",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-170324",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "copilot:qwen/qwen3.6-27b:lms": {
+    "adapter": "copilot",
+    "model": "qwen/qwen3.6-27b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-170324",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "opencode:qwen/qwen3.6-27b:lms": {
+    "adapter": "opencode",
+    "model": "qwen/qwen3.6-27b",
+    "runtime": "lms",
+    "agent_version": "1.17.11",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-170324",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "goose:google/gemma-4-e4b:lms": {
+    "adapter": "goose",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": " 1.39.0",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-184829",
+    "symptom": "MISS: _ still present in file",
+    "status": "open"
+  },
+  "copilot:google/gemma-4-e4b:lms": {
+    "adapter": "copilot",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-184829",
+    "symptom": "└ Failed to parse patch: The first line of the patch must be '*** Begin Patch'",
+    "status": "open"
+  },
+  "opencode:google/gemma-4-e4b:lms": {
+    "adapter": "opencode",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": "1.17.11",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-184829",
+    "symptom": "\u001b[0m✗ \u001b[0mGlob \"\" failed",
+    "status": "open"
+  },
+  "codex:google/gemma-4-e4b:lms": {
+    "adapter": "codex",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": "codex-cli 0.142.3",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-184829",
+    "symptom": "Error loading config.toml: `wire_api = \"chat\"` is no longer supported.",
+    "status": "open"
+  },
+  "cline:google/gemma-4-e4b:lms": {
+    "adapter": "cline",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": "3.0.31",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-184829",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "caveman:google/gemma-4-e4b:lms": {
+    "adapter": "caveman",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-184829",
+    "symptom": "Error: caveman adapter for LM Studio is not supported.",
+    "status": "open"
+  },
+  "openhands:google/gemma-4-e4b:lms": {
+    "adapter": "openhands",
+    "model": "google/gemma-4-e4b",
+    "runtime": "lms",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-06-28",
+    "run_id": "20260628-184829",
+    "symptom": "MISS: _ still present in file",
+    "status": "open"
   }
 }
