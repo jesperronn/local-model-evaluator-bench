@@ -148,7 +148,9 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-162048",
     "symptom": "Error loading config.toml: `wire_api = \"chat\"` is no longer supported.",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-06-29",
+    "last_run_id": "20260629-001747"
   },
   "cline:zai-org/glm-4.7-flash:lms": {
     "adapter": "cline",
@@ -188,7 +190,10 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-170324",
     "symptom": "Error loading config.toml: `wire_api = \"chat\"` is no longer supported.",
-    "status": "open"
+    "status": "resolved",
+    "resolved_date": "2026-06-29",
+    "resolved_run_id": "20260629-001747",
+    "resolved_agent_version": "codex-cli 0.142.3"
   },
   "caveman:qwen/qwen3.6-27b:lms": {
     "adapter": "caveman",
@@ -330,5 +335,25 @@
     "status": "open",
     "last_seen": "2026-06-28",
     "last_run_id": "20260628-234727"
+  },
+  "codex:google/gemma-4-26b-a4b-qat:lms": {
+    "adapter": "codex",
+    "model": "google/gemma-4-26b-a4b-qat",
+    "runtime": "lms",
+    "agent_version": "codex-cli 0.142.3",
+    "first_seen": "2026-06-29",
+    "run_id": "20260629-001747",
+    "symptom": "2026-06-28T22:33:53.641457Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
+  },
+  "codex:mistralai/devstral-small-2-2512:lms": {
+    "adapter": "codex",
+    "model": "mistralai/devstral-small-2-2512",
+    "runtime": "lms",
+    "agent_version": "codex-cli 0.142.3",
+    "first_seen": "2026-06-29",
+    "run_id": "20260629-001747",
+    "symptom": "2026-06-28T22:24:26.298183Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
   }
 }
