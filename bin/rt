@@ -129,6 +129,9 @@ cmd_status() {
     "${C_DIM}${inactive}GB reclaimable${C_RST}"
   echo
 
+  # ── bench detection (used in next steps) ──────────────────────────────────────
+  local bpids; bpids=$(_bench_pids)
+
   # ── runtimes ─────────────────────────────────────────────────────────────────
   local lms_up_flag=0 lms_models=""
   local ollama_up_flag=0 ollama_loaded=""
@@ -242,6 +245,13 @@ cmd_status() {
     echo
     printf '%s\n' "${C_BLU}Next steps${C_RST}"
 
+    # If bench is running, add watch command at the top
+    if [ -n "$bpids" ]; then
+      printf '  %s\n' "${C_DIM}watch live test progress:${C_RST}"
+      printf '    bin/rt watch\n'
+      echo
+    fi
+
     # Reclaim reclaimable RAM (inactive disk cache)
     printf '  %s\n' "${C_DIM}reclaim reclaimable RAM (inactive disk cache):${C_RST}"
     printf '    sudo purge\n'
@@ -312,7 +322,6 @@ print(status,queued,age)
 " 2>/dev/null
   }
 
-  local bpids; bpids=$(_bench_pids)
   printf '%s  ' "${C_BLU}Bench${C_RST}"
   if [ -n "$bpids" ]; then
     local latest_csv; latest_csv=$(_latest_log)

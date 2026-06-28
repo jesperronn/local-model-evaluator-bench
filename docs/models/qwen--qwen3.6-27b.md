@@ -5,13 +5,14 @@
 | Field | Value |
 |-------|-------|
 | **Model key** | `qwen/qwen3.6-27b` |
-| **Family / arch** | Qwen 3.6, dense, 27B, MLX-6bit |
+| **Family / arch** | Qwen 3.6, dense, 27B |
+| **Runtime variants** | MLX-6bit (removed 2026-06-12), **lms GGUF (added 2026-06-28)** |
 | **Parameter count** | 27B |
-| **Disk size** | ~21 GB |
-| **Added** | 2026-06-12 |
-| **Last run** | 2026-06-12 |
-| **Removed** | 2026-06-12 |
-| **Doc updated** | 2026-06-12 |
+| **Context window** | 128K tokens |
+| **License** | <!-- TODO — verify from HuggingFace card --> |
+| **Disk size (lms GGUF)** | <!-- TODO — check after loading in LM Studio --> |
+| **Disk size (mlx)** | ~21 GB (removed) |
+| **Doc updated** | 2026-06-28 |
 
 ## Results summary
 

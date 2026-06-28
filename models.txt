@@ -45,7 +45,15 @@ google/gemma-4-26b-a4b-qat
 # by qwen3.6-35b-a3b MoE (94% at 48s). Thinking token leakage also broke aider.
 # Same family covered by the MoE variant.
 
-# 30B
+# 27B dense — Qwen 3.6 (Alibaba). General-purpose model with 128K context.
+# Download: lms get qwen/qwen3.6-27b
+qwen/qwen3.6-27b
+
+# 30B dense — GLM-4.7-Flash (Zhipu AI, 2512). Coding specialist with 128K context.
+# Disk size: 24.36 GB (GGUF, lmstudio-community). Download: lms get zai-org/glm-4.7-flash
+zai-org/glm-4.7-flash
+
+# 30B (MoE, 3B active) — Qwen Coder
 qwen/qwen3-coder-30b
 
 # 80B (sparse MoE, 10B active — 60 GB at MLX-6bit)
