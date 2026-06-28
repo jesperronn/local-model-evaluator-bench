@@ -327,48 +327,38 @@ print(status,queued,age)
     local latest_csv; latest_csv=$(_latest_log)
     local results_count=0
     [ -n "$latest_csv" ] && results_count=$(tail -n +2 "$latest_csv" 2>/dev/null | grep -c "." || echo 0)
-    local bench_cmd; bench_cmd=$(ps -p $(echo $bpids | awk '{print $1}') -o args= 2>/dev/null | head -1)
 
-    # Calculate total expected results from bench command
-    # Total = num_adapters × num_models × num_cases × num_trials
-    local total_expected=0
-    local count_adapters=1 count_models=1 count_cases=1 count_trials=1
+    local num_bench_pids; num_bench_pids=$(echo "$bpids" | wc -w)
+    printf '%s  %s\n' "${C_YEL}RUNNING${C_RST}" "${C_GRN}${num_bench_pids} test(s)${C_RST}"
 
-    # Extract adapters count
-    if [[ "$bench_cmd" =~ --tool[=[:space:]]([^[:space:]]+) ]]; then
-      count_adapters=$(( $(echo "${BASH_REMATCH[1]}" | grep -o ',' | wc -l) + 1 ))
-    else
-      # No --tool specified: infer from CSV if available
-      if [ -n "$latest_csv" ]; then
-        count_adapters=$(tail -n +2 "$latest_csv" 2>/dev/null | awk -F, '{print $1}' | sort -u | wc -l)
-      else
-        count_adapters=1
+    # Show each bench process
+    local bench_count=0
+    for pid in $bpids; do
+      [ $bench_count -ge 3 ] && break
+      local bench_cmd; bench_cmd=$(ps -p "$pid" -o args= 2>/dev/null)
+      if [ -z "$bench_cmd" ]; then continue; fi
+
+      # Extract model from command for cleaner display
+      local model_label=""
+      if [[ "$bench_cmd" =~ --model[s]?[=[:space:]]([^[:space:]]+) ]]; then
+        model_label="${BASH_REMATCH[1]}"
       fi
-    fi
 
-    # Extract models count
-    if [[ "$bench_cmd" =~ --model[s]?[=[:space:]]([^[:space:]]+) ]]; then
-      count_models=$(( $(echo "${BASH_REMATCH[1]}" | grep -o ',' | wc -l) + 1 ))
-    fi
+      # Extract cases count
+      local count_cases=1
+      if [[ "$bench_cmd" =~ --cases[=[:space:]]([^[:space:]]+) ]]; then
+        count_cases=$(( $(echo "${BASH_REMATCH[1]}" | grep -o ',' | wc -l) + 1 ))
+      fi
 
-    # Extract cases count
-    if [[ "$bench_cmd" =~ --cases[=[:space:]]([^[:space:]]+) ]]; then
-      count_cases=$(( $(echo "${BASH_REMATCH[1]}" | grep -o ',' | wc -l) + 1 ))
-    fi
+      local note="${C_DIM}${count_cases} cases${C_RST}"
+      [ -n "$model_label" ] && note="${C_DIM}${model_label} • ${count_cases} cases${C_RST}"
+      printf '    %s\n' "$note"
+      bench_count=$((bench_count + 1))
+    done
 
-    # Extract trials count
-    if [[ "$bench_cmd" =~ --trials[=[:space:]]([^[:space:]]+) ]]; then
-      count_trials=$(echo "${BASH_REMATCH[1]}" | grep -oE '[0-9]+' | head -1)
-    fi
+    [ "$num_bench_pids" -gt 3 ] && printf '    %s\n' "${C_DIM}... and $((num_bench_pids - 3)) more${C_RST}"
 
-    total_expected=$(( count_adapters * count_models * count_cases * count_trials ))
-
-    printf '%s  %s\n' "${C_YEL}RUNNING${C_RST}" "${C_DIM}${bench_cmd}${C_RST}"
-    if [ "$total_expected" -gt 0 ]; then
-      printf '  results so far: %s/%s\n' "$results_count" "$total_expected"
-    else
-      printf '  results so far: %s\n' "$results_count"
-    fi
+    [ -n "$latest_csv" ] && printf '  results so far: %s\n' "$results_count"
     # Heartbeat: time since last CSV row was written
     if [ -n "$latest_csv" ]; then
       local csv_age_s; csv_age_s=$(( $(date +%s) - $(stat -f %m "$latest_csv" 2>/dev/null || echo 0) ))
