@@ -10,6 +10,9 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 export OPENAI_BASE_URL="$LMS_BASE_URL"
 export OPENAI_API_KEY="$LMS_API_KEY"
 
+# gptme requires the Python bin to be on PATH
+export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"
+
 # --no-confirm: skip interactive approval prompts in headless mode.
 # --workspace .: tells gptme the project root is CWD.
 if [ ! -t 0 ]; then

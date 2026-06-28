@@ -10,6 +10,15 @@
 # COPILOT_PROVIDER_WIRE_MODEL; the catalog entry is only for sizing defaults.
 #
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
+#
+# Known model incompatibilities (revisit when adapter/model updates):
+#   nvidia/nemotron-3-nano-omni  — copilot CLI (version unknown), 2026-06-28
+#     Model doesn't emit Codex-style `*** Begin Patch` envelope for the Edit
+#     tool: `Failed to parse patch: The first line of the patch must be
+#     '*** Begin Patch'`. Copilot then folds the failure back into a request,
+#     which LM Studio rejects with `400 Invalid 'messages' in payload` (null/
+#     empty field in the tool-result message). smoke-00 (raw file write)
+#     PASSed; the two Edit-tool cases FAILed. See run 20260628-073902.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"

@@ -20,6 +20,8 @@
 #   --adapter/-t NAME  only test this adapter (default: all)
 #   --no-proxy-check   skip proxy liveness check for Ollama (default: auto)
 #   --verbose/-v       pass --verbose to bench (shows error excerpts on failure)
+#   --dry-run/-n       print the plan (runtime, model, cases, resolved adapter
+#                      files) and exit — no runtime checks, no trials
 #   -h/--help          show this message
 #
 # Proxy auto-detection (Ollama): if OLLAMA_BASE_URL ends in a port ≠ 11434
@@ -78,22 +80,60 @@ show_help() {
 RUNTIME="lms"
 MODEL=""
 PROXY_CHECK=1
+DRY_RUN=0
 BENCH_ARGS=()
 EXTRA_BENCH_ARGS=()
+ADAPTER_OVERRIDE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) show_help; exit 0;;
     --runtime)       RUNTIME="$2";  shift 2;;
     --model|-m)      MODEL="$2";    BENCH_ARGS+=(--model "$2"); shift 2;;
-    --adapter|-t)    BENCH_ARGS+=(--tool "$2"); shift 2;;
+    --adapter|-t)    ADAPTER_OVERRIDE="$2"; BENCH_ARGS+=(--tool "$2"); shift 2;;
     --no-proxy-check) PROXY_CHECK=0; shift;;
     --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
+    --dry-run|-n)    DRY_RUN=1; shift;;
     *) warn "unknown flag: $1"; shift;;
   esac
 done
 
 BENCH_ARGS+=(--runtime "$RUNTIME")
+
+# Resolve adapter list early so --dry-run can print it without touching runtimes.
+SMOKE_CASES="smoke-00-hello,smoke-01-edit-file,smoke-02-numbers"
+if [ -n "$ADAPTER_OVERRIDE" ]; then
+  _smoke_adapters="$ADAPTER_OVERRIDE"
+else
+  _smoke_adapters="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot}"
+fi
+
+print_plan() {
+  echo
+  echo "${C_BLD}Smoke plan${C_RST}"
+  echo "  runtime : $RUNTIME"
+  echo "  model   : ${MODEL:-${SMOKE_MODEL:-(default)}}"
+  echo "  cases   : ${SMOKE_CASES//,/ · }"
+  echo "  adapters:"
+  local a
+  IFS=',' read -r -a _ad_arr <<< "$_smoke_adapters"
+  for a in "${_ad_arr[@]}"; do
+    if   [ -f "$ADAPTERS_DIR/${a}-${RUNTIME}.sh" ]; then
+      printf "    %-14s ${C_DIM}adapters/%s-%s.sh${C_RST}\n" "$a" "$a" "$RUNTIME"
+    elif [ -f "$ADAPTERS_DIR/${a}.sh" ]; then
+      printf "    %-14s ${C_DIM}adapters/%s.sh${C_RST}\n" "$a" "$a"
+    else
+      printf "    %-14s ${C_DIM}(no adapter file for runtime %s)${C_RST}\n" "$a" "$RUNTIME"
+    fi
+  done
+  echo
+}
+
+if [ "$DRY_RUN" = 1 ]; then
+  print_plan
+  echo "${C_DIM}--dry-run: skipping runtime checks and trial execution${C_RST}"
+  exit 0
+fi
 
 # ── Runtime-specific setup ────────────────────────────────────────────────────
 
@@ -141,9 +181,14 @@ elif [ "$RUNTIME" = "ollama" ]; then
 fi
 
 # ── Run the smoke cases ───────────────────────────────────────────────────────
-SMOKE_CASES="smoke-00-hello,smoke-01-edit-file,smoke-02-numbers"
-info "smoke: ${SMOKE_CASES//,/ · }  (runtime: $RUNTIME)"
-echo
+print_plan
+
+# Always pass --verbose: smoke is short and the error excerpt on failure is
+# the whole point — it surfaces wiring issues without hunting through logs.
+case " ${EXTRA_BENCH_ARGS[*]} " in
+  *" --verbose "*) ;;
+  *) EXTRA_BENCH_ARGS+=(--verbose) ;;
+esac
 
 "$HERE/bin/bench" --cases "$SMOKE_CASES" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}"
 
@@ -152,17 +197,29 @@ CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
 [ -f "$CSV" ] || die "no results produced"
 
 echo
-echo "${C_BLD}Smoke verdict — can each adapter reach the model?${C_RST}"
+echo "${C_BLD}Smoke verdict — one line per (adapter × case)${C_RST}"
 fails=0
+RUN_DIR="$(dirname "$CSV")"
 while IFS=, read -r adapter model_col case pass total score seconds status _rest; do
   [ "$adapter" = adapter ] && continue
-  key="$adapter | $model_col"
+  key="$(printf '%-12s %-22s %s' "$adapter" "$model_col" "$case")"
   if   [ "$status" != ok ]; then
-    err  "$(printf '%-40s FAIL    — could not reach model (%s)' "$key" "$status")"; fails=$((fails+1))
+    err  "$(printf '%-60s FAIL    — %s' "$key" "$status")"; fails=$((fails+1))
   elif [ "$pass" = "$total" ]; then
-    ok   "$(printf '%-40s PASS    (%ss)' "$key" "$seconds")"
+    ok   "$(printf '%-60s PASS    (%ss)' "$key" "$seconds")"
   else
-    warn "$(printf '%-40s PARTIAL — %s/%s points (%ss)' "$key" "$pass" "$total" "$seconds")"
+    warn "$(printf '%-60s PARTIAL — %s/%s (%ss)' "$key" "$pass" "$total" "$seconds")"
+  fi
+  # On any non-pass, show a short error excerpt from the trial log so the
+  # user can judge whether the adapter wiring needs adjustment.
+  if [ "$pass" != "$total" ] || [ "$total" -eq 0 ] || [ "$status" != ok ]; then
+    logf="$RUN_DIR/sandbox/$adapter/$(fs_safe "$model_col")/$case/.bench.log"
+    if [ -f "$logf" ]; then
+      excerpt="$(grep -aiE 'WATCHDOG:|MISS:|^RESULT |error|refus|not found|failed|exception|traceback|cannot|denied|no such|command not found|permission' "$logf" \
+        | grep -av '[⠁-⣿]' | tail -5)"
+      [ -n "$excerpt" ] && printf '%s\n' "$excerpt" | sed "s|^|       ${C_DIM}\\| |; s|$|${C_RST}|"
+      printf '       %slog: %s%s\n' "${C_DIM}" "${logf#"$HERE"/}" "${C_RST}"
+    fi
   fi
 done < "$CSV"
 
@@ -173,4 +230,111 @@ else
   warn "$fails adapter(s) could not reach the model — check the log path shown above"
 fi
 echo "${C_DIM}full details: $(dirname "$CSV")/results.csv${C_RST}"
+
+# ── Update compatibility registry ────────────────────────────────────────────
+update_compat() {
+  local csv="$1" run_json="$2"
+  local compat="$HERE/compat.json"
+  [ -f "$compat" ] || echo '{}' > "$compat"
+
+  local run_date run_id
+  run_date="$(jq -r '.run_date // "unknown"' "$run_json" 2>/dev/null)"
+  run_id="$(jq -r  '.run_id  // "unknown"' "$run_json" 2>/dev/null)"
+  local run_dir; run_dir="$(dirname "$csv")"
+
+  # Aggregate: sum pass/total per adapter+model; track any non-ok status.
+  declare -A _sum_pass _sum_total _any_error
+  while IFS=, read -r adapter model _case pass total _score _sec status _rest; do
+    [ "$adapter" = "adapter" ] && continue
+    local k="${adapter}:${model}"
+    _sum_pass[$k]=$(( ${_sum_pass[$k]:-0} + pass ))
+    _sum_total[$k]=$(( ${_sum_total[$k]:-0} + total ))
+    [ "$status" != "ok" ] && _any_error[$k]=1
+  done < "$csv"
+
+  local new_entries=() resolved_entries=() regressed_entries=() updated_entries=()
+
+  for key in "${!_sum_pass[@]}"; do
+    local adapter="${key%%:*}" model="${key#*:}"
+    local compat_key="${adapter}:${model}:${RUNTIME}"
+
+    local all_pass=0
+    [ "${_sum_pass[$key]}" = "${_sum_total[$key]}" ] && \
+      [ "${_sum_total[$key]:-0}" -gt 0 ] && \
+      [ -z "${_any_error[$key]:-}" ] && all_pass=1
+
+    local agent_ver
+    agent_ver="$(jq -r --arg a "$adapter" '.versions.agents[$a].version // "unknown"' "$run_json" 2>/dev/null || echo "unknown")"
+
+    local existing_status
+    existing_status="$(jq -r --arg k "$compat_key" '.[$k].status // "none"' "$compat" 2>/dev/null)"
+
+    if [ "$all_pass" = 1 ]; then
+      if [ "$existing_status" = "open" ]; then
+        jq --arg k "$compat_key" --arg d "$run_date" --arg r "$run_id" --arg v "$agent_ver" \
+          '.[$k].status = "resolved" | .[$k].resolved_date = $d | .[$k].resolved_run_id = $r | .[$k].resolved_agent_version = $v' \
+          "$compat" > "$compat.tmp" && mv "$compat.tmp" "$compat"
+        resolved_entries+=("$compat_key")
+      fi
+    else
+      # Extract first meaningful error line from the failing case logs.
+      local symptom=""
+      local _logf
+      for _logf in "$run_dir/sandbox/$adapter/$(fs_safe "$model")"/*/.bench.log; do
+        [ -f "$_logf" ] || continue
+        local _s
+        _s="$(grep -aiE 'error|Error:|MISS:|failed|exception|refus|cannot|denied|not found' "$_logf" \
+          | grep -av '[⠁-⣿]' | head -1 | sed 's/^[[:space:]]*//' | cut -c1-120)"
+        [ -n "$_s" ] && symptom="$_s" && break
+      done
+
+      if [ "$existing_status" = "none" ]; then
+        jq --arg k "$compat_key" --arg a "$adapter" --arg m "$model" --arg rt "$RUNTIME" \
+           --arg v "$agent_ver" --arg d "$run_date" --arg r "$run_id" --arg s "$symptom" \
+          '.[$k] = {adapter:$a, model:$m, runtime:$rt, agent_version:$v, first_seen:$d, run_id:$r, symptom:$s, status:"open"}' \
+          "$compat" > "$compat.tmp" && mv "$compat.tmp" "$compat"
+        new_entries+=("$compat_key")
+      elif [ "$existing_status" = "open" ]; then
+        local prev_ver
+        prev_ver="$(jq -r --arg k "$compat_key" '.[$k].agent_version // ""' "$compat")"
+        if [ "$prev_ver" != "$agent_ver" ] && [ "$agent_ver" != "unknown" ]; then
+          jq --arg k "$compat_key" --arg v "$agent_ver" --arg d "$run_date" --arg r "$run_id" \
+            '.[$k].agent_version = $v | .[$k].last_seen = $d | .[$k].last_run_id = $r' \
+            "$compat" > "$compat.tmp" && mv "$compat.tmp" "$compat"
+          updated_entries+=("$compat_key (${prev_ver} → ${agent_ver})")
+        else
+          jq --arg k "$compat_key" --arg d "$run_date" --arg r "$run_id" \
+            '.[$k].last_seen = $d | .[$k].last_run_id = $r' \
+            "$compat" > "$compat.tmp" && mv "$compat.tmp" "$compat"
+        fi
+      elif [ "$existing_status" = "resolved" ]; then
+        # Regression: was fixed, now broken again.
+        jq --arg k "$compat_key" --arg v "$agent_ver" --arg d "$run_date" --arg r "$run_id" --arg s "$symptom" \
+          '.[$k].status = "open" | .[$k].agent_version = $v | .[$k].regressed_date = $d | .[$k].regressed_run_id = $r | .[$k].symptom = $s
+           | del(.[$k].resolved_date) | del(.[$k].resolved_run_id) | del(.[$k].resolved_agent_version)' \
+          "$compat" > "$compat.tmp" && mv "$compat.tmp" "$compat"
+        regressed_entries+=("$compat_key")
+      fi
+    fi
+  done
+
+  # Print summary only when something changed.
+  local _any=0
+  [ ${#new_entries[@]}       -gt 0 ] && _any=1
+  [ ${#resolved_entries[@]}  -gt 0 ] && _any=1
+  [ ${#regressed_entries[@]} -gt 0 ] && _any=1
+  [ ${#updated_entries[@]}   -gt 0 ] && _any=1
+  if [ "$_any" = 1 ]; then
+    echo
+    echo "${C_BLD}compat.json updated${C_RST}  ${C_DIM}${compat#"$HERE"/}${C_RST}"
+    for e in "${new_entries[@]}";       do err  "  NEW        $e"; done
+    for e in "${regressed_entries[@]}"; do err  "  REGRESSION $e"; done
+    for e in "${resolved_entries[@]}";  do ok   "  RESOLVED   $e"; done
+    for e in "${updated_entries[@]}";   do info "  UPDATED    $e"; done
+  fi
+}
+
+RUN_JSON="$RUN_DIR/run.json"
+[ -f "$RUN_JSON" ] && update_compat "$CSV" "$RUN_JSON"
+
 exit "$([ "$fails" -eq 0 ] && echo 0 || echo 1)"

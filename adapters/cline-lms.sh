@@ -6,6 +6,12 @@
 # back to the latest cli-darwin-arm64 binary found in the pnpm store.
 # Fix permanently with: pnpm install -g cline
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
+#
+# Known model incompatibilities (revisit when adapter/model updates):
+#   nvidia/nemotron-3-nano-omni  — cline 3.0.31, 2026-06-28
+#     Model passes wrong shape to `read_files` (array of strings instead of
+#     array of objects). It self-corrects on the next turn but loses turns to
+#     the retry; smoke-01-edit-file still PASSed in run 20260628-073902.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"

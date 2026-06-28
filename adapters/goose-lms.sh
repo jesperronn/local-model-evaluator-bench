@@ -5,6 +5,16 @@
 # --no-session prevents goose from storing state between benchmark runs.
 # --max-turns caps iterations to avoid hangs on self-verify cases.
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
+#
+# Known model incompatibilities (revisit when adapter/model updates):
+#   nvidia/nemotron-3-nano-omni  — goose 1.39.0, 2026-06-28
+#     LM Studio fails to render the model's chat_template:
+#     `Error rendering prompt with jinja template: Cannot apply filter
+#     "string" to type: NullValue`. Bug in the model's shipped template
+#     (a field arrives null and the template doesn't guard for it).
+#     Fix is on the model side — override the prompt template in LM Studio
+#     model settings, or use an lmstudio-community repack. See run
+#     20260628-073902.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
