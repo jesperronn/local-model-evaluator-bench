@@ -40,6 +40,10 @@ CLINE_ARGS=(
 )
 
 if [ ! -t 0 ]; then
+  # Suppress AI SDK warnings that cline writes to stdout (not stderr) on first
+  # invocation. Without this, the deprecation warning corrupts </tool_call>
+  # into </tool_AI SDK Warning...call>, breaking the XML match below.
+  export AI_SDK_LOG_WARNINGS=false
   # Fix malformed tool calls from weak models like google/gemma-4-e4b.
   # Converts: <tool_call>\neditor{new_text:"...",path:"..."}\n</tool_call>
   # To: [editor] {"path":"...","new_text":"..."}
