@@ -222,6 +222,9 @@ while IFS=, read -r adapter model_col case pass total score seconds status _rest
         | grep -av '[⠁-⣿]' | tail -5)"
       [ -n "$excerpt" ] && printf '%s\n' "$excerpt" | sed "s|^|       ${C_DIM}\\| |; s|$|${C_RST}|"
       printf '       %slog: %s%s\n' "${C_DIM}" "${logf#"$HERE"/}" "${C_RST}"
+      # Suggest troubleshoot command for easy next step
+      printf '       %snext: bin/troubleshoot %s %s %s --run %s%s\n' \
+        "${C_BLD}${C_YEL}" "$adapter" "$model_col" "$case" "$(basename "$RUN_DIR")" "${C_RST}"
     fi
   fi
 done < "$CSV"

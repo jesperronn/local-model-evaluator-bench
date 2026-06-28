@@ -1,0 +1,381 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+### bin/troubleshoot — diagnose failing (adapter, model, case) combos
+#
+# Usage: bin/troubleshoot <adapter> <model> [case] [--run RUN_ID]
+#
+# Reads .bench.log, adapter headers, compat.json to surface:
+#   - Last 50 lines of run output (with highlights)
+#   - Known incompatibilities from adapter script
+#   - Tracked compat entries + version mismatches
+#   - Regression history (last successful run)
+#   - Suggested next action
+#
+# Flags:
+#   --run RUN_ID      Use specific run (default: latest with this combo)
+#   --update-docs     Record this incompatibility in compat.json with status:open
+#   --report          Write markdown report to results/troubleshoots/<stamp>.md (implies --update-docs)
+#   --verbose         Show full adapter header, all compat entries, timestamps
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+# Color codes
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Helpers
+print_header() {
+  echo -e "${CYAN}▸ $1${NC}"
+}
+
+print_highlight() {
+  local text="$1"
+  # Highlight error/MISS/Failed/FAIL patterns
+  echo -e "$text" | sed -E \
+    -e "s/(error|Error|ERROR)/${RED}\1${NC}/g" \
+    -e "s/(MISS|FAILED|FAIL)/${RED}\1${NC}/g" \
+    -e "s/(ok:|success)/${GREEN}\1${NC}/g"
+}
+
+sanitize_model_path() {
+  # Convert model ID to filesystem path (slash to underscore)
+  echo "$1" | tr '/' '_'
+}
+
+desanitize_model() {
+  # Restore original model format (first underscore is slash, rest are underscores)
+  # e.g., qwen_qwen3.6-35b-a3b → qwen/qwen3.6-35b-a3b
+  echo "$1" | sed 's/_/\//' | sed 's/_/-/g' | sed 's/\//-/ ; s/-/\//1'
+}
+
+# Parse args
+ADAPTER=""
+MODEL=""
+CASE=""
+RUN_ID=""
+UPDATE_DOCS=0
+REPORT=0
+VERBOSE=0
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --run) RUN_ID="$2"; shift 2 ;;
+    --update-docs) UPDATE_DOCS=1; shift ;;
+    --report) REPORT=1; UPDATE_DOCS=1; shift ;;
+    --verbose) VERBOSE=1; shift ;;
+    -h|--help)
+      head -20 "$0"
+      exit 0
+      ;;
+    -*)
+      echo "Unknown flag: $1" >&2
+      exit 1
+      ;;
+    *)
+      if [ -z "$ADAPTER" ]; then
+        ADAPTER="$1"
+      elif [ -z "$MODEL" ]; then
+        MODEL="$1"
+      elif [ -z "$CASE" ]; then
+        CASE="$1"
+      else
+        echo "Too many positional arguments" >&2
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+# Validate required args
+if [ -z "$ADAPTER" ] || [ -z "$MODEL" ]; then
+  echo "Usage: bin/troubleshoot <adapter> <model> [case] [--run RUN_ID] [--update-docs] [--verbose]" >&2
+  exit 1
+fi
+
+# Resolve run ID if not provided
+if [ -z "$RUN_ID" ]; then
+  # Find latest run with this adapter+model combo
+  MODEL_SANITIZED=$(sanitize_model_path "$MODEL")
+  latest_run=$(find results -maxdepth 1 -type d -name "202*" | sort -r | head -1)
+
+  if [ -z "$latest_run" ]; then
+    echo "No runs found in results/" >&2
+    exit 1
+  fi
+
+  # Check if combo exists in latest run
+  if [ -d "$latest_run/sandbox/$ADAPTER/$MODEL_SANITIZED" ]; then
+    RUN_ID=$(basename "$latest_run")
+  else
+    # Find any run with this combo
+    matching_run=$(find results -path "*/sandbox/$ADAPTER/$MODEL_SANITIZED" -type d | head -1)
+    if [ -n "$matching_run" ]; then
+      RUN_ID=$(echo "$matching_run" | cut -d/ -f2)
+    else
+      echo "No run found with adapter=$ADAPTER, model=$MODEL" >&2
+      exit 1
+    fi
+  fi
+fi
+
+# Resolve run directory
+RUN_DIR="results/$RUN_ID"
+if [ ! -d "$RUN_DIR" ]; then
+  echo "Run not found: $RUN_DIR" >&2
+  exit 1
+fi
+
+MODEL_SANITIZED=$(sanitize_model_path "$MODEL")
+ADAPTER_DIR="$RUN_DIR/sandbox/$ADAPTER/$MODEL_SANITIZED"
+
+if [ ! -d "$ADAPTER_DIR" ]; then
+  echo "Adapter/model combo not found in run: $RUN_DIR/sandbox/$ADAPTER/$MODEL_SANITIZED" >&2
+  exit 1
+fi
+
+# Resolve case (pick first if not specified)
+if [ -z "$CASE" ]; then
+  CASE=$(ls -1 "$ADAPTER_DIR" | grep -v '\.log' | head -1)
+  if [ -z "$CASE" ]; then
+    echo "No cases found in $ADAPTER_DIR" >&2
+    exit 1
+  fi
+fi
+
+BENCH_LOG="$ADAPTER_DIR/$CASE/.bench.log"
+if [ ! -f "$BENCH_LOG" ]; then
+  echo "Bench log not found: $BENCH_LOG" >&2
+  exit 1
+fi
+
+echo ""
+print_header "Troubleshoot: $ADAPTER / $MODEL / $CASE (run: $RUN_ID)"
+echo ""
+
+# ============================================================================
+# 1. Last 50 lines of .bench.log
+# ============================================================================
+print_header "Last 50 lines of .bench.log"
+echo ""
+tail -50 "$BENCH_LOG" | while IFS= read -r line; do
+  print_highlight "$line"
+done
+echo ""
+
+# ============================================================================
+# 2. Adapter header (Known model incompatibilities)
+# ============================================================================
+ADAPTER_RUNTIME=$(echo "$ADAPTER" | cut -d- -f1)
+# Try to find the adapter script (e.g., copilot-lms.sh)
+adapter_files=$(find adapters -name "$ADAPTER*.sh" | head -1)
+
+if [ -n "$adapter_files" ]; then
+  print_header "Adapter header: $ADAPTER"
+  echo ""
+
+  if [ "$VERBOSE" -eq 1 ]; then
+    head -30 "$adapter_files"
+  else
+    # Extract "Known model incompatibilities" section if present
+    if grep -q "Known model incompatibilities" "$adapter_files"; then
+      # Extract from "Known..." up to the next non-indented line (set, source, exec, etc.)
+      sed -n '/Known model incompatibilities/,/^[^ #]/p' "$adapter_files" | sed '$d' | head -20
+    else
+      # Show just the header comment block
+      sed -n '2,/^[^ #]/p' "$adapter_files" | head -10
+    fi
+  fi
+  echo ""
+fi
+
+# ============================================================================
+# 3. Compat lookup
+# ============================================================================
+print_header "Compat entries for $ADAPTER / $MODEL"
+echo ""
+
+if [ ! -f "compat.json" ]; then
+  echo "(compat.json not found)"
+else
+  # Look for matching entries (adapter:model:runtime or just adapter:model)
+  compat_entries=$(jq -r "to_entries[] | select(.value.adapter == \"$ADAPTER\" and .value.model == \"$MODEL\") | \"\\(.key): \\(.value | tostring)\"" compat.json 2>/dev/null || true)
+
+  if [ -z "$compat_entries" ]; then
+    echo "(no matching entries)"
+  else
+    echo "$compat_entries" | while read -r entry; do
+      key=$(echo "$entry" | cut -d: -f1)
+      print_highlight "$entry"
+    done
+  fi
+fi
+echo ""
+
+# ============================================================================
+# 4. Version mismatch check
+# ============================================================================
+print_header "Version tracking"
+echo ""
+
+# Extract agent version from adapter script header if available
+adapter_version=$(grep -m1 "^# Tool:" "$adapter_files" 2>/dev/null | sed 's/.*Tool: //; s/,.*//' || echo "unknown")
+echo "Adapter script version: $adapter_version"
+
+# Check if any compat entry has a different agent_version
+compat_versions=$(jq -r "to_entries[] | select(.value.adapter == \"$ADAPTER\" and .value.model == \"$MODEL\") | .value.agent_version" compat.json 2>/dev/null || true)
+if [ -n "$compat_versions" ]; then
+  while read -r cv; do
+    if [ "$cv" != "unknown" ] && [ -n "$cv" ]; then
+      echo "Compat tracked version: $cv"
+      if [ "$cv" != "$adapter_version" ]; then
+        echo -e "${YELLOW}⚠ Version mismatch detected!${NC} Re-run with updated adapter/runtime."
+      fi
+    fi
+  done <<< "$compat_versions"
+fi
+echo ""
+
+# ============================================================================
+# 5. Regression check (last successful run)
+# ============================================================================
+print_header "Regression history"
+echo ""
+
+# Find all runs with this combo and check results
+last_pass=""
+last_pass_run=""
+for past_run in $(find results -maxdepth 1 -type d -name "202*" | sort -r); do
+  past_adapter_dir="$past_run/sandbox/$ADAPTER/$MODEL_SANITIZED"
+  if [ -d "$past_adapter_dir/$CASE" ]; then
+    past_log="$past_adapter_dir/$CASE/.bench.log"
+    if [ -f "$past_log" ] && ! grep -qi "error\|MISS\|FAIL" "$past_log"; then
+      last_pass=$(basename "$past_run")
+      break
+    fi
+  fi
+done
+
+if [ -n "$last_pass" ]; then
+  echo "Last successful run: $last_pass"
+  if [ "$last_pass" != "$RUN_ID" ]; then
+    echo -e "${YELLOW}⚠ Regression detected${NC} — this combo passed in $last_pass"
+  fi
+else
+  echo "No prior successful runs found for this combo"
+fi
+echo ""
+
+# ============================================================================
+# 6. Suggested next action
+# ============================================================================
+print_header "Suggested next action"
+echo ""
+
+compat_status=$(jq -r "to_entries[] | select(.value.adapter == \"$ADAPTER\" and .value.model == \"$MODEL\") | .value.status" compat.json 2>/dev/null | head -1 || true)
+
+if [ "$compat_status" = "open" ]; then
+  echo "✓ This incompatibility is documented in compat.json"
+  echo "  Status: open — needs resolution or acceptance"
+elif grep -q "Known model incompatibilities" "$adapter_files" 2>/dev/null; then
+  echo "✓ See adapter header (above) for known issues"
+else
+  echo "No documented incompatibility found. Next steps:"
+  echo ""
+  echo "  1. Inspect logs (above) for the root cause"
+  echo "  2. If deterministic, record with:"
+  echo "     bin/troubleshoot $ADAPTER $MODEL $CASE --update-docs"
+  echo "  3. If signature-related (tool-call format, parsing), run:"
+  echo "     bin/investigate"
+  echo "  4. If intermittent, rerun with --verbose:"
+  echo "     bin/smoke --adapter $ADAPTER --model '$MODEL' --verbose"
+fi
+echo ""
+
+# ============================================================================
+# 7. Optional: Update compat.json
+# ============================================================================
+if [ "$UPDATE_DOCS" -eq 1 ]; then
+  # Extract last error line from bench log
+  error_line=$(tac "$BENCH_LOG" | grep -E "error|Error|MISS|FAIL" | head -1 || echo "Unknown failure")
+
+  KEY="$ADAPTER:$MODEL"
+  TODAY=$(date +%Y-%m-%d)
+
+  # Create or update compat entry
+  new_entry=$(jq -n \
+    --arg adapter "$ADAPTER" \
+    --arg model "$MODEL" \
+    --arg symptom "$error_line" \
+    --arg first_seen "$TODAY" \
+    --arg run_id "$RUN_ID" \
+    '{
+      adapter: $adapter,
+      model: $model,
+      runtime: "lms",
+      agent_version: "unknown",
+      first_seen: $first_seen,
+      run_id: $run_id,
+      symptom: $symptom,
+      status: "open"
+    }')
+
+  if [ -f "compat.json" ]; then
+    # Merge with existing (avoid duplicates)
+    jq --arg key "$KEY" --argjson entry "$new_entry" \
+      '.[$key] = $entry' compat.json > compat.json.tmp
+    mv compat.json.tmp compat.json
+  else
+    jq -n --arg key "$KEY" --argjson entry "$new_entry" \
+      '{($key): $entry}' > compat.json
+  fi
+
+  echo -e "${GREEN}✓ Recorded in compat.json:${NC} $KEY"
+  echo ""
+fi
+
+# ============================================================================
+# 8. Optional: Write report
+# ============================================================================
+if [ "$REPORT" -eq 1 ]; then
+  mkdir -p results/troubleshoots
+  REPORT_FILE="results/troubleshoots/troubleshoot-$(date +%s).md"
+
+  {
+    echo "# Troubleshoot Report"
+    echo ""
+    echo "- **Adapter:** $ADAPTER"
+    echo "- **Model:** $MODEL"
+    echo "- **Case:** $CASE"
+    echo "- **Run:** $RUN_ID"
+    echo "- **Date:** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo ""
+    echo "## Last 50 lines of .bench.log"
+    echo ""
+    echo '```'
+    tail -50 "$BENCH_LOG"
+    echo '```'
+    echo ""
+
+    if [ -n "$compat_entries" ]; then
+      echo "## Compat entries"
+      echo ""
+      echo '```json'
+      echo "$compat_entries"
+      echo '```'
+      echo ""
+    fi
+
+    echo "## Suggested action"
+    echo ""
+    echo "See console output above."
+  } > "$REPORT_FILE"
+
+  echo -e "${GREEN}✓ Report written:${NC} $REPORT_FILE"
+  echo ""
+fi
