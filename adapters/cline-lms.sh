@@ -40,10 +40,16 @@ CLINE_ARGS=(
 )
 
 if [ ! -t 0 ]; then
-  # Fix malformed tool calls from models like google/gemma-4-e4b.
-  # Converts: <tool_call>editor{...}</tool_call>
-  # To: <tool_call>{"name":"editor","arguments":{...}}</tool_call>
-  "$CLINE" "${CLINE_ARGS[@]}" "$(cat)" | sed -E 's|<tool_call>\s*([a-z_]+)\{([^}]*)\}|<tool_call>{"name":"\1","arguments":{\2}}|g'
+  # Fix malformed tool calls from weak models like google/gemma-4-e4b.
+  # Converts: <tool_call>\neditor{new_text:"...",path:"..."}\n</tool_call>
+  # To: [editor] {"path":"...","new_text":"..."}
+  "$CLINE" "${CLINE_ARGS[@]}" "$(cat)" | perl -0777 -pe '
+    s|<tool_call>\s*([a-z_]+)\s*\{([^}]+)\}\s*</tool_call>|
+      my $func = $1; my $args = $2;
+      $args =~ s/([a-z_]+):/"$1":/g;
+      "[$func] {$args}"
+    |gse
+  '
 else
   exec "$CLINE" "${CLINE_ARGS[@]}" --tui
 fi
