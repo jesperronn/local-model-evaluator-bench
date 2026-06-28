@@ -25,5 +25,5 @@ else
   PROMPT="Working directory: $(pwd)
 
 $(cat)"
-  exec opencode run --model "lmstudio/${MODEL_ID}" "${PROMPT}" "$@"
+  exec opencode run --dangerously-skip-permissions --model "lmstudio/${MODEL_ID}" "${PROMPT}" "$@"
 fi
