@@ -231,7 +231,7 @@ case " ${EXTRA_BENCH_ARGS[*]} " in
   *) EXTRA_BENCH_ARGS+=(--verbose) ;;
 esac
 
-bench_args=("--cases" "$SMOKE_CASES")
+bench_args=("--cases" "$SMOKE_CASES" "--adapter" "$_smoke_adapters")
 if [ "$RETRYING_BROKEN" = 1 ]; then
   bench_args+=("--skip-compat-filter")
 fi
