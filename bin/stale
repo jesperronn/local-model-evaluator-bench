@@ -53,7 +53,7 @@ BENCH_BIN="${STALE_BENCH:-$HERE/bin/bench}"
 SHIM_BIN="${STALE_SHIM:-$HERE/bin/pi-patch-edit-shim}"
 
 ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; RUNTIME="lms"
-ONLY=""; HEADER=0; LIST=0
+ONLY=""; HEADER=0; LIST=0; VERBOSE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent|-t)           ADAPTERS="$2"; shift 2;;
@@ -66,6 +66,7 @@ while [ $# -gt 0 ]; do
     --failed-only)       ONLY="failed";  shift;;
     --header)            HEADER=1; shift;;
     --list)              LIST=1; shift;;
+    --verbose|-v)        VERBOSE=1; shift;;
     -h|--help)           awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"; exit 0;;
     *) die "unknown option: $1";;
   esac
@@ -155,6 +156,14 @@ if [ -d "$RESULTS_DIR" ]; then
   done < <(ls -dt "$RESULTS_DIR"/[0-9]*-[0-9]*/ 2>/dev/null)
 fi
 
+# ── Pre-populate mtime caches (avoid repeated find/stat calls inside subshells) ──
+for _c in "${CASE_ARR[@]}"; do
+  _CASE_MT[$_c]="$(dir_mtime "$CASES_DIR/$_c")"
+done
+for _a in "${ADAPTER_ARR[@]}"; do
+  _ADP_MT[$_a]="$(adapter_mtime "$_a")"
+done
+
 # ── Decide each desired combo ────────────────────────────────────────────────
 emit() {  # adapter model case reason
   printf '%s,%s,%s,%s,%s\n' "$1" "$2" "$3" "$RUNTIME" "$4"
@@ -166,12 +175,12 @@ n_missing=0; n_failed=0; n_stale=0; n_ok=0; n_skip_adapter=0
 WORKLIST="$(mktemp)"
 for adapter in "${ADAPTER_ARR[@]}"; do
   if ! adapter_exists "$adapter"; then n_skip_adapter=$((n_skip_adapter+1)); continue; fi
-  a_mt="$(adp_mtime "$adapter")"
+  a_mt="${_ADP_MT[$adapter]}"
   shim_applies=0
   case "$adapter" in pi|caveman) shim_applies=1;; esac
   for model in "${MODEL_ARR[@]}"; do
     for case_id in "${CASE_ARR[@]}"; do
-      c_mt="$(case_mtime "$case_id")"
+      c_mt="${_CASE_MT[$case_id]}"
       # newest input across all sources that affect this combo
       newest="$GLOBAL_MTIME"
       [ "$a_mt" -gt "$newest" ] && newest="$a_mt"
@@ -187,8 +196,11 @@ for adapter in "${ADAPTER_ARR[@]}"; do
       elif [ "$newest" -gt "${_DONE_EPOCH[$key]}" ]; then
         reason="stale"; n_stale=$((n_stale+1))
       else
+        [ "$VERBOSE" = 1 ] && printf '  %s  %-30s  %-20s  ok\n' "$adapter" "$model" "$case_id" >&2
         n_ok=$((n_ok+1)); continue
       fi
+
+      [ "$VERBOSE" = 1 ] && printf '  %s  %-30s  %-20s  %s\n' "$adapter" "$model" "$case_id" "$reason" >&2
 
       # Apply --*-only filter (match on the reason's leading word).
       if [ -n "$ONLY" ]; then
