@@ -9,7 +9,7 @@
 | **Version** | 0.86.2 |
 | **Adapter script** | [`adapters/aider-lms.sh`](../../adapters/aider-lms.sh) |
 | **How it connects** | OpenAI-compatible endpoint via `--openai-api-base` and `--openai-api-key`; model addressed as `openai/<MODEL_ID>` |
-| **Last reviewed** | 2026-06-09 |
+| **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism
 
@@ -56,4 +56,16 @@ Despite this limitation, aider scores 5/5 on js-05 for Qwen3-Coder models and se
 
 ## Status
 
-**needs-tuning** — aider is functional and produces correct results on single-file cases, but consistently underperforms on multi-file and self-verify cases due to missing `--file` hints. Adding `--file` arguments derived from `ls` of the workdir would likely close the gap significantly. Suggested fix: in the adapter script, enumerate files in CWD and pass each as `--file`.
+**stable** — 2026-06-29 overnight run: aider achieved **100% on all 11 cases across 7 models** including all multifile cases (js-03, js-04) and self-verify (js-06). The previously documented multifile miss pattern did not reproduce — strong models (qwen3.6-35b-a3b, qwen3.5-9b, qwen3-coder-30b) appear to name both files correctly without `--file` hints. The "needs-tuning" status is retired. If multifile regressions reappear on weaker models, adding `--file` hints remains the suggested fix.
+
+### Benchmark results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Avg time |
+|-------|-------|----------|
+| qwen3.6-35b-a3b | 38/38 (100%) | ~55s |
+| qwen3.5-9b | 38/38 (100%) | ~19s |
+| devstral-small-2-2512 | 36/38 (94%) | ~25s |
+| gemma-4-26b-a4b-qat | 31/38 (81%) | ~50s |
+| qwen3.6-27b | 26/34 (76%) | ~45s |
+| glm-4.7-flash | 12/32 (37%) | timeout floor |
+| qwen3-coder-30b | 38/38 (100%) | **avg 11s** |

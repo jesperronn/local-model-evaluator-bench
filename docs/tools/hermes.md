@@ -9,7 +9,7 @@
 | **Version** | v0.17.0 (2026.6.19) |
 | **Adapter script** | [`adapters/hermes-lms.sh`](../../adapters/hermes-lms.sh) |
 | **How it connects** | Built-in `lmstudio` provider, configured in `~/.hermes/config.yaml` (`provider: lmstudio`, `base_url: http://127.0.0.1:1234/v1`). Approvals handled by a "smart guardian" LLM running locally. |
-| **Last reviewed** | 2026-06-18 |
+| **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism
 

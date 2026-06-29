@@ -9,7 +9,7 @@
 | **Version** | latest |
 | **Adapter script** | [`adapters/interpreter-lms.sh`](../../adapters/interpreter-lms.sh) |
 | **How it connects** | Built-in `lmstudio` provider (hardwired to `localhost:1234/v1`). Model overridden at runtime via `-c 'model="..."'` without touching `config.toml`. |
-| **Last reviewed** | 2026-06-18 |
+| **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism
 
@@ -73,6 +73,20 @@ The adapter itself is fully functional — see the benchmark results below.
 | ts-01-groupby | 3/3 (1.00) | 29s | ok |
 | **Total** | **36/36 (1.00)** | | |
 
+### Full sweep results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Avg time |
+|-------|-------|----------|
+| qwen/qwen3.6-35b-a3b | 38/38 (100%) | ~55s |
+| qwen/qwen3.5-9b | 38/38 (100%) | ~40s |
+| devstral-small-2-2512 | 30/38 (78%) | Below expected |
+| google/gemma-4-26b-a4b-qat | 37/38 (97%) | |
+| qwen/qwen3.6-27b | 38/38 (100%) | ~90s |
+| zai-org/glm-4.7-flash | 14/32 (43%) | Timeout floor |
+| qwen/qwen3-coder-30b | 38/38 (100%) | avg 78s |
+
+interpreter achieves **100% on 4 of 7 models** — only devstral and glm-4.7-flash fall short. The 78% on devstral is the lowest interpreter score in the suite (expected 97%+) suggesting devstral doesn't follow interpreter's tool-call protocol as well as qwen/gemma models.
+
 ### Smoke results (2026-06-18, lms)
 
 | Model | smoke-00-hello | smoke-01-edit-file |
@@ -81,4 +95,3 @@ The adapter itself is fully functional — see the benchmark results below.
 | qwen/qwen3.5-9b | 2/2 (18s) | 2/2 (12s) |
 | google/gemma-4-26b-a4b-qat | 2/2 (11s) | 2/2 (19s) |
 | qwen/qwen3-coder-30b | 2/2 (8s) | 2/2 (14s) |
-| qwen/qwen3-coder-next | 2/2 (21s) | 2/2 (17s) |

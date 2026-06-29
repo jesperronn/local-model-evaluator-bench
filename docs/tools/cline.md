@@ -9,7 +9,7 @@
 | **Version** | latest (pnpm store binary, cli-darwin-arm64) |
 | **Adapter script** | [`adapters/cline-lms.sh`](../../adapters/cline-lms.sh) |
 | **How it connects** | `cline auth openai-compatible` writes provider config to an isolated `--data-dir`; passes `--apikey`, `--modelid`, and `--baseurl` pointing at `LMS_BASE_URL`. Overwritten fresh each run. |
-| **Last reviewed** | 2026-06-18 |
+| **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism
 
@@ -77,6 +77,17 @@ js-03 through ts-01 all passed cleanly. The partial scores on js-01 (2/4) and js
 | ts-01-groupby | 3/3 (1.00) | 108s | ok |
 | **Total** | **36/36 (1.00)** | | |
 
+### Full sweep results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Notes |
+|-------|-------|-------|
+| qwen/qwen3.6-35b-a3b | 38/38 (100%) | All 11 cases PASS |
+| qwen/qwen3.5-9b | 34/38 (89%) | 4 cases FAIL/WARN |
+| devstral-small-2-2512 | 33/38 (86%) | |
+| google/gemma-4-26b-a4b-qat | 34/38 (89%) | |
+| qwen/qwen3.6-27b | 28/34 (82%) | Dense model — slower, some timeouts |
+| zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor — GGUF too slow |
+
 ### Smoke results (2026-06-18, lms)
 
 | Model | smoke-00-hello | smoke-01-edit-file |
@@ -85,4 +96,3 @@ js-03 through ts-01 all passed cleanly. The partial scores on js-01 (2/4) and js
 | qwen/qwen3.5-9b | 2/2 (17s) | 2/2 (31s) |
 | google/gemma-4-26b-a4b-qat | 2/2 (31s) | 2/2 (22s) |
 | qwen/qwen3-coder-30b | 2/2 (19s) | 2/2 (67s) |
-| qwen/qwen3-coder-next | 2/2 (16s) | 2/2 (20s) |

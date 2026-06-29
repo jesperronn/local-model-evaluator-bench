@@ -11,7 +11,7 @@
 | **Adapter script** | [`adapters/pi-lms.sh`](../../adapters/pi-lms.sh) |
 | **How it connects** | `--provider lmstudio` selects the built-in LM Studio provider (localhost:1234/v1). Model passed via `--model`. |
 | **Workarounds needed** | model-dependent — **shim** for qwen3-coder (edit-tool XML recovery, see Known issues); **none** for qwen3.6-35b-a3b. |
-| **Last reviewed** | 2026-06-18 |
+| **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism
 
