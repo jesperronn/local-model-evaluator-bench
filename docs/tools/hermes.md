@@ -47,7 +47,19 @@ hermes iterates naturally via its tool-call loop. With `--yolo` (used in bench m
 
 ## Status
 
-**stable** — full 10-case benchmark completed 2026-06-18 (lms runtime, `google/gemma-4-26b-a4b-qat`). See results below; prior multi-model runs in RESULTS.md confirm strong performance across models.
+**stable** — 2026-06-29 overnight sweep confirms strong performance across all models except glm-4.7-flash (GGUF too slow, timeout floor).
+
+### Full sweep results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Notes |
+|-------|-------|-------|
+| qwen/qwen3.6-35b-a3b | 38/38 (100%) | |
+| qwen/qwen3.5-9b | 32/34 (94%) | 2 cases fail |
+| devstral-small-2-2512 | 34/38 (89%) | |
+| google/gemma-4-26b-a4b-qat | 38/38 (100%) | |
+| qwen/qwen3.6-27b | 33/34 (97%) | 1 case fail |
+| zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor — GGUF too slow |
+| qwen/qwen3-coder-30b | 35/38 (92%) | bash-01 3/4, 2 smoke WARNs |
 
 ### Full benchmark results (2026-06-18, lms, run `20260618-213005`)
 

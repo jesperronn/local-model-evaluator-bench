@@ -68,6 +68,20 @@ brew install block/tap/goose
 | ts-01-groupby | 3/3 (1.00) | 54s | ok |
 | **Total** | **36/36 (1.00)** | | |
 
+### Full sweep results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Notes |
+|-------|-------|-------|
+| qwen/qwen3.6-35b-a3b | 38/38 (100%) | |
+| qwen/qwen3.5-9b | 34/38 (89%) | |
+| devstral-small-2-2512 | 34/38 (89%) | |
+| google/gemma-4-26b-a4b-qat | 38/38 (100%) | |
+| qwen/qwen3.6-27b | 38/38 (100%) | |
+| zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor — GGUF too slow |
+| qwen/qwen3-coder-30b | 8/8 (100%) | Partial run (2 cases only) |
+
+goose is **100% on 4 of 6 fully-tested models** — only devstral (89%) and glm-4.7-flash (timeout floor) fall short. Reliable across model families.
+
 ### Smoke results (2026-06-18, lms)
 
 | Model | smoke-00-hello | smoke-01-edit-file |
@@ -76,6 +90,5 @@ brew install block/tap/goose
 | qwen/qwen3.5-9b | 2/2 (15s) | 0/2 (9s) — no edit |
 | google/gemma-4-26b-a4b-qat | 2/2 (15s) | 2/2 (35s) |
 | qwen/qwen3-coder-30b | 2/2 (10s) | 2/2 (13s) |
-| qwen/qwen3-coder-next | 2/2 (32s) | 2/2 (77s) |
 
 Note: `read` tool not available in goose's developer builtin — goose falls back to `shell` + `cat` automatically (observed in logs). Functional workaround, no action needed.

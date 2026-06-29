@@ -85,6 +85,18 @@ Run concurrently with a hermes bench on the same model; timeouts reflect slot co
 
 † Completed within the timeout window (all assertions pass); 300s recorded because the adapter finished at the limit due to parallel slot contention.
 
+### Full sweep results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Notes |
+|-------|-------|-------|
+| qwen/qwen3.6-35b-a3b | 38/38 (100%) | |
+| qwen/qwen3.5-9b | 35/38 (92%) | |
+| devstral-small-2-2512 | 34/38 (89%) | |
+| google/gemma-4-26b-a4b-qat | 38/38 (100%) | |
+| qwen/qwen3.6-27b | not run | — |
+| zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor |
+| qwen/qwen3-coder-30b | 37/38 (97%) | bash-01 3/4 |
+
 ### Smoke results (2026-06-18, lms)
 
 | Model | smoke-00-hello | smoke-01-edit-file |
@@ -93,4 +105,3 @@ Run concurrently with a hermes bench on the same model; timeouts reflect slot co
 | qwen/qwen3.5-9b | 2/2 (14s) | 2/2 (6s) |
 | google/gemma-4-26b-a4b-qat | 2/2 (11s) | 2/2 (14s) |
 | qwen/qwen3-coder-30b | 2/2 (13s) | 2/2 (8s) |
-| qwen/qwen3-coder-next | 2/2 (16s) | 2/2 (18s) |
