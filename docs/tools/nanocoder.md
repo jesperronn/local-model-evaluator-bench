@@ -10,7 +10,7 @@
 | **Adapter script** | [`adapters/nanocoder-lms.sh`](../../adapters/nanocoder-lms.sh) |
 | **How it connects** | LM Studio via `NANOCODER_PROVIDERS` env var (JSON array); no config file needed |
 | **Last reviewed** | 2026-06-30 |
-| **Smoke test** | 2026-06-30 (in progress) |
+| **Smoke test** | 2026-06-30 — **3/3 PASS** on gemma-4-e4b |
 
 ## Install
 
@@ -45,17 +45,25 @@ When stdin is not a terminal, the adapter calls `nanocoder run --provider ... --
 
 ## Benchmark results
 
-| Model | Run | Results |
-|-------|-----|---------|
-| google/gemma-4-e4b | 20260630-012119 smoke | TBD — in progress |
-| all 7 models | nightly sweep | pending after smoke validation |
+### Smoke (2026-06-30, run `20260630-012119`, model `google/gemma-4-e4b`)
 
-Smoke test on gemma-4-e4b in progress (2026-06-30 01:21). Full model sweep will follow if smoke passes.
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| smoke-00-hello | 2/2 | 12s | PASS |
+| smoke-01-edit-file | 2/2 | 42s | PASS |
+| smoke-02-numbers | 2/2 | 36s | PASS |
+| **Total** | **6/6 (100%)** | | |
+
+All 3 smoke cases pass on gemma-4-e4b. The adapter connection is stable; NANOCODER_PROVIDERS injection works. Full sweep against all 7 models scheduled after smoke validation.
+
+### Full sweep (nightly, all 7 models)
+
+Pending. 77 combos queued to run after overnight bench completes.
 
 ## Known issues
 
-None discovered yet. Adapter is new — first bench run in progress.
+None discovered yet. Adapter is new — first full sweep pending.
 
 ## Status
 
-**under-evaluation** — adapter written and smoke-testing. Full bench sweep against all 7 models pending smoke result.
+**smoke-validated** — all 3 smoke cases pass on gemma-4-e4b. Full bench sweep against all 7 models pending (77 combos queued).

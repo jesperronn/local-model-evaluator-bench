@@ -15,7 +15,7 @@
 
 ## Results summary
 
-One of the top-performing models in the suite. 2026-06-29 full sweep on LMS: aider and interpreter **100%**, pi 97%, codex/hermes/openhands 92%. goose only partially tested (2 cases). caveman LMS-incompatible. Overall 238/268 (88%) across all 8 tested adapters; **97% excl caveman**. Second only to qwen3.6-35b-a3b on overall accuracy, and notably faster per token (MoE 3B active). See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+One of the top-performing models in the suite. 2026-06-29 full sweep on LMS: aider/interpreter/goose **100%**, pi 97%, codex/hermes/openhands 92%. caveman LMS-incompatible. Overall 276/306 across 8 tested adapters; **97% excl caveman**. Second only to qwen3.6-35b-a3b on overall accuracy, notably faster per token (MoE 3B active). See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
 | Adapter | 2026-06-29 (LMS) | Notes |
 |---------|-----------------|-------|
@@ -25,7 +25,7 @@ One of the top-performing models in the suite. 2026-06-29 full sweep on LMS: aid
 | codex | 35/38 (92%) | ts-01 error(1) |
 | hermes | 35/38 (92%) | bash-01 WARN, 2 smoke WARNs |
 | openhands | 35/38 (92%) | bash-01 WARN, js-03 stall |
-| goose | 8/8 (100%) | Partial run (2 cases only) |
+| goose | 38/38 (100%) | avg 105s, range 6–302s |
 | caveman | 12/32 (37%) | LMS incompatible |
 | cline | not run | — |
 | opencode | not run | — |
@@ -52,7 +52,7 @@ One of the top-performing models in the suite. 2026-06-29 full sweep on LMS: aid
 - **pi:** avg 114s, range 12–300s. Slow on bash-01 and multifile cases.
 - **codex:** avg 95s, range 12–301s. bash-01 hit 301s but passed.
 - **openhands:** avg 129s, range 28–254s. Slowest working adapter.
-- **goose:** avg 71s, range 57–86s. Only 2 cases run.
+- **goose:** avg 105s, range 6–302s. 100% across all 11 cases. js-02 and js-03 at 300s (passed at limit).
 
 ### 2026-06-29 observations
 
@@ -77,7 +77,7 @@ resolved 2026-06-11 by switching to `backend: local`. Now fully functional.
 
 ### 2026-06-29 — LMS overnight (run `20260629-235247`)
 
-Full 11-adapter sweep initiated; goose, cline, opencode not fully completed. aider: 100% at 11s average — fastest in the suite by a significant margin. interpreter: 100%. pi/codex/hermes/openhands: 92%. bash-01-topwords (bash pipeline) is a recurring partial failure across hermes/openhands/pi (3/4 not 4/4) — likely a shell pipeline edge case that the model doesn't handle under these adapters' prompting format. caveman confirmed LMS-incompatible.
+Full sweep: aider/interpreter/goose 100%. goose js-02 and js-03 at 300s (passed at limit). pi 97% (bash-01 3/4). codex/hermes/openhands 92% — all three miss bash-01-topwords with 3/4 (not 4/4), consistent pattern suggesting a shell pipeline edge case under these adapters' prompting format. caveman confirmed LMS-incompatible. cline/opencode not run.
 
 ### 2026-06-12 — MLX (partial)
 
