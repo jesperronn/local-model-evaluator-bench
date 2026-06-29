@@ -86,6 +86,7 @@ js-03 through ts-01 all passed cleanly. The partial scores on js-01 (2/4) and js
 | devstral-small-2-2512 | 33/38 (86%) | |
 | google/gemma-4-26b-a4b-qat | 34/38 (89%) | |
 | qwen/qwen3.6-27b | 28/34 (82%) | Dense model — slower, some timeouts |
+| qwen/qwen3-coder-30b | 38/38 (100%) | 2026-06-28 baseline run; avg 149s |
 | zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor — GGUF too slow |
 
 ### Smoke results (2026-06-18, lms)

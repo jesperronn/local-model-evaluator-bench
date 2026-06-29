@@ -58,7 +58,7 @@ No other flags are used. opencode's defaults (tool-calling, auto file discovery,
 | google/gemma-4-26b-a4b-qat | 37/38 (97%) | |
 | qwen/qwen3.6-27b | not run | — |
 | zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor |
-| qwen/qwen3-coder-30b | not run | — |
+| qwen/qwen3-coder-30b | 38/38 (100%) | 2026-06-28 baseline run |
 
 opencode is strong on qwen/gemma families. devstral collapse (37%) is a new finding — devstral appears incompatible with opencode's tool schema, not tested on prior runs.
 
