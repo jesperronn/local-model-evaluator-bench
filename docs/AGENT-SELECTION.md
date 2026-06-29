@@ -31,7 +31,7 @@ Based on 2026-06-29 overnight sweep across 7 models on LMS runtime.
 | gemma-4-26b-a4b-qat | goose/hermes/pi 100%, opencode/interpreter 97% | caveman (LMS), codex (compat.json) |
 | qwen3.6-27b | codex/goose/interpreter 100%, hermes 97% | 5 adapters not run |
 | glm-4.7-flash | codex 65% (only viable) | everything else (timeout floor at 37%) |
-| qwen3-coder-30b | aider 100% avg 11s, interpreter 100% | caveman (LMS), cline/opencode not yet run |
+| qwen3-coder-30b | aider/interpreter/goose 100%, pi 97%, codex/hermes/openhands 92% | caveman (LMS), cline/opencode not yet run |
 
 ## Use Cases
 

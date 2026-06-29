@@ -78,9 +78,9 @@ brew install block/tap/goose
 | google/gemma-4-26b-a4b-qat | 38/38 (100%) | |
 | qwen/qwen3.6-27b | 38/38 (100%) | |
 | zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor — GGUF too slow |
-| qwen/qwen3-coder-30b | 8/8 (100%) | Partial run (2 cases only) |
+| qwen/qwen3-coder-30b | 38/38 (100%) | avg 105s; js-02/js-03 at 300s (passed) |
 
-goose is **100% on 4 of 6 fully-tested models** — only devstral (89%) and glm-4.7-flash (timeout floor) fall short. Reliable across model families.
+goose is **100% on 5 of 6 fully-tested models** — only devstral (89%) and glm-4.7-flash (timeout floor) fall short. Reliable across model families.
 
 ### Smoke results (2026-06-18, lms)
 
