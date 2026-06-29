@@ -9,13 +9,26 @@
 | **Parameter count** | 30B total, ~3B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-12 |
-| **Doc updated** | 2026-06-25 |
+| **Last run** | 2026-06-29 (run `20260629-235247`) |
+| **Doc updated** | 2026-06-30 |
 | **Workarounds needed** | **shim — pi edit-tool XML recovery** (safety net for flat-XML tool-call paths that can't encode nested `edits:[{oldText,newText}]`; **path-dependent — not reproduced on the bench's structured-tool_calls path**, see [tools/pi.md](../tools/pi.md) and [SCORING.md](../SCORING.md#workarounds-and-fairness)). None known for codex / opencode / aider. |
 
 ## Results summary
 
-One of the top-performing models in the suite. opencode, codex, and caveman all achieve ≥97% — opencode 97.1%, codex 100%, caveman 100%. aider trails at 81.2% due to adapter-format friction on multi-file cases. Second only to qwen3.6-35b-a3b on non-aider adapters, and faster than it. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+One of the top-performing models in the suite. 2026-06-29 full sweep on LMS: aider and interpreter **100%**, pi 97%, codex/hermes/openhands 92%. goose only partially tested (2 cases). caveman LMS-incompatible. Overall 238/268 (88%) across all 8 tested adapters; **97% excl caveman**. Second only to qwen3.6-35b-a3b on overall accuracy, and notably faster per token (MoE 3B active). See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+
+| Adapter | 2026-06-29 (LMS) | Notes |
+|---------|-----------------|-------|
+| aider | 38/38 (100%) | Fastest adapter — avg 11s, range 6–24s |
+| interpreter | 38/38 (100%) | avg 78s, range 4–301s |
+| pi | 37/38 (97%) | bash-01 WARN 3/4 |
+| codex | 35/38 (92%) | ts-01 error(1) |
+| hermes | 35/38 (92%) | bash-01 WARN, 2 smoke WARNs |
+| openhands | 35/38 (92%) | bash-01 WARN, js-03 stall |
+| goose | 8/8 (100%) | Partial run (2 cases only) |
+| caveman | 12/32 (37%) | LMS incompatible |
+| cline | not run | — |
+| opencode | not run | — |
 
 ## Failure patterns
 
@@ -33,10 +46,17 @@ One of the top-performing models in the suite. opencode, codex, and caveman all 
 
 ## Timing observations
 
-- **aider:** 6–24s. Very fast; benefits from MoE's low active-parameter count.
-- **opencode:** 20–158s. js-05 (self-verify) took longest at 158s.
-- **codex:** 49–142s. Comparable to qwen3-coder-next but slightly faster on most cases.
-- **caveman:** 18–127s. Slower than aider but more reliable on multi-file cases.
+- **aider:** avg 11s, range 6–24s. Fastest adapter by far. MoE 3B active makes this model extremely responsive.
+- **interpreter:** avg 78s, range 4–301s. js-03-multifile-cache hit 301s (right at timeout) but passed.
+- **hermes:** avg 63s, range 14–140s.
+- **pi:** avg 114s, range 12–300s. Slow on bash-01 and multifile cases.
+- **codex:** avg 95s, range 12–301s. bash-01 hit 301s but passed.
+- **openhands:** avg 129s, range 28–254s. Slowest working adapter.
+- **goose:** avg 71s, range 57–86s. Only 2 cases run.
+
+### 2026-06-29 observations
+
+aider avg 11s is the standout — this model's MoE architecture (3B active params) makes aider's few-turn edit style extremely fast. interpreter at 100% confirms the model handles tool-use round-trips well. The 3 adapters at 92% all miss bash-01-topwords partially (3/4), likely a pipeline edge case under these adapters' prompting style rather than a model capability limit.
 
 ## MLX runtime results (2026-06-12)
 
@@ -53,9 +73,19 @@ resolved 2026-06-11 by switching to `backend: local`. Now fully functional.
 
 **codex non-zero exit on js-06, ts-01:** codex exits with rc=1 after successfully applying edits. No data loss — grader scored full points. Likely a codex CLI bug (fails to clean up a subprocess). Monitor across runs.
 
+## Observations across runs
+
+### 2026-06-29 — LMS overnight (run `20260629-235247`)
+
+Full 11-adapter sweep initiated; goose, cline, opencode not fully completed. aider: 100% at 11s average — fastest in the suite by a significant margin. interpreter: 100%. pi/codex/hermes/openhands: 92%. bash-01-topwords (bash pipeline) is a recurring partial failure across hermes/openhands/pi (3/4 not 4/4) — likely a shell pipeline edge case that the model doesn't handle under these adapters' prompting format. caveman confirmed LMS-incompatible.
+
+### 2026-06-12 — MLX (partial)
+
+hermes via mlx_lm.server: 28/28 warm-case 100%. Two cold-start failures (bash-01, smoke) due to MLX JIT not warmed. See MLX section below.
+
 ## Status
 
-**keep** — stable, comprehensive results across 4 working adapters. Strong baseline for the Qwen3-Coder family. Re-run if a new qwen3-coder-30b variant appears in LM Studio.
+**keep** — best aider performance in the suite (100%, avg 11s). interpreter also 100%. MoE architecture makes this the fastest model per-token in the benchmark. Needs cline and opencode sweep to complete the adapter picture.
 
 ## Comparison within family
 

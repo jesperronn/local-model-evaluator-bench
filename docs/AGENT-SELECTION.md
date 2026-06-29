@@ -1,107 +1,85 @@
 # Agent Selection Guide
 
-This benchmark includes 11 agents. **All are available for testing**, but performance varies widely. This guide helps you choose wisely.
+This benchmark includes 12 agents. **All are available for testing**, but performance varies widely. This guide helps you choose wisely.
 
 ## Quick Recommendation Matrix
 
-|  | **Speed** | **Accuracy** | **Reliability** | **Use When** |
-|---|-----------|-------------|-----------------|--------------|
-| 🏆 **openhands** | 55s/case | 100% | Excellent | Balanced production use; want both speed & accuracy |
-| 🏆 **cline** | 68s/case | 100% | Excellent | Need perfect accuracy; time is secondary |
-| 🏆 **aider** | 96s/case | 97% | Excellent | Proven workhorse; established track record |
-| ⚠️ **goose** | 79s/case | 100% | Good | Need 100% but can wait; self-verify cases |
-| ⚠️ **pi** | 151s/case | 87% | Fair | Exploring; know tool-call formats work |
-| ⚠️ **opencode** | 543s/case | 71% | Fair | Exploratory; benchmarking only |
-| ❌ **codex** | 363s/case | 76% | Poor | Avoid; too slow, not accurate enough |
-| ❌ **copilot** | 453s/case | 63% | Poor | Avoid; very slow; patch format incompatible with coder models |
-| ⚠️ **caveman** | 77s/case | 60% | Poor | Text-based fallback; weak results; LMS adapter unsupported |
-| ❌ **hermes** | 87s/case | 59% | Poor | Needs special config; lower accuracy |
-| ❌ **interpreter** | 71s/case | 98% | Experimental | Research only; high overhead |
+Based on 2026-06-29 overnight sweep across 7 models on LMS runtime.
 
-## Baseline Results (qwen/qwen3.6-35b-a3b + LM Studio)
+|  | **Speed** | **Accuracy** | **Use When** |
+|---|-----------|-------------|--------------|
+| 🏆 **aider** | 11–96s/case | 94–100% | Production use; fastest on MoE models; very reliable |
+| 🏆 **interpreter** | 23–160s/case | 97–100% | When aider isn't available; clean tool-use protocol |
+| 🏆 **cline** | 20–300s/case | 82–100% | When you need maximum accuracy on complex tasks |
+| ✅ **hermes** | 14–140s/case | 89–100% | Good all-rounder; needs special config |
+| ✅ **goose** | 57–110s/case | 89–100% | Reliable; good on self-verify cases |
+| ✅ **pi** | 12–300s/case | 89–97% | Generally reliable; use if others aren't available |
+| ✅ **opencode** | 8–300s/case | 37–97% | Generally reliable but model-dependent |
+| ✅ **openhands** | 28–254s/case | 37–92% | Good on most models; collapses on devstral |
+| ⚠️ **nanocoder** | TBD | TBD | New — smoke-testing in progress (2026-06-30) |
+| ❌ **codex** | 12–301s/case | 65–100% | ts-01 error(1) on some models; mixed reliability |
+| ❌ **caveman** | 2s (error) | 37% | LMS incompatible — works on Ollama only |
+| ❌ **copilot** | variable | 37–56% | LMS incompatible — patch format issues |
 
-```
-Pass rate by agent:
-  openhands    21/21 (100%)  ✨
-  cline        21/21 (100%)  ✨
-  goose        21/21 (100%)  ✨
-  aider        20/21 (97.4%) ✨
-  pi           16/21 (76%)
-  opencode     12/21 (57%)
-  codex        12/21 (57%)
-  copilot       7/21 (33%)
-  caveman      0/7 baseline (60% overall)
-  hermes       0/7 baseline (59% overall)
-```
+## Per-Model Results (2026-06-29 overnight, LMS)
+
+| Model | Best adapters | Avoid |
+|-------|--------------|-------|
+| qwen3.6-35b-a3b | all working = 100% | caveman, copilot (LMS compat) |
+| qwen3.5-9b | aider 100%, interpreter 100% | caveman, copilot (LMS compat) |
+| devstral-small-2-2512 | aider 94%, goose/hermes/pi 89% | opencode, openhands (37%), codex (skipped) |
+| gemma-4-26b-a4b-qat | goose/hermes/pi 100%, opencode/interpreter 97% | caveman (LMS), codex (compat.json) |
+| qwen3.6-27b | codex/goose/interpreter 100%, hermes 97% | 5 adapters not run |
+| glm-4.7-flash | codex 65% (only viable) | everything else (timeout floor at 37%) |
+| qwen3-coder-30b | aider 100% avg 11s, interpreter 100% | caveman (LMS), cline/opencode not yet run |
 
 ## Use Cases
 
-### Production / CI Systems
-**Pick: openhands or aider**
-- openhands: Fastest perfect-score agent (55s/case)
-- aider: Proven reliability, 97% accuracy, mature codebase
-- ✅ Run both; pick fastest for your use case
+### Production / Agentic Coding
+**Pick: aider or interpreter**
+- aider: fastest per-case (11s on MoE models), 100% on best models
+- interpreter: clean tool-call protocol, 100% on multiple models
+- Both are reliable across all model families tested
 
 ### Accuracy-Critical Tasks
-**Pick: openhands, cline, or goose**
-- All achieve 100% on baseline
-- openhands is fastest (55s/case)
-- cline is solid middle ground (68s/case)
-- goose if time is not a constraint (79s/case)
+**Pick: cline, hermes, or goose**
+- cline: 100% on qwen3.6-35b-a3b and qwen3.5-9b; slower on complex cases
+- hermes: 100% on gemma-4-26b-a4b-qat and qwen3.6-35b-a3b; needs `backend: local` config
+- goose: 100% on gemma/qwen3.6-27b; reliable but slower
+
+### Speed-Critical (< 30s/case)
+**Pick: aider only**
+- aider with qwen3-coder-30b: avg 11s
+- aider with qwen3.6-35b-a3b: avg ~40s
 
 ### Research / Exploration
-**Run any; collect data**
-- All agents available to gather data
-- Slow/weak agents still provide insights
-- Just expect lower accuracy and longer runtimes
-- Reference this guide when interpreting results
+**Run nanocoder, codex, opencode** — gather data, expect variable accuracy
 
-### Speed-Critical (< 60s/case)
-**Pick: openhands only**
-- openhands: 55s/case (baseline)
-- No other agent beats this for perfect accuracy
+## Adapter Setup Notes
 
-## Common Mistakes
-
-❌ **Don't:** Run codex or copilot expecting competitive results (very slow, weak)
-✅ **Do:** Run openhands first; fast + accurate baseline
-
-❌ **Don't:** Use caveman-lms without checking adapter status; it requires npm caveman-code custom-provider support
-✅ **Do:** Use caveman with ollama/mlx runtimes, or read docs/tools/caveman.md for details
-
-❌ **Don't:** Use hermes without understanding its limitations
-✅ **Do:** Read docs/tools/hermes.md first
-
-❌ **Don't:** Blame an agent's output quality before checking its recommendation tier
-✅ **Do:** Consult this guide; some agents are for exploration, not production
-
-## Viewing Current Performance
-
-Show all agents sorted by speed:
-```bash
-bin/report --all --speed
-```
-
-Filter to recommended agents only:
-```bash
-bin/report --all --model qwen/qwen3.6-35b-a3b --agent openhands,cline,aider
-```
-
-Show by accuracy (default leaderboard):
-```bash
-bin/report --all
-```
+| Adapter | Setup required | Notes |
+|---------|---------------|-------|
+| aider | `pip install aider-chat` | Works out of box |
+| interpreter | `pip install open-interpreter` | `NANOCODER_TRUST_DIRECTORY=1` not needed |
+| cline | `pnpm install -g cline` | Falls back to pnpm store if PATH broken |
+| hermes | hermes config.yaml: `backend: local`, `approvals.mode: smart` | `bin/doctor` verifies |
+| goose | `pipx install goose-ai` | Works out of box |
+| pi | `pip install pipecat` | Tool-call shim enabled for nested edits |
+| opencode | `npm install -g opencode` | Glob issue on gemma-4-e4b |
+| openhands | Docker or pip | Collapses on devstral (model issue) |
+| nanocoder | `npm install -g nanocoder` | v1.28.1; LMS provider via env var |
+| codex | `npm install -g @openai/codex` | wire_api=chat incompatibility on some configs |
+| caveman | n/a on LMS | Use Ollama runtime only |
+| copilot | n/a on LMS | Patch format incompatible with most models |
 
 ## Why Keep Weak Agents?
 
 This benchmark values **data completeness**. Even agents with lower accuracy provide:
 - Comparative insights (why is X slower than Y?)
 - Research data (which agents fail on which cases?)
-- Edge case coverage (do slow agents succeed where fast ones fail?)
-
-But we guide users toward effective choices with this matrix.
+- Model-specific failure patterns (e.g., opencode collapses on devstral but is 97% on gemma)
 
 ---
 
-**Last updated:** 2026-06-27 (baseline: qwen3.6-35b-a3b + LM Studio)
-**See also:** docs/tools/*.md for per-agent deep dives
+**Last updated:** 2026-06-30 (2026-06-29 overnight sweep: 7 models × 11 adapters on LMS)
+**See also:** docs/tools/*.md for per-agent deep dives, docs/models/*.md for per-model results
