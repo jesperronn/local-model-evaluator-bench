@@ -51,6 +51,20 @@ On strong models (qwen3.6-35b-a3b, qwen3-coder-30b, qwen3.5-9b), codex achieves 
 
 **Non-zero exit on clean results:** codex exits with rc=1 after correct edits on qwen3-coder-30b (js-06, ts-01). This is a reproducible codex CLI bug at version 0.138.0. Monitor in future versions.
 
+## Cross-model sweep results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Notes |
+|-------|-------|-------|
+| qwen/qwen3.6-35b-a3b | 38/38 (100%) | |
+| qwen/qwen3.5-9b | 37/38 (97%) | |
+| devstral-small-2-2512 | 28/32 (87%) | 4 cases not run |
+| google/gemma-4-26b-a4b-qat | 34/38 (89%) | |
+| qwen/qwen3.6-27b | 38/38 (100%) | |
+| zai-org/glm-4.7-flash | 24/38 (63%) | most cases timeout; only viable adapter for this model |
+| qwen/qwen3-coder-30b | 35/38 (92%) | js-06 and ts-01 error(1) with full pass (codex exit bug) |
+
+codex achieves 100% on the top MoE models and scores usably on glm-4.7-flash (63%) where all other adapters hit the timeout floor (37%). The glm advantage comes from fewer round-trips — codex completes more in a single generation.
+
 ## Status
 
-**stable** — strong results on capable models (100% on qwen3.6-35b-a3b, qwen3-coder-30b, qwen3.5-9b). Weaker than opencode/caveman on small Gemma models due to slower per-turn speed and format friction. The non-zero exit bug is cosmetic (doesn't affect scores).
+**stable** — strong results on capable models (100% on qwen3.6-35b-a3b, qwen3.6-27b, qwen3.5-9b). The only viable adapter for glm-4.7-flash GGUF. The non-zero exit bug is cosmetic (doesn't affect scores).
