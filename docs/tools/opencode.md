@@ -46,7 +46,21 @@ No other flags are used. opencode's defaults (tool-calling, auto file discovery,
 
 ## Status
 
-**stable** — best overall adapter for multi-file and self-verify cases. The qwen3-coder-next incompatibility is a known blocker but doesn't affect the majority of models.
+**stable** — 2026-06-29 overnight sweep shows strong results on most models but collapses on devstral (37%, same as LMS-incompatible caveman — likely a model protocol issue, not opencode).
+
+### Full sweep results (2026-06-29, lms, run `20260629-*`)
+
+| Model | Score | Notes |
+|-------|-------|-------|
+| qwen/qwen3.6-35b-a3b | 38/38 (100%) | |
+| qwen/qwen3.5-9b | 35/38 (92%) | |
+| devstral-small-2-2512 | 12/32 (37%) | Stalls/errors — model protocol issue |
+| google/gemma-4-26b-a4b-qat | 37/38 (97%) | |
+| qwen/qwen3.6-27b | not run | — |
+| zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor |
+| qwen/qwen3-coder-30b | not run | — |
+
+opencode is strong on qwen/gemma families. devstral collapse (37%) is a new finding — devstral appears incompatible with opencode's tool schema, not tested on prior runs.
 
 ## Comparison with other adapters
 
