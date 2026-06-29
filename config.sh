@@ -53,7 +53,7 @@ export BENCH_PARALLEL="${BENCH_PARALLEL:-3}"
 #   ⚠️  Caution: goose (slow), pi (very slow), opencode (very slow)
 #   ❌ Not recommended: codex, copilot, caveman, hermes, interpreter, claude
 # See docs/AGENT-SELECTION.md for performance matrix and use-case guidance.
-DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot}"
+DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot,nanocoder}"
 
 # Repo root, resolved regardless of where you invoke from.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
