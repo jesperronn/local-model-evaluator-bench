@@ -9,24 +9,34 @@
 | **Parameter count** | 35B total, 3B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-18 |
+| **Last run** | 2026-06-29 (run `20260629-005401`) |
 | **LMS entry removed** | 2026-06-10 |
 | **LMS entry re-added** | 2026-06-18 (qwen3.6-27b removed; 35b-a3b returned) |
-| **Doc updated** | 2026-06-18 |
+| **Doc updated** | 2026-06-30 |
 
 ## Results summary
 
-The strongest general model in the suite. hermes (via Ollama), opencode, and codex all score 100%; caveman 92.9% via Ollama. aider scores 92.9% (LMS). New adapters evaluated 2026-06-18 on LMS: cline 100%, goose 100%, interpreter 100%, pi 100% — all four achieve perfect scores. Despite 35B total params, the 3B active architecture keeps it fast. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+The strongest general model in the suite. On the 2026-06-29 overnight run: aider, cline, codex, goose, hermes, interpreter, opencode, openhands, pi all scored **38/38 (100%)**. caveman and copilot are LMS-incompatible (not a model issue). Overall 366/406 (90%) including broken adapters; **100% across all working adapters**. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+
+| Adapter | 2026-06-29 (LMS) | Notes |
+|---------|-----------------|-------|
+| aider | 38/38 (100%) | Previously failed js-03/js-04/js-06; all now PASS |
+| cline | 38/38 (100%) | |
+| codex | 38/38 (100%) | |
+| goose | 38/38 (100%) | |
+| hermes | 38/38 (100%) | |
+| interpreter | 38/38 (100%) | |
+| opencode | 38/38 (100%) | |
+| openhands | 38/38 (100%) | |
+| pi | 38/38 (100%) | |
+| caveman | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
+| copilot | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
 
 ## Failure patterns
 
-**Adapter-specific — aider, js-03-multifile-cache (0/5):** aider scores 0/5 while all other adapters score 5/5. The model likely produces valid content but aider's edit format fails to apply both file changes atomically. No explicit `--file` hints are passed.
+**caveman/copilot LMS incompatibility:** Both adapters fail with error(1) consistently (12/32 partial — only pass cases that don't require the adapter's specific tool call format). This is a caveman/copilot LMS compatibility issue, not a model issue. Both work on Ollama runtime.
 
-**Adapter-specific — aider, js-04-multifile-rename (0/1):** aider fails the multi-file rename case; all other adapters pass 3/3. Same mechanism: second file not updated, ESM import broken.
-
-**Adapter-specific — aider, js-06-lint-and-test (0/4):** aider scores 0/4 on the self-verify lint case while all other adapters score 4/4. The model does not iterate through lint failures under aider, possibly because aider doesn't feed test output back in a format the model acts on.
-
-All three failures are aider-specific and do not appear on opencode, codex, or caveman. This is strong evidence of an aider format/prompt interaction, not a model capability gap.
+**Historic (resolved) — aider multifile failures:** Earlier runs (pre-2026-06-29) showed aider failing js-03, js-04, and js-06 (multifile and self-verify cases). On the 2026-06-29 run all 11 cases passed 100%. Likely resolved by aider version update or adapter changes.
 
 ## Timing observations
 
@@ -49,6 +59,10 @@ All three failures are aider-specific and do not appear on opencode, codex, or c
 **hermes error(1) — historic (resolved 2026-06-11):** hermes was broken on all models; fixed by switching to `backend: local`. Results now available via Ollama (34/34 100%) and LMS hermes.
 
 ## Observations across runs
+
+### 2026-06-29 — LMS overnight (run `20260629-005401`)
+
+Full 11-adapter sweep on LMS. aider/cline/codex/goose/hermes/interpreter/opencode/openhands/pi all 38/38 (100%). Notable: aider now passes all multifile cases (js-03/js-04/js-06) that previously failed — confirmed improvement from the 2026-06-18 run. js-06 ran close to the 300s timeout on both aider (302s) and cline (301s) but passed. caveman and copilot confirmed LMS-incompatible (error(1) on all non-trivial cases; scores reflect partial pass on easy cases only).
 
 ### 2026-06-18 — LMS batch (runs `20260618-190652`, `20260618-190854`)
 

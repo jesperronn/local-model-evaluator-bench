@@ -9,12 +9,26 @@
 | **Parameter count** | 9B |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-12 |
-| **Doc updated** | 2026-06-12 |
+| **Last run** | 2026-06-29 (run `20260629-025143`) |
+| **Doc updated** | 2026-06-30 |
 
 ## Results summary
 
-Strong small model. hermes and codex both score 100%, caveman 96.8%. Overall 139/161 (86.3%). aider scores 57.1% due to consistent multi-file and self-verify gaps. opencode scores 73.5% — its miss on bash-01-topwords (0/4) is an outlier given the model's otherwise solid capability. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+Strong small model. 2026-06-29 run: **aider and interpreter achieve 100%**, codex 97%, opencode and pi 92%, hermes 94%, goose and cline 89%, openhands 86%. caveman and copilot are LMS-incompatible. Overall 340/402 (84%); **93% excluding LMS-broken adapters**. Significant improvement vs the 2026-06-12 run where aider scored only 57.1%. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+
+| Adapter | 2026-06-29 (LMS) | Notes |
+|---------|-----------------|-------|
+| aider | 38/38 (100%) | Major improvement — previously 57.1% |
+| interpreter | 38/38 (100%) | |
+| codex | 37/38 (97%) | 1 case fail |
+| hermes | 32/34 (94%) | 2 cases fail |
+| opencode | 35/38 (92%) | 3 cases fail |
+| pi | 35/38 (92%) | |
+| goose | 34/38 (89%) | |
+| cline | 34/38 (89%) | |
+| openhands | 33/38 (86%) | |
+| caveman | 12/32 (37%) | LMS incompatible |
+| copilot | 12/32 (37%) | LMS incompatible |
 
 ## Failure patterns
 
@@ -38,6 +52,12 @@ Strong small model. hermes and codex both score 100%, caveman 96.8%. Overall 139
 - **opencode:** 8–131s. js-06 took 131s (self-verify iteration). bash-01 failed quickly.
 - **codex:** 32–300s. bash-01 hit timeout but passed; ts-01 was 149s.
 - **caveman:** 19–300s. js-02 timed out (genuine failure); other cases 19–132s.
+
+## Observations across runs
+
+### 2026-06-29 — LMS overnight (run `20260629-025143`)
+
+Full 11-adapter sweep on LMS. aider improved dramatically from 57.1% (2026-06-12) to 100% — all multifile cases now pass. interpreter also 100%. The model shows strong across-the-board capability with the 9B scale. caveman and copilot confirmed LMS-incompatible. Slower adapters (cline, goose, openhands) have a few misses likely from timeout pressure.
 
 ## MLX runtime results (2026-06-12)
 

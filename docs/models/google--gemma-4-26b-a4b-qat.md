@@ -9,20 +9,26 @@
 | **Parameter count** | 26B total, ~4B active |
 | **Disk size** | <!-- TODO --> |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-13 (Ollama) |
-| **Doc updated** | 2026-06-13 |
+| **Last run** | 2026-06-29 LMS (run `20260629-103716`); 2026-06-13 Ollama |
+| **Doc updated** | 2026-06-30 |
 
 ## Results summary
 
-Strong across all runtimes. LMS: hermes 100%, caveman 100%, codex 100%. Ollama: opencode 100%, codex 94.1%, caveman 92.9%, aider 53.6% (multifile cases fail — known format incompatibility). hermes on Ollama is broken (Gemma doesn't recognize terminal tool in Ollama's schema format; LMS hermes works fine). MLX hermes 100%. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
+Strong across all runtimes. On the 2026-06-29 LMS overnight run: goose, hermes, and pi all scored **38/38 (100%)**; interpreter 37/38 (97%); opencode 37/38 (97%); cline 34/38 (89%); openhands 30/36 (83%); aider 31/38 (81%). codex SKIPPED (in compat.json). Overall 313/366 (85%); **91% excluding LMS-broken adapters**. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
-| Adapter | LMS | Ollama | MLX |
-|---------|-----|--------|-----|
-| hermes | 34/34 100% | broken (tool schema) | 34/34 100% |
-| opencode | — | 34/34 100% | — |
-| codex | 34/34 100% | 32/34 94.1% | — |
-| caveman | 34/34 100% | 26/28 92.9% | — |
-| aider | ~50% (timeout on bash-01) | 15/28 53.6% | — |
+| Adapter | 2026-06-29 (LMS) | Ollama (2026-06-13) | MLX |
+|---------|-----------------|---------------------|-----|
+| goose | 38/38 (100%) | — | — |
+| hermes | 38/38 (100%) | broken (tool schema) | 34/34 (100%) |
+| pi | 38/38 (100%) | — | — |
+| interpreter | 37/38 (97%) | — | — |
+| opencode | 37/38 (97%) | 34/34 (100%) | — |
+| cline | 34/38 (89%) | — | — |
+| openhands | 30/36 (83%) | — | — |
+| aider | 31/38 (81%) | 15/28 (53.6%) | — |
+| caveman | 12/32 (37%) | 26/28 (92.9%) | — |
+| copilot | 18/32 (56%) | — | — |
+| codex | SKIPPED | 32/34 (94.1%) | — |
 
 ## Failure patterns
 
@@ -57,9 +63,15 @@ The pattern across all 5 aider failures is consistent: this model has a chat tem
 
 **hermes on Ollama is broken:** the model says "terminal tool appears to be unavailable in this session" and produces no edits. This is a Gemma-specific behavior with the Ollama tool schema format — LMS hermes works fine (100%). Do not use `hermes` adapter for this model on Ollama runtime.
 
+## Observations across runs
+
+### 2026-06-29 — LMS overnight (run `20260629-103716`)
+
+Full 11-adapter LMS sweep. goose/hermes/pi: 100%. interpreter/opencode: 97%. Significant improvement vs 2026-06-13 Ollama results on aider (81% LMS vs 53.6% Ollama) — the LMS runtime and/or adapter updates appear to have fixed the multifile cases that previously failed. caveman remains LMS-incompatible (12/32). copilot scored 18/32 (56%) — slightly above the 37% baseline, suggesting a few cases partially succeed. codex remains skipped per compat.json.
+
 ## Status
 
-**keep** — top-tier performance on opencode and caveman. The aider issue is a known format incompatibility worth investigating. Re-run after testing an aider `--edit-format` change.
+**keep** — top-tier performance across all tested LMS adapters. goose/hermes/pi at 100% on LMS, interpreter/opencode at 97%. The aider multifile issue that plagued the Ollama run appears resolved on LMS. codex excluded by compat.json.
 
 ## Comparison within family
 
