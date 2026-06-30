@@ -29,6 +29,7 @@ The strongest general model in the suite. On the 2026-06-29 overnight run: aider
 | opencode | 38/38 (100%) | |
 | openhands | 38/38 (100%) | |
 | pi | 38/38 (100%) | |
+| nanocoder | 35/36 (97%) | js-04 0/1 (import not updated in consumer); all others PASS |
 | caveman | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
 | copilot | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
 

@@ -27,6 +27,7 @@ Strong small model. 2026-06-29 run: **aider and interpreter achieve 100%**, code
 | goose | 34/38 (89%) | |
 | cline | 34/38 (89%) | |
 | openhands | 33/38 (86%) | |
+| nanocoder | 24/34 (71%) | XML tool-call fallback — smoke-01/02, ts-01, js-05 all error(1) |
 | caveman | 12/32 (37%) | LMS incompatible |
 | copilot | 12/32 (37%) | LMS incompatible |
 
