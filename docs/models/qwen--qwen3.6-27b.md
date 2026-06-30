@@ -26,6 +26,7 @@ Strong performance on LMS GGUF. On the 2026-06-29 overnight run: codex, goose, a
 | hermes | 33/34 (97%) | 1 case fail |
 | cline | 28/34 (82%) | Some timeouts on slower cases |
 | aider | 26/34 (76%) | Thinking token leakage on some cases |
+| nanocoder | 34/38 (89%) | bash-01 0/4 (execute_bash blocked); all JS cases PASS |
 | caveman | not run | — |
 | copilot | not run | — |
 | opencode | not run | — |

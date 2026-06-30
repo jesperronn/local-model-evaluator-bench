@@ -56,13 +56,23 @@ When stdin is not a terminal, the adapter calls `nanocoder run --provider ... --
 
 All 3 smoke cases pass on gemma-4-e4b. The adapter connection is stable; NANOCODER_PROVIDERS injection works. Full sweep against all 7 models scheduled after smoke validation.
 
-### Full sweep (nightly, all 7 models)
+### Full sweep (nightly, 2026-06-30, run `20260630-014836+`)
 
-Pending. 77 combos queued to run after overnight bench completes.
+| Model | Score | Notes |
+|-------|-------|-------|
+| qwen/qwen3.6-35b-a3b | 35/36 (97%) | js-04-multifile-rename 0/1 (import not updated); js-05 5/5 via write+read only |
+| qwen/qwen3.5-9b | 24/34 (71%) | XML tool call fallback — smoke-01/02, ts-01, js-05 all fail with error(1) |
+| mistralai/devstral-small-2-2512 | 33/38 (87%) | bash-01 1/4 (execute_bash blocked); smoke-01 0/2; js-01–06 all PASS |
+| google/gemma-4-26b-a4b-qat | 36/38 (95%) | js-01 2/4; all other cases PASS |
+| qwen/qwen3.6-27b | 34/38 (89%) | bash-01 0/4 (execute_bash blocked); all JS cases PASS |
+| zai-org/glm-4.7-flash | pending | — |
+| qwen/qwen3-coder-30b | pending | — |
 
 ## Known issues
 
-None discovered yet. Adapter is new — first full sweep pending.
+**XML tool call fallback (model-dependent):** some models (qwen3.5-9b) emit XML-style tool calls (`<tool_call><function=string_replace>…</function>`) instead of OpenAI-format structured JSON tool calls. nanocoder only processes structured tool calls — XML calls are silently ignored ("Model returned an empty response with no tool calls"). Affected cases fail quickly (6–16s) with error(1). gemma-4-e4b and qwen3.6-35b-a3b produce proper structured calls and score well; qwen3.5-9b does not.
+
+**js-04-multifile-rename (qwen3.6-35b-a3b):** nanocoder edited the export in `temperature.js` but failed to update the import in the consuming file, leaving the code in a broken state. Other adapters (aider, interpreter) pass this case on the same model. Likely nanocoder's context window or file-discovery heuristics didn't include the consumer file.
 
 ## Status
 

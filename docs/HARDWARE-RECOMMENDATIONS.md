@@ -50,8 +50,9 @@ With 128 GB unified memory, you can run any model in the benchmark. The decision
 | **hermes** | 23–87s | 100%; needs one-time config |
 | **goose** | 18–110s | 100%; good self-verify |
 | **openhands** | 20–254s | 100% on main models; avoid devstral |
+| **nanocoder** | 8–250s | 97% on qwen3.6-35b-a3b; bash tasks blocked (execute_bash) |
 
-**Recommended stack:** aider (daily use) + cline (complex multi-file tasks) + interpreter (when you need shell execution)
+**Recommended stack:** aider (daily use) + cline (complex multi-file tasks) + interpreter (when you need shell execution). nanocoder is a strong new option for JS-heavy tasks.
 
 ### LM Studio config
 
@@ -102,10 +103,11 @@ BENCH_TTL_MINUTES=30    # keep model warm longer between tasks
 | **hermes** | 94–100%; good option |
 | **goose** | 89–100%; reliable |
 | **cline** | 89%; slower but thorough |
+| **nanocoder** | 71–95% depending on model; bash tasks blocked |
 | ❌ opencode | 37% on devstral — model-dependent; check per model |
 | ❌ openhands | 37% on devstral; 83–86% on qwen/gemma — check per model |
 
-**Recommended stack:** aider (default) + interpreter (fallback) + hermes (when you need 100% and have config)
+**Recommended stack:** aider (default) + interpreter (fallback) + hermes (when you need 100% and have config). nanocoder is worth including on gemma-4-26b-a4b-qat (95%).
 
 ### LM Studio config
 

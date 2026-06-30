@@ -28,6 +28,7 @@ Strong across all runtimes. On the 2026-06-29 LMS overnight run: goose, hermes, 
 | aider | 31/38 (81%) | 15/28 (53.6%) | — |
 | caveman | 12/32 (37%) | 26/28 (92.9%) | — |
 | copilot | 18/32 (56%) | — | — |
+| nanocoder | 36/38 (95%) | — | — |
 | codex | SKIPPED | 32/34 (94.1%) | — |
 
 ## Failure patterns

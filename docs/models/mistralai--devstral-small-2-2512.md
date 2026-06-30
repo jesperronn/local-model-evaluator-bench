@@ -32,6 +32,7 @@ Disappointing across most adapters. aider is the standout at 94%, but opencode a
 | openhands | 12/32 (37%) | Stalls/errors |
 | caveman | 12/32 (37%) | LMS incompatible |
 | copilot | 12/32 (37%) | LMS incompatible |
+| nanocoder | 33/38 (87%) | bash-01 1/4 (execute_bash blocked); smoke-01 0/2; all JS cases PASS |
 | codex | SKIPPED | in compat.json |
 
 ## Failure patterns
