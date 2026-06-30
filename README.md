@@ -220,6 +220,11 @@ docs/                CASES.md, SCORING.md, SETUP.md, ADDING-CASES.md, troublesho
 - `bin/rt` — runtime status and control
 - `bin/stale.test.sh` — tests for `bin/stale`
 
+### Doc consistency & agent eval
+- `bin/lint-cards` — validate model/tool cards against [docs/CARD-SPEC.md](docs/CARD-SPEC.md) (required sections, filled Quick verdict, no placeholders); `--json` for loops
+- `bin/fix-card` — loop a model (local or hosted) until a card passes `bin/lint-cards`; `--via lms|claude`
+- `bin/eval-agent` — score an agent on the [100-question suite](docs/QUESTION-SUITE.md) (skeleton; see [docs/AGENT-EVAL-SUITE.md](docs/AGENT-EVAL-SUITE.md))
+
 ### Adapter & model tooling
 - `bin/lint` — static checks for project scripts
 - `bin/lint-adapters` — static checks for adapter scripts specifically

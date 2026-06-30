@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# bin/fix-card — loop a model until a card passes bin/lint-cards.
+#
+# The stop condition is purely MECHANICAL: lint-cards must report the card green.
+# Each iteration feeds the model the canonical CARD-SPEC section for the card's
+# type, the current card, and the exact lint failures, and asks for a corrected
+# full card. This is how any small model (local or hosted) can be looped until
+# its output conforms to the template.
+#
+# Usage:
+#   bin/fix-card --card docs/models/x.md [opts]
+# Options:
+#   --via claude|lms     backend (default: claude)
+#   --model ID           model id. Default: claude → claude-haiku-4-5-20251001;
+#                         lms → qwen/qwen3.6-35b-a3b
+#   --max N              max iterations (default: 5)
+#   --in-place           overwrite the card. Default: write <card>.fixed.md
+#   --think              keep model reasoning on (default: prepend /no_think for
+#                        lms, since reasoning models balloon full-card rewrites)
+#   --base-url URL       LM Studio endpoint (default: $LMS_BASE_URL or :1234/v1)
+# Exit: 0 if the card reaches green, 1 otherwise.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/lib/common.sh"
+LINT="$HERE/bin/lint-cards"
+SPEC="$HERE/docs/CARD-SPEC.md"
+
+C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_DIM=$'\033[2m'; C_CYN=$'\033[36m'; C_RST=$'\033[0m'
+
+CARD=""; VIA="claude"; MODEL=""; MAX=5; INPLACE=0; NOTHINK=1
+BASE_URL="${LMS_BASE_URL:-http://localhost:1234/v1}"
+API_KEY="${LMS_API_KEY:-lm-studio}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --card) CARD="${2:-}"; shift 2 ;;
+    --via) VIA="${2:-}"; shift 2 ;;
+    --model) MODEL="${2:-}"; shift 2 ;;
+    --max) MAX="${2:-}"; shift 2 ;;
+    --in-place) INPLACE=1; shift ;;
+    --think) NOTHINK=0; shift ;;
+    --base-url) BASE_URL="${2:-}"; shift 2 ;;
+    -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option: $1" ;;
+  esac
+done
+[ -n "$CARD" ] && [ -f "$CARD" ] || die "--card PATH (existing file) required"
+[ -n "$MODEL" ] || MODEL="$([ "$VIA" = lms ] && echo "qwen/qwen3.6-35b-a3b" || echo "claude-haiku-4-5-20251001")"
+
+case "$CARD" in
+  */models/*) CTYPE=model ;; */tools/*|*/extensions/*) CTYPE=tool ;;
+  */runtimes/*) CTYPE=runtime ;; *) die "cannot infer card type from $CARD" ;;
+esac
+
+# Canonical spec section for this card type (## X card … next ## ).
+spec_section() {
+  local want; case "$CTYPE" in model) want="## Model card";; tool) want="## Tool card";; runtime) want="## Runtime card";; esac
+  awk -v w="$want" '
+    index($0,w)==1{f=1;print;next}
+    f&&/^```/{fence=!fence}
+    f&&/^## /&&!fence{exit}
+    f{print}' "$SPEC"
+}
+
+# Send a prompt to the chosen backend, print the model's text reply.
+ask_model() {  # prompt on stdin
+  local prompt; prompt="$(cat)"
+  if [ "$VIA" = claude ]; then
+    printf '%s' "$prompt" | claude --print --model "$MODEL" 2>/dev/null
+  else
+    local payload; payload="$(jq -n --arg m "$MODEL" --arg c "$prompt" \
+      '{model:$m, temperature:0, messages:[{role:"user",content:$c}]}')"
+    curl -s "$BASE_URL/chat/completions" -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $API_KEY" -d "$payload" \
+      | jq -r '.choices[0].message.content // empty'
+  fi
+}
+
+# Strip a leading/trailing ```markdown fence if the model wrapped its answer.
+strip_fence() {
+  awk '{l[NR]=$0} END{s=1;e=NR; if(l[1]~/^```/)s=2; if(l[NR]~/^```$/)e=NR-1; for(i=s;i<=e;i++)print l[i]}'
+}
+
+WORK="$(mktemp)"; trap 'rm -f "$WORK"' EXIT
+cp "$CARD" "$WORK"
+SPEC_SECTION="$(spec_section)"
+
+echo "${C_CYN}fix-card${C_RST} $CARD  (type=$CTYPE via=$VIA model=$MODEL max=$MAX)"
+for i in $(seq 1 "$MAX"); do
+  FAILS="$("$LINT" --card "$WORK" --type "$CTYPE" --json 2>/dev/null)"
+  if printf '%s' "$FAILS" | grep -q '"ok":true'; then
+    echo "${C_GRN}✓ green after $((i-1)) edit(s)${C_RST}"
+    OUT="$CARD"; [ "$INPLACE" -eq 0 ] && OUT="${CARD%.md}.fixed.md"
+    cp "$WORK" "$OUT"; echo "→ wrote $OUT"; exit 0
+  fi
+  reasons="$(printf '%s' "$FAILS" | jq -r '.fails[]' 2>/dev/null)"
+  echo "${C_DIM}iter $i — failures:${C_RST}"; printf '%s\n' "$reasons" | sed 's/^/   - /'
+
+  reply="$( { cat <<PROMPT
+$([ "$VIA" = lms ] && [ "$NOTHINK" -eq 1 ] && echo "/no_think")
+You are fixing a documentation "card" so it conforms to a strict template.
+Below is (1) the canonical template spec for this card type, (2) the current
+card, and (3) the exact validation failures. Rewrite the card so it passes ALL
+checks. Keep every real fact and number from the current card — only add the
+missing sections and fill required fields. Do NOT invent benchmark numbers; if a
+value is genuinely unknown, write a brief measured-pending note rather than a
+TODO placeholder (the word "TODO" and template comments like <!-- ... --> are
+rejected by the validator). Output ONLY the corrected card markdown, no fences,
+no commentary.
+
+===== (1) TEMPLATE SPEC =====
+$SPEC_SECTION
+
+===== (2) CURRENT CARD =====
+$(cat "$WORK")
+
+===== (3) VALIDATION FAILURES =====
+$reasons
+PROMPT
+  } | ask_model | strip_fence )"
+
+  if [ -z "$reply" ]; then echo "${C_RED}empty reply from model — aborting${C_RST}"; exit 1; fi
+  printf '%s\n' "$reply" > "$WORK"
+done
+
+echo "${C_RED}✗ still failing after $MAX iterations${C_RST}"
+"$LINT" --card "$WORK" --type "$CTYPE" 2>/dev/null | sed 's/^/   /'
+exit 1

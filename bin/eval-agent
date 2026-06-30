@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# bin/eval-agent — SKELETON (Task 2). Score how well an agent answers questions
+# about this project, from eval/questions.jsonl (sections A/B/F/G of
+# docs/QUESTION-SUITE.md). See docs/AGENT-EVAL-SUITE.md for the design.
+#
+# Grading: citation = mechanical (does the answer mention the expected source
+# path?); correctness = exact match for grade:"exact", else LLM-judge.
+#
+# STATUS: the two model-touching functions (ask_agent, judge_correct) are
+# STUBBED and marked `# TODO: wire`. Wire them (reuse bin/fix-card's ask_model
+# pattern) and provide eval/questions.jsonl to make this live.
+#
+# Usage:
+#   bin/eval-agent --via lms --model qwen/qwen3.6-35b-a3b [--mode open|closed]
+#                  [--section A,B] [--bank eval/questions.jsonl] [--out CSV]
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/lib/common.sh"
+
+VIA="lms"; MODEL=""; MODE="open"; SECTIONS=""; BANK="$HERE/eval/questions.jsonl"
+OUT=""; BASE_URL="${LMS_BASE_URL:-http://localhost:1234/v1}"; API_KEY="${LMS_API_KEY:-lm-studio}"
+JUDGE_VIA="claude"; JUDGE_MODEL="claude-haiku-4-5-20251001"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --via) VIA="$2"; shift 2 ;;
+    --model) MODEL="$2"; shift 2 ;;
+    --mode) MODE="$2"; shift 2 ;;
+    --section) SECTIONS="$2"; shift 2 ;;
+    --bank) BANK="$2"; shift 2 ;;
+    --out) OUT="$2"; shift 2 ;;
+    --base-url) BASE_URL="$2"; shift 2 ;;
+    -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option: $1" ;;
+  esac
+done
+command -v jq >/dev/null || die "jq required"
+[ -f "$BANK" ] || die "question bank not found: $BANK  (see docs/AGENT-EVAL-SUITE.md to build it)"
+[ -n "$MODEL" ] || die "--model required"
+[ -n "$OUT" ] || OUT="$HERE/eval/runs/$(date +%Y%m%d-%H%M%S).csv"
+mkdir -p "$(dirname "$OUT")"
+
+# ── STUB: send a question to the agent under test, return its answer text ─────
+ask_agent() {  # question on stdin → answer on stdout
+  : # TODO: wire. Open-book: hand the repo to the tool/adapter (e.g. drive an
+    # adapter in adapters/, or curl $BASE_URL with a system prompt that includes
+    # the doc tree). Closed-book: send only the question. Reuse bin/fix-card's
+    # ask_model() pattern for the raw LMS/claude call.
+  echo "STUB_ANSWER"
+}
+
+# ── STUB: judge whether answer matches expected (free-text questions) ─────────
+judge_correct() {  # $1=question $2=expected $3=answer → prints 0 or 1
+  : # TODO: wire. Ask $JUDGE_MODEL: "Q / expected / answer → return {correct:0|1}".
+    # Use a fixed strong judge so grading doesn't drift with the tested agent.
+  echo 0
+}
+
+# ── mechanical helpers (no model) ─────────────────────────────────────────────
+norm() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g'; }
+cite_hit() {  # $1=answer $2=source(path#anchor) → 0/1
+  local path="${2%%#*}" base; base="$(basename "$path")"
+  if printf '%s' "$1" | grep -qiF "$path" || printf '%s' "$1" | grep -qiF "$base"; then echo 1; else echo 0; fi
+}
+exact_hit() {  # $1=expected $2=answer → 0/1  (normalized substring either way)
+  local e a; e="$(norm "$1")"; a="$(norm "$2")"
+  [ -n "$e" ] && { case "$a" in *"$e"*) echo 1; return;; esac; }
+  echo 0
+}
+
+echo "id,section,mode,seconds,correct,citation" > "$OUT"
+total=0; corr=0; cites=0
+declare -A sec_corr sec_n sec_cite
+
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  id="$(jq -r '.id' <<<"$line")"; section="$(jq -r '.section' <<<"$line")"
+  [ -n "$SECTIONS" ] && { case ",$SECTIONS," in *",$section,"*) :;; *) continue;; esac; }
+  q="$(jq -r '.question' <<<"$line")"; expected="$(jq -r '.expected' <<<"$line")"
+  source="$(jq -r '.source' <<<"$line")"; grade="$(jq -r '.grade // "judge"' <<<"$line")"
+
+  start=$SECONDS
+  answer="$(printf '%s' "$q" | ask_agent)"
+  secs=$((SECONDS-start))
+
+  citation="$(cite_hit "$answer" "$source")"
+  if [ "$grade" = exact ]; then correct="$(exact_hit "$expected" "$answer")"
+  else correct="$(judge_correct "$q" "$expected" "$answer")"; fi
+
+  printf '%s,%s,%s,%s,%s,%s\n' "$id" "$section" "$MODE" "$secs" "$correct" "$citation" >> "$OUT"
+  total=$((total+1)); corr=$((corr+correct)); cites=$((cites+citation))
+  sec_n[$section]=$(( ${sec_n[$section]:-0} + 1 ))
+  sec_corr[$section]=$(( ${sec_corr[$section]:-0} + correct ))
+  sec_cite[$section]=$(( ${sec_cite[$section]:-0} + citation ))
+done < "$BANK"
+
+[ "$total" -gt 0 ] || die "no questions matched (bank empty or --section filtered all out)"
+pct() { [ "$2" -gt 0 ] && echo $(( 100 * $1 / $2 )) || echo 0; }
+echo
+echo "Scorecard ($VIA/$MODEL, mode=$MODE, $total questions)"
+echo "  Findability % (A citation): $(pct "${sec_cite[A]:-0}" "${sec_n[A]:-0}")"
+echo "  Decision accuracy % (B):    $(pct "${sec_corr[B]:-0}" "${sec_n[B]:-0}")"
+echo "  Method/process % (F+G):     $(pct "$(( ${sec_corr[F]:-0} + ${sec_corr[G]:-0} ))" "$(( ${sec_n[F]:-0} + ${sec_n[G]:-0} ))")"
+echo "  Citation rate % (all):      $(pct "$cites" "$total")"
+echo "  Correctness % (all):        $(pct "$corr" "$total")"
+echo "→ $OUT"

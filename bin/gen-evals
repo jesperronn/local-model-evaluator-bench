@@ -129,21 +129,14 @@ cat <<'SECTION'
 
 ---
 
-## 5. Requirements documents
+## 5. Card specification (canonical)
 
-### docs/MODEL-EVAL-REQUIREMENTS.md
-
-SECTION
-cat "$HERE/docs/MODEL-EVAL-REQUIREMENTS.md"
-
-cat <<'SECTION'
-
----
-
-### docs/TOOL-EVAL-REQUIREMENTS.md
+The single source of truth for model/tool/runtime card structure. Follow the
+required sections, order, and skeletons exactly. A card is machine-validated by
+`bin/lint-cards` against this spec — generated cards MUST pass it.
 
 SECTION
-cat "$HERE/docs/TOOL-EVAL-REQUIREMENTS.md"
+cat "$HERE/docs/CARD-SPEC.md"
 
 cat <<'SECTION'
 

@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+# bin/lint-cards — validate model/tool/runtime cards against docs/CARD-SPEC.md.
+#
+# The required-section list is PARSED from CARD-SPEC.md at runtime (single source
+# of truth): each card-type's "### Required sections" table lists the mandatory
+# sections as **bold** names in column 2. A card passes when:
+#   1. every required section heading is present,
+#   2. the Quick verdict table has all 5 metrics filled (no empty/placeholder),
+#   3. no required area still contains a placeholder (TODO / <!-- … --> / unknown).
+#
+# This is the machine-checkable "green" that a fix-loop (bin/fix-card) iterates
+# toward, so any small model can be looped until its output conforms.
+#
+# Usage:
+#   bin/lint-cards                 # lint all model + tool cards
+#   bin/lint-cards --type model    # only docs/models/*.md
+#   bin/lint-cards --type tool     # only docs/tools/*.md
+#   bin/lint-cards --card PATH     # lint a single card (type inferred from path)
+#   bin/lint-cards --quiet         # only print failures + summary
+#   bin/lint-cards --json          # machine-readable per-card result (for loops)
+# Exit: 0 if all linted cards pass, 1 if any fail, 2 on usage error.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/lib/common.sh"
+
+SPEC="$HERE/docs/CARD-SPEC.md"
+[ -f "$SPEC" ] || die "missing $SPEC"
+
+C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_YEL=$'\033[33m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
+
+TYPE=""; CARD=""; QUIET=0; JSON=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --type) TYPE="${2:-}"; shift 2 ;;
+    --card) CARD="${2:-}"; shift 2 ;;
+    --quiet) QUIET=1; shift ;;
+    --json) JSON=1; shift ;;
+    -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+# ── parse required sections for a card type out of CARD-SPEC.md ──────────────
+# Scans from "## <Type> card" → "### Required sections" → the table, collecting
+# **bold** names until "### Optional sections" (or the next "## ").
+required_sections() {  # $1 = model|tool|runtime
+  local want; case "$1" in
+    model) want="## Model card" ;;
+    tool) want="## Tool card" ;;
+    runtime) want="## Runtime card" ;;
+    *) return 1 ;;
+  esac
+  awk -v want="$want" '
+    index($0, want) == 1 { incard=1; next }         # heading starts with "## X card"
+    incard && /^## / { exit }                      # left this card type
+    incard && /^### Required sections/ { inreq=1; next }
+    incard && inreq && /^### / { inreq=0 }          # left required-sections block
+    incard && inreq && /^\| *[0-9]+ *\|/ {
+      if (match($0, /\*\*[^*]+\*\*/)) {
+        s = substr($0, RSTART+2, RLENGTH-4); print s
+      }
+    }
+  ' "$SPEC"
+}
+
+# Normalize a heading/section name for comparison: lowercase, alnum only.
+norm() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]'; }
+
+# ── single-card lint ─────────────────────────────────────────────────────────
+# Populates global arrays FAILS (reasons) for the card at $1, type $2.
+lint_one() {  # $1 = file  $2 = type
+  local file="$1" type="$2"
+  FAILS=()
+  [ -f "$file" ] || { FAILS+=("file not found"); return; }
+
+  local body; body="$(cat "$file")"
+
+  # 1. required sections present (## heading, normalized match)
+  local -a present=()
+  while IFS= read -r h; do present+=("$(norm "$h")"); done < <(grep -E '^## ' "$file" | sed 's/^## *//')
+  local sec n found
+  while IFS= read -r sec; do
+    [ -z "$sec" ] && continue
+    n="$(norm "$sec")"; found=0
+    for p in "${present[@]:-}"; do [ "$p" = "$n" ] && { found=1; break; }; done
+    [ "$found" -eq 0 ] && FAILS+=("missing required section: ## $sec")
+  done < <(required_sections "$type")
+
+  # 2. Quick verdict completeness — extract the table rows under ## Quick verdict
+  local qv; qv="$(awk '/^## *Quick verdict/{f=1;next} f&&/^## /{exit} f' "$file")"
+  if [ -n "$qv" ]; then
+    local -a metrics
+    if [ "$type" = "model" ]; then metrics=(Accuracy Speed "Best adapter" "Recommended for" Status)
+    elif [ "$type" = "tool" ]; then metrics=(Accuracy Speed "Best model" "Recommended for" Status)
+    else metrics=(Accuracy Speed "Best" "Recommended" Status); fi
+    local m val
+    for m in "${metrics[@]}"; do
+      # row like: | **Accuracy** | value |
+      val="$(printf '%s\n' "$qv" | grep -iE "\*\*${m}" | head -1 | awk -F'|' '{print $3}' | sed 's/^ *//; s/ *$//')"
+      if [ -z "$val" ]; then FAILS+=("Quick verdict missing/empty metric: $m")
+      elif printf '%s' "$val" | grep -qiE 'todo|unknown|^<|^-+$|^n/?a$'; then
+        FAILS+=("Quick verdict placeholder for $m: '$val'")
+      fi
+    done
+  fi
+  # (absence of the Quick verdict section itself is already caught in step 1.)
+
+  # 3. placeholder scan across the whole card (TODO / template comments / unknown)
+  local ph; ph="$(grep -nE '<!-- *TODO|<!-- *Replace|TODO|\bunknown\b' "$file" \
+                   | grep -viE 'unknown option|status.*unknown is not' | head -5)"
+  if [ -n "$ph" ]; then
+    while IFS= read -r line; do FAILS+=("placeholder: $line"); done <<< "$ph"
+  fi
+}
+
+infer_type() {  # from path
+  case "$1" in
+    */models/*) echo model ;; */tools/*|*/extensions/*) echo tool ;;
+    */runtimes/*) echo runtime ;; *) echo "" ;;
+  esac
+}
+
+# ── collect target files ─────────────────────────────────────────────────────
+declare -a TARGETS=()
+if [ -n "$CARD" ]; then
+  TARGETS=("$CARD"); [ -n "$TYPE" ] || TYPE="$(infer_type "$CARD")"
+  [ -n "$TYPE" ] || die "cannot infer card type from path: $CARD (use --type)"
+  declare -A CARDTYPE; CARDTYPE["$CARD"]="$TYPE"
+else
+  declare -A CARDTYPE
+  if [ -z "$TYPE" ] || [ "$TYPE" = model ]; then
+    for f in "$HERE"/docs/models/*.md; do [ -e "$f" ] && { TARGETS+=("$f"); CARDTYPE["$f"]=model; }; done
+  fi
+  if [ -z "$TYPE" ] || [ "$TYPE" = tool ]; then
+    for f in "$HERE"/docs/tools/*.md; do [ -e "$f" ] && { TARGETS+=("$f"); CARDTYPE["$f"]=tool; }; done
+  fi
+  if [ "$TYPE" = runtime ]; then
+    for f in "$HERE"/docs/runtimes/*.md; do [ -e "$f" ] && { TARGETS+=("$f"); CARDTYPE["$f"]=runtime; }; done
+  fi
+fi
+[ "${#TARGETS[@]}" -gt 0 ] || die "no cards found to lint"
+
+# ── run ──────────────────────────────────────────────────────────────────────
+pass=0; fail=0
+for f in "${TARGETS[@]}"; do
+  lint_one "$f" "${CARDTYPE[$f]}"
+  rel="${f#"$HERE"/}"
+  if [ "${#FAILS[@]}" -eq 0 ]; then
+    pass=$((pass+1))
+    if [ "$JSON" -eq 1 ]; then printf '{"card":"%s","ok":true,"fails":[]}\n' "$rel"
+    elif [ "$QUIET" -eq 0 ]; then printf '%s %s\n' "${C_GRN}[PASS]${C_RST}" "$rel"; fi
+  else
+    fail=$((fail+1))
+    if [ "$JSON" -eq 1 ]; then
+      printf '{"card":"%s","ok":false,"fails":[' "$rel"
+      for i in "${!FAILS[@]}"; do
+        esc="${FAILS[$i]//\\/\\\\}"; esc="${esc//\"/\\\"}"
+        printf '%s"%s"' "$([ "$i" -gt 0 ] && echo ,)" "$esc"
+      done
+      printf ']}\n'
+    else
+      printf '%s %s\n' "${C_RED}[FAIL]${C_RST}" "$rel"
+      for r in "${FAILS[@]}"; do printf '   %s- %s%s\n' "$C_DIM" "$r" "$C_RST"; done
+    fi
+  fi
+done
+
+if [ "$JSON" -eq 0 ]; then
+  echo
+  printf '%s%d passed, %d failed%s (of %d cards)\n' \
+    "$([ "$fail" -eq 0 ] && echo "$C_GRN" || echo "$C_YEL")" "$pass" "$fail" "$C_RST" "${#TARGETS[@]}"
+fi
+[ "$fail" -eq 0 ]
