@@ -288,16 +288,15 @@
     "adapter": "cline",
     "model": "google/gemma-4-e4b",
     "runtime": "lms",
-    "agent_version": "3.0.31",
+    "agent_version": "3.0.34",
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
     "symptom": "MISS: hello.txt not created",
-    "status": "resolved",
+    "status": "open",
     "last_seen": "2026-06-28",
     "last_run_id": "20260628-234727",
-    "resolved_date": "2026-06-29",
-    "resolved_run_id": "20260629-002508",
-    "resolved_agent_version": "3.0.31"
+    "regressed_date": "2026-06-30",
+    "regressed_run_id": "20260630-012119"
   },
   "caveman:google/gemma-4-e4b:lms": {
     "adapter": "caveman",
@@ -318,11 +317,10 @@
     "agent_version": "1.16.0",
     "first_seen": "2026-06-28",
     "run_id": "20260628-184829",
-    "symptom": "MISS: _ still present in file",
-    "status": "resolved",
-    "resolved_date": "2026-06-28",
-    "resolved_run_id": "20260628-234727",
-    "resolved_agent_version": "1.16.0"
+    "symptom": "MISS: sequence correct -- expected [1 1 2 3 5 8 13 21] got [5]",
+    "status": "open",
+    "regressed_date": "2026-06-30",
+    "regressed_run_id": "20260630-012119"
   },
   "pi:google/gemma-4-e4b:lms": {
     "adapter": "pi",
