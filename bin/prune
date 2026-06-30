@@ -327,10 +327,10 @@ do_interactive() {
 
   [[ -z "$selected" ]] && { echo "Nothing selected."; return; }
 
-  # Recover TSV rows by matching model id (last field of each display line)
+  # Recover TSV rows by matching model id from fzf selection.
+  # Extract everything after the last double-space separator (model ID is the last field).
   local to_remove=()
   while IFS= read -r line; do
-    # id is the last whitespace-delimited token after the fixed columns
     local sel_id="${line##*  }"
     sel_id="${sel_id#"${sel_id%%[![:space:]]*}"}"
     local rt row_id size ts target
