@@ -33,6 +33,8 @@ The headline question per task is: **what is the smallest / fastest local model
 that reliably passes at realistic concurrency — and which tool gets the most out
 of it?** Tool choice matters as much as model choice, especially on smaller models.
 
+See [docs/PURPOSE.md](docs/PURPOSE.md) for the full rationale, document hierarchy, and what this project explicitly does not try to answer.
+
 > **`--parallel` and benchmarking realism:** `config.sh` sets `BENCH_PARALLEL=3`
 > (orchestrator + 2–3 agents, the target workload). Drop to `BENCH_PARALLEL=1`
 > for best single-request throughput. When memory allows — especially for small
