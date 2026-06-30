@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# bin/sweep-cards — hand the card-conformance sweep to a LOCAL AGENT.
+#
+# Unlike bin/fix-card (raw model API, full-card rewrite), this drives a real
+# agent harness (default: opencode → LM Studio) that uses its own file + bash
+# tools to read the card, run bin/lint-cards, edit, and iterate until green.
+# This tests whether a local agent+model can maintain the docs autonomously.
+#
+# Edits happen IN PLACE — run it on a branch (the orchestrator does this).
+#
+# Usage:
+#   bin/sweep-cards [--adapter opencode-lms] [--model qwen/qwen3.6-35b-a3b]
+#                   [--rounds 2] [--type model|tool] [--cards "a.md b.md"]
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"; cd "$HERE"
+source "$HERE/lib/common.sh"
+LINT="$HERE/bin/lint-cards"
+
+C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_CYN=$'\033[36m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
+
+ADAPTER="opencode-lms"; MODEL="qwen/qwen3.6-35b-a3b"; ROUNDS=2; TYPE=""; CARDS=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --adapter) ADAPTER="$2"; shift 2 ;;
+    --model) MODEL="$2"; shift 2 ;;
+    --rounds) ROUNDS="$2"; shift 2 ;;
+    --type) TYPE="$2"; shift 2 ;;
+    --cards) CARDS="$2"; shift 2 ;;
+    -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option: $1" ;;
+  esac
+done
+ADAPTER_SH="$HERE/adapters/${ADAPTER}.sh"
+[ -x "$ADAPTER_SH" ] || die "adapter not found/executable: $ADAPTER_SH"
+
+# Preflight: the model must actually answer, else we'd loop silently. (LM Studio
+# auto-unloads on TTL and a pruned model leaves a stale registry entry.)
+BASE_URL="${LMS_BASE_URL:-http://localhost:1234/v1}"
+probe="$(curl -s --max-time 30 "$BASE_URL/chat/completions" -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg m "$MODEL" '{model:$m,max_tokens:1,messages:[{role:"user",content:"ok"}]}')" 2>/dev/null)"
+if ! printf '%s' "$probe" | jq -e '.choices[0].message' >/dev/null 2>&1; then
+  err="$(printf '%s' "$probe" | jq -r '.error.message // "no response"' 2>/dev/null)"
+  die "model '$MODEL' not serving at $BASE_URL: $err
+  → load it first:  lms load $MODEL -y   (check files exist: lms ls)"
+fi
+
+# Build the worklist: explicit --cards, else all currently-failing cards.
+declare -a WORK=()
+if [ -n "$CARDS" ]; then
+  for c in $CARDS; do WORK+=("$c"); done
+else
+  while IFS= read -r c; do WORK+=("$c"); done < <(
+    "$LINT" ${TYPE:+--type "$TYPE"} --json 2>/dev/null | grep '"ok":false' \
+      | sed -E 's/.*"card":"([^"]+)".*/\1/')
+fi
+[ "${#WORK[@]}" -gt 0 ] || { echo "${C_GRN}all cards already pass${C_RST}"; exit 0; }
+
+echo "${C_CYN}sweep-cards${C_RST} agent=$ADAPTER model=$MODEL rounds=$ROUNDS cards=${#WORK[@]}"
+echo "${C_DIM}branch: $(git branch --show-current 2>/dev/null)${C_RST}"
+
+ctype() { case "$1" in */models/*) echo model;; */tools/*|*/extensions/*) echo tool;; */runtimes/*) echo runtime;; *) echo "";; esac; }
+
+green=0; stuck=0
+for card in "${WORK[@]}"; do
+  t="$(ctype "$card")"
+  echo; echo "── $card ($t) ───────────────────────────────"
+  for r in $(seq 1 "$ROUNDS"); do
+    fails="$("$LINT" --card "$card" --type "$t" --json 2>/dev/null | jq -r '.fails[]?' 2>/dev/null)"
+    if [ -z "$fails" ]; then break; fi
+    echo "${C_DIM}round $r — failures:${C_RST}"; printf '%s\n' "$fails" | sed 's/^/   - /'
+
+    prompt="Make the documentation card '$card' pass the project's card validator.
+
+Steps (do them with your tools, do not just describe them):
+1. Read docs/CARD-SPEC.md — the '${t^} card' section lists the required sections, order, and a skeleton.
+2. Read the current card: $card
+3. Run:  bin/lint-cards --card $card
+4. Edit $card to fix EVERY reported failure: add any missing required sections,
+   fill the Quick verdict table (Accuracy, Speed (avg), Best $([ "$t" = tool ] && echo model || echo adapter), Recommended for, Status),
+   and remove placeholders (the words TODO and unknown, and <!-- --> template comments).
+5. Re-run  bin/lint-cards --card $card  and keep editing until it prints PASS.
+
+Current validator failures to fix:
+$fails
+
+Rules: PRESERVE every existing fact and number already in the card. Do NOT invent
+benchmark numbers — if a value is genuinely unknown, write a brief 'measured pending'
+note instead of TODO. Edit the file with your tools; do not delete real content."
+
+    echo "${C_DIM}→ running $ADAPTER ...${C_RST}"
+    # adapters source config.sh which needs HERE in the env (bin/bench exports it).
+    printf '%s' "$prompt" | MODEL_ID="$MODEL" HERE="$HERE" "$ADAPTER_SH" >/dev/null 2>&1 || \
+      echo "${C_DIM}(adapter exited nonzero)${C_RST}"
+  done
+  # final verdict
+  if "$LINT" --card "$card" --type "$t" >/dev/null 2>&1; then
+    echo "${C_GRN}✓ green${C_RST}"; green=$((green+1))
+  else
+    echo "${C_RED}✗ still failing after $ROUNDS round(s)${C_RST}"; stuck=$((stuck+1))
+  fi
+done
+
+echo; echo "${C_CYN}sweep done:${C_RST} ${green} green, ${stuck} stuck (of ${#WORK[@]})"
+echo "review with: git diff --stat   |   revert with: git checkout -- docs/"
