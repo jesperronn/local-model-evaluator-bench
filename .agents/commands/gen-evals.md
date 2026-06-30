@@ -75,7 +75,10 @@ For each model, write or update `docs/models/<slug>.md` where `<slug>` is
 the model key with `/` replaced by `--`
 (e.g. `google/gemma-4-e2b-qat` → `google--gemma-4-e2b-qat.md`).
 
-Follow `docs/MODEL-EVAL-REQUIREMENTS.md` exactly for section names and content.
+Follow `docs/CARD-SPEC.md` ("Model card") exactly for section names, order, and
+content. The Quick verdict table is **required** (lead with it). The regression
+test is `docs/QUESTION-SUITE.md` section C — every required section maps to a
+question there.
 
 **Updating an existing page:** preserve all prior observations in
 `### Observations across runs` (append a new dated entry, never delete old
@@ -108,7 +111,11 @@ Key rules:
 For each adapter, write or update `docs/tools/<name>.md` where `<name>`
 matches the adapter filename (e.g. `aider.md`, `opencode.md`, `codex.md`).
 
-Follow `docs/TOOL-EVAL-REQUIREMENTS.md` exactly.
+Follow `docs/CARD-SPEC.md` ("Tool card") exactly for section names, order, and
+content. The Quick verdict table is **required**, *Iteration / self-verify* is a
+standalone section, and *Capability notes* (critical-path flags: tool-editing
+reliability, bash/category blocks) is required. Regression test: `docs/QUESTION-SUITE.md`
+section D.
 
 **Edit mechanism** — read the adapter script carefully:
 - What flags does it pass? Do they imply a specific edit format?

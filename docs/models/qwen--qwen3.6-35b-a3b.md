@@ -7,7 +7,9 @@
 | **Model key** | `qwen/qwen3.6-35b-a3b` |
 | **Family / arch** | Qwen3.6, MoE (35B total, 3B active) |
 | **Parameter count** | 35B total, 3B active |
-| **Disk size** | <!-- TODO --> |
+| **Quantization** | MLX (LMS) / mxfp8 (Ollama `qwen3.6:35b-a3b-coding-mxfp8`) |
+| **Disk size** | 22.07 GB |
+| **Context window** | 65536 loaded for bench (`BENCH_CONTEXT`) |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-29 (run `20260629-005401`) |
 | **LMS entry removed** | 2026-06-10 |

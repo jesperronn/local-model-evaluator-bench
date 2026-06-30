@@ -1,5 +1,10 @@
 # Doc templates
 
+> **Canonical spec moved.** The required/optional sections and copy-paste
+> skeletons now live in **[../CARD-SPEC.md](../CARD-SPEC.md)** — the single source
+> of truth. The individual `*-card-template.md` files in this folder are
+> redirect stubs. The design principles below remain valid background.
+
 Three card formats — one each for **models**, **tools/agents**, and **runtimes**.
 All three share the same structural principles.
 
