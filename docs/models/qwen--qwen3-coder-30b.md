@@ -26,6 +26,7 @@ One of the top-performing models in the suite. 2026-06-29 full sweep on LMS: aid
 | hermes | 35/38 (92%) | bash-01 WARN, 2 smoke WARNs |
 | openhands | 35/38 (92%) | bash-01 WARN, js-03 stall |
 | goose | 38/38 (100%) | avg 105s, range 6–302s |
+| nanocoder | 36/38 (95%) | bash-01 4/4 PASS (only model to do so); smoke-01 0/2 |
 | caveman | 12/32 (37%) | LMS incompatible |
 | cline | not run | — |
 | opencode | not run | — |

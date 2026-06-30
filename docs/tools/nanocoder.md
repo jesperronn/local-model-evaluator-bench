@@ -65,8 +65,8 @@ All 3 smoke cases pass on gemma-4-e4b. The adapter connection is stable; NANOCOD
 | mistralai/devstral-small-2-2512 | 33/38 (87%) | bash-01 1/4 (execute_bash blocked); smoke-01 0/2; js-01–06 all PASS |
 | google/gemma-4-26b-a4b-qat | 36/38 (95%) | js-01 2/4; all other cases PASS |
 | qwen/qwen3.6-27b | 34/38 (89%) | bash-01 0/4 (execute_bash blocked); all JS cases PASS |
-| zai-org/glm-4.7-flash | pending | — |
-| qwen/qwen3-coder-30b | pending | — |
+| zai-org/glm-4.7-flash | 12/34 (35%) | All cases 300s timeout — GGUF too slow for multi-turn tool calls |
+| qwen/qwen3-coder-30b | 36/38 (95%) | Only smoke-01 fails; bash-01 PASS 4/4 — only model to pass bash case |
 
 ## Known issues
 
@@ -76,4 +76,4 @@ All 3 smoke cases pass on gemma-4-e4b. The adapter connection is stable; NANOCOD
 
 ## Status
 
-**smoke-validated** — all 3 smoke cases pass on gemma-4-e4b. Full bench sweep against all 7 models pending (77 combos queued).
+**production-ready** — full sweep across all 7 models complete. Best results on qwen3-coder-30b (95%), gemma-4-26b-a4b-qat (95%), and qwen3.6-35b-a3b (97%). Avoid on glm-4.7-flash (GGUF too slow). qwen3.5-9b has XML tool-call issues (71%).

@@ -16,7 +16,7 @@ Based on 2026-06-29 overnight sweep across 7 models on LMS runtime.
 | ✅ **pi** | 12–300s/case | 89–97% | Generally reliable; use if others aren't available |
 | ✅ **opencode** | 8–300s/case | 37–97% | Generally reliable but model-dependent |
 | ✅ **openhands** | 28–254s/case | 37–92% | Good on most models; collapses on devstral |
-| ⚠️ **nanocoder** | TBD | TBD | New — smoke-testing in progress (2026-06-30) |
+| ✅ **nanocoder** | 8–250s/case | 35–97% | 97% on 35b-a3b, 95% on gemma/coder-30b. Bash tasks blocked (execute_bash). XML tool-call issue on 9b (71%). GLM too slow (35%) |
 | ❌ **codex** | 12–301s/case | 65–100% | ts-01 error(1) on some models; mixed reliability |
 | ❌ **caveman** | 2s (error) | 37% | LMS incompatible — works on Ollama only |
 | ❌ **copilot** | variable | 37–56% | LMS incompatible — patch format issues |
@@ -81,5 +81,5 @@ This benchmark values **data completeness**. Even agents with lower accuracy pro
 
 ---
 
-**Last updated:** 2026-06-30 (2026-06-29 overnight sweep: 7 models × 11 adapters on LMS)
+**Last updated:** 2026-06-30 (overnight sweep: 7 models × 12 adapters on LMS; nanocoder full sweep complete)
 **See also:** docs/tools/*.md for per-agent deep dives, docs/models/*.md for per-model results

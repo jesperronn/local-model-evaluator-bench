@@ -22,6 +22,7 @@ Effectively unusable for agentic tasks at the 300s timeout. codex is the only ad
 |---------|-----------------|-------|
 | codex | 25/38 (65%) | Only viable adapter — fewer round-trips per case |
 | interpreter | 14/32 (43%) | Slightly above timeout floor |
+| nanocoder | 12/34 (35%) | All 300s timeout; js-06 4/4 PASS (self-verify, multi-turn); timeout floor |
 | aider | 12/32 (37%) | Timeout floor |
 | caveman | 12/32 (37%) | LMS incompatible + too slow |
 | cline | 12/32 (37%) | Timeout floor |
