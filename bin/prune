@@ -13,14 +13,15 @@ RUNTIME=all
 DRY_RUN=false
 INTERACTIVE=false
 UNUSED=false
+RESTART_DAEMON=false
 
 HF_CACHE="${HOME}/.cache/huggingface/hub"
 
-DIM='\033[2m'
-BOLD='\033[1m'
-GREEN_BOLD='\033[1;32m'
-RED_BOLD='\033[1;31m'
-RESET='\033[0m'
+if [ -t 1 ]; then
+  DIM='\033[2m'; BOLD='\033[1m'; GREEN_BOLD='\033[1;32m'; RED_BOLD='\033[1;31m'; RESET='\033[0m'
+else
+  DIM=; BOLD=; GREEN_BOLD=; RED_BOLD=; RESET=
+fi
 
 usage() {
   cat <<EOF
@@ -35,6 +36,10 @@ Options:
   --unused            Only show/offer models NOT referenced by the bench lists
                       (models.txt, models-mlx.txt, models-ollama.txt, aliases)
   --dry-run           With --interactive: preview what would be removed
+  --restart-daemon    Restart LM Studio's headless background daemon (llmster)
+                      so it rescans disk and drops stale model-index entries.
+                      Use after deleting model dirs outside of lms/this tool.
+                      Refuses to run if a model is currently loaded.
   -h, --help          Show this help
 
 Last-used sources:
@@ -51,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     -i|--interactive)  INTERACTIVE=true ;;
     --unused)          UNUSED=true ;;
     --dry-run)         DRY_RUN=true ;;
+    --restart-daemon)  RESTART_DAEMON=true ;;
     --help|-h)         usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -58,6 +64,56 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$RUNTIME" in lms|ollama|mlx|all) ;; *) die "unknown runtime: $RUNTIME" ;; esac
+
+# ── restart-daemon ───────────────────────────────────────────────────────────
+# LM Studio's headless background process (llmster) caches the on-disk model
+# index in memory and in ~/.lmstudio/.internal/{model-data,model-index-cache}.json.
+# If model dirs are deleted/moved outside of `lms`/this tool (manual rm -rf,
+# dotfiles re-sync, etc.), that cache goes stale: `lms ls`/`lms get` keep
+# reporting models as "Local" that no longer exist on disk, and loading them
+# fails with FileNotFoundError. The daemon is detached (PPID 1, no launchd
+# plist) — killing it is safe and `lms` auto-respawns it on the next command,
+# forcing a fresh disk scan. Refuse if a model is loaded so we don't yank
+# memory out from under active inference.
+do_restart_daemon() {
+  command -v lms >/dev/null 2>&1 || die "lms not found"
+
+  local loaded
+  loaded=$(lms ps --json 2>/dev/null | jq -r 'length' 2>/dev/null || echo "?")
+  if [[ "$loaded" != "0" ]]; then
+    die "refusing to restart: $loaded model(s) currently loaded (check: lms ps). Unload first."
+  fi
+
+  local pid
+  pid=$(pgrep -x llmster | head -1 || true)
+  if [[ -z "$pid" ]]; then
+    echo "llmster daemon not running — nothing to restart."
+    return
+  fi
+
+  echo "Stopping llmster daemon (pid $pid)..."
+  kill "$pid"
+  for _ in $(seq 1 10); do
+    pgrep -x llmster >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+  if pgrep -x llmster >/dev/null 2>&1; then
+    die "llmster still running after kill — check manually (pgrep -x llmster)"
+  fi
+
+  echo "Respawning via lms ls..."
+  lms ls >/dev/null 2>&1
+  if pgrep -x llmster >/dev/null 2>&1; then
+    echo "llmster restarted — model index rescanned from disk."
+  else
+    warn "llmster did not respawn automatically — run any 'lms' command to restart it."
+  fi
+}
+
+if $RESTART_DAEMON; then
+  do_restart_daemon
+  exit 0
+fi
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
