@@ -19,6 +19,7 @@ LINT="$HERE/bin/lint-cards"
 C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_CYN=$'\033[36m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
 
 ADAPTER="opencode-lms"; MODEL="qwen/qwen3.6-35b-a3b"; ROUNDS=2; TYPE=""; CARDS=""
+BASE_URL_OPT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --adapter) ADAPTER="$2"; shift 2 ;;
@@ -26,6 +27,7 @@ while [ $# -gt 0 ]; do
     --rounds) ROUNDS="$2"; shift 2 ;;
     --type) TYPE="$2"; shift 2 ;;
     --cards) CARDS="$2"; shift 2 ;;
+    --base-url) BASE_URL_OPT="$2"; shift 2 ;;
     -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
@@ -35,8 +37,8 @@ ADAPTER_SH="$HERE/adapters/${ADAPTER}.sh"
 
 # Preflight: the model must actually answer, else we'd loop silently. (LM Studio
 # auto-unloads on TTL and a pruned model leaves a stale registry entry.)
-BASE_URL="${LMS_BASE_URL:-http://localhost:1234/v1}"
-probe="$(curl -s --max-time 30 "$BASE_URL/chat/completions" -H 'Content-Type: application/json' \
+BASE_URL="${BASE_URL_OPT:-${LMS_BASE_URL:-http://localhost:1234/v1}}"
+probe="$(curl -s --max-time 90 "$BASE_URL/chat/completions" -H 'Content-Type: application/json' \
   -d "$(jq -n --arg m "$MODEL" '{model:$m,max_tokens:1,messages:[{role:"user",content:"ok"}]}')" 2>/dev/null)"
 if ! printf '%s' "$probe" | jq -e '.choices[0].message' >/dev/null 2>&1; then
   err="$(printf '%s' "$probe" | jq -r '.error.message // "no response"' 2>/dev/null)"
@@ -83,9 +85,15 @@ Steps (do them with your tools, do not just describe them):
 Current validator failures to fix:
 $fails
 
-Rules: PRESERVE every existing fact and number already in the card. Do NOT invent
-benchmark numbers — if a value is genuinely unknown, write a brief 'measured pending'
-note instead of TODO. Edit the file with your tools; do not delete real content."
+Rules:
+- PRESERVE every existing fact, number, and nuance already in the card. Do not
+  delete real content when adding/relocating sections — move it, don't drop it.
+- Do NOT invent benchmark numbers — if a value is genuinely unknown, write a
+  brief 'measured pending' note instead of TODO.
+- For 'Capability notes': do NOT default to 'no known blockers'. Read the card's
+  Failure modes / Known issues and surface any critical-path weakness there
+  (e.g. multi-file edits unreliable, tool-call/edit format mangled, a language
+  like bash stuck). Only write 'no known blockers' if the card genuinely lists none."
 
     echo "${C_DIM}→ running $ADAPTER ...${C_RST}"
     # adapters source config.sh which needs HERE in the env (bin/bench exports it).
