@@ -1,19 +1,57 @@
 # continue
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | measured pending |
+| **Speed (avg)** | measured pending |
+| **Best model** | measured pending |
+| **Recommended for** | measured pending |
+| **Status** | broken |
+
+> Rule: when two tools have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
 |-------|-------|
 | **Tool name** | Continue |
 | **CLI command** | none known |
-| **Version** | unknown — not yet evaluated |
+| **Version** | measured pending |
 | **Adapter script** | likely not possible |
 | **How it connects** | IDE extension (VS Code + JetBrains); no headless CLI mode documented |
 | **Last reviewed** | never |
 
-## Status
+## Edit mechanism
 
-**not feasible as-is** — Continue is an IDE extension, not a CLI agent. No stdin/stdout interface for benchmarking.
+- **Format:** IDE-driven/Chat
+- **File targeting:** manual/IDE-driven
+- **Multi-file edits:** none documented for headless use
+
+## Iteration / self-verify behaviour
+Not applicable; lacks a CLI-driven loop.
+
+## Results by model
+
+| Model | Accuracy | Speed (avg) | Runtime | Notes |
+|-------|:--------:|:-----------:|---------|-------|
+| measured pending | measured pending | measured pending | measured pending | measured pending |
+
+## Capability notes
+**Critical path weakness:** Lack of headless CLI or stdin/stdout interface prevents benchmarking in this harness.
+
+## Adapter flags and their rationale
+
+| Flag | Reason |
+|------|--------|
+| none | N/A |
+
+## Failure modes
+No repeatable failures documented due to lack of benchmarkable interface.
+
+## Status
+**broken** — Continue is an IDE extension, not a CLI agent. No stdin/stdout interface for benchmarking.
 
 ## Investigation notes
 

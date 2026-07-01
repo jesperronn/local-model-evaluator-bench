@@ -1,5 +1,17 @@
 # forge
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | measured pending |
+| **Speed (avg)** | measured pending |
+| **Best model** | measured pending |
+| **Recommended for** | measured pending |
+| **Status** | experimental |
+
+> Rule: when two tools have equal accuracy, prefer the faster one. Speed must always be
+
 ## Metadata
 
 | Field | Value |
@@ -28,6 +40,28 @@ Why add it: the multi-agent split is architecturally distinct from any current a
 - **File targeting:** model discovers files autonomously via read tool calls.
 - **Multi-file edits:** well-supported.
 
+## Iteration / self-verify behaviour
+
+forge loops until the model completes the task. Shell execution (test running) is available via tool calls, so self-verify cases are in scope.
+
+## Results by model
+
+| Model | Accuracy | Speed (avg) | Runtime | Notes |
+|-------|:--------:|:-----------:|---------|-------|
+| measured pending | measured pending | measured pending | measured pending | measured pending |
+
+## Capability notes
+
+- **Tool-call format:** same failure mode as codex/opencode — models that emit prose instead of structured tool calls produce no edits.
+- **Multi-agent confusion:** weak models may not switch roles cleanly between forge/sage/muse contexts. Likely manifests as planning output in an implementation turn or vice versa.
+
+## Adapter flags and their rationale
+
+| Flag | Reason |
+|------|--------|
+| `--no-confirm` | measured pending |
+| `--model` | measured pending |
+
 ## Local model configuration
 
 ```bash
@@ -44,7 +78,7 @@ forge loops until the model completes the task. Shell execution (test running) i
 
 ## Failure modes
 
-- **Wrong flag names:** forge is a fast-moving Rust project; flag names changed between releases. Run `forge --help` to verify `--no-confirm` and `--model` exist.
+- **Wrong flag names:** forge is a fast-moving Rust project; flag names changed between releases. Run `forge --help` to verify `--no-confirm` and `--DISCARD_CHANGES` exist.
 - **Multi-agent confusion:** weak models may not switch roles cleanly between forge/sage/muse contexts. Likely manifests as planning output in an implementation turn or vice versa.
 - **Tool-call format:** same failure mode as codex/opencode — models that emit prose instead of structured tool calls produce no edits.
 

@@ -1,12 +1,24 @@
 # caveman
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 8points 71% across all models |
+| **Speed (avg)** | measured pending |
+| **Best model** | qwen3.6-35b-a3b |
+| **Recommended for** | token-efficient task descriptions |
+| **Status** | stable |
+
+> Rule: when two tools have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
 |-------|-------|
 | **Tool name** | caveman |
 | **CLI command** | `caveman` |
-| **Version** | <!-- TODO: `caveman --version` did not produce output --> |
+| **Version** | measured pending |
 | **Adapter script** | [`adapters/caveman-lms.sh`](../../adapters/caveman-lms.sh) |
 | **How it connects** | Uses a `pi`-based agent runtime with a custom `lmstudio` provider definition in `~/.pi/agent/models.json` (baseUrl `http://localhost:1234/v1`, api `openai-completions`). |
 | **Last reviewed** | 2026-06-30 |
@@ -23,20 +35,16 @@ caveman iterates through test results natively. For self-verify cases (js-05, js
 
 Notably, caveman achieves strong self-verify results on larger models: qwen3.6-35b-a3b, qwen3-coder-30b, qwen3-coder-next, gemma-4-26b-a4b-qat all score 5/5 on js-05 and 4/4 on js-06 under caveman.
 
-## Failure modes
+## Results by model
 
-**Infrastructure errors on partial-run models:** caveman exits with error(1) on models that weren't properly loaded (gemma-4-12b, gemma-4-31b, gemma-4-31b-qat). These are infrastructure failures.
+| Model | Accuracy | Speed (avg) | Runtime | Notes |
+|-------|:--------:|:-----------:|---------|-------|
+| measured pending | measured pending | measured pending | measured pending | measured pending |
 
-**Compact prompt under-specification:** the caveman encoding is token-efficient but occasionally under-specifies the task for smaller models. Examples:
-- gemma-4-e2b: caveman fails js-02-debounce-feature (0/4) where aider succeeds (4/4)
-- gemma-4-e2b-qat: caveman fails ts-01-groupby (0/3) where others succeed
-- qwen3.5-9b: caveman hits a timeout on js-02 (0/1, 300s) where others pass
+## Capability notes
 
-This pattern is more common on sub-8B models, suggesting the compact encoding requires more model capacity to interpret correctly.
-
-**Lingering on self-verify (timeout with pass):** caveman occasionally stays running after completing a self-verify case, hitting the 300s timeout with a correct result. Observed on gemma-4-12b-qat js-05 (5/5, timeout) and qwen3.5-9b js-05 (5/5, no timeout but long). The edit and tests pass; caveman doesn't exit cleanly. Not a quality issue.
-
-**js-03-multifile-cache on qwen3-coder-next (0/1):** caveman fails js-03 for qwen3-coder-next where codex passes 5/5. The multi-file cache case requires edits to two specific files; caveman's compact prompt may not communicate the second file clearly enough to this model.
+- **Provider config external to adapter:** the `lmstudio` provider definition lives in `~/.pi/agent/models.json`. If this file is missing or the LM Studio base URL is different, the adapter fails silently. See `docs/SETUP.md`.
+- **Version issue:** `caveman --version` produces no output. The installed version is measured pending.
 
 ## Adapter flags and their rationale
 
@@ -47,15 +55,24 @@ This pattern is more common on sub-8B models, suggesting the compact encoding re
 | `--print` | Runs non-interactively and prints the result (required for bench harness) |
 | `"$PROMPT"` (positional) | Delivers the task as a single invocation |
 
-## Known issues
+## Failure modes
 
-**Version not reported:** `caveman --version` produces no output. The installed version is unknown. Monitor for changes that might affect behaviour.
+**Infrastructure errors on partial-run models:** caveman exits with error(1) on models that weren't properly loaded (gemma-4-12b, gemma-4-31b, gemma-4-31b-qat). These are infrastructure failures.
 
-**Provider config external to adapter:** the `lmstudio` provider definition lives in `~/.pi/agent/models.json`. If this file is missing or the LM Studio base URL is different, the adapter fails silently. See `docs/SETUP.md`.
+**Compact prompt under-specification:** the caveman encoding is token-efficient but occasionally under-specifies the task for smaller models. Examples:
+- gemma-4-e2b: caveman fails js-02-debounce-feature (0/4) where aider succeeds (4/completions)
+- gemma-4-e2b-qat: caveman fails ts-01-groupby (0/3) where others succeed
+- qwen3.5-9b: caveman hits a timeout on js-02 (0/1, 300s) where others pass
+
+This pattern is more common on sub-8B models, suggesting the compact encoding requires more model capacity to interpret correctly.
+
+**Lingering on self-verify (timeout with pass):** caveman occasionally stays running after completing a self-verify case, hitting the 300s timeout with a correct result. Observed on gemma-4-12b-qat js-05 (5/5, timeout) and qwen3.5-9b js-05 (5/5, no timeout but long). The edit and tests pass; caveman doesn't exit cleanly. Not a quality issue.
+
+**js-03-multifile-cache on qwen3-coder-next (0/1):** caveman fails js-03 for qwen3-coder-next where codex passes 5/5. The multi-file cache case requires edits to two specific files; caveman's compact prompt may not communicate the second file clearly enough to this model.
 
 ## Status
 
-**stable** — second-best adapter overall (87.1% across all models), trades blows with opencode. Faster than opencode on most models. The compact encoding occasionally under-specifies tasks for sub-8B models, but on capable models it is highly reliable.
+**stable** — second-best adapter overall (87.1% across all models), trades blows with opencode. Faster than opencod on most models. The compact encoding occasionally under-specifies tasks for sub-8B models, but on capable models it is highly reliable.
 
 ## Comparison with other adapters
 

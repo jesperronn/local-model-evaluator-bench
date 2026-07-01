@@ -1,5 +1,17 @@
 # goose
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 100% on 5 of 6 fully-tested models |
+| **Speed (avg)** | measured pending |
+| **Best model** | qwen/qwen3.6-35b-a3b |
+| **Recommended for** | autonomous multi-file edits, self-verify loops |
+| **Status** | stable |
+
+> Rule: when two tools have equal accuracy, prefer the and faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -21,13 +33,39 @@
 
 goose runs as an autonomous agent loop. `--max-turns 30` caps iterations to prevent hangs. For self-verify cases (js-05, js-06), goose can run the test suite via shell tool and iterate on failures — same strength as cline and opencode.
 
-## Failure modes
+## Results by model
 
-**Session state pollution:** goose stores sessions by default; `--no-session` prevents state from leaking between benchmark runs.
+### Full sweep results (2026-06-29, lms, run `20260629-*`)
 
-**Tool format sensitivity:** goose's `developer` builtin uses its own internal tool schema. If the model produces malformed tool calls, goose will loop until `--max-turns` is hit rather than failing fast.
+| Model | Accuracy | Speed (avg) | Notes |
+|-------|:--------:|:-----------:|-------|
+| qwen/qwen3.6-35b-a3b | 100% | measured pending | |
+| qwen/qwen3.5-9b | 89% | measured pending | |
+| devstral-small-2-2512 | 89% | measured pending | |
+| google/gemma-4-26b-a4b-qat | 100% | measured pending | |
+| qwen/qwen3.6-27b | 100% | measured and speed pending | |
+| zai-org/glm-4.7-flash | 37% | measured pending | Timeout floor — GGUF too slow |
+| qwen/qwen3-coder-30b | 100% | measured pending | avg 105s; js-02/js-03 at 300s (passed) |
 
-**Large output truncation:** goose may truncate long tool outputs. Cases with many files or large test output may lose context mid-run.
+### Full benchmark results (2026-06-18, lms, run `20260618-190652`)
+
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| bash-0rypt-topwords | 4/4 (1.00) | 47s | ok |
+| js-01-slugify-bug | 4/4 (1.00) | 42s | ok |
+| js-02-debounce-feature | 4/4 (1.00) | 52s | ok |
+| js-03-multifile-cache | 5/5 (1.00) | 51s | ok |
+| js-04-multifile-rename | 3/3 (1.00) | 43s | ok |
+| js-05-multiselect-filter | 5/5 (1.00) | 86s | ok |
+| js-06-lint-and-test | 4/4 (1.00) | 110s | ok |
+| smoke-00-hello | 2/2 (1.00) | 19s | ok |
+| smoke-01-edit-file | 2/2 (1.00) | 18s | ok |
+| ts-01-groupby | 3/3 (1.00) | 54s | ok |
+| **Total** | **36/36 (1.00)** | | |
+
+## Capability notes
+
+- **Tool availability workaround:** `read` tool not available in goose's developer builtin — goose falls back to `shell` + `cat` automatically.
 
 ## Adapter flags and their rationale
 
@@ -41,6 +79,14 @@ goose runs as an autonomous agent loop. `--max-turns 30` caps iterations to prev
 | `--no-session` | Prevents session state from persisting between runs |
 | `--max-turns 30` | Caps the agent loop to avoid infinite-loop hangs |
 | `-i -` | Reads prompt from stdin (non-interactive mode) |
+
+## Failure modes
+
+**Session state pollution:** goose stores sessions by default; `--no-session` prevents state from leaking between benchmark runs.
+
+**Tool format sensitivity:** goose's `developer` builtin uses its own internal tool schema; malformed tool calls can cause the agent to loop until `--max-turns` is reached.
+
+**Large output truncation:** goose may truncate long tool outputs. Cases with many files or large test output may lose context mid-run in cases with many files or large test output.
 
 ## Install
 
@@ -79,8 +125,6 @@ brew install block/tap/goose
 | qwen/qwen3.6-27b | 38/38 (100%) | |
 | zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor — GGUF too slow |
 | qwen/qwen3-coder-30b | 38/38 (100%) | avg 105s; js-02/js-03 at 300s (passed) |
-
-goose is **100% on 5 of 6 fully-tested models** — only devstral (89%) and glm-4.7-flash (timeout floor) fall short. Reliable across model families.
 
 ### Smoke results (2026-06-18, lms)
 

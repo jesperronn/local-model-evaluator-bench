@@ -1,15 +1,61 @@
 # gptme
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | measured pending |
+| **Speed (avg)** | measured pending |
+| **Best model** | measured pending |
+| **Recommended for** | measured pending |
+| **Status** | experimental |
+
+> Rule: when two tools have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
 |-------|-------|
 | **Tool name** | gptme |
 | **CLI command** | `gptme` |
-| **Version** | not yet evaluated |
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | measured pending |
+| **Speed (avg)** | measured pending |
+| **Best model** | measured pending |
+| **Recommended for** | measured pending |
+| **Status** | experimental |
+
+> Rule: when two tools have equal accuracy, prefer the faster one. Speed must always be filled.
+
+## Metadata
+
+| Field | Value |
+|-------|-------|
+| **Tool name** | gptme |
+| **CLI command** | `gptme` |
+| **Version** | measured pending |
 | **Adapter script** | [`adapters/gptme-lms.sh`](../../adapters/gptme-lms.sh) |
 | **How it connects** | `OPENAI_BASE_URL` + `OPENAI_API_KEY` env vars; model addressed as `openai/<id>`. |
 | **Last reviewed** | 2026-06-26 |
+
+## Results by model
+
+| Model | Accuracy | Speed (avg) | Runtime | Notes |
+|-------|:--------:|:-----------:|---------|-------|
+| measured pending | measured pending | measured pending | measured pending | measured pending |
+
+## Capability notes
+
+- **Tool editing:** tool-call format might be mangled by weaker models.
+
+## Adapter flags and their rationale
+
+| Flag | Reason |
+|------|--------|
+| `--no-confirm` | Skips interactive approval prompts; required for harness use. |
 
 ## Background
 

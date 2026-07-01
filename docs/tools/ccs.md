@@ -1,15 +1,56 @@
 # ccs (Claude Code Switch)
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | measured pending |
+| **Speed (avg)** | measured pending |
+| **Best model** | measured pending |
+| **Recommended for** | measured pending |
+| **Status** | measured pending |
+
+> Rule: when two tools have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
 |-------|-------|
-| **Tool name** | Claude Code Switch |
 | **CLI command** | `ccs` |
-| **Version** | unknown — not yet evaluated |
+| **Version** | measured pending |
 | **Adapter script** | not yet written — may not need one if it wraps claude |
 | **How it connects** | TBD — ccs switches between Claude Code profiles; investigate if a profile can target a local endpoint |
 | **Last reviewed** | never |
+
+## Edit mechanism
+
+- **Format:** measured pending
+- **File targeting:** measured pending
+- **Multi-file edits:** measured pending
+
+## Iteration / self-verify behaviour
+
+measured pending
+
+## Results by model
+
+| Model | Accuracy | Speed (avg) | Runtime | Notes |
+|-------|:--------:|:-----------:|---------|-------|
+| measured pending | measured pending | measured pending | measured pending | measured pending |
+
+## Capability notes
+
+measured pending
+
+## Adapter flags and their rationale
+
+| Flag | Reason |
+|------|--------|
+| measured pending | measured pending |
+
+## Failure modes
+
+measured pending
 
 ## Status
 

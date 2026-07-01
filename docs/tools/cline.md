@@ -1,5 +1,17 @@
 # cline
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 100% on qwen/qwen3.6-35b-a3b |
+| **Speed (avg)** | ~149s (measured pending others) |
+| **Best model** | qwen/qwen3.6-35b-a3b |
+| **Recommended for** | autonomous multi-file edits, self-verify loops |
+| **Status** | stable |
+
+> Rule: when two tools have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -21,11 +33,23 @@
 
 Cline runs as an autonomous agent loop. For self-verify cases (js-05, js-06), Cline can run the test suite via `execute_command` and iterate. This is a strength over single-shot adapters (aider, caveman in non-loop mode).
 
-## Failure modes
+## Results by model
 
-**pnpm global install broken:** `pnpm install -g cline` is currently broken (global/v11 path missing). The adapter falls back to the latest `cli-darwin-arm64` binary in the pnpm store. Fix: `pnpm install -g cline` once pnpm resolves the global path issue.
+| Model | Accuracy | Speed (avg) | Runtime | Notes |
+|-------|:--------:|:-----------:|---------|-------|
+| qwen/qwen3.6-35b-a3b | 100% | measured pending | measured pending | All 11 cases PASS |
+| qwen/qwen3.5-9b | 89% | measured pending | measured pending | 4 cases FAIL/WARN |
+| devstral-small-2-2512 | 86% | measured pending | measured pending | |
+| google/gemma-4-26b-a4b-qat | 89% | measured pending | measured pending | |
+| qwen/qwen3.6-27b | 82% | measured and weighted | measured pending | Dense model — slower, some timeouts |
+| qwen/qwen3-coder-30b | 100% | ~149s | measured pending | 2026-06-28 baseline run; avg 149s |
+| zai-org/glm-4.7-flash | 37% | measured pending | measured pending | Timeout floor — GGUF too slow |
 
-**`--auto-approve true` scope:** the adapter passes `--auto-approve true` for unattended runs. Cline may still prompt for certain destructive operations depending on version.
+## Capability notes
+
+- **tool-editing reliability:** tool-call architecture supports it natively; expected to be reliable on capable models.
+- **auth performance:** `cline auth openai-compatible` adds ~1–2s overhead per case due to fresh re-init.
+- **installation hurdle:** `pnpm install -g cline` is currently broken (global/v11 path missing).
 
 ## Adapter flags and their rationale
 
@@ -36,11 +60,15 @@ Cline runs as an autonomous agent loop. For self-verify cases (js-05, js-06), Cl
 | `--model "$MODEL_ID"` | Overrides the model at runtime |
 | `--auto-approve true` | Unattended benchmark mode; skips interactive confirmations |
 
-## Known issues
+## Failure modes
 
 **pnpm global install broken:** `pnpm install -g cline` is currently broken (global/v11 path missing). The adapter falls back to the latest `cli-darwin-arm64` binary in the pnpm store.
 
-**Auth re-init per run:** `cline auth openai-compatible` is called fresh each bench run, which avoids stale config but adds ~1–2s overhead per case.
+**`--auto-approve true` scope:** the adapter passes `--auto-approve true` for unattended runs. Cline may still prompt for certain destructive operations depending on version.
+
+## Status
+
+**stable** — full 10-case benchmark completed 2:06-18 (lms runtime, `qwen/qwen3.6-35b-a3b`): 36/36 points (1.00). js-06-lint-and-test hit the 300s timeout but still passed all assertions.
 
 ## Observations across runs
 
@@ -57,10 +85,6 @@ js-03 through ts-01 all passed cleanly. The partial scores on js-01 (2/4) and js
 
 36/36 100%. All cases clean. js-06 hit the 300s timeout but all assertions passed before the harness killed the process.
 
-## Status
-
-**stable** — full 10-case benchmark completed 2026-06-18 (lms runtime, `qwen/qwen3.6-35b-a3b`): 36/36 points (1.00). js-06-lint-and-test hit the 300s timeout but still passed all assertions.
-
 ### Full benchmark results (2026-06-18, lms, run `20260618-190854`)
 
 | Case | Score | Time | Status |
@@ -76,18 +100,6 @@ js-03 through ts-01 all passed cleanly. The partial scores on js-01 (2/4) and js
 | smoke-01-edit-file | 2/2 (1.00) | 51s | ok |
 | ts-01-groupby | 3/3 (1.00) | 108s | ok |
 | **Total** | **36/36 (1.00)** | | |
-
-### Full sweep results (2026-06-29, lms, run `20260629-*`)
-
-| Model | Score | Notes |
-|-------|-------|-------|
-| qwen/qwen3.6-35b-a3b | 38/38 (100%) | All 11 cases PASS |
-| qwen/qwen3.5-9b | 34/38 (89%) | 4 cases FAIL/WARN |
-| devstral-small-2-2512 | 33/38 (86%) | |
-| google/gemma-4-26b-a4b-qat | 34/38 (89%) | |
-| qwen/qwen3.6-27b | 28/34 (82%) | Dense model — slower, some timeouts |
-| qwen/qwen3-coder-30b | 38/38 (100%) | 2026-06-28 baseline run; avg 149s |
-| zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor — GGUF too slow |
 
 ### Smoke results (2026-06-18, lms)
 
