@@ -17,6 +17,11 @@ qwen3.6:35b-mlx
 # 26B MoE (4B active) — Gemma 4 26B, MLX-quantized by Ollama; maps to google/gemma-4-26b-a4b-qat in lms
 gemma4:26b-mlx
 
+# 12B — Gemma 4 12B, MLX-quantized by Ollama; smoketest 2026-07-01. Prior GGUF
+# 12B (google/gemma-4-12b-qat in lms) was removed 2026-06-10 for underperforming
+# qwen3.5-9b; this is a different quantization/backend, tracked separately.
+gemma4:12b-mlx
+
 # 26B MoE (4B active) — Custom Gemma 4 variant tuned for agentic use: 128K context
 # window (vs 4K default) and temperature 0.2 for stable tool-call JSON.
 # Build first: bin/setup-ollama-modelfile gemma4-claude

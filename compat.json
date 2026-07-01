@@ -353,5 +353,95 @@
     "run_id": "20260629-001747",
     "symptom": "2026-06-28T22:24:26.298183Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
     "status": "open"
+  },
+  "opencode:gemma4-12b-mlx:ollama": {
+    "adapter": "opencode",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "1.17.12",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "resolved",
+    "resolved_date": "2026-07-01",
+    "resolved_run_id": "20260701-160033",
+    "resolved_agent_version": "1.17.12"
+  },
+  "copilot:gemma4-12b-mlx:ollama": {
+    "adapter": "copilot",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "interpreter:gemma4-12b-mlx:ollama": {
+    "adapter": "interpreter",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "Error loading config.toml: model_providers contains reserved built-in provider IDs: `ollama`. Built-in providers cannot ",
+    "status": "resolved",
+    "last_seen": "2026-07-01",
+    "last_run_id": "20260701-160033",
+    "resolved_date": "2026-07-01",
+    "resolved_run_id": "20260701-161150",
+    "resolved_agent_version": "unknown"
+  },
+  "pi:gemma4-12b-mlx:ollama": {
+    "adapter": "pi",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "0.80.2",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "Warning: Model \"gemma4:12b-mlx\" not found for provider \"ollama\". Using custom model id.",
+    "status": "open"
+  },
+  "codex:gemma4-12b-mlx:ollama": {
+    "adapter": "codex",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "codex-cli 0.142.5",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "2026-07-01T12:40:03.565944Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
+  },
+  "openhands:gemma4-12b-mlx:ollama": {
+    "adapter": "openhands",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "cline:gemma4-12b-mlx:ollama": {
+    "adapter": "cline",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "3.0.34",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "The error message \"No replacement performed: text not found\" suggests that there might be some hidden characters or the ",
+    "status": "open"
+  },
+  "caveman:gemma4-12b-mlx:ollama": {
+    "adapter": "caveman",
+    "model": "gemma4-12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-143336",
+    "symptom": "Error: Unknown provider \"ollama\". Use --list-models to see available providers/models.",
+    "status": "open",
+    "last_seen": "2026-07-01",
+    "last_run_id": "20260701-160033"
   }
 }
