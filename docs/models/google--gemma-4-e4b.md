@@ -1,13 +1,25 @@
 # google/gemma-4-e4b
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | ~70% overall |
+| **Speed (avg)** | ~160s per case |
+| **Best adapter** | aider (accuracy) / caveman (speed) |
+| **Recommended for** | single-file agentic tasks |
+| **Status** | removed |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
 |-------|-------|
 | **Model key** | `google/gemma-4-e4b` |
 | **Family / arch** | Gemma 4, MoE (effective 4B active) |
-| **Parameter count** | ~4B active (total MoE params <!-- TODO -->) |
-| **Disk size** | <!-- TODO --> |
+| **Parameter count** | ~4B active (total MoE params measured pending) |
+| **Disk size** | 6.3 GB |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
 | **Doc updated** | 2026-06-10 |
@@ -45,7 +57,9 @@ None beyond the multi-file weakness which appears to be intrinsic to the fp16 mo
 
 **removed** (2026-06-10) — scored 70.1% overall. Multi-file failures (js-03, js-04) are cross-adapter and match the QAT sibling's pattern, so this reflects genuine 4B-active capacity rather than misconfiguration. The fp16 model is also marginally worse than the QAT variant on most adapters, giving it no advantage. Removed from `models.txt` alongside gemma-4-e4b-qat.
 
-**Alternative:** `qwen/qwen3.5-9b` (6.0 GB, **0.3 GB smaller** than this model's 6.3 GB) scores **87.0%** vs 70.1% here — a 17 pp gain at a lower disk footprint. It runs slower (80 s avg vs 68 s avg), but given the accuracy difference and the fact it actually uses less space, there is no reason to keep this model in the bench.
+## Better alternatives
+
+**qwen/qwen3.5-9b** (6.0 GB, **0.3 GB smaller** than this model's 6.3 GB) scores **87.0%** vs 70.1% here — a 17 pp gain at a lower disk footprint. It runs slower (80 s avg vs 68 s avg), but given the accuracy difference and the fact it actually uses less space, there is no reason to keep this model in the bench.
 
 ## Comparison within family
 

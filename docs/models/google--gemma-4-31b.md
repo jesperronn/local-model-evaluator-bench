@@ -1,17 +1,31 @@
 # google/gemma-4-31b
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | measured pending |
+| **Speed (avg)** | measured pending |
+| **Best adapter** | measured pending |
+| **Recommended for** | measured pending |
+| **Status** | avoid |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
 |-------|-------|
-| **Status** | AVOID — broken tool calling (7.1%, smoke test only) |
 | **Model key** | `google/gemma-4-31b` |
-| **Family / arch** | Gemma 4, <!-- TODO: dense or MoE? -->, 31B (fp16) |
+| **Family / arch** | Gemma 4, measured pending, 31B (fp16) |
 | **Parameter count** | 31B |
-| **Disk size** | <!-- TODO --> |
+| **Quantization** | fp16 |
+| **Disk size** | measured pending |
+| **Context window** | measured pending |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
 | **Doc updated** | 2026-06-09 |
+
 
 ## Results summary
 
@@ -25,10 +39,17 @@ No usable benchmark data. All adapters score near-zero across all cases in 1–5
 
 **Likely not an instruct variant:** the uniform 0 scores with fast response times and the 2/4 on js-01 suggest the model responds but doesn't follow the edit-file instructions. Check whether `google/gemma-4-31b` in LM Studio refers to a base model rather than the instruction-tuned variant.
 
+## Timing observations
+
+measured pending
+
+## Better alternatives
+
+measured pending
+
 ## Status
 
 **avoid** — broken tool calling. Scores 2/28 (7.1%) across all adapters — the only passes are the trivial first two sub-checks of `js-01-slugify-bug` (basic text output). Zero real tool calls succeed. The near-identical failure pattern on both the fp16 and QAT 31b variants rules out a random infrastructure fault; the most likely cause is a non-instruct or misconfigured model variant. Do not use for agentic coding work.
 
-**Cleanup:** remove `google/gemma-4-31b` from `models.txt` and unload from LM Studio. If you want a verified instruct variant, check the LM Studio model page and confirm the key ends in `-instruct` or `-it`. Re-add only after a successful `bin/smoke google/gemma-4-31b` run confirms all adapters can reach it.
+**Cleanup:** remove `google/gemma-4-31b` from `models.txt` and unload from LM Studio. If you want a verified instruct variant, check the LM 
 
-See also: [Models to Avoid in LEADERBOARD.md](../../LEADERBOARD.md#models-to-avoid)

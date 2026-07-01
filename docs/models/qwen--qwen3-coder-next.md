@@ -1,5 +1,17 @@
 # qwen/qwen3-coder-next
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | ~94% (154/164) |
+| **Speed (avg)** | ~40s (opencode is fastest) |
+| **Best adapter** | codex, hermes, opencode — 100% accuracy |
+| **Recommended for** | general agentic coding, multi-file edits |
+| **Status** | keep |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -60,6 +72,10 @@ No current blockers for LMS adapter. hermes and opencode were fixed 2026-06-11 w
 switched to `backend: local`. opencode was likely fixed as a side-effect of the same fix.
 
 See "MLX runtime" section above for MLX hermes regression.
+
+## Better alternatives
+
+No strictly-better model is currently recommended for this specific workload based on current evaluation.
 
 ## Status
 

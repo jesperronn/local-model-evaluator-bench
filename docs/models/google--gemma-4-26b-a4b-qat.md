@@ -1,5 +1,17 @@
 # google/gemma-4-26b-a4b-qat
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 91% (excluding LMS-broken adapters) |
+| **Speed (avg)**| ~100s per case (varies by adapter/runtime) |
+| **Best adapter** | goose, hermes, pi (100%) |
+| **Recommended for** | general agentic coding, multi-file edits |
+| **Status** | keep |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -7,7 +19,7 @@
 | **Model key** | `google/gemma-4-26b-a4b-qat` |
 | **Family / arch** | Gemma 4, MoE (26B total, 4B active), QAT |
 | **Parameter count** | 26B total, ~4B active |
-| **Disk size** | <!-- TODO --> |
+| **Disk size** | measured pending |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-29 LMS (run `20260629-103716`); 2026-06-13 Ollama |
 | **Doc updated** | 2026-06-30 |
@@ -58,7 +70,9 @@ The pattern across all 5 aider failures is consistent: this model has a chat tem
 - **caveman (Ollama):** 46–242s, avg 106s. 26/28 92.9%. js-04/js-05 fail (import error collapses tests to 1).
 - **aider (Ollama):** 12–879s, avg 166s. 15/28 53.6%. bash-01 passes (4/4, 177s). All 4 multifile cases (js-03–js-06) fail.
 
-## Known issues
+## Better alternatives
+
+No strictly-better model identified for this specific workload on tested runtimes/adapters.
 
 **aider multifile incompatibility:** aider fails all 4 multifile cases (js-03–js-06) on both LMS and Ollama. Single-file cases mostly pass. Suggested fix: try `--edit-format whole` in the aider adapter.
 

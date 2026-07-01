@@ -6,11 +6,23 @@
 |-------|-------|
 | **Model key** | `google/gemma-4-e4b-qat` |
 | **Family / arch** | Gemma 4, MoE (effective 4B active), QAT |
-| **Parameter count** | ~4B active (total MoE params <!-- TODO -->) |
-| **Disk size** | <!-- TODO --> |
+| **Parameter count** | ~4B active (total MoE params measured pending) |
+| **Disk size** | 6.1 GB |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
 | **Doc updated** | 2026-06-10 |
+
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | ~71% overall (caveman 76.9%) |
+| **Speed (avg)** | ~50s per case (varies by adapter) |
+| **Best adapter** | caveman — most accurate |
+| **Recommended for** | small-scale testing; use qwen3.5-9b for real work |
+| **Status** | removed |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
 
 ## Results summary
 
@@ -47,6 +59,6 @@ None beyond intrinsic model limitations.
 
 **Alternative:** `qwen/qwen3.5-9b` (6.0 GB, **0.1 GB smaller** than this model's 6.1 GB) scores **87.0%** vs 71.1% here — a 16 pp gain at virtually identical disk footprint. It runs slower (80 s avg vs 64 s avg), but the accuracy jump for the same RAM budget makes this a clear swap with no trade-off.
 
-## Comparison within family
+## Better alternatives
 
-gemma-4-e4b-qat vs gemma-4-e4b: QAT variant is consistently better — higher scores on caveman and opencode, same quality on aider. The QAT is the preferred variant. For the e4b size class, prefer this model over the fp16.
+`qwen/qwen3.5-9b` (6.0 GB) is a significantly better choice for agentic workloads. It scores 87.0% vs 71.1% here, providing a 16 pp gain at virtually identical disk footprint.

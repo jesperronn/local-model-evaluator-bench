@@ -1,13 +1,25 @@
 # qwen/qwen3.5-9b
 
-## Metadata
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 93% (excluding LMS-broken adapters) |
+| **Speed (avg)** | measured pending |
+| **Best adapter** | aider / interpreter |
+| **Recommended for** | general agentic coding, multi-file edits |
+| **Status** | keep |
+
+## Better alternatives
+
+None specifically identified as strictly better, though Qwen3.6 variants (e.g., 27B/35B) may offer higher accuracy if speed is less critical.
 
 | Field | Value |
 |-------|-------|
 | **Model key** | `qwen/qwen3.5-9b` |
 | **Family / arch** | Qwen3.5, dense, 9B |
 | **Parameter count** | 9B |
-| **Disk size** | <!-- TODO --> |
+| **Disk size** | measured pending |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-29 (run `20260629-025143`) |
 | **Doc updated** | 2026-06-30 |

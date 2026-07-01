@@ -1,5 +1,17 @@
 # openai/gpt-oss-20b
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | measured pending |
+| **Speed (avg)** | measured pending |
+| **Best adapter** | measured pending |
+| **Recommended for** | measured pending |
+| **Status** | watch |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -11,7 +23,7 @@
 | **Quantization** | MXFP4 |
 | **Context length** | 131072 (128K) |
 | **Added** | 2026-06-12 |
-| **Last run** | <!-- TODO: update after first bench run --> |
+| **Last run** | measured pending |
 | **Doc updated** | 2026-06-12 |
 
 ## Results summary
@@ -21,17 +33,17 @@ Apache 2.0 license. 20.9B params, MXFP4 quantized (13 GB). System prompt says
 "You are ChatGPT, a large language model trained by OpenAI." — this is OpenAI's
 first open-weight model release.
 
-## Failure patterns
-
-<!-- TODO: populate after first bench run -->
-
 ## Timing observations
 
-<!-- TODO: populate after first bench run -->
+measured pending
 
-## Known issues
+## Failure patterns
 
-<!-- TODO: populate after first bench run -->
+no known failures recorded yet
+
+## Better alternatives
+
+No benchmarks available yet to determine alternatives.
 
 ## Status
 

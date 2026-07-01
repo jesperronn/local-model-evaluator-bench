@@ -1,5 +1,17 @@
 # mistralai/devstral-small-2-2512
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 86% (excluding LMS-incompatible) |
+| **Speed (avg)** | measured pending |
+| **Best adapter** | aider |
+| **Recommended for** | agentic coding tasks |
+| **Status** | drop |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -35,6 +47,10 @@ Disappointing across most adapters. aider is the standout at 94%, but opencode a
 | nanocoder | 33/38 (87%) | bash-01 1/4 (execute_bash blocked); smoke-01 0/2; all JS cases PASS |
 | codex | SKIPPED | in compat.json |
 
+## Timing observations
+
+measured pending
+
 ## Failure patterns
 
 **opencode/openhands collapse:** Both adapters score 37% — the same baseline achieved by LMS-incompatible caveman/copilot. For devstral this is not a protocol mismatch but a model behavior issue: the model either stalls mid-task or produces output these adapters cannot complete the task with. aider, goose, and hermes handle the same cases fine, ruling out task difficulty.
@@ -43,13 +59,14 @@ Disappointing across most adapters. aider is the standout at 94%, but opencode a
 
 **aider near-perfect:** 36/38 (94%) — 2 cases fail. Best adapter for this model. Aider's whole-file edit format likely suits Devstral's training on multi-file agentic tasks.
 
+## Better alternatives
+
+- For agentic coding: `qwen/qwen3.6-35b-a3b` (100% across all working adapters)
+- For 24B-class dense: `qwen/qwen3.6-27b` (93% on LMS GGUF)
+
 ## Status
 
 **Removed 2026-06-29** — dropped from `models.txt` after a full benchmark sweep. The model underperforms its SWE-Bench 68% marketing claim in this benchmark environment. opencode and openhands failures are concerning for a model marketed as an agentic coding specialist.
-
-Better alternatives:
-- For agentic coding: `qwen/qwen3.6-35b-a3b` (100% across all working adapters)
-- For 24B-class dense: `qwen/qwen3.6-27b` (93% on LMS GGUF)
 
 ## Download
 

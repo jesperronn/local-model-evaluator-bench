@@ -1,6 +1,19 @@
 # Qwen3-Coder-30B-A3B-Instruct-MLX-4bit (mlx_lm.server)
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 88.2% across aider+pi |
+| **Speed (avg)** | ~64s per case (aider) |
+| **Best adapter** | aider — 97.1% accuracy |
+| **Recommended for** | agentic coding with aider |
+| **Status** | keep |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
+
 
 | Field | Value |
 |-------|-------|
@@ -72,9 +85,11 @@ work normally — only the models-list endpoint is broken.
 **keep** — aider-mlx is a top-tier combination worth tracking. The tool call format
 issue limits other adapters but is a model/server characteristic, not a bench bug.
 
-## Comparison
+## Better alternatives
 
 vs `qwen/qwen3-coder-30b` via LMS (same weights, different server):
 - aider: mlx 97.1% vs lms 100% — nearly identical quality
 - hermes: mlx 81.6% vs lms 100% — lms normalises tool call format, mlx_lm.server does not
 - Speed: mlx_lm.server ~64s median vs lms ~14s for aider (LMS is faster for single-adapter runs)
+
+## Comparison

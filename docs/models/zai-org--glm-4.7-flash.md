@@ -1,5 +1,17 @@
 # zai-org/glm-4.7-flash
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 41% overall (65% on codex) |
+| **Speed (avg)** | ~300s per case (hits timeout floor) |
+| **Best adapter** | codex — 65% accuracy |
+| **Recommended for** | none (effectively unusable) |
+| **Status** | drop |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -8,7 +20,7 @@
 | **Family / arch** | GLM-4.7 (Zhipu AI), dense transformer |
 | **Parameter count** | 30B |
 | **Context window** | 128K tokens |
-| **License** | <!-- TODO — verify from HuggingFace card --> |
+| **License** | measured pending |
 | **Disk size** | 24.36 GB (GGUF, lmstudio-community) |
 | **Added** | 2026-06-28 |
 | **Last run** | 2026-06-29 (run `20260629-173748`) |
@@ -16,7 +28,7 @@
 
 ## Results summary
 
-Effectively unusable for agentic tasks at the 300s timeout. codex is the only adapter with meaningful throughput (25/38, 65%); all other adapters score 37–43%, matching the timeout-floor baseline (smoke tests + one or two easy cases pass; everything else times out). Overall 147/358 (41%).
+Effectively unusable for agentic tasks at the 300s timeout. codex is the only adapter with meaningful throughput (2spl/38, 65%); all other adapters score 37–43%, matching the timeout-floor baseline (smoke tests + one or two easy cases pass; everything else times out). Overall 147/358 (41%).
 
 | Adapter | 2026-06-29 (LMS) | Notes |
 |---------|-----------------|-------|
@@ -35,11 +47,18 @@ Effectively unusable for agentic tasks at the 300s timeout. codex is the only ad
 
 The 12/32 floor represents adapters that pass only the 3 smoke tests plus the simplest 1-2 cases before hitting 300s timeouts. It is not partial capability — it is a hard wall at benchmark timeout.
 
-## Root cause
+## Timing observations
 
-**Dense 30B GGUF on Apple Silicon is too slow for 300s per-case timeouts.** The model generates tokens at ~1–3 tokens/sec on a 32GB Mac under GGUF backend, vs 10–30 tok/s for MoE models of comparable total parameter count. Agentic adapters (cline, goose, hermes, opencode) require multiple model round-trips per task, compounding the slowness. Only codex — which batches the entire task in fewer API calls — gets enough tokens generated within 300s to solve a meaningful fraction of cases.
+- **Slowest cases:** All cases hitting 300s timeout.
+- **Note:** Token generation rate of ~1–3 tokens/sec on Apple Silicon under GGUF backend makes agentic loops take far too long. Dense 30B GGUF is significantly slower than MoE models of comparable parameter count which provide 10–30 tok/s.
 
-This is not a configuration error. Increasing timeouts would help but the model would still be ~5–10× slower than MoE alternatives.
+## Failure patterns
+
+- **Timeout floor:** Most adapters (9/11) fail with a 300s timeout because the model is too slow for multi-turn agentic tasks on this hardware. This is due to the GGUF backend throughput limits on Apple Silicon.
+
+## Better alternatives
+
+- MoE models of comparable total parameter count (e.g. those providing 10–30 tok/s).
 
 ## Observations across runs
 

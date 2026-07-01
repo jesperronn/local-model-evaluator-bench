@@ -1,5 +1,17 @@
 # microsoft/phi-4-mini
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 18.9% |
+| **Speed (avg)** | ~35s (lms), ~1s (Ollama), ~107s (MLX) |
+| **Best adapter** | lms (highest observed score, but still broken) |
+| **Recommended for** | None (smoke tests only) |
+| **Status** | avoid |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -49,6 +61,10 @@ Despite the lms variant appearing to score higher at 18.9%, inspection reveals a
 **Tool call format incompatibility:** same issue as Phi-4 14B. The Phi-4 family uses a non-standard tool-call format (`<|tool_call|>` tags in some variants, or raw JSON text in others) incompatible with the OpenAI tool_calls API format expected by all adapters in this bench. lms's higher score may reflect lms partially translating the format — but not enough for actual task completion.
 
 **lms score inflation:** the 18.9% figure looks better than the Ollama/MLX 7% but is misleading. With 6 adapters × ~30 cases, even a model that consistently passes 1 smoke sub-case per adapter run will accumulate 6/180 = 3.3%. Passing js-01's first two sub-checks on all 6 adapters gives 12/180 = 6.7%. The actual observed 34/180 includes a few additional sporadic passes but no systematic capability.
+
+## Better alternatives
+
+If you need a functional small model for agentic tasks, use `qwen/qwen3.5-9b` (lms, 86.8%) which provides much higher reliability and toolkit support.
 
 ## Status
 

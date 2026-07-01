@@ -1,5 +1,17 @@
 # qwen/qwen3.6-27b
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 93% (across 6 tested adapters) |
+| **Speed (avg)** | ~60–200s per case |
+| **Best adapter** | codex |
+| **Recommended for** | dense model performance where accuracy is prioritized over speed |
+| **Status** | keep (watch) |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -33,24 +45,26 @@ Strong performance on LMS GGUF. On the 2026-06-29 overnight run: codex, goose, a
 | openhands | not run | — |
 | pi | not run | — |
 
+## Timing observations
+
+Dense 27B GGUF is noticeably slower than MoE models (qwen3.6-35b-a3b with 3B active params generates ~3–5× faster). Expect 60–200s per case for simple adapters; aider and cline can push to 300s on complex cases (bash-01-topwords).
+
 ## Failure patterns
 
 **aider thinking token leakage:** Qwen 3.6 models have thinking mode enabled by default. aider's whole-file edit format writes the full model response (including `<think>` tokens) into the file, producing syntax errors. This was the primary failure mode in the 2026-06-12 MLX run and persists on LMS GGUF, but now affects only a subset of cases (26/34 pass, vs 4/28 pass on MLX).
 
 **cline timeouts:** Dense 27B generates tokens slower than MoE models of comparable capability. cline's multi-turn agent loop amplifies this — some cases exceed the 300s timeout.
 
-## Timing observations
+## Better alternatives
 
-Dense 27B GGUF is noticeably slower than MoE models (qwen3.6-35b-a3b with 3B active params generates ~3–5× faster). Expect 60–200s per case for simple adapters; aider and cline can push to 300s on complex cases (bash-01-topwords).
+`qwen/qwen3.6-35b-a3b` (MoE, 3B active — faster generation, 100% across all working adapters).
+
+## Status
+
+**keep (watch)** — 93% across 6 tested adapters is solid for a dense 27B. codex, goose, and interpreter hit 100%. The aider leakage issue persists and the adapter sweep is incomplete (5 adapters not yet run). Consider adding opencode and pi to a follow-up run to complete the picture.
 
 ## History
 
 **2026-06-12 MLX removal:** The model was removed in its MLX-6bit variant after a catastrophic result: 35.7% pass rate at 253s average. Root causes were (1) thinking token leakage into aider edits and (2) extreme slowness vs the MoE alternative. Only aider was tested at removal time.
 
 **2026-06-28 LMS GGUF re-add:** Model re-added for a full sweep using GGUF backend on LMS. The LMS GGUF backend generates faster than MLX-6bit for this dense architecture; timeout failures from 2026-06-12 are reduced but not eliminated.
-
-## Status
-
-**keep (watch)** — 93% across 6 tested adapters is solid for a dense 27B. codex, goose, and interpreter hit 100%. The aider leakage issue persists and the adapter sweep is incomplete (5 adapters not yet run). Consider adding opencode and pi to a follow-up run to complete the picture.
-
-**Better for throughput:** `qwen/qwen3.6-35b-a3b` (MoE, 3B active — faster generation, 100% across all working adapters).

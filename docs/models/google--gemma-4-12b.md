@@ -1,5 +1,17 @@
 # google/gemma-4-12b
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 13.6% (overall) / 36% (aider only) |
+| **Speed (avg)** | ~15s (infrastructure failures) / 10–300s (aider) |
+| **Best adapter** | aider (only one with non-zero results) |
+| **Recommended for** | measured pending |
+| **Status** | avoid |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -8,7 +20,7 @@
 | **Model key** | `google/gemma-4-12b` |
 | **Family / arch** | Gemma 4, dense, 12B (fp16) |
 | **Parameter count** | 12B |
-| **Disk size** | <!-- TODO --> |
+| **Disk size** | measured pending |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
 | **Doc updated** | 2026-06-09 |
@@ -24,6 +36,10 @@ Partial data only. aider ran with meaningful results (36%) but all other adapter
 **Infrastructure failure — opencode (ok status, 0–4s, score=0):** opencode exits cleanly (ok status) but in 0–4s with 0 pass on all cases except js-01 (2/4). This is consistent with a zero-length or boilerplate response — the model may have been partially responsive but generating empty output.
 
 **Genuine aider results — low but real:** aider ran with non-trivial times (10–300s) and produced a few passes (9/25 = 36% excluding smoke). Two timeouts (bash-01 at 300s, js-03 at 300s). This is genuine model output, just weak. The aider results suggest the model is slow and struggles with multi-file cases when actually running.
+
+## Better alternatives
+
+**qwen/qwen3.5-9b**: provides much better performance and reliability for this size class (part of the decision to avoid gemma-4-12b).
 
 ## Timing observations
 

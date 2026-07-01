@@ -1,5 +1,17 @@
 # microsoft/phi-4
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | ~7–9% (smoke test only) |
+| **Speed (avg)** | 0.9s (Ollama), 28s (MLX hermes) |
+| **Best adapter** | N/A (broken tool calling) |
+| **Recommended for** | None (do not use for agentic work) |
+| **Status** | avoid |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -27,6 +39,10 @@ These results place Phi-4 among the lowest-scoring models in the suite, alongsid
 **Ollama `phi4:latest` — opencode (2/28, 7.1%):** the only adapter tested on Ollama. 2/28 means the smoke sub-tests pass (js-01 first two checks require only text output) and every subsequent case scores 0. Responses are very fast (avg 0.9s), consistent with the model returning short text that doesn't include valid tool call syntax.
 
 **MLX `Phi-4-4bit` — hermes, codex, caveman (2/28 each, 3 trials each):** all three MLX adapters score the same minimum. hermes slightly higher at 2/12 (16.7%) in one framing but the same 2/28 pattern holds across all codex and caveman trials. Zero meaningful coding tasks complete.
+
+## Better alternatives
+
+If you need a working 14B model: `gpt-oss:20b` (Ollama) scores 80% at 20.9B — the closest working alternative in the Ollema suite. For LM Studio/lms, `qwen/qwen3-coder-30b` at 83.5% (MoE, 3B active) is faster and more accurate.
 
 ## Timing observations
 

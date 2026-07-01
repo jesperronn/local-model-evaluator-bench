@@ -1,5 +1,17 @@
 # qwen/qwen3.6-35b-a3b
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 100% across working adapters |
+| **Speed (avg)** | ~48s per case (3B active) |
+| **Best adapter** | codex — fastest; cline — most reliable |
+| **Recommended for** | general agentic coding, multi-file edits |
+| **Status** | keep |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -34,6 +46,10 @@ The strongest general model in the suite. On the 2026-06-29 overnight run: aider
 | nanocoder | 35/36 (97%) | js-04 0/1 (import not updated in consumer); all others PASS |
 | caveman | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
 | copilot | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
+
+## Better alternatives
+
+No strictly better model currently identified for this workload; qwen3.6-35b-a3b is the primary recommendation for general agentic tasks in recent sweeps.
 
 ## Failure patterns
 

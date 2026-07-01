@@ -1,13 +1,25 @@
 # google/gemma-4-e2b-qat
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 65.5% |
+| **Speed (avg)** | measured pending |
+| **Best adapter** | opencode |
+| **Recommended for** | simple tasks |
+| **Status** | removed |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
 |-------|-------|
 | **Model key** | `google/gemma-4-e2b-qat` |
 | **Family / arch** | Gemma 4, MoE (effective 2B active), QAT |
-| **Parameter count** | ~2B active (total MoE params <!-- TODO -->) |
-| **Disk size** | <!-- TODO --> |
+| **Parameter count** | ~2B active (total MoE params measured pending) |
+| **Disk size** | measured pending |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
 | **Doc updated** | 2026-06-10 |
@@ -17,6 +29,8 @@
 Marginally stronger than the fp16 sibling on opencode (87.5% vs 90%) but similar overall. opencode leads at 87.5%, aider at 77%, caveman at 50%, codex at 46%. The 2B active parameter count caps capability — multi-file and self-verify cases are consistently weak. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
 ## Failure patterns
+
+Intrinsic 2B-active limitations:
 
 **Cross-adapter — js-04-multifile-rename (fail everywhere):** aider 0/1, opencode 0/1, codex 0/1, caveman 0/1. A true cross-adapter failure — no adapter scores a point on this case. The model cannot reliably track two files and produce consistent renames. The ESM import in one file is never updated to match the rename in the other.
 
@@ -37,15 +51,13 @@ Marginally stronger than the fp16 sibling on opencode (87.5% vs 90%) but similar
 - **codex:** 4–123s. js-06 at 123s.
 - **caveman:** 7–47s.
 
-## Known issues
+## Better alternatives
 
-None beyond intrinsic 2B-active limitations.
+`qwen/qwen3.5-9b` (6.0 GB, +1.7 GB over this model's 4.3 GB) scores **87.0%** vs 65.5% here — a 22 pp gain for 1.7 GB more RAM. It runs slower (80 s avg vs 32 s avg), but the accuracy uplift makes it the clear choice whenever 6 GB fits. If RAM is the hard constraint and 6 GB doesn't fit, there is no well-performing sub-5 GB coding model in this suite.
 
 ## Status
 
-**removed** (2026-06-10) — scored 65.5% overall, the lowest of any active model. This is lower than the fp16 sibling (72.1%), confirming QAT hurts at the 2B scale rather than helping. The failure pattern is identical across every adapter (bash-01, js-03, js-04 fail everywhere) — consistent with intrinsic parameter-scale limits, not a configuration gap. Removed from `models.txt` alongside gemma-4-e2b.
-
-**Alternative:** `qwen/qwen3.5-9b` (6.0 GB, +1.7 GB over this model's 4.3 GB) scores **87.0%** vs 65.5% here — a 22 pp gain for 1.7 GB more RAM. It runs slower (80 s avg vs 32 s avg), but the accuracy uplift makes it the clear choice whenever 6 GB fits. If RAM is the hard constraint and 6 GB doesn't fit, there is no well-performing sub-5 GB coding model in this suite.
+**removed** (2026-06-10) — scored 65.5% overall, the lowest of any active model. This is lower than the fp16 sibling (7ly.1%), confirming QAT hurts at the 2B scale rather than helping. The failure pattern is identical across every adapter (bash-01, js-03, js-04 fail everywhere) — consistent with intrinsic parameter-scale limits, not a configuration gap. Removed from `models.txt` alongside gemma-4-e2b.
 
 ## Comparison within family
 

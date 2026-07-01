@@ -1,5 +1,17 @@
 # google/gemma-4-26b-a4b (MLX 6-bit)
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 100% across working adapters |
+| **Speed (avg)** | ~153.9s per case |
+| **Best adapter** | hermes (MLX 6-bit) |
+| **Recommended for** | iterative/multi-file cases |
+| **Status** | keep |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -7,7 +19,7 @@
 | **Model key** | `gemma4-26b-6bit` (alias, MLX only) |
 | **Family / arch** | Gemma 4, MoE (26B total, 4B active) |
 | **Parameter count** | 26B total, ~4B active |
-| **Disk size** | <!-- TODO --> |
+| **Disk size** | measured pending |
 | **Quantization** | MLX 6-bit (non-QAT) |
 | **Added** | 2026-06-13 |
 | **Last run** | 2026-06-13 |
@@ -21,10 +33,6 @@ output, meaning many iterative cases require fewer correction rounds. Net effect
 cases are faster on 6-bit despite the token-level slowdown. See timing observations below.
 
 Compare against [gemma4-26b-qat](google--gemma-4-26b-a4b-qat.md) (QAT MLX 4-bit, avg 132s).
-
-## Failure patterns
-
-None. All 34 tests pass on first bench run (9 cases × hermes adapter).
 
 ## Timing observations
 
@@ -51,12 +59,20 @@ pre-compiles. On repeat server runs, bash-01 would be faster.
 bug-fix or multi-file), 6-bit finishes faster because higher precision means fewer total
 rounds. Where a case is single-pass, 6-bit is 2–3× slower (token rate dominates).
 
+## Failure patterns
+
+None. All 34 tests pass on first bench run (9 cases × hermes adapter).
+
+## Better alternatives
+
+`gemma4-26b-qat` is strictly better for single-pass, non-iterative workloads as it is faster.
+
 ## Known issues
 
 MLX only — no LMS or Ollama variant. Run with:
 
 ```
-bin/bench --runtime mlx --model gemma4-26b-6bit --agent hermes --timeout 450
+bin/bench --runtime mlX --model gemma4-26b-6bit --agent hermes --timeout 450
 ```
 
 ## Status
@@ -71,4 +87,5 @@ QAT is faster for single-pass workloads.
 | `gemma4-26b-6bit` (MLX 6-bit, this) | 153.9s | 100% | Higher quality, best for multi-round cases |
 | `gemma4-26b-qat` (MLX QAT 4-bit) | 132s | 100% | Faster per token, better for single-pass |
 | `gemma4:26b-mlx` (Ollama nvfp4) | pending | — | Ollama runtime, not yet benchmarked |
-| `google/gemma-4-26b-a4b-qat` (LMS) | ~56s avg | 100% | LM Studio, fastest overall (no server overhead) |
+| `google/gemma-4-2pan-a4b-qat` (LMS) | ~56s avg | 100% | LM Studio, fastest overall (no server overhead) |
+```

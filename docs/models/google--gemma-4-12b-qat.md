@@ -1,5 +1,17 @@
 # google/gemma-4-12b-qat
 
+## Quick verdict
+
+| Metric | Value |
+|--------|-------|
+| **Accuracy** | 96% (caveman) |
+| **Speed (avg)** | ~138s |
+| **Best adapter** | caveman — most reliable; opencode — high accuracy |
+| **Recommended for** | general agentic coding where timeout tolerance is high |
+| **Status** | drop |
+
+> Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
+
 ## Metadata
 
 | Field | Value |
@@ -7,7 +19,7 @@
 | **Model key** | `google/gemma-4-12b-qat` |
 | **Family / arch** | Gemma 4, dense, 12B, QAT |
 | **Parameter count** | 12B |
-| **Disk size** | <!-- TODO --> |
+| **Disk size** | measured pending |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-08 |
 | **Removed** | 2026-06-10 |
@@ -43,7 +55,9 @@ The model is uniformly slow: 70–300s per case on most adapters. The QAT quanti
 
 **removed 2026-06-10** — dropped from `models.txt` because `qwen/qwen3.5-9b` is strictly better: 87% vs 75% accuracy, 81s vs 173s average time, and smaller (9B vs 12B). The GGUF backend running via llama.cpp on LM Studio is the likely cause of the slowness — a native MLX 12B Gemma would probably close the speed gap, but the accuracy gap is a genuine model-capability difference. No MLX variant is currently downloaded.
 
-**Better alternative:** `qwen/qwen3.5-9b` (MLX-4bit) — faster, more accurate, smaller footprint.
+## Better alternatives
+
+`qwen/qwen3.5-9b` (MLX-4bit) — faster, more accurate, smaller footprint.
 
 ## Comparison within family
 
