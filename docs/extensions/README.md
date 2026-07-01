@@ -56,8 +56,8 @@ and run through `bin/nightly`/`bin/smoke` like any CLI tool.
 | Agent | Headless CLI exists? | Status |
 |-------|----------------------|--------|
 | Cline | ✅ `cline` binary | **Already automated** — [`adapters/cline-lms.sh`](../../adapters/cline-lms.sh) (+ mlx/ollama variants), in `bin/nightly`/`bin/smoke` today. See [cline.md](cline.md#automation-feasibility). |
-| Continue.dev | ✅ `cn` (`@continuedev/cli`) | **Feasible, not built** — headless via `cn -p`, same local-model config as the extension. See [continue.md](continue.md#automation-feasibility). |
-| Junie | ✅ `junie` CLI (EAP) | **Feasible, one unknown** — headless via `junie --auth=...`; unclear if `--auth` requires a JetBrains-account credential even for local-model routing. Resolve before adapting. See [junie.md](junie.md#automation-feasibility). |
+| Continue.dev | ✅ `cn` (`@continuedev/cli`) | **Already automated** — [`adapters/cn-lms.sh`](../../adapters/cn-lms.sh), verified **8/8 (100%) on the full case set** against LM Studio + qwen3.6-35b-a3b, including multi-file and self-verify cases. Named `cn` not `continue` — the latter collides with the bash builtin in `bin/bench`'s adapter lookup. See [continue.md](continue.md#automation-feasibility). |
+| Junie | ✅ `junie` CLI (EAP) | **Not automatable — confirmed blocked.** Installed and tested: even with `--litellm-url` pointed at LM Studio, the CLI refuses to run without a JetBrains-issued `--auth`/`JUNIE_API_KEY` token (signup required). No adapter written. See [junie.md](junie.md#automation-feasibility). |
 | Kilo Code | ⚠️ `@kilocode/cli` exists but is a **different, cloud-only product** | Not automatable for local use — see [tools/kilocode.md](../tools/kilocode.md). |
 | JetBrains AI Assistant, Roo Code | ❌ none found | Manual-only (Roo Code is archived anyway). |
 

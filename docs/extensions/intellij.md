@@ -9,14 +9,15 @@ Category: [IDE extensions / plugins](README.md) · Rubric: [EVAL-TEMPLATE.md](EV
 
 | Rank | Plugin | Status | Scorecard |
 |------|--------|--------|-----------|
-| 1 (top pick) | Junie | JetBrains' native agent, GA June 2026, documented Ollama/LM Studio/LiteLLM support. Approval memory and licensing for the local path both unverified. | [junie.md](junie.md) |
-| 2 (runner-up, provisional) | Continue.dev (Agent mode) | Same core as VS Code build — carries the **same approval-memory disqualifier** until re-tested specifically on IntelliJ's plugin sandbox. | [continue.md](continue.md) |
+| 1 (top pick, provisional) | Junie | JetBrains' native agent, GA June 2026, documents Ollama/LM Studio/LiteLLM support. **Confirmed 2026-07-01: its CLI twin hard-requires a JetBrains cloud auth token even for local-only inference** — automation/CLI path is disqualified. The IDE-embedded agent itself is still untested and may or may not share that gate; treat this rank as provisional until it's hands-on verified. | [junie.md](junie.md) |
+| 2 (runner-up, provisional) | Continue.dev (Agent mode) | Same core as VS Code build — carries the **same approval-memory disqualifier** for the GUI extension until re-tested specifically on IntelliJ's plugin sandbox. Its headless `cn` CLI, by contrast, is confirmed working (8/8 on the full case set) — see [continue.md](continue.md). | [continue.md](continue.md) |
 | watch | JetBrains AI Assistant | Unclear if it has an agentic loop distinct from Junie; needs a scoping pass before it belongs in this ranking at all. | [jetbrains-ai-assistant.md](jetbrains-ai-assistant.md) |
 
 > As of 2026-07-01. Approval-memory (criterion 4) is a hard gate — see
 > [EVAL-TEMPLATE.md](EVAL-TEMPLATE.md#the-criteria-rubric-11-criteria-scored-per-plugin).
-> None of these rankings are hand-verified in this repo yet; each scorecard
-> flags exactly which rows are unverified.
+> The IDE-embedded plugins themselves remain hand-unverified; only the
+> **CLI twins** (`cn` for Continue, `junie` for Junie) have been hands-on
+> tested in this repo so far, with opposite outcomes.
 
 ## Status
-**2026-07-01** — ranking based on web research; each linked scorecard tracks its own manual-eval log. Re-rank when a scorecard's unverified rows get filled in by an actual run.
+**2026-07-01** — Junie's CLI automation path is confirmed blocked on cloud auth; Continue's CLI automation path is confirmed working. Neither IDE-embedded GUI plugin has been hands-on tested yet — that remains the next step for both before either "top pick" or "avoid" can be trusted for the actual daily-driver experience. Re-rank triggers: (a) a hands-on IDE-plugin run for Junie, (b) an IntelliJ-specific Continue.dev approval-memory re-test, (c) clarity on JetBrains AI Assistant vs. Junie overlap.
