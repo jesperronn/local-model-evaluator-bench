@@ -1,6 +1,32 @@
 # Cline (VS Code extension)
 
-Category: [IDE extensions / plugins](README.md) · See also: [SETUP.md §4](../SETUP.md#4-editor-extensions-same-lm-studio-server) · [tools/codex.md](../tools/codex.md) · [tools/opencode.md](../tools/opencode.md)
+Category: [IDE extensions / plugins](README.md) · Index: [vscode.md](vscode.md) · See also: [SETUP.md §4](../SETUP.md#4-editor-extensions-same-lm-studio-server) · [tools/codex.md](../tools/codex.md) · [tools/opencode.md](../tools/opencode.md)
+
+## Automation feasibility
+
+**Already automated in this repo.** [`adapters/cline-lms.sh`](../../adapters/cline-lms.sh) (+ `-mlx.sh`/`-ollama.sh` variants) drive the standalone `cline` CLI binary headlessly via stdin, wired into `bin/nightly` and `bin/smoke`. This is the *same agent core* as the VS Code extension, driven without the GUI — proof the pattern generalizes. **Caveat:** headless mode auto-executes tool calls with no approval prompt, so these automated runs measure accuracy/speed only — they don't exercise the approval-memory question (criterion 4), which is a GUI-specific interaction.
+
+## Criteria scorecard
+
+Scored per [EVAL-TEMPLATE.md](EVAL-TEMPLATE.md)'s 11-criteria rubric. **Unverified rows are web-researched, not hand-run in this repo** — see [Status](#status).
+
+| # | Criterion | Verdict | Evidence / notes |
+|---|-----------|:-------:|-------------------|
+| 1 | No mandatory cloud login | ✅ | OpenAI-Compatible provider + Base URL is all that's required; no account. |
+| 2 | True agentic loop | ✅ | Multi-turn tool-call loop (`write_to_file`, `replace_in_file`, `execute_command`, `read_file`); can run tests and iterate. |
+| 3 | Tool-call reliability w/ local models | ⚠️ | Strict XML tool-call format; weak/small local models with poor instruction-following degrade — extension's own UI warns about this. |
+| 4 | Approval memory (hard gate) | ⚠️ **unverified** | Historically has auto-approve toggles per action type; needs re-confirmation against the current version before fully trusting — see manual eval log. |
+| 5 | Multi-file edits | ✅ | Native via tool-call architecture; expected reliable on capable models. |
+| 6 | Codebase awareness | ✅ | Autonomous file discovery via its own read/list tools. |
+| 7 | Config transparency | ✅ | Settings panel + plain fields (Base URL, API key, model ID); no forced telemetry account. |
+| 8 | Active maintenance | ✅ | Upstream project; Roo Code itself pointed users back to Cline after archiving its own extension (May 2026). |
+| 9 | IDE-native integration | ✅ | Inline diff view for `replace_in_file`, per-hunk feel via VS Code's native diff UI. |
+| 10 | License/cost | ✅ | Open source, free; local-model path not seat-gated. |
+| 11 | Excels on at least one runtime | ✅ | Documented and used against LM Studio's OpenAI-compatible endpoint throughout this repo's SETUP.md; that alone satisfies the bar. Ollama not separately verified but not required. |
+
+## Runtime notes
+
+Verified against **LM Studio** only in this repo (see [SETUP.md §4](../SETUP.md#4-editor-extensions-same-lm-studio-server)) — that single-runtime fit is sufficient to pass criterion 11. Ollama compatibility is expected (both speak OpenAI-compatible APIs) but not separately confirmed here.
 
 > **All model recommendations on this page are heuristic.** No case has been run
 > through Cline and graded yet (see [Status](#status)). The judgements are
