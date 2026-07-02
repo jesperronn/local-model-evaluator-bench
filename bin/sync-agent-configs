@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# bin/sync-agent-configs — regenerate local-agent model lists from what's
+# actually installed, instead of hand-maintaining them.
+#
+# Problem: ~/.config/opencode/opencode.jsonc and config-templates/pi-agent-models.json
+# list models by hand. Every time a model is pulled/removed in LM Studio or
+# Ollama, those files drift — dead entries for models no longer on disk,
+# missing entries for new pulls. This script is the fix: run it after any
+# `lms get`/`lms rm`/`ollama pull`/`ollama rm` and it re-derives both files
+# from ground truth (`lms ls --json`, `ollama list`), skipping known-broken
+# combos recorded in compat.json.
+#
+# Usage:
+#   bin/sync-agent-configs                 dry-run: print unified diffs
+#   bin/sync-agent-configs --write         apply changes (backs up originals)
+#   bin/sync-agent-configs --write --opencode-only
+#   bin/sync-agent-configs --write --pi-only
+#
+# What it does NOT touch: the mlx and ollama_proxy providers in opencode.jsonc
+# (those are hand-configured servers/proxies, not runtime-discoverable), and
+# the top-level "model" default (changing your default model is your call).
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh" 2>/dev/null || true
+
+OPENCODE_CFG="${OPENCODE_CFG:-$HOME/.config/opencode/opencode.jsonc}"
+PI_LIVE_CFG="${PI_LIVE_CFG:-$HOME/.pi/agent/models.json}"
+PI_TEMPLATE="$HERE/config-templates/pi-agent-models.json"
+COMPAT_JSON="$HERE/compat.json"
+
+WRITE=0
+DO_OPENCODE=1
+DO_PI=1
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --write) WRITE=1; shift;;
+    --opencode-only) DO_PI=0; shift;;
+    --pi-only) DO_OPENCODE=0; shift;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0;;
+    *) echo "unknown option: $1" >&2; exit 1;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || { echo "jq required" >&2; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "node required" >&2; exit 1; }
+
+# ── Discover installed models ────────────────────────────────────────────────
+
+LMS_JSON="[]"
+if command -v lms >/dev/null 2>&1; then
+  LMS_JSON="$(lms ls --json 2>/dev/null | jq -c '[.[] | select(.type=="llm")]')"
+fi
+
+OLLAMA_JSON="[]"
+if command -v ollama >/dev/null 2>&1; then
+  OLLAMA_JSON="$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | jq -R . | jq -s .)"
+fi
+
+# ── Known-broken combos (adapter:model:runtime) to exclude ──────────────────
+
+broken_keys_for() {
+  local adapter="$1"
+  jq -r --arg a "$adapter" 'to_entries[] | select(.value.adapter==$a) | .value.model' "$COMPAT_JSON" 2>/dev/null | sort -u
+}
+
+# ── pi's models.json (lmstudio + ollama; mlx provider is path-based, left manual) ─
+# Syncs both the live file pi actually reads (~/.pi/agent/models.json) and the
+# repo template (config-templates/pi-agent-models.json) that seeds it on setup.
+
+sync_one_pi_file() {
+  local target="$1" label="$2"
+  [ -f "$target" ] || { echo "$label: not found, skipping (run bin/setup --caveman-cli first)"; return; }
+
+  local broken_json; broken_json="$(broken_keys_for pi | jq -R . | jq -s .)"
+
+  local lms_models ollama_models
+  lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_json" '
+    [.[] | .modelKey as $k | select($broken | index($k) | not) | {id: $k}] | sort_by(.id)')"
+  ollama_models="$(echo "$OLLAMA_JSON" | jq --argjson broken "$broken_json" '
+    [.[] | select(test("embed") | not) | select(. as $k | $broken | index($k) | not) | {id: .}] | sort_by(.id)')"
+
+  local tmp; tmp="$(mktemp)"
+  jq --argjson lms "$lms_models" --argjson ollama "$ollama_models" '
+    .providers.lmstudio.models = $lms
+    | if .providers.ollama then .providers.ollama.models = $ollama else . end
+  ' "$target" > "$tmp"
+
+  if ! diff -q "$target" "$tmp" >/dev/null 2>&1; then
+    echo "── $label ──"
+    diff -u "$target" "$tmp" || true
+    if [ "$WRITE" = "1" ]; then
+      cp "$target" "$target.bak.$(date +%Y%m%d%H%M%S 2>/dev/null || echo backup)"
+      mv "$tmp" "$target"
+      echo "wrote $target"
+    else
+      rm -f "$tmp"
+    fi
+  else
+    echo "$label: up to date"
+    rm -f "$tmp"
+  fi
+}
+
+sync_pi() {
+  sync_one_pi_file "$PI_LIVE_CFG" "$PI_LIVE_CFG"
+  sync_one_pi_file "$PI_TEMPLATE" "config-templates/pi-agent-models.json"
+}
+
+# ── opencode.jsonc (lmstudio + ollama providers) ─────────────────────────────
+
+sync_opencode() {
+  if [ ! -f "$OPENCODE_CFG" ]; then
+    echo "opencode config not found at $OPENCODE_CFG (skipping)" >&2
+    return
+  fi
+
+  local broken_lms
+  broken_lms="$(broken_keys_for opencode | jq -R . | jq -s .)"
+
+  # Reuse existing display names where the id is unchanged; only synthesize a
+  # name (title-cased) for newly-discovered ids. Keeps hand-tuned names
+  # (e.g. "GPT-OSS 20B") instead of clobbering them with a naive heuristic.
+  local existing
+  existing="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" lmstudio ollama)"
+
+  local lms_models ollama_models
+  lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
+    [.[] | .modelKey as $k | select($broken | index($k) | not)
+         | {($k): ($existing.lmstudio[$k] // {name: .displayName})}]
+    | sort_by(keys[0]) | add // {}')"
+
+  ollama_models="$(echo "$OLLAMA_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
+    def titlecase: gsub("[:_-]"; " ") | split(" ") | map(
+        if test("^[0-9]") then . else (.[0:1] | ascii_upcase) + .[1:] end
+      ) | join(" ");
+    [.[] | select(test("embed") | not)
+         | select(. as $k | $broken | index($k) | not)
+         | {(.): ($existing.ollama[.] // {name: (. | titlecase)})}]
+    | sort_by(keys[0]) | add // {}')"
+
+  local out
+  out="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" write "$OPENCODE_CFG" lmstudio "$lms_models" ollama "$ollama_models")"
+
+  if ! diff -q "$OPENCODE_CFG" <(echo "$out") >/dev/null 2>&1; then
+    echo "── $OPENCODE_CFG ──"
+    diff -u "$OPENCODE_CFG" <(echo "$out") || true
+    if [ "$WRITE" = "1" ]; then
+      cp "$OPENCODE_CFG" "$OPENCODE_CFG.bak.$(date +%Y%m%d%H%M%S 2>/dev/null || echo backup)"
+      echo "$out" > "$OPENCODE_CFG"
+      echo "wrote $OPENCODE_CFG"
+    fi
+  else
+    echo "$OPENCODE_CFG: up to date"
+  fi
+}
+
+[ "$DO_PI" = "1" ] && sync_pi
+[ "$DO_OPENCODE" = "1" ] && sync_opencode
+
+if [ "$WRITE" = "0" ]; then
+  echo
+  echo "(dry-run — pass --write to apply)"
+fi

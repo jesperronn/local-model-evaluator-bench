@@ -6,3 +6,4 @@ node_modules/
 .cave/
 bench1.txt
 __pycache__/
+*.bak.*

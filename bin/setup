@@ -26,6 +26,10 @@
 # Model flags:
 #   --model            show model status across runtimes
 #   --runtime lms|ollama|mlx  filter --model to one runtime
+#   --sync-models      regenerate opencode/pi model configs from installed
+#                      models (bin/sync-agent-configs --write); status-only
+#                      runs and --opencode-cli/--caveman-cli always show a
+#                      one-line drift warning even without this flag
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
@@ -36,6 +40,7 @@ DO_ALL=0
 DO_LMS=0; DO_HERMES=0; DO_CODEX=0; DO_OPENCODE=0; DO_AIDER=0
 DO_CAVEMAN=0; DO_MLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0
 DO_MODEL=0; RUNTIME=""
+DO_SYNC=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -54,6 +59,7 @@ while [ $# -gt 0 ]; do
     --fzf)            DO_FZF=1; shift;;
     --hf)             DO_HF=1; shift;;
     --model)          DO_MODEL=1; shift;;
+    --sync-models)    DO_SYNC=1; shift;;
     --runtime)        RUNTIME="$2"; shift 2;;
     -h|--help) sed -n '2,29p' "$0"; exit 0;;
     *) die "unknown option: $1";;
@@ -158,6 +164,24 @@ setup_hermes() {
   fi
 }
 
+# Runs bin/sync-agent-configs against installed models. Dry-run shows a
+# one-line drift status; with --sync-models (or DO_SYNC=1) applies it.
+_sync_status() {
+  local label="$1"; shift
+  [ -x "$HERE/bin/sync-agent-configs" ] || return 0
+  if [ "$DO_SYNC" = 1 ] && [ "$DRY_RUN" = 0 ]; then
+    "$@" --write | sed "s/^/    [$label] /"
+  else
+    local out; out="$("$@" 2>&1)"
+    if printf '%s\n' "$out" | grep -q "up to date"; then
+      ok "agent model config in sync  ${C_DIM}(bin/sync-agent-configs)${C_RST}"
+    else
+      warn "agent model config drifted from installed models"
+      printf '    run: bin/sync-agent-configs --write\n'
+    fi
+  fi
+}
+
 setup_codex() {
   step "Codex CLI"
   if ! check_cmd "codex" codex "npm install --global @openai/codex"; then
@@ -174,6 +198,7 @@ setup_opencode() {
     [ "$DO_OPENCODE" = 1 ] && do_install "opencode" opencode "opencode"
     return
   fi
+  _sync_status opencode "$HERE/bin/sync-agent-configs" --opencode-only
   [ "$DO_OPENCODE" = 0 ] && return
   ok "no persistent config needed (lmstudio provider is built-in)"
 }
@@ -194,6 +219,7 @@ setup_caveman() {
     [ "$DO_CAVEMAN" = 1 ] && do_install "caveman" caveman "npm:@juliusbrussee/caveman-code"
     return
   fi
+  _sync_status pi "$HERE/bin/sync-agent-configs" --pi-only
   [ "$DO_CAVEMAN" = 0 ] && return
   # Config: ~/.pi/agent/models.json
   local models_json="$HOME/.pi/agent/models.json"
