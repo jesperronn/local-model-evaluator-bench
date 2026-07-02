@@ -60,6 +60,7 @@ and run through `bin/nightly`/`bin/smoke` like any CLI tool.
 | Junie | ✅ `junie` CLI (EAP) | **Not automatable — confirmed blocked.** Installed and tested: even with `--litellm-url` pointed at LM Studio, the CLI refuses to run without a JetBrains-issued `--auth`/`JUNIE_API_KEY` token (signup required). No adapter written. See [junie.md](junie.md#automation-feasibility). |
 | Kilo Code | ⚠️ `@kilocode/cli` exists but is a **different, cloud-only product** | Not automatable for local use — see [tools/kilocode.md](../tools/kilocode.md). |
 | JetBrains AI Assistant, Roo Code | ❌ none found | Manual-only (Roo Code is archived anyway). |
+| ZCode (Z.ai) | ❌ none found | **Not automatable.** Standalone desktop app, not an IDE plugin; requires Z.ai account login even when a custom local/self-hosted OpenAI/Anthropic-compatible provider is configured. No CLI/headless mode found. See [zcode.md](zcode.md). |
 
 **Critical limitation of all headless automation:** these CLIs auto-execute
 tool calls with no approval prompt, so an automated pass/total score
@@ -74,6 +75,8 @@ both are needed before fully trusting a "recommended" verdict.
 |-----------|-----|--------|
 | Cursor | VS Code fork | _planned_ — GUI-only, no headless mode; explore manual eval procedure |
 | ProxyAI (CodeGPT) | JetBrains | _planned_ |
+| ZooCode | ? | _planned_ — local-models support per [docs.zoocode.dev/advanced-usage/local-models](https://docs.zoocode.dev/advanced-usage/local-models); needs IDE/headless-CLI status check |
+| ZCode (Z.ai) | none (standalone app) | _scorecarded_ — [zcode.md](zcode.md); genuine custom OpenAI/Anthropic-compatible provider support (incl. self-hosted), but mandatory account login and no headless CLI found, so not automatable and not yet confirmed airgapped |
 
 ## What a page should cover
 
