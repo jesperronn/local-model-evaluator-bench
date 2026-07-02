@@ -15,6 +15,46 @@ Key files:
 
 ---
 
+## Conventions
+
+These policies apply across all adapters and benchmark runs:
+
+- **No auto-approve flags.** Adapters must not pass `--yolo`, `--auto-approve`,
+  or equivalent blanket-approval flags. Approval prompts are a safety signal —
+  they reveal how much the model hesitates, which actions it thinks are risky,
+  and whether its confidence matches task difficulty. Auto-approval hides that
+  signal even though it makes runs "look cleaner." For headless/CI runs this
+  means an adapter must either gate through something reviewable (e.g. hermes's
+  `approvals.mode: smart` guardian — see [SETUP.md §3](SETUP.md#3-the-cli-adapters))
+  or accept that some runs need human input. This is intentional: it preserves
+  behavioral signal integrity.
+
+- **Document adapter tool versions.** Every adapter should record the version
+  of the underlying CLI/tool it was built and last verified against (e.g. in a
+  header comment: `# caveman-code v1.2.3, npm`) and the date tested. Adapters
+  break silently when their underlying tool updates — a version marker lets
+  you spot an incompatibility at a glance instead of debugging a cryptic
+  failure weeks later. When a test fails due to a version mismatch, update the
+  header with the breaking version and a note on what would fix it.
+
+- **Baseline for "first full bench result."** The canonical, comparable
+  benchmark configuration is **LM Studio + `qwen/qwen3.6-30b-a3b`** (fall back
+  to `qwen/qwen3.6-35b-a3b` if unavailable). Use this whenever running all
+  adapters for the first time, establishing a new leaderboard/scoring
+  baseline, or validating a new adapter against a known-good reference. You
+  can deviate for model-specific investigations or quick single-adapter
+  smoke tests — just label the deviation clearly (commit message, run
+  metadata) so it isn't mistaken for the canonical baseline.
+
+- **Build analysis into existing tools, not ad-hoc scripts.** Don't reach for
+  a one-off `awk`/`grep` chain or a throwaway script to answer a recurring
+  question. Add it as a flag/option on the relevant tool instead (e.g.
+  `bin/report --speed`, `bin/report --all`) so it composes with existing
+  filters, gets documented, and is version-tracked. Ad-hoc scripts are hard to
+  find, can't be composed with other filters, and never get committed.
+
+---
+
 ## 1. Adding a New Adapter
 
 ### Step 1a: Create the adapter script
@@ -407,3 +447,44 @@ mv compat.json.tmp compat.json
 - [`TESTING-STRATEGY.md`](./TESTING-STRATEGY.md) — case difficulty tiers, how to interpret results
 - [`config.sh`](../config.sh) — runtime endpoints, model defaults, adapter list
 - [`bin/doctor`](../bin/doctor) — diagnose adapter/runtime setup issues
+- [Agent Sessions](https://jazzyalex.github.io/agent-sessions/) — browser-based
+  viewer for agent session transcripts. Useful for post-mortem debugging of a
+  surprising eval result (wrong answer, unexpected refusal, tool misuse):
+  load the session JSON/JSONL and browse the full turn-by-turn conversation.
+
+## Run versioning
+
+Every `bin/bench` run captures full provenance in `run.json`, not just results:
+
+- **Run date & time** (from the run id, `YYYYMMDD-HHMMSS`)
+- **Runtime version** — LM Studio / Ollama / MLX version + how it was detected
+- **Adapter versions** — each tool's version (aider, cline, mini-swe-agent,
+  etc.), resolved via pip/npm/pnpm
+- **Bench config** — parallel slots, context window, timeouts, trial count
+- **System snapshot** — CPU, RAM, swap at run time (for reproducibility)
+
+This is implemented in [`lib/versions.sh`](../lib/versions.sh)
+(`get_version_info <adapter>`, `get_runtime_version <runtime>`), called from
+`bin/bench`'s `write_run_meta()`. Version extraction returns `"unknown"` if a
+tool isn't installed globally. System info collection is macOS-specific.
+
+Example `run.json` shape:
+
+```json
+{
+  "run_id": "20260627-102030",
+  "run_date": "2026-06-27",
+  "run_time": "10:20:30",
+  "runtime": "lms",
+  "versions": {
+    "runtime": { "name": "lms", "version": "CLI commit: efce996", "source": "lms" },
+    "agents": {
+      "mini-swe-agent": { "version": "2.4.2", "source": "pip" },
+      "aider": { "version": "...", "source": "pip" }
+    }
+  },
+  "bench": {...},
+  "axes": {...},
+  "system": {...}
+}
+```

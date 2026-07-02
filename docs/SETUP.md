@@ -15,6 +15,21 @@ lms load <model-id>         # load a model into memory (or load it in the GUI)
 lms ps                      # show what's currently loaded
 ```
 
+> **Running headless (no GUI).** LM Studio can be operated entirely via the
+> `lms` CLI (binary at `~/.lmstudio/bin/lms`) — the GUI app is not required for
+> any of the above. Model management uses the CLI too; `lms` has no `rm`
+> command, so deletion goes through [`bin/prune`](#bin-prune-model-disk-cleanup)
+> (or manually removing dirs under `~/.lmstudio/models/`).
+>
+> **Storage layout:** the real model weights live at
+> `~/.lmstudio/models/lmstudio-community/<HF-dir>/`. `~/.lmstudio/hub/models/<pub>/<key>/`
+> holds tiny (KB-sized) pointer dirs only — not the weights. The authoritative
+> modelKey → concrete-dir mapping is
+> `~/.lmstudio/.internal/model-index-cache.json`
+> (`concreteModelDirAbsolutePath`) — use that instead of guessing from
+> filenames. ("llmster" is LM Studio's internal codename, seen under
+> `~/.lmstudio/.internal/llmster-*` — not a separate product.)
+
 `bin/doctor` calls the server's `/v1/models` and prints the **loaded** model ids
 — those are the strings the clients must use.
 
@@ -188,6 +203,27 @@ name = "LM Studio"
 base_url = "http://localhost:1234/v1"
 env_key = "LMS_API_KEY"
 ```
+
+### `bin/prune` — model disk cleanup
+
+Downloaded models pile up fast across `lms`/Ollama/MLX. `bin/prune` lists and
+deletes them:
+
+```bash
+bin/prune --runtime=lms --unused   # models not referenced by any models*.txt/aliases
+bin/prune -i                       # interactive fzf picker
+bin/prune --dry-run                # preview only, no deletion
+```
+
+Flags: `--runtime=lms|ollama|mlx|all`, `--unused`, `--dry-run`. Listing is
+always safe; deletion requires `-i` or an explicit target. For `lms`, model
+resolution reads `~/.lmstudio/.internal/model-index-cache.json` for the
+authoritative modelKey → concrete-dir mapping (no filename-guessing — an
+earlier token heuristic mis-mapped `E4B` → `12B`). It deletes the concrete
+weights dir plus any uniquely-owned hub pointer together, and skips index
+entries whose dir no longer exists (the cache goes stale after deletes).
+`--unused` falls back to token-subset matching so a not-yet-indexed download
+still matches its id in the bench model lists.
 
 ## 4. Editor extensions (same LM Studio server)
 
