@@ -27,8 +27,16 @@ fi
 
 echo
 info "Coding CLIs (adapters in $ADAPTERS_DIR):"
-for a in "$ADAPTERS_DIR"/*.sh; do
-  name="$(basename "$a" .sh)"
+# Adapter files are named <tool>-<runtime>.sh (e.g. aider-lms.sh); the binary
+# to check for on PATH is just <tool>. Dedupe so each tool is checked once
+# regardless of how many runtime variants it has.
+for name in $(for a in "$ADAPTERS_DIR"/*.sh; do
+  n="$(basename "$a" .sh)"
+  # Repeatedly strip trailing runtime/routing tokens (order in filenames is
+  # <tool>[-proxy]-<runtime>, e.g. codex-proxy-ollama.sh -> codex).
+  while [[ "$n" =~ -(lms|ollama|mlx|proxy)$ ]]; do n="${n%-*}"; done
+  echo "$n"
+done | sort -u); do
   if command -v "$name" >/dev/null 2>&1; then ok "$name -> $(command -v "$name")"
   else warn "$name not on PATH (adapter present, tool missing)"; fi
 done

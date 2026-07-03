@@ -164,7 +164,11 @@ cmd_runtime_start() {
       die "ollama did not come up within 10s — check ${TMPDIR:-/tmp}/llmrun-ollama.log"
       ;;
     mlx)
-      if mlx_up 2>/dev/null; then info "mlx: already running ($(_rt_mlx_model))"; return; fi
+      if mlx_up 2>/dev/null; then
+        local _m; _m=$(_rt_mlx_model)
+        info "mlx: already running (${_m:-model unknown})"
+        return
+      fi
       [ -z "$model" ] && die "usage: llmrun runtime start mlx <model>  (this repo also has model-specific wrappers — see bin/mlx-serve-*)"
       command -v mlx_lm.server >/dev/null 2>&1 || python3 -c "import mlx_lm" 2>/dev/null \
         || die "mlx_lm not found — pip install mlx-lm"
@@ -233,7 +237,23 @@ cmd_runtime_logs() {
   case "$tgt" in
     lms)
       command -v lms >/dev/null 2>&1 || die "lms CLI not found on PATH"
-      exec lms log stream
+      # lms has no static "tail" — `lms log stream` only ever follows live
+      # traffic. Without -f, cap it with a short timeout so it still exits
+      # instead of hanging forever waiting for new log lines.
+      if [ "$follow" = 1 ]; then
+        exec lms log stream
+      else
+        info "lms only supports live log streaming — capturing 3s (use -f to follow indefinitely)"
+        # Portable timeout: use it if present (not on stock macOS), else perl's
+        # alarm (ships with macOS).
+        if command -v timeout >/dev/null 2>&1; then
+          timeout 3 lms log stream 2>/dev/null || true
+        elif command -v gtimeout >/dev/null 2>&1; then
+          gtimeout 3 lms log stream 2>/dev/null || true
+        else
+          perl -e '$SIG{ALRM}=sub{exit 0}; alarm 3; exec @ARGV' lms log stream 2>/dev/null || true
+        fi
+      fi
       ;;
     ollama)
       local log="${TMPDIR:-/tmp}/llmrun-ollama.log"
@@ -436,14 +456,19 @@ cmd_agents_sync() {
 
 cmd_agents_config_list() {
   command -v jq >/dev/null 2>&1 || die "jq required"
-  _agents_store_read | jq -r '
+  local rows; rows=$(_agents_store_read | jq -r '
     to_entries[] as $m | $m.value | to_entries[] as $k |
     "\($m.key)\t\($k.key)\t\($k.value.value)\t\($k.value.reason // "")\t\($k.value.source // "")"
-  ' | awk -F'\t' '{printf "%-30s %-14s %-10s %s\n", $1, $2, $3, $4}'
+  ')
+  if [ -z "$rows" ]; then
+    info "no config set — see: llmrun agents config set <model> <key> <value>"
+    return
+  fi
+  printf '%s\n' "$rows" | awk -F'\t' '{printf "%-30s %-14s %-10s %s\n", $1, $2, $3, $4}'
 }
 
 cmd_agents_config_get() {
-  local model="$1" key="$2"
+  local model="${1:-}" key="${2:-}"
   [ -z "$model" ] || [ -z "$key" ] && die "usage: llmrun agents config get <model> <key>"
   command -v jq >/dev/null 2>&1 || die "jq required"
   local v; v=$(_agents_store_read | jq -r --arg m "$model" --arg k "$key" '.[$m][$k].value // empty')
@@ -452,7 +477,7 @@ cmd_agents_config_get() {
 }
 
 cmd_agents_config_set() {
-  local model="$1" key="$2" value="$3"; shift 3 2>/dev/null || true
+  local model="${1:-}" key="${2:-}" value="${3:-}"; shift 3 2>/dev/null || true
   local reason="" source=""
   while [ $# -gt 0 ]; do
     case "$1" in --reason) reason="$2"; shift 2;; --source) source="$2"; shift 2;; *) shift;; esac
@@ -470,7 +495,7 @@ cmd_agents_config_set() {
 }
 
 cmd_agents_config_unset() {
-  local model="$1" key="$2"
+  local model="${1:-}" key="${2:-}"
   [ -z "$model" ] || [ -z "$key" ] && die "usage: llmrun agents config unset <model> <key>"
   command -v jq >/dev/null 2>&1 || die "jq required"
   [ -f "$_AGENTS_STORE" ] || { info "nothing set for $model.$key"; return; }
@@ -481,19 +506,30 @@ cmd_agents_config_unset() {
 }
 
 cmd_agents_config_apply() {
-  local plan="$1"; shift || true
+  local plan="${1:-}"; shift 2>/dev/null || true
   local write=0; for a in "$@"; do [ "$a" = "--write" ] && write=1; done
   [ -f "$plan" ] || die "usage: llmrun agents config apply <plan.jsonl> [--write]"
   command -v jq >/dev/null 2>&1 || die "jq required"
-  local n=0
+  local n=0 lineno=0 skipped=0
   while IFS= read -r row; do
+    lineno=$((lineno+1))
     [ -z "$row" ] && continue
+    if ! printf '%s' "$row" | jq -e . >/dev/null 2>&1; then
+      warn "plan line $lineno: not valid JSON, skipping: $row"
+      skipped=$((skipped+1))
+      continue
+    fi
     local model key value reason source
-    model=$(printf '%s' "$row" | jq -r '.model')
-    key=$(printf '%s' "$row" | jq -r '.key')
-    value=$(printf '%s' "$row" | jq -r '.value')
+    model=$(printf '%s' "$row" | jq -r '.model // empty')
+    key=$(printf '%s' "$row" | jq -r '.key // empty')
+    value=$(printf '%s' "$row" | jq -r '.value // empty')
     reason=$(printf '%s' "$row" | jq -r '.reason // ""')
     source=$(printf '%s' "$row" | jq -r '.source // ""')
+    if [ -z "$model" ] || [ -z "$key" ] || [ -z "$value" ]; then
+      warn "plan line $lineno: missing model/key/value, skipping: $row"
+      skipped=$((skipped+1))
+      continue
+    fi
     if [ "$write" = 1 ]; then
       cmd_agents_config_set "$model" "$key" "$value" --reason "$reason" --source "$source"
     else
@@ -501,7 +537,19 @@ cmd_agents_config_apply() {
     fi
     n=$((n+1))
   done < "$plan"
+  [ "$skipped" -gt 0 ] && warn "$skipped row(s) skipped (see above)"
   [ "$write" = 0 ] && info "$n row(s) — dry-run, pass --write to apply"
+}
+
+_agents_help() {
+  cat <<'EOF'
+llmrun agents sync                                        sync opencode/pi model lists (needs source project)
+llmrun agents config list                                 show all stored per-model overrides
+llmrun agents config get    <model> <key>                 read one override
+llmrun agents config set    <model> <key> <value>          write one override
+llmrun agents config unset  <model> <key>                 remove an override
+llmrun agents config apply  <plan.jsonl> [--write]        bulk-apply, dry-run by default
+EOF
 }
 
 if [ "${1:-}" = "agents" ]; then
@@ -517,19 +565,11 @@ if [ "${1:-}" = "agents" ]; then
         set)    cmd_agents_config_set "$@";;
         unset)  cmd_agents_config_unset "$@";;
         apply)  cmd_agents_config_apply "$@";;
+        -h|--help|help|"") _agents_help;;
         *) die "unknown agents config subcommand: $CSUB (valid: list get set unset apply)";;
       esac
       ;;
-    -h|--help|help)
-      cat <<'EOF'
-llmrun agents sync                                        sync opencode/pi model lists (needs source project)
-llmrun agents config list                                 show all stored per-model overrides
-llmrun agents config get    <model> <key>                 read one override
-llmrun agents config set    <model> <key> <value>          write one override
-llmrun agents config unset  <model> <key>                 remove an override
-llmrun agents config apply  <plan.jsonl> [--write]        bulk-apply, dry-run by default
-EOF
-      ;;
+    -h|--help|help|"") _agents_help;;
     *) die "unknown agents subcommand: $ASUB (valid: sync config)";;
   esac
   exit 0
