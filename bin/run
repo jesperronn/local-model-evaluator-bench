@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# bin/run — grouped entry point for the bench matrix runner.
+# Thin dispatcher over the existing engines: --smoke routes to bin/smoke
+# (fast 2-case wiring check), --preset nightly routes to bin/nightly (lms-focused
+# overnight preset), everything else is a full bin/bench run. All other flags
+# pass through unchanged. See docs/PLAN-CLI-UNIFICATION.md.
+#
+# Usage:
+#   bin/run [--agent a,b] [--models a,b] [--cases ...] [--runtime lms|ollama|mlx] ...
+#                                        = bin/bench (full matrix)
+#   bin/run --smoke [...]                = bin/smoke (fast wiring check)
+#   bin/run --preset nightly [...]       = bin/nightly (lms-focused overnight preset)
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+REST=()
+SMOKE=0
+PRESET=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --smoke) SMOKE=1; shift;;
+    --preset) PRESET="$2"; shift 2;;
+    *) REST+=("$1"); shift;;
+  esac
+done
+
+if [ "$SMOKE" = 1 ]; then
+  exec "$HERE/smoke" "${REST[@]}"
+elif [ "$PRESET" = "nightly" ]; then
+  exec "$HERE/nightly" "${REST[@]}"
+elif [ -n "$PRESET" ]; then
+  echo "unknown --preset: $PRESET (valid: nightly)" >&2; exit 1
+else
+  exec "$HERE/bench" "${REST[@]}"
+fi

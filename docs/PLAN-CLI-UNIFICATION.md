@@ -1,10 +1,36 @@
 # Plan: unify `bin/*` scripts into a single `llmrun` command tree
 
-**Status**: proposed (design discussion only — nothing implemented yet)
+**Status**: implemented — full tree built and tested (see Migration approach
+for what's inline vs delegated)
 **Created**: 2026-07-02
 **Updated**: 2026-07-03 — split into global (`llmrun`) vs project-local scope;
 reworked `agents tune` into git-config-shaped `agents config
 {list,get,set,unset,apply}` + project-local `suggest-tuning`
+**Updated**: 2026-07-03 — `llmrun runtime {status,start,stop,logs}` implemented
+in [bin/build-llmrun](../bin/build-llmrun)'s generated template (self-contained,
+no `lib/common.sh` dependency, matches the "standalone dotfiles binary"
+requirement). `start` fills the gap called out in Problem #1 (lms via
+`lms server start`, ollama via app-or-`serve`, mlx via `mlx_lm.server`
+backgrounded with model arg required). `bin/rt` is untouched for now — it stays
+the richer, bench-aware status tool for this repo; `llmrun runtime status` is
+the leaner global equivalent (no bench/results awareness).
+**Updated**: 2026-07-03 — rest of the tree implemented and tested (all
+commands run against the real running lms/ollama/mlx on this machine, plus the
+existing `*.test.sh` suites re-run clean): `llmrun model {list,get,load,unload}`
+inline; `model {rm,update}` and `agents sync` delegate by baked project path to
+`bin/prune`/`bin/lms_update`/`bin/outdated`/`bin/sync-agent-configs` (same
+"point to, don't inline" principle the adapters already use — see Migration
+approach); `llmrun agents config {list,get,set,unset,apply}` implemented
+against a new intermediate store (resolves open Q4, below); project-local
+`bin/suggest-tuning` derives real `context` recommendations from
+`docs/models/*.md` Quick-verdict tables (cross-checked against the hermes 64K
+floor in README.md, emitting both rows on conflict — resolves open Q5);
+`bin/troubleshoot` renamed to `bin/debug` with the old name kept as a
+deprecated shim (resolves open Q2/Q3); `bin/cards`, `bin/results`, `bin/run`
+added as thin project-local dispatchers over the existing lint-cards/fix-card/
+sweep-cards, stale/cleanup, and bench/smoke/nightly scripts (resolves open Q1
+in favor of "regrouped, not one `bin/dev` mega-dispatcher" — each concern gets
+its own small dispatcher instead of a single namespaced entrypoint).
 **Context**: dotfiles already run `llmrun`, built from this project via
 [bin/build-llmrun](../bin/build-llmrun) (see
 [PLAN-LLMRUN-OPENCODE.md](PLAN-LLMRUN-OPENCODE.md) for the original launcher
@@ -178,41 +204,84 @@ with the 54 A/B/F/G questions. Stays a standalone `bin/eval-agent` — it's a
 model-eval tool, not a runtime/model/cards/results lifecycle command, so it
 doesn't slot into the tree above.
 
-## Migration approach (not yet started)
+## Migration approach — done
 
-Old scripts become thin wrappers (or get deleted) once each new subcommand is
-built and verified against the old script's behavior — one namespace at a
-time, not a single big-bang rewrite. Suggested order, global first (these are
-the ones that had a real functional gap, not just a naming problem):
-`runtime` (smallest gap, `rt` already 90% there) → `model` (biggest win, most
-scattered today) → `agents config` (git-config-shaped CRUD, needed before
-`apply` has anything to call) → `agents sync` (fold in `sync-agent-configs`)
-→ project-local `suggest-tuning` + `agents config apply` bridge → project-local
-`run` → `cards`/`results` (lowest urgency, already-working scripts with just a
-naming/grouping problem).
+Built and tested in dependency order, global first: `runtime` → `model` →
+`agents config` → `agents sync` → project-local `suggest-tuning` + `agents
+config apply` bridge → project-local `run` → `cards`/`results`.
 
-## Open questions
+Two different "thin wrapper" strategies were used depending on how
+battle-tested and repo-coupled the underlying logic was:
 
-1. Do the project-local commands (`run`/`doctor`/`debug`/`cards`/`results`/
-   `suggest-tuning`) become one dispatcher script (`bin/dev <namespace>
-   <verb>`), or just get regrouped/renamed as individual scripts without a
-   wrapper? A dispatcher mirrors `llmrun`'s shape (consistent mental model)
-   but adds a layer of indirection for commands that are only ever run from
-   this one repo anyway.
-2. Should `rt`/`prune`/`lms_gc`/`lms_update`/`outdated`/`sync-agent-configs` be
-   deleted once ported into `llmrun`, or kept as deprecated aliases for a
-   transition period?
-3. Naming: is `debug` (vs `troubleshoot`) actually clearer, or does `debug`
-   collide with expectations from other tools (e.g. `--debug` flags)?
-4. `agents config`'s storage model — does it read/write the target configs
-   directly on every call (simplest, always current, but `opencode.jsonc`
-   round-tripping must preserve comments/formatting), or maintain its own
-   intermediate store (e.g. `~/.config/llmrun/agents.json`) that `sync`/`apply`
-   reconcile into each tool's native format? Direct read/write is simpler and
-   avoids a second source of truth, but only works for targets `llmrun` knows
-   how to parse — Cline/Continue's VS Code `settings.json` format may need a
-   per-target adapter either way, which favors the intermediate-store design.
-5. `suggest-tuning`'s evidence sources will disagree sometimes (e.g. a
-   hardware-recommendation says one context size, a model card's observed
-   failure threshold says another) — does it emit both as separate plan rows
-   for a human to pick, or does one source always win?
+- **Inlined into the `llmrun` template** (self-contained, no repo needed):
+  `runtime {status,start,stop,logs}`, `model {list,get,load,unload}`,
+  `agents config {list,get,set,unset,apply}`. These were either genuinely new
+  (no existing script to preserve) or simple enough (status checks, JSON
+  key-value CRUD) to reimplement directly without risking regressions.
+- **Delegated by baked project path** (same "point to, don't inline"
+  principle `build-llmrun` already uses for adapters): `model rm` →
+  `bin/prune`, `model update` → `bin/lms_update`/`bin/outdated`, `agents sync`
+  → `bin/sync-agent-configs`. These have substantial, already-correct logic
+  (HF API staleness checks, LM Studio index parsing, jsonc-preserving node
+  patching) that would be all downside to reimplement inline in a bash
+  heredoc — copying ~1200 lines of tested logic into the template's string
+  literal for no functional gain. `llmrun` calls them via `$_PROJECT/bin/...`,
+  same as it already does for adapter scripts. This does mean these three
+  subcommands need the source project on disk at the baked path (they `die`
+  with a clear message if it's missing) — a strictly smaller requirement than
+  "repo checked out at invocation `$PWD`", and the same one adapters already
+  had.
+- **Project-local dispatchers** (`bin/cards`, `bin/results`, `bin/run`): thin
+  argument-translating wrappers over `bin/lint-cards`/`fix-card`/`sweep-cards`,
+  `bin/stale`/`cleanup`, and `bin/bench`/`smoke`/`nightly`. Zero changes to the
+  underlying engines — all existing `*.test.sh` suites still pass unmodified.
+  `bin/troubleshoot` was renamed to `bin/debug` for real (not just a wrapper)
+  since it was a single, cheap, self-contained rename; the old name is kept as
+  a one-line deprecated shim that execs `bin/debug`.
+
+Old scripts were **not deleted** — `bin/rt`, `prune`, `lms_gc`, `lms_update`,
+`outdated`, `sync-agent-configs`, `lint-cards`, `fix-card`, `sweep-cards`,
+`stale`, `cleanup`, `bench`, `smoke`, `nightly` all still work standalone and
+remain the implementation the new entry points call into or sit alongside.
+`bin/lms_gc`'s standalone TTL-sweep behavior isn't yet exposed through `llmrun
+model unload --idle` in exactly the same shape (the new command reimplements
+the idle-scan inline rather than calling `lms_gc`) — worth a follow-up diff if
+they drift.
+
+## Open questions — resolved
+
+1. **One dispatcher vs regrouped scripts?** Resolved: regrouped, not a single
+   `bin/dev` mega-dispatcher. `bin/cards`, `bin/results`, and `bin/run` are
+   three small, independently-invokable dispatchers instead of one namespaced
+   entrypoint — matches how these were already invoked standalone, avoids
+   forcing every project-local action through one script when only three of
+   the six areas actually had a naming/grouping problem worth solving (`doctor`
+   and `suggest-tuning` needed no grouping at all).
+2. **Delete old scripts or keep as aliases?** Resolved: keep, unaliased, as the
+   real implementation. `model rm`/`update` and `agents sync` call them
+   directly (see Migration approach) rather than duplicating their logic, so
+   deleting them would break `llmrun`. Only `bin/troubleshoot` became a true
+   alias (see below).
+3. **`debug` vs `troubleshoot` naming?** Resolved: renamed to `bin/debug`.
+   `--debug` flag collision risk judged low — `bin/debug` is a top-level
+   command, not a flag, and no adapter/tool in this repo uses `--debug`.
+   `bin/troubleshoot` kept as a deprecated shim (prints a notice, execs
+   `bin/debug`) so any existing muscle memory or references still work.
+4. **`agents config` storage model?** Resolved: intermediate store
+   (`~/.config/llmrun/agents.json`), not direct read/write of
+   `opencode.jsonc`/`pi`'s `models.json`. Those files don't currently have a
+   per-model tuning field to write into (checked: both only carry `{id}` model
+   list entries, no `context`/`temperature` overrides) — inventing that schema
+   in each tool's native format was out of scope for the CRUD layer itself.
+   The store is real and working end-to-end (`suggest-tuning | agents config
+   apply --write` round-trips), but **reconciling stored overrides into each
+   tool's native config format is not yet built** — `agents config` currently
+   answers "what did I recommend/decide," not "what will opencode/pi/Cline
+   actually use." That reconciliation (one adapter per target format) is the
+   next real gap, tracked here rather than silently assumed done.
+5. **Conflicting evidence in `suggest-tuning`?** Resolved: emit both rows, no
+   auto-pick. Implemented and verified: when a model card's context
+   recommendation is below the hermes 64K floor documented in README.md, both
+   the card-sourced and README-sourced rows are emitted with distinct
+   `reason`/`source` fields, and a human (or a future policy) chooses via
+   which row survives to `agents config apply --write`.

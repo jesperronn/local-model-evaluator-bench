@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# bin/cards — grouped entry point for the card-conformance lifecycle.
+# Thin dispatcher: delegates to the already-working bin/lint-cards, bin/fix-card,
+# bin/sweep-cards. See docs/PLAN-CLI-UNIFICATION.md.
+#
+# Usage:
+#   bin/cards lint  [--type model|tool|runtime] [cards...]   = bin/lint-cards
+#   bin/cards fix   --card X --via model  [claude|lms]       = bin/fix-card
+#   bin/cards fix   --card X --via agent  [opencode-lms]     = bin/sweep-cards
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+usage() { sed -n '2,10p' "$0"; exit 0; }
+
+SUB="${1:-}"; shift 2>/dev/null || true
+case "$SUB" in
+  lint)
+    exec "$HERE/lint-cards" "$@"
+    ;;
+  fix)
+    VIA=""; REST=()
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --via) VIA="$2"; shift 2;;
+        *) REST+=("$1"); shift;;
+      esac
+    done
+    case "$VIA" in
+      model)
+        BACKEND="${REST[0]:-}"
+        if [ -n "$BACKEND" ] && [[ "$BACKEND" != --* ]]; then
+          REST=("${REST[@]:1}")
+          exec "$HERE/fix-card" --via "$BACKEND" "${REST[@]}"
+        else
+          exec "$HERE/fix-card" "${REST[@]}"
+        fi
+        ;;
+      agent)
+        exec "$HERE/sweep-cards" "${REST[@]}"
+        ;;
+      *)
+        echo "usage: bin/cards fix --via model|agent [...]" >&2; exit 1;;
+    esac
+    ;;
+  -h|--help|"") usage;;
+  *) echo "unknown subcommand: $SUB (valid: lint fix)" >&2; exit 1;;
+esac

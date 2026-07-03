@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# bin/suggest-tuning — derive per-model config recommendations from evidence
+# already in this repo (model cards, README hard requirements), and emit them
+# as a plan.jsonl for `llmrun agents config apply`.
+#
+# This is the "judgment" half of the tune workflow (see docs/PLAN-CLI-UNIFICATION.md):
+# it reads repo-local evidence and decides what a value *should* be. It never
+# writes config itself — that's llmrun's job, mechanically, via `agents config
+# apply`. Each row: {model, key, value, reason, source}.
+#
+# Evidence sources checked:
+#   docs/models/*.md         "Context window" row in the Quick verdict table
+#   README.md                hard floors that apply regardless of the model
+#                             (currently: hermes requires >=64K context)
+#
+# When two sources disagree for the same (model, key), BOTH rows are emitted —
+# this tool doesn't pick a winner; a human (or `agents config apply --write`)
+# does, by choosing which row to keep. See docs/PLAN-CLI-UNIFICATION.md open Q5.
+#
+# Usage:
+#   bin/suggest-tuning            # all model cards
+#   bin/suggest-tuning <model>    # one model id, e.g. qwen/qwen3.6-35b-a3b
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$HERE"
+
+FILTER="${1:-}"
+HERMES_FLOOR=65536
+
+emit() {
+  # emit <model> <key> <value> <reason> <source>
+  python3 -c '
+import json, sys
+model, key, value, reason, source = sys.argv[1:6]
+print(json.dumps({"model": model, "key": key, "value": value, "reason": reason, "source": source}))
+' "$1" "$2" "$3" "$4" "$5"
+}
+
+# ── parse "Context window" quick-verdict rows out of each model card ────────
+parse_context_gb_or_k() {
+  # Normalizes "65536", "256K", "128k" etc to a raw token count.
+  local raw="$1"
+  raw="$(printf '%s' "$raw" | grep -oE '[0-9]+[Kk]?' | head -1)"
+  [ -z "$raw" ] && return
+  if [[ "$raw" =~ [Kk]$ ]]; then
+    printf '%d' $(( ${raw%[Kk]} * 1000 ))
+  else
+    printf '%d' "$raw"
+  fi
+}
+
+for card in docs/models/*.md; do
+  [ -f "$card" ] || continue
+  model_id="$(basename "$card" .md | sed 's/--/\//')"
+  [ -n "$FILTER" ] && [ "$model_id" != "$FILTER" ] && continue
+
+  ctx_line="$(grep -m1 -iE '\*\*Context window\*\*' "$card" || true)"
+  [ -z "$ctx_line" ] && continue
+  ctx_val="$(parse_context_gb_or_k "$ctx_line")"
+  [ -z "$ctx_val" ] && continue
+
+  emit "$model_id" "context" "$ctx_val" \
+    "model card Quick verdict: Context window" "$card"
+
+  # Cross-check against the hermes hard floor documented in README.md — if this
+  # model's card-recommended context is below it, surface the conflicting
+  # README-derived row too, so a human picks (see header: sources may disagree).
+  if [ "$ctx_val" -lt "$HERMES_FLOOR" ]; then
+    emit "$model_id" "context" "$HERMES_FLOOR" \
+      "README.md: hermes hard-refuses any model loaded with <64K context" "README.md"
+  fi
+done
