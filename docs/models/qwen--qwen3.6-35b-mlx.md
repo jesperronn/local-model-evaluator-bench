@@ -4,11 +4,11 @@
 
 | Metric | Value |
 |--------|-------|
-| **Accuracy** | measured pending |
-| **Speed (avg)** | measured pending |
-| **Best adapter** | measured pending |
-| **Recommended for** | measured pending |
-| **Status** | watch |
+| **Accuracy** | 85–100% across working adapters (interpreter 100%, opencode 95%, pi 92%, aider 91%, codex/hermes 89%, openhands 85%) |
+| **Speed (avg)** | 45–129s/case depending on adapter (see Timing observations) |
+| **Best adapter** | interpreter — only adapter to hit 100%; pi — fastest at 95.4s/case among 80%+ scorers |
+| **Recommended for** | general agentic coding via Ollama when you want a model to stay resident across many trials |
+| **Status** | keep |
 
 > Rule: when two models have equal accuracy, prefer the faster one. Speed must always be filled.
 
@@ -22,7 +22,7 @@
 | **Parameter count** | 35B total, 3B active |
 | **Disk size** | measured pending |
 | **Added** | 2026-06-18 |
-| **Last run** | measured pending |
+| **Last run** | 2026-07-02 |
 | **Doc updated** | 2026-06-30 |
 
 ## Context
@@ -39,29 +39,54 @@ lmstudio runtime (where both variants are equivalent).
 
 ## Results summary
 
+Full 11-case / 38-check suite, run 2026-07-02 (see
+[qwen--qwen3.6-35b-a3b.md § Cross-runtime comparison](qwen--qwen3.6-35b-a3b.md#cross-runtime-comparison-2026-07-02)
+for the matched lms/mlx numbers on the same weights):
+
 | Adapter | Accuracy | Speed (avg) | Runtime | Notes |
 |---------|:--------:|:-----------:|---------|-------|
-| measured pending | measured pending | measured pending | measured pending | measured pending |
+| interpreter | 100% | 73.6s | ollama | only adapter to hit a perfect score here |
+| opencode | 95% | 129.2s | ollama | slowest of the 80%+ scorers |
+| pi | 92% | 95.4s | ollama | |
+| aider | 91% | 72.5s | ollama | |
+| codex | 89% | 45.3s | ollama | fastest of the 80%+ scorers |
+| hermes | 89% | 83.5s | ollama | only adapter where Ollama beats lms on speed (83.5s vs 97.4s) |
+| openhands | 85% | 126.5s | ollama | |
+| cline | intermittent | — | ollama | passed individually, failed once in full sweep — flagged in `compat.json` |
 
-**Working adapters total:** measured pending
-**Overall (incl. broken adapters):** measured pending
+**Working adapters total:** 7/9 tested cleared 85%+; cline intermittent.
+**Overall:** no adapter reached 100% except interpreter — Ollama trails lms
+(5 adapters at 100%) for this model.
 
 ## Timing observations
 
 | Adapter | Speed (avg) | Case |
 |---------|--------------|------|
-| measured pending | measured pending | measured pending |
+| codex | 45.3s | fastest 80%+ scorer |
+| hermes | 83.5s | js-05-multiselect-filter ran 222s, an outlier |
+| aider | 72.5s | consistent 38–130s range |
+| interpreter | 73.6s | slowest case bash-01-topwords at 160s (cold Python startup) |
+| pi | 95.4s | |
+| openhands | 126.5s | |
+| opencode | 129.2s | slowest of adapters tested |
 
-measured pending
+Ollama is consistently 1.4×–2.6× slower than lms per case for this model
+(exception: hermes, where Ollama is slightly faster). See
+[docs/runtimes/ollama.md](../runtimes/ollama.md) for the general pattern.
 
 ## Better alternatives
 
-none
+None identified for Ollama specifically. On lms, the same weights (via
+`qwen/qwen3.6-35b-a3b`) score higher and faster across the board — prefer lms
+when raw accuracy/speed matters more than keeping a model resident.
 
 ## Failure patterns
 
-none
+cline intermittent — passed a standalone smoke run but failed one case when
+run as part of the full adapter sweep; not yet root-caused, flagged in
+`compat.json` for tracking.
 
 ## Status
 
-**pending first run**
+**keep** — confirm this is the right Ollama tag to use for qwen3.6-35b-a3b
+weights (prefer over `qwen3.6:35b-a3b-coding-mxfp8`, see Context above).

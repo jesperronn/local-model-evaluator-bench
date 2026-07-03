@@ -27,7 +27,7 @@ Both metrics appear on every leaderboard row, every model card, and every tool c
 | Which tool + model combo should I use today? | [LEADERBOARD.md](../LEADERBOARD.md) — sorted by accuracy then speed |
 | Which model is fastest for a given tool? | [docs/models/](models/) — per-model card, timing section |
 | Which tool gets the most out of a given model? | [docs/tools/](tools/) — per-tool card, results by model |
-| Which runtime is fastest for my hardware? | [docs/runtimes/](runtimes/) (planned) — per-runtime card |
+| Which runtime is fastest for my hardware? | [docs/runtimes/](runtimes/) — per-runtime card |
 | What hardware do I need? | [docs/HARDWARE-RECOMMENDATIONS.md](HARDWARE-RECOMMENDATIONS.md) |
 | What are the best current choices? | [docs/templates/best-current-airgapped-local-models-example-2026-06.md](templates/best-current-airgapped-local-models-example-2026-06.md) |
 

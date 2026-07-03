@@ -47,6 +47,48 @@ The strongest general model in the suite. On the 2026-06-29 overnight run: aider
 | caveman | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
 | copilot | 12/32 (37%) | LMS incompatible (error(1) — not model issue) |
 
+## Cross-runtime comparison (2026-07-02)
+
+Full 11-case / 38-check suite run against matched weights on all three
+runtimes — see [docs/runtimes/](../runtimes/) for the general per-runtime
+writeups this data seeded.
+
+| Adapter | LM Studio | Ollama (`qwen3.6:35b-mlx`) | MLX (`mlx_lm.server`) |
+|---------|:---------:|:---------------------------:|:---------------------:|
+| hermes | 100% | 89% | 100% |
+| pi | 100% | 92% | 100% |
+| interpreter | 100% | 100% | n/a (no mlx adapter) |
+| opencode | 100% | 95% | 38% ⚠️ compat bug |
+| openhands | 97% | 85% | n/a (no mlx adapter) |
+| cline | 100% | n/a | 82% |
+| codex | 92% | 89% | 38% ⚠️ compat bug |
+| aider | 87% | 91% | 56% ⚠️ compat bug |
+| copilot | 44% | n/a | 38% |
+| caveman | 38% | n/a | 38% |
+
+**MLX's low scores on aider/codex/opencode are a known adapter plumbing bug,
+not a model or runtime issue** — see the "Known compat bug" callout in
+[docs/runtimes/mlx.md](../runtimes/mlx.md). hermes and pi are unaffected and
+score identically to lms, confirming MLX inference quality matches lms for
+this model.
+
+**Timing (avg seconds/case, adapters scoring ≥80% only):**
+
+| Adapter | LM Studio | Ollama | MLX |
+|---------|:---------:|:------:|:---:|
+| pi | **29.5** | 95.4 | 52.4 |
+| codex | 31.5 | 45.3 | — |
+| interpreter | 43.1 | 73.6 | — |
+| opencode | 52.4 | 129.2 | — |
+| cline | 53.1 | — | 41.1 |
+| openhands | 61.4 | 126.5 | — |
+| aider | 71.3 | 72.5 | — |
+| hermes | 97.4 | 83.5 | 105.8 |
+
+LM Studio was fastest for every adapter comparable across runtimes except
+hermes, where Ollama edged it out slightly. **pi + LM Studio is the best
+speed/accuracy combo found for this model**: 100% at 29.5s/case.
+
 ## Better alternatives
 
 No strictly better model currently identified for this workload; qwen3.6-35b-a3b is the primary recommendation for general agentic tasks in recent sweeps.
@@ -76,6 +118,8 @@ No strictly better model currently identified for this workload; qwen3.6-35b-a3b
 ## Known issues
 
 **hermes error(1) — historic (resolved 2026-06-11):** hermes was broken on all models; fixed by switching to `backend: local`. Results now available via Ollama (34/34 100%) and LMS hermes.
+
+**MLX runtime model-id-as-path bug (open, found 2026-07-02):** aider, codex, and opencode collapse to 38–56% on `--runtime mlx` because the model is addressed by a raw filesystem path that their model-info lookup can't recognize (aider degrades context window; codex/opencode reject outright in ~2s). Not a model issue — hermes and pi score 100% on the same runtime/model. See [docs/runtimes/mlx.md](../runtimes/mlx.md).
 
 ## Observations across runs
 

@@ -404,3 +404,27 @@ Scores and medians from `bin/report --all`. Live data: [LEADERBOARD.md](LEADERBO
   All other adapters hit 88–100%.
 - **opencode dropped on qwen3.5-9b (68%):** run-to-run variance confirmed; the
   original 4-case run scored 100%. Small models should be re-run ≥3 trials.
+
+---
+
+## Cross-runtime comparison (2026-07-02)
+
+First full 3-way runtime comparison (lms vs ollama vs mlx) on matched weights,
+using qwen3.6-35b-a3b as the seed model. Full detail:
+[docs/models/qwen--qwen3.6-35b-a3b.md](docs/models/qwen--qwen3.6-35b-a3b.md#cross-runtime-comparison-2026-07-02).
+General per-runtime writeups (accuracy/speed/adapter-compat, not tied to one
+model): [docs/runtimes/](docs/runtimes/) — new as of this run, closing a
+previously-flagged documentation gap (see
+[docs/QUESTION-SUITE.md Q100](docs/QUESTION-SUITE.md)).
+
+**Headline findings:**
+- **LM Studio is fastest and most adapter-compatible** — 5 adapters hit a
+  perfect 38/38, and every comparable adapter ran fastest here except hermes.
+- **Ollama trails on both axes** — no adapter reached 100%, and per-case
+  latency ran 1.4×–2.6× slower than lms for the same adapters.
+- **MLX (`mlx_lm.server`) matches lms accuracy exactly for compatible
+  adapters** (hermes, pi: 100%, same as lms) but has a **known model-id-as-path
+  compat bug** that collapses aider/codex/opencode to 38–56% — not a model or
+  runtime quality issue, see [docs/runtimes/mlx.md](docs/runtimes/mlx.md).
+- **Best combo found:** pi + LM Studio — 100% accuracy at 29.5s/case, the
+  fastest perfect score across all three runtimes.

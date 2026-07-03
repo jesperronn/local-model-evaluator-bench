@@ -443,5 +443,415 @@
     "status": "open",
     "last_seen": "2026-07-01",
     "last_run_id": "20260701-160033"
+  },
+  "codex:gemma4:12b-mlx:ollama": {
+    "adapter": "codex",
+    "model": "gemma4:12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "codex-cli 0.142.5",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-183015",
+    "symptom": "2026-07-01T16:35:34.347194Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
+  },
+  "opencode:gemma4:12b-mlx:ollama": {
+    "adapter": "opencode",
+    "model": "gemma4:12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "1.17.12",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-183015",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0mNo changes to apply: oldString and newString are identical.",
+    "status": "open"
+  },
+  "copilot:gemma4:12b-mlx:ollama": {
+    "adapter": "copilot",
+    "model": "gemma4:12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-183015",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "caveman:gemma4:12b-mlx:ollama": {
+    "adapter": "caveman",
+    "model": "gemma4:12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-183015",
+    "symptom": "Error: Unknown provider \"ollama\". Use --list-models to see available providers/models.",
+    "status": "open"
+  },
+  "openhands:gemma4:12b-mlx:ollama": {
+    "adapter": "openhands",
+    "model": "gemma4:12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-183015",
+    "symptom": "MISS: greeting.txt has 4 lines, expected 3",
+    "status": "open"
+  },
+  "cline:gemma4:12b-mlx:ollama": {
+    "adapter": "cline",
+    "model": "gemma4:12b-mlx",
+    "runtime": "ollama",
+    "agent_version": "3.0.34",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-183015",
+    "symptom": "Wait, I am an AI and I cannot \"run\" a bash command directly in my thought block without the `run_commands` tool. I will ",
+    "status": "open"
+  },
+  "caveman:qwen3.6:35b-mlx:ollama": {
+    "adapter": "caveman",
+    "model": "qwen3.6:35b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-211054",
+    "symptom": "Error: Unknown provider \"ollama\". Use --list-models to see available providers/models.",
+    "status": "open"
+  },
+  "cline:qwen3.6:35b-mlx:ollama": {
+    "adapter": "cline",
+    "model": "qwen3.6:35b-mlx",
+    "runtime": "ollama",
+    "agent_version": "3.0.34",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-211054",
+    "symptom": "\u001b[2m[thinking] \u001b[0m\u001b[2mThe\u001b[0m\u001b[2m user\u001b[0m\u001b[2m wants\u001b[0m\u001b[2m me\u001b[0m\u001b[2m to\u001b[0m\u001b[2m fill\u001b[0m\u001b[2m in\u001b[0m\u001b[2m a\u001b[0m\u001b[2m mi",
+    "status": "open"
+  },
+  "copilot:qwen3.6:35b-mlx:ollama": {
+    "adapter": "copilot",
+    "model": "qwen3.6:35b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-01",
+    "run_id": "20260701-211054",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "codex:qwen2.5-coder-7b:ollama": {
+    "adapter": "codex",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "codex-cli 0.142.5",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "Pulling model qwen2.5-coder-7b...Error: OSS setup failed: OSS setup failed: Pull failed: pull model manifest: file does ",
+    "status": "open"
+  },
+  "opencode:qwen2.5-coder-7b:ollama": {
+    "adapter": "opencode",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "1.17.13",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "open"
+  },
+  "openhands:qwen2.5-coder-7b:ollama": {
+    "adapter": "openhands",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "caveman:qwen2.5-coder-7b:ollama": {
+    "adapter": "caveman",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "Error: Unknown provider \"ollama\". Use --list-models to see available providers/models.",
+    "status": "open"
+  },
+  "aider:qwen2.5-coder-7b:ollama": {
+    "adapter": "aider",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "hermes:qwen2.5-coder-7b:ollama": {
+    "adapter": "hermes",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "Hermes Agent v0.18.0 (2026.7.1)",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "pi:qwen2.5-coder-7b:ollama": {
+    "adapter": "pi",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "0.80.2",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "Warning: Model \"qwen2.5-coder-7b\" not found for provider \"ollama\". Using custom model id.",
+    "status": "open"
+  },
+  "interpreter:qwen2.5-coder-7b:ollama": {
+    "adapter": "interpreter",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "copilot:qwen2.5-coder-7b:ollama": {
+    "adapter": "copilot",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "cline:qwen2.5-coder-7b:ollama": {
+    "adapter": "cline",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "ollama",
+    "agent_version": "3.0.34",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-212536",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "codex:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "codex",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "codex-cli 0.142.5",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "2026-07-02T20:51:04.322181Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
+  },
+  "pi:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "pi",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "0.80.2",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: greeting.txt has 1 lines, expected 3",
+    "status": "open"
+  },
+  "interpreter:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "interpreter",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "However, the system returned an error: **Unknown process id 12345**. This suggests that while a process was expected, it",
+    "status": "open"
+  },
+  "goose:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "goose",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": " 1.40.0",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "aider:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "aider",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "https://aider.chat/docs/troubleshooting/edit-errors.html",
+    "status": "open"
+  },
+  "cline:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "cline",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "3.0.34",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: _ still present in file",
+    "status": "open"
+  },
+  "opencode:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "opencode",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "1.17.13",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "hermes:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "hermes",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "Hermes Agent v0.18.0 (2026.7.1)",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "caveman:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "caveman",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "Error: caveman adapter for LM Studio is not supported.",
+    "status": "open"
+  },
+  "nanocoder:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "nanocoder",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "Let's try again. The error indicates that the file path must be relative and within the project directory. Let's verify ",
+    "status": "open"
+  },
+  "cn:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "cn",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: _ still present in file",
+    "status": "open"
+  },
+  "copilot:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "copilot",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "openhands:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "openhands",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224812",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "codex:qwen2.5-coder-7b:lms": {
+    "adapter": "codex",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "codex-cli 0.142.5",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "2026-07-02T20:47:25.966578Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
+  },
+  "opencode:qwen2.5-coder-7b:lms": {
+    "adapter": "opencode",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "1.17.13",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "openhands:qwen2.5-coder-7b:lms": {
+    "adapter": "openhands",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "MISS: greeting.txt has 5 lines, expected 3",
+    "status": "open"
+  },
+  "caveman:qwen2.5-coder-7b:lms": {
+    "adapter": "caveman",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "Error: caveman adapter for LM Studio is not supported.",
+    "status": "open"
+  },
+  "hermes:qwen2.5-coder-7b:lms": {
+    "adapter": "hermes",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "Hermes Agent v0.18.0 (2026.7.1)",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "The attempt to create a file in the `/root` directory using `terminal` also failed. This suggests that there might be a ",
+    "status": "open"
+  },
+  "goose:qwen2.5-coder-7b:lms": {
+    "adapter": "goose",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": " 1.40.0",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "nanocoder:qwen2.5-coder-7b:lms": {
+    "adapter": "nanocoder",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "pi:qwen2.5-coder-7b:lms": {
+    "adapter": "pi",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "0.80.2",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "This approach should work if the exact text is not found in the `edit` tool.",
+    "status": "open"
+  },
+  "copilot:qwen2.5-coder-7b:lms": {
+    "adapter": "copilot",
+    "model": "qwen2.5-coder-7b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-02",
+    "run_id": "20260702-224527",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
   }
 }
