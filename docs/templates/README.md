@@ -16,7 +16,7 @@ All three share the same structural principles.
 |----------|---------|
 | [model-card-template.md](model-card-template.md) | Every file under `docs/models/` |
 | [tool-card-template.md](tool-card-template.md) | Every file under `docs/tools/` and `docs/extensions/` |
-| [runtime-card-template.md](runtime-card-template.md) | Every file under `docs/runtimes/` (planned) |
+| [runtime-card-template.md](runtime-card-template.md) | Every file under `docs/runtimes/` |
 
 ---
 

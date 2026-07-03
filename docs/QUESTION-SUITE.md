@@ -218,8 +218,10 @@ Canonical source: [docs/CARD-SPEC.md](CARD-SPEC.md) → "Tool card".
 ## E. Runtime-card template questions — EVERY runtime card must answer (8)
 
 Canonical source: [docs/CARD-SPEC.md](CARD-SPEC.md) → "Runtime card".
-⚠️ Finding: no `docs/runtimes/` directory exists yet — runtime cards are not
-written, so E is currently aspirational (see Q100).
+✅ `docs/runtimes/{lms,ollama,mlx}.md` created 2026-07-02, seeded from the
+first 3-way cross-runtime comparison (qwen3.6-35b-a3b). Coverage is
+single-model so far — broaden as more models get run across all three
+runtimes (see Q100).
 
 71. **Quick verdict: accuracy impact vs baseline?** *(Quick verdict)*
 72. **Quick verdict: speed vs baseline (e.g. ×lms)?** → must be filled. *(Quick verdict; §Rule)*
@@ -301,8 +303,10 @@ round 2 has a punch list.
     *Source: audit of docs/models/*.md + docs/tools/*.md.*
 
 100. **Does a runtime card exist for every runtime referenced (lms/ollama/mlx)?**
-     → No `docs/runtimes/` directory exists; section E aspirational. Spec is ready
-     in [docs/CARD-SPEC.md](CARD-SPEC.md) → "Runtime card". **OPEN — create cards.**
+     → **Yes, as of 2026-07-02** — `docs/runtimes/{lms,ollama,mlx}.md` created,
+     seeded from the qwen3.6-35b-a3b cross-runtime comparison. **Follow-up
+     OPEN — broaden beyond the single seed model** as more models get run
+     across all three runtimes.
      *Source: repo tree.*
 
 ---

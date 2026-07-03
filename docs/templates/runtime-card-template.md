@@ -2,5 +2,5 @@
 
 > **Moved.** The runtime-card spec now lives in the single canonical doc:
 > **[../CARD-SPEC.md](../CARD-SPEC.md) → "Runtime card"**.
-> Runtime cards are not yet created (no `docs/runtimes/` directory).
+> Runtime cards now exist under `docs/runtimes/` (lms.md, ollama.md, mlx.md).
 > This stub remains only to redirect old links.

@@ -178,10 +178,11 @@
 
 ## Runtime card — `docs/runtimes/<name>.md`
 
-> **Status: not yet created.** No `docs/runtimes/` directory exists. Runtime
-> behaviour currently lives inline in model cards (e.g. the MLX-vs-GGUF speed
-> note). This spec is ready for when runtime cards are written; until then,
-> QUESTION-SUITE section E is aspirational.
+> **Status: created 2026-07-02.** `docs/runtimes/lms.md`, `ollama.md`, and
+> `mlx.md` exist, seeded from the first 3-way cross-runtime comparison (see
+> [docs/models/qwen--qwen3.6-35b-a3b.md](models/qwen--qwen3.6-35b-a3b.md)).
+> Coverage is currently single-model — broaden as more models get run across
+> all three runtimes. QUESTION-SUITE section E is no longer purely aspirational.
 
 ### Required sections (in order)
 
