@@ -258,6 +258,7 @@ See [WORKFLOW.md](docs/WORKFLOW.md) for detailed usage of each script.
 - `bin/prune` — list and remove downloaded models
 - `bin/outdated` — check if local models are behind upstream
 - `bin/rt` — runtime status and control
+- `bin/hwprofile` — detect RAM and report the nearest benchmarked hardware tier (phase-3 porting)
 - `bin/stale.test.sh` — tests for bin/stale
 
 ### Card & Quality Tools

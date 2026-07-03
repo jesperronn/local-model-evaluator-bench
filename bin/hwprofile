@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# bin/hwprofile — detect total RAM and bucket it into a benchmarked tier.
+#
+# Pure detection, no side effects. Phase-3 (port) building block: other
+# scripts (bin/bootstrap-machine, once it exists) call this to decide which
+# tier of docs/HARDWARE-RECOMMENDATIONS.md / profile.json applies here.
+# See docs/PLAN-MULTI-MACHINE-PORTABILITY.md.
+#
+# Usage:
+#   bin/hwprofile          human-readable: total RAM + nearest tier
+#   bin/hwprofile --json   {"ram_gb":N,"tier":N,"benchmarked":true|false}
+#   bin/hwprofile --tier   just the tier number (for scripting)
+#
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Tiers we define. "benchmarked" tiers have real data in
+# docs/HARDWARE-RECOMMENDATIONS.md; others are placeholders until T12 lands.
+TIERS=(24 32 48 64 128)
+BENCHMARKED_TIERS=(32 128)
+
+_total_ram_gb() {
+  local bytes
+  bytes=$(sysctl -n hw.memsize 2>/dev/null) || { echo "0"; return 1; }
+  awk -v b="$bytes" 'BEGIN { printf "%.0f", b/1073741824 }'
+}
+
+_nearest_tier() {
+  # Nearest defined tier by absolute distance; ties favor the smaller tier
+  # (conservative: under-provision, don't assume headroom that isn't there).
+  local ram="$1" best="" best_dist=""
+  for t in "${TIERS[@]}"; do
+    local dist=$(( ram > t ? ram - t : t - ram ))
+    if [[ -z "$best" || "$dist" -lt "$best_dist" ]]; then
+      best="$t"; best_dist="$dist"
+    fi
+  done
+  echo "$best"
+}
+
+_is_benchmarked() {
+  local tier="$1"
+  for t in "${BENCHMARKED_TIERS[@]}"; do
+    [[ "$t" == "$tier" ]] && { echo "true"; return; }
+  done
+  echo "false"
+}
+
+main() {
+  local mode="human"
+  case "${1:-}" in
+    --json) mode="json" ;;
+    --tier) mode="tier" ;;
+    -h|--help)
+      sed -n '2,15p' "$0" | sed 's/^# \?//'
+      exit 0
+      ;;
+  esac
+
+  local ram tier benchmarked
+  ram=$(_total_ram_gb)
+  if [[ "$ram" == "0" ]]; then
+    echo "hwprofile: could not read hw.memsize (not macOS?)" >&2
+    exit 1
+  fi
+  tier=$(_nearest_tier "$ram")
+  benchmarked=$(_is_benchmarked "$tier")
+
+  case "$mode" in
+    json)
+      printf '{"ram_gb":%s,"tier":%s,"benchmarked":%s}\n' "$ram" "$tier" "$benchmarked"
+      ;;
+    tier)
+      echo "$tier"
+      ;;
+    human)
+      echo "Total RAM:   ${ram} GB"
+      echo "Nearest tier: ${tier} GB"
+      if [[ "$benchmarked" == "true" ]]; then
+        echo "Benchmarked: yes — see docs/HARDWARE-RECOMMENDATIONS.md"
+      else
+        echo "Benchmarked: no — this tier has no recorded results yet (TASKS.md T12)"
+      fi
+      ;;
+  esac
+}
+
+main "$@"

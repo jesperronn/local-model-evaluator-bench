@@ -70,7 +70,7 @@ Pick next unblocked `todo` → `wip` → do it (worktree if it touches tracked f
 | T6 | P2 | todo | — | `bin/investigate` for non-pi adapters: today only pi/caveman have transcripts; add a generic tool-call capture (or per-adapter trace) so other adapters get a real verdict instead of `no-transcript`. |
 | T7 | P2 | todo | — | Surface `checks.csv` in `bin/report`: a per-check pass-rate view (which sub-step fails most across models) and a per-model "which checks did it miss" drill-down. |
 | T8 | P3 | todo | — | `--difficulty` gating in the funnel: have `bin/qualify` (T1) auto-restrict weak models to `easy,medium` and only promote to `hard` after they clear the lower tiers. |
-| T9 | P1 | wip | — | `bin/hwprofile` — detect total RAM, bucket into a RAM tier (24/32/48/64/128 GB). See [PLAN-MULTI-MACHINE-PORTABILITY.md](docs/PLAN-MULTI-MACHINE-PORTABILITY.md). |
+| T9 | P1 | done | — | `bin/hwprofile` — detect total RAM, bucket into a RAM tier (24/32/48/64/128 GB). See [PLAN-MULTI-MACHINE-PORTABILITY.md](docs/PLAN-MULTI-MACHINE-PORTABILITY.md). |
 | T10 | P1 | todo | T1,T9 | `profile.json` — machine-readable per-tier winners (model/adapters/context/parallel), emitted by `bin/qualify --emit-profile`. Bridges bench (this machine) → port (other machines). |
 | T11 | P2 | todo | T10 | `bin/bootstrap-machine` — reads `profile.json` + `bin/hwprofile`, proposes `models.txt`/`config.sh` edits for the detected tier (dry-run by default, `--write` to commit). |
 | T12 | P2 | todo | T10 | Benchmark on 64 GB / 48 GB / 24 GB hardware and extend `HARDWARE-RECOMMENDATIONS.md` + `profile.json` — currently only 128 GB and 32 GB are covered; do not extrapolate. |
@@ -80,5 +80,6 @@ Pick next unblocked `todo` → `wip` → do it (worktree if it touches tracked f
 ## Worklog
 
 <!-- newest first: `- YYYY-MM-DD  <id>  what landed` -->
+- 2026-07-04  T9  Added `bin/hwprofile` (RAM detection + tier bucketing, `--json`/`--tier` flags) and [docs/PLAN-MULTI-MACHINE-PORTABILITY.md](docs/PLAN-MULTI-MACHINE-PORTABILITY.md) naming the bench→run→port gaps (profile.json, bin/qualify, bootstrap-machine, missing 64/48/24GB tiers).
 - 2026-06-25  decomp  Per-check decomposition + difficulty tiers: `lib/grader.sh` (CHECK contract), graders emit `CHECK pass|fail <id>`, `bin/bench` records `checks.csv`, `difficulty` added to all case metas, `--difficulty` filter on `bin/bench`/`bin/stale`. Docs in [CASES.md](docs/CASES.md).
 - 2026-06-25  loops  Added `bin/stale` (+ `bin/stale.test.sh`), `bin/bench-overnight --worklist/--stale`, `bin/investigate`, and this backlog.
