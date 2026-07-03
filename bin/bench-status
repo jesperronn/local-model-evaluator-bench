@@ -2,9 +2,12 @@
 # bin/bench-status — Show status of current/latest benchmark run
 #
 # Usage:
-#   bin/bench-status              # Show status of latest run
-#   bin/bench-status --watch      # Watch with 5-second updates
-#   bin/bench-status --latest     # Just the latest run dir path
+#   bin/bench-status                    # Show status of latest run
+#   bin/bench-status --history 5        # Show summary of last 5 runs
+#   bin/bench-status --run <run-id>     # Show specific run
+#   bin/bench-status --compare <run-id> # Compare latest vs specific run
+#   bin/bench-status --watch            # Live updates (5-second refresh)
+#   bin/bench-status --latest           # Just the latest run dir path
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,11 +15,17 @@ RESULTS_DIR="$HERE/results"
 
 WATCH=0
 LATEST_ONLY=0
+HISTORY_COUNT=0
+COMPARE_RUN=""
+TARGET_RUN=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --watch) WATCH=1; shift;;
     --latest) LATEST_ONLY=1; shift;;
+    --history) HISTORY_COUNT="$2"; shift 2;;
+    --compare) COMPARE_RUN="$2"; shift 2;;
+    --run) TARGET_RUN="$2"; shift 2;;
     -h|--help)
       awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
       exit 0
@@ -25,22 +34,172 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-show_status() {
-  local latest_csv
-  latest_csv=$(ls -t "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)
+get_run_csv() {
+  local run_id="$1"
+  if [ -z "$run_id" ]; then
+    # Latest run
+    ls -t "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1
+  else
+    # Specific run
+    [ -f "$RESULTS_DIR/$run_id/results.csv" ] && echo "$RESULTS_DIR/$run_id/results.csv"
+  fi
+}
 
-  if [ -z "$latest_csv" ]; then
-    echo "No benchmark results found"
+show_history() {
+  local count="$1"
+  echo ""
+  echo "════════════════════════════════════════════════════════"
+  echo "  Last $count Benchmark Runs"
+  echo "════════════════════════════════════════════════════════"
+  echo ""
+
+  local runs=( $(ls -td "$RESULTS_DIR"/*/ 2>/dev/null | head -"$count" | xargs -I {} basename {}) )
+
+  for run_id in "${runs[@]}"; do
+    local csv="$RESULTS_DIR/$run_id/results.csv"
+    [ ! -f "$csv" ] && continue
+
+    local total_pass total_tests overall_pct
+    total_pass=$(awk -F, 'NR>1 && $4==$5 {pass++} END {print pass+0}' "$csv")
+    total_tests=$(awk -F, 'NR>1 {tests+=$5} END {print tests+0}' "$csv")
+    overall_pct=$((total_tests > 0 ? 100 * total_pass / total_tests : 0))
+
+    local case_count
+    case_count=$(tail -n +2 "$csv" | wc -l)
+
+    printf "  %-18s  %3d rows  %3d/%3d (%3d%%)  " "$run_id" "$case_count" "$total_pass" "$total_tests" "$overall_pct"
+
+    # Quick adapter summary
+    awk -F, 'NR>1 {
+      adapter=$1
+      if($4==$5) adapter_pass[adapter]++
+      adapter_total[adapter]++
+    }
+    END {
+      for(a in adapter_total) {
+        pct = int(100*adapter_pass[a]/adapter_total[a])
+        if(pct==100) printf "%s:✓ ", a
+        else if(pct>=70) printf "%s:%d%% ", a, pct
+      }
+    }' "$csv"
+    echo ""
+  done
+  echo ""
+}
+
+show_comparison() {
+  local current_csv latest_csv compare_csv
+  current_csv=$(get_run_csv "$TARGET_RUN")
+  latest_csv=$(get_run_csv "")
+  compare_csv=$(get_run_csv "$COMPARE_RUN")
+
+  if [ -z "$current_csv" ] || [ -z "$compare_csv" ]; then
+    echo "Error: One or both runs not found"
     return 1
   fi
 
+  local current_run compare_run
+  current_run=$(basename $(dirname "$current_csv"))
+  compare_run=$(basename $(dirname "$compare_csv"))
+
+  echo ""
+  echo "════════════════════════════════════════════════════════"
+  echo "  Comparison: $compare_run vs $current_run"
+  echo "════════════════════════════════════════════════════════"
+  echo ""
+
+  # Build pass rate by adapter for both
+  declare -A current_pass current_total compare_pass compare_total
+
+  awk -F, 'NR>1 {
+    adapter=$1
+    pass=($4==$5) ? 1 : 0
+    adapter_pass[adapter] += pass
+    adapter_total[adapter] += $5
+  }
+  END {
+    for(a in adapter_total)
+      printf "%s %d/%d\n", a, adapter_pass[a], adapter_total[a]
+  }' "$current_csv" | while read adapter pass_total; do
+    pass="${pass_total%/*}"
+    total="${pass_total#*/}"
+    current_pass["$adapter"]="$pass"
+    current_total["$adapter"]="$total"
+  done
+
+  awk -F, 'NR>1 {
+    adapter=$1
+    pass=($4==$5) ? 1 : 0
+    adapter_pass[adapter] += pass
+    adapter_total[adapter] += $5
+  }
+  END {
+    for(a in adapter_total)
+      printf "%s %d/%d\n", a, adapter_pass[a], adapter_total[a]
+  }' "$compare_csv" | while read adapter pass_total; do
+    pass="${pass_total%/*}"
+    total="${pass_total#*/}"
+    compare_pass["$adapter"]="$pass"
+    compare_total["$adapter"]="$total"
+  done
+
+  # Summary by adapter
+  echo "  Adapter Performance:"
+  echo ""
+  awk -v current="$current_csv" -v compare="$compare_csv" -F, '
+  NR==FNR {
+    if(NR>1) {
+      a=$1; pass=($4==$5)?1:0
+      cp[a]+=pass; ct[a]+=$5
+    }
+    next
+  }
+  NR>1 {
+    a=$1; pass=($4==$5)?1:0
+    cmp[a]+=pass; cmt[a]+=$5
+  }
+  END {
+    for(a in ct) {
+      curr_pct = int(100*cp[a]/ct[a])
+      comp_pct = int(100*cmp[a]/cmt[a])
+      delta = curr_pct - comp_pct
+
+      printf "    %-12s  ", a
+      printf "%3d/%3d (%3d%%)  vs  %3d/%3d (%3d%%)", cp[a], ct[a], curr_pct, cmp[a], cmt[a], comp_pct
+
+      if(delta > 0) printf "  ↑ +%d%%\n", delta
+      else if(delta < 0) printf "  ↓ %d%%\n", delta
+      else printf "  → same\n"
+    }
+  }' "$compare_csv" "$current_csv"
+  echo ""
+}
+
+show_status() {
+  local latest_csv target_csv
+
+  # Determine which CSV to show
+  if [ -n "$TARGET_RUN" ]; then
+    target_csv=$(get_run_csv "$TARGET_RUN")
+    if [ -z "$target_csv" ]; then
+      echo "Run not found: $TARGET_RUN"
+      return 1
+    fi
+  else
+    target_csv=$(get_run_csv "")
+    if [ -z "$target_csv" ]; then
+      echo "No benchmark results found"
+      return 1
+    fi
+  fi
+
   if [ "$LATEST_ONLY" = 1 ]; then
-    dirname "$latest_csv"
+    dirname "$target_csv"
     return 0
   fi
 
   local run_dir run_id run_json start_time
-  run_dir=$(dirname "$latest_csv")
+  run_dir=$(dirname "$target_csv")
   run_id=$(basename "$run_dir")
   run_json="$run_dir/run.json"
 
@@ -53,7 +212,7 @@ show_status() {
 
   # Count results
   local total_rows completed_rows
-  total_rows=$(tail -n +2 "$latest_csv" | wc -l)
+  total_rows=$(tail -n +2 "$target_csv" | wc -l)
   completed_rows=$((total_rows > 0 ? total_rows : 0))
 
   # Check for completion marker (nightly test specific)
@@ -70,7 +229,7 @@ show_status() {
   local estimated_total
   if [ $completed_rows -gt 0 ]; then
     # Get count of unique (adapter, model, case) combinations in CSV
-    estimated_total=$(awk -F, 'NR>1 {print $1":"$2":"$3}' "$latest_csv" | sort -u | wc -l)
+    estimated_total=$(awk -F, 'NR>1 {print $1":"$2":"$3}' "$target_csv" | sort -u | wc -l)
   else
     estimated_total="?"
   fi
@@ -88,12 +247,12 @@ show_status() {
       pct = (adapter_total[a] > 0) ? int(100 * adapter_pass[a] / adapter_total[a]) : 0
       printf "    %-14s %3d/%3d (%3d%%)\n", a, adapter_pass[a], adapter_total[a], pct
     }
-  }' "$latest_csv" | sort -k3 -rn)
+  }' "$target_csv" | sort -k3 -rn)
 
   # Calculate overall stats
   local total_pass total_tests overall_pct
-  total_pass=$(awk -F, 'NR>1 && $4==$5 {pass++} END {print pass+0}' "$latest_csv")
-  total_tests=$(awk -F, 'NR>1 {tests+=$5} END {print tests+0}' "$latest_csv")
+  total_pass=$(awk -F, 'NR>1 && $4==$5 {pass++} END {print pass+0}' "$target_csv")
+  total_tests=$(awk -F, 'NR>1 {tests+=$5} END {print tests+0}' "$target_csv")
   overall_pct=$((total_tests > 0 ? 100 * total_pass / total_tests : 0))
 
   # Display
@@ -115,7 +274,7 @@ show_status() {
   fi
   echo ""
   echo "  Latest entries:"
-  tail -3 "$latest_csv" | awk -F, '{
+  tail -3 "$target_csv" | awk -F, '{
     printf "    %-10s %-25s %-20s %s/%s\n", $1, $2, $3, $4, $5
   }'
   echo ""
@@ -127,6 +286,10 @@ if [ "$WATCH" = 1 ]; then
     show_status || echo "Waiting for results..."
     sleep 5
   done
+elif [ "$HISTORY_COUNT" -gt 0 ]; then
+  show_history "$HISTORY_COUNT"
+elif [ -n "$COMPARE_RUN" ]; then
+  show_comparison
 else
   show_status
 fi
