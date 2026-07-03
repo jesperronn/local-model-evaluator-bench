@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# bin/eval-agent — SKELETON (Task 2). Score how well an agent answers questions
-# about this project, from eval/questions.jsonl (sections A/B/F/G of
+# bin/eval-agent — score how well an agent answers questions about this
+# project, from eval/questions.jsonl (sections A/B/F/G of
 # docs/QUESTION-SUITE.md). See docs/AGENT-EVAL-SUITE.md for the design.
 #
 # Grading: citation = mechanical (does the answer mention the expected source
-# path?); correctness = exact match for grade:"exact", else LLM-judge.
+# path?); correctness = exact match for grade:"exact", else LLM-judge (a fixed
+# strong judge, default claude-haiku, so grading doesn't drift with the tested
+# model).
 #
-# STATUS: the two model-touching functions (ask_agent, judge_correct) are
-# STUBBED and marked `# TODO: wire`. Wire them (reuse bin/fix-card's ask_model
-# pattern) and provide eval/questions.jsonl to make this live.
+# Open-book mode (default) hands the model README.md + docs/*.md (one level,
+# not the per-card docs/{models,tools,extensions}/ subtrees — those answer
+# C/D/E, not A/B/F/G) as context, then asks the question. Closed-book sends
+# only the question, to see what the model knows unaided.
 #
 # Usage:
 #   bin/eval-agent --via lms --model qwen/qwen3.6-35b-a3b [--mode open|closed]
@@ -36,23 +39,70 @@ done
 command -v jq >/dev/null || die "jq required"
 [ -f "$BANK" ] || die "question bank not found: $BANK  (see docs/AGENT-EVAL-SUITE.md to build it)"
 [ -n "$MODEL" ] || die "--model required"
+{ [ "$VIA" = claude ] || [ "$JUDGE_VIA" = claude ]; } && { command -v claude >/dev/null || die "claude CLI required (--via/--judge-via claude)"; }
 [ -n "$OUT" ] || OUT="$HERE/eval/runs/$(date +%Y%m%d-%H%M%S).csv"
 mkdir -p "$(dirname "$OUT")"
 
-# ── STUB: send a question to the agent under test, return its answer text ─────
-ask_agent() {  # question on stdin → answer on stdout
-  : # TODO: wire. Open-book: hand the repo to the tool/adapter (e.g. drive an
-    # adapter in adapters/, or curl $BASE_URL with a system prompt that includes
-    # the doc tree). Closed-book: send only the question. Reuse bin/fix-card's
-    # ask_model() pattern for the raw LMS/claude call.
-  echo "STUB_ANSWER"
+# ── raw model call, same pattern as bin/fix-card's ask_model() ────────────────
+ask_model() {  # prompt on stdin, backend/model/base-url as args
+  local via="$1" model="$2" base_url="$3" prompt; prompt="$(cat)"
+  if [ "$via" = claude ]; then
+    printf '%s' "$prompt" | claude --print --model "$model" 2>/dev/null
+  else
+    local payload; payload="$(jq -n --arg m "$model" --arg c "$prompt" \
+      '{model:$m, temperature:0, messages:[{role:"user",content:$c}]}')"
+    curl -s "$base_url/chat/completions" -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $API_KEY" -d "$payload" \
+      | jq -r '.choices[0].message.content // empty'
+  fi
 }
 
-# ── STUB: judge whether answer matches expected (free-text questions) ─────────
+# Open-book context: README + top-level docs/*.md (not the per-card
+# docs/{models,tools,extensions}/ subtrees — those answer C/D/E, not A/B/F/G).
+OPEN_BOOK_CONTEXT=""
+build_open_book_context() {
+  [ -n "$OPEN_BOOK_CONTEXT" ] && return
+  OPEN_BOOK_CONTEXT="$(cat "$HERE/README.md" "$HERE"/docs/*.md 2>/dev/null)"
+}
+
+# ── send a question to the agent under test, return its answer text ──────────
+ask_agent() {  # question on stdin → answer on stdout
+  local q; q="$(cat)"
+  local prompt
+  if [ "$MODE" = open ]; then
+    build_open_book_context
+    prompt="$(cat <<PROMPT
+You are answering questions about a local codebase using only the project
+documentation below. Answer concisely and, where relevant, name the specific
+file path (e.g. docs/WORKFLOW.md) your answer is grounded in.
+
+===== PROJECT DOCS =====
+$OPEN_BOOK_CONTEXT
+
+===== QUESTION =====
+$q
+PROMPT
+)"
+  else
+    prompt="$q"
+  fi
+  printf '%s' "$prompt" | ask_model "$VIA" "$MODEL" "$BASE_URL"
+}
+
+# ── judge whether answer matches expected (free-text questions) ──────────────
 judge_correct() {  # $1=question $2=expected $3=answer → prints 0 or 1
-  : # TODO: wire. Ask $JUDGE_MODEL: "Q / expected / answer → return {correct:0|1}".
-    # Use a fixed strong judge so grading doesn't drift with the tested agent.
-  echo 0
+  local q="$1" expected="$2" answer="$3" reply
+  reply="$(cat <<PROMPT | ask_model "$JUDGE_VIA" "$JUDGE_MODEL" "$BASE_URL"
+Judge whether ANSWER correctly conveys EXPECTED for QUESTION. Minor wording
+differences are fine; it must match in substance, not contradict or omit the
+key fact. Reply with exactly one character: 1 if correct, 0 if not.
+
+QUESTION: $q
+EXPECTED: $expected
+ANSWER: $answer
+PROMPT
+)"
+  case "$reply" in *1*) echo 1;; *) echo 0;; esac
 }
 
 # ── mechanical helpers (no model) ─────────────────────────────────────────────
