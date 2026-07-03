@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# bin/bench-status — Show status of current/latest benchmark run
+#
+# Usage:
+#   bin/bench-status              # Show status of latest run
+#   bin/bench-status --watch      # Watch with 5-second updates
+#   bin/bench-status --latest     # Just the latest run dir path
+
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+RESULTS_DIR="$HERE/results"
+
+WATCH=0
+LATEST_ONLY=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --watch) WATCH=1; shift;;
+    --latest) LATEST_ONLY=1; shift;;
+    -h|--help)
+      awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
+      exit 0
+      ;;
+    *) shift;;
+  esac
+done
+
+show_status() {
+  local latest_csv
+  latest_csv=$(ls -t "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)
+
+  if [ -z "$latest_csv" ]; then
+    echo "No benchmark results found"
+    return 1
+  fi
+
+  if [ "$LATEST_ONLY" = 1 ]; then
+    dirname "$latest_csv"
+    return 0
+  fi
+
+  local run_dir run_id run_json start_time
+  run_dir=$(dirname "$latest_csv")
+  run_id=$(basename "$run_dir")
+  run_json="$run_dir/run.json"
+
+  # Parse run metadata
+  if [ -f "$run_json" ]; then
+    start_time=$(jq -r '.run_date // "unknown"' "$run_json" 2>/dev/null || echo "unknown")
+  else
+    start_time="unknown"
+  fi
+
+  # Count results
+  local total_rows completed_rows
+  total_rows=$(tail -n +2 "$latest_csv" | wc -l)
+  completed_rows=$((total_rows > 0 ? total_rows : 0))
+
+  # Check for completion marker (nightly test specific)
+  local is_complete
+  if [ -f "$run_dir/.bench.complete" ]; then
+    is_complete="✓ COMPLETE"
+  elif [ -f "$run_dir/.bench.running" ]; then
+    is_complete="⏳ IN PROGRESS"
+  else
+    is_complete="? UNKNOWN"
+  fi
+
+  # Estimate total cases from first adapter if available
+  local estimated_total
+  if [ $completed_rows -gt 0 ]; then
+    # Get count of unique (adapter, model, case) combinations in CSV
+    estimated_total=$(awk -F, 'NR>1 {print $1":"$2":"$3}' "$latest_csv" | sort -u | wc -l)
+  else
+    estimated_total="?"
+  fi
+
+  # Calculate pass rates by adapter
+  local pass_by_adapter
+  pass_by_adapter=$(awk -F, 'NR>1 {
+    adapter=$1
+    pass=($4==$5) ? 1 : 0
+    adapter_pass[adapter] += pass
+    adapter_total[adapter] += 1
+  }
+  END {
+    for (a in adapter_total) {
+      pct = (adapter_total[a] > 0) ? int(100 * adapter_pass[a] / adapter_total[a]) : 0
+      printf "    %-14s %3d/%3d (%3d%%)\n", a, adapter_pass[a], adapter_total[a], pct
+    }
+  }' "$latest_csv" | sort -k3 -rn)
+
+  # Calculate overall stats
+  local total_pass total_tests overall_pct
+  total_pass=$(awk -F, 'NR>1 && $4==$5 {pass++} END {print pass+0}' "$latest_csv")
+  total_tests=$(awk -F, 'NR>1 {tests+=$5} END {print tests+0}' "$latest_csv")
+  overall_pct=$((total_tests > 0 ? 100 * total_pass / total_tests : 0))
+
+  # Display
+  echo ""
+  echo "════════════════════════════════════════════════════════"
+  echo "  Run: $run_id"
+  echo "  Status: $is_complete"
+  echo "  Started: $start_time"
+  echo "════════════════════════════════════════════════════════"
+  echo ""
+  echo "  Progress: $completed_rows rows ($estimated_total cases estimated)"
+  echo "  Overall: $total_pass/$total_tests PASS ($overall_pct%)"
+  echo ""
+  echo "  By Adapter:"
+  if [ -n "$pass_by_adapter" ]; then
+    echo "$pass_by_adapter"
+  else
+    echo "    (no data yet)"
+  fi
+  echo ""
+  echo "  Latest entries:"
+  tail -3 "$latest_csv" | awk -F, '{
+    printf "    %-10s %-25s %-20s %s/%s\n", $1, $2, $3, $4, $5
+  }'
+  echo ""
+}
+
+if [ "$WATCH" = 1 ]; then
+  while true; do
+    clear
+    show_status || echo "Waiting for results..."
+    sleep 5
+  done
+else
+  show_status
+fi
