@@ -33,6 +33,28 @@ The question: **what is the smallest / fastest local model that reliably passes 
 
 See [docs/PURPOSE.md](docs/PURPOSE.md) for the full rationale and what this project explicitly does not measure.
 
+### Three phases: Bench → Run → Port
+
+This repo's work happens in three stages, each with a different scope:
+
+1. **Bench (this machine)** — `bin/bench` exhaustively tests every (runtime ×
+   model × adapter × case) combination on the machine you're developing on,
+   scoring accuracy and speed for each. This is what most of this README
+   documents.
+2. **Run (any machine, once winners are known)** — once bench has identified
+   the best runtime/model/adapter combos, use `llmrun` — a standalone
+   dotfiles binary built from this repo (see
+   [PLAN-CLI-UNIFICATION.md](docs/PLAN-CLI-UNIFICATION.md)) — to do real
+   work with those combos, without needing this repo checked out.
+   `bin/build-llmrun` generates it.
+3. **Port (other machines, by RAM tier)** — carry what bench learned here to
+   other machines (64 GB / 48 GB / 32 GB / 24 GB tiers) so they don't have to
+   re-run the full matrix. See
+   [HARDWARE-RECOMMENDATIONS.md](docs/HARDWARE-RECOMMENDATIONS.md) for
+   per-tier guidance (currently 128 GB and 32 GB; more tiers in progress) and
+   [PLAN-MULTI-MACHINE-PORTABILITY.md](docs/PLAN-MULTI-MACHINE-PORTABILITY.md)
+   for the machine-readable bootstrap this is moving towards.
+
 ---
 
 ## How It Works (Simple → Detailed)
@@ -109,6 +131,7 @@ The target workload is multi-agent: an orchestrator directing 2–3 agents all r
 - [**AGENT-SELECTION.md**](docs/AGENT-SELECTION.md) — how to choose which agents to benchmark
 - [**IMPLEMENTATION-SUMMARY.md**](docs/IMPLEMENTATION-SUMMARY.md) — architecture + trade-offs
 - [**FUTURE-IDEAS.md**](docs/FUTURE-IDEAS.md) — planned work
+- [**PLAN-MULTI-MACHINE-PORTABILITY.md**](docs/PLAN-MULTI-MACHINE-PORTABILITY.md) — bench → run → port: bootstrapping other machines by RAM tier from this machine's learnings
 - **Decision logs** → [docs/DECISION-*.md](docs/) — rationale for major project decisions (cloud-only tools, proxy design, etc.)
 
 ## What's Tested
