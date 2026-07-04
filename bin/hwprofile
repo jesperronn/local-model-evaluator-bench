@@ -266,6 +266,60 @@ _disk_free_gb_numeric() {
   esac
 }
 
+# RAM breakdown (macOS): total_gb used_gb free_gb wired_gb inactive_gb
+_ram_gb_breakdown() {
+  local os="$1"
+  [[ "$os" != "macos" ]] && return 1
+
+  local total page_size wired active speculative inactive free compressed
+  total=$(sysctl -n hw.memsize 2>/dev/null) || return 1
+  eval "$(vm_stat 2>/dev/null | awk '
+    /page size of/              { ps = $8 }
+    /Pages free:/               { gsub(/\./,"",$3); free=$3 }
+    /Pages active:/             { gsub(/\./,"",$3); active=$3 }
+    /Pages inactive:/           { gsub(/\./,"",$3); inactive=$3 }
+    /Pages speculative/         { gsub(/\./,"",$3); spec=$3 }
+    /Pages wired down/          { gsub(/\./,"",$4); wired=$4 }
+    /Pages occupied by compressor/ { gsub(/\./,"",$5); comp=$5 }
+    END { printf "page_size=%s wired=%s active=%s inactive=%s free=%s speculative=%s compressed=%s",
+          ps, wired, active, inactive, free, spec, comp }')" || return 1
+
+  local used=$(( (wired + active + compressed) * page_size ))
+  local avail=$(( (free + speculative) * page_size ))
+  local wired_b=$(( wired * page_size ))
+  local inactive_b=$(( inactive * page_size ))
+  awk -v tot="$total" -v used="$used" -v avail="$avail" \
+      -v wired="$wired_b" -v inactive="$inactive_b" \
+    'BEGIN { printf "%.0f %.0f %.0f %.0f %.0f",
+             tot/1073741824, used/1073741824, avail/1073741824,
+             wired/1073741824, inactive/1073741824 }'
+}
+
+# Runtime detection
+_lms_up() {
+  command -v lms &>/dev/null && lms_loaded_models &>/dev/null 2>&1
+}
+
+_lms_loaded_models() {
+  command -v lms &>/dev/null && lms ps --json 2>/dev/null | grep -o '"identifier":"[^"]*' | cut -d'"' -f4
+}
+
+_ollama_up() {
+  curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1
+}
+
+_ollama_loaded() {
+  command -v ollama &>/dev/null && ollama ps 2>/dev/null | awk 'NR>1 && NF { print $1 }' || true
+}
+
+_mlx_up() {
+  curl -fsS --max-time 2 http://localhost:8080/v1/models >/dev/null 2>&1
+}
+
+_mlx_loaded() {
+  curl -fsS --max-time 2 http://localhost:8080/v1/models 2>/dev/null | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4
+}
+
 # JSON output
 _output_json() {
   local os="$1" ram_total ram_used cpu_model cpu_cores cpu_ghz disk_free tier benchmarked hostname username
@@ -388,10 +442,67 @@ _output_full() {
   # Show hardware (like human output)
   _output_human "$os"
 
+  # RAM breakdown (macOS only)
+  if [[ "$os" == "macos" ]]; then
+    echo ""
+    echo "════════════════════════════════════════════════════"
+    echo "Memory Breakdown"
+    echo "════════════════════════════════════════════════════"
+    local total_ram used_ram free_ram wired_ram inactive_ram active_ram
+    read total_ram used_ram free_ram wired_ram inactive_ram < <(_ram_gb_breakdown "$os" || echo "")
+    if [[ -n "$total_ram" ]]; then
+      active_ram=$(( used_ram - wired_ram ))
+      printf "  %-14s %4s GB  %s\n" "wired" "$wired_ram" "(model weights + kernel)"
+      printf "  %-14s %4s GB  %s\n" "active" "$active_ram" "(process working sets)"
+      printf "  %-14s %4s GB  %s\n" "inactive" "$inactive_ram" "(reclaimable disk cache)"
+      printf "  %-14s %4s GB  %s\n" "free" "$free_ram" "(immediately available)"
+      printf "  %s\n" "──────────────────────"
+      printf "  %-14s %4s GB\n" "used" "$used_ram"
+      printf "  %-14s %4s GB\n" "available" "$(( free_ram + inactive_ram ))"
+    fi
+  fi
+
+  # Runtime status
   echo ""
   echo "════════════════════════════════════════════════════"
   echo "Installed Models & Runtime Environments"
   echo "════════════════════════════════════════════════════"
+  echo ""
+
+  # Runtime status section
+  if _lms_up 2>/dev/null; then
+    lms_models=$(_lms_loaded_models 2>/dev/null)
+    if [[ -n "$lms_models" ]]; then
+      printf "  LMS:     up  loaded: %s\n" "$lms_models"
+    else
+      printf "  LMS:     up  (no model loaded)\n"
+    fi
+  else
+    printf "  LMS:     down\n"
+  fi
+
+  if _ollama_up 2>/dev/null; then
+    ollama_models=$(_ollama_loaded 2>/dev/null)
+    if [[ -n "$ollama_models" ]]; then
+      printf "  Ollama:  up  loaded: %s\n" "$(echo "$ollama_models" | tr '\n' ',' | sed 's/,$//')"
+    else
+      printf "  Ollama:  up  (no model loaded)\n"
+    fi
+  else
+    printf "  Ollama:  down\n"
+  fi
+
+  if _mlx_up 2>/dev/null; then
+    mlx_model=$(_mlx_loaded 2>/dev/null)
+    if [[ -n "$mlx_model" ]]; then
+      printf "  MLX:     up  loaded: %s\n" "$mlx_model"
+    else
+      printf "  MLX:     up  (no model loaded)\n"
+    fi
+  else
+    printf "  MLX:     down\n"
+  fi
+
   echo ""
 
   # LMS models
