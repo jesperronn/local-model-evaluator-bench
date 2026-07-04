@@ -11,7 +11,41 @@
 #   bin/run --smoke [...]                = bin/smoke (fast wiring check)
 #   bin/run --preset nightly [...]       = bin/nightly (lms-focused overnight preset)
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+show_help() {
+  help_header "run" "grouped entry point for the bench matrix runner"
+
+  help_section "USAGE"
+  help_line "  run [OPTIONS] [FLAGS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Thin dispatcher over bench engines. Route to --smoke for fast"
+  help_line "  wiring checks, --preset nightly for overnight runs, or full"
+  help_line "  matrix runs by default. All unrecognized flags pass through"
+  help_line "  to the target command unchanged."
+
+  help_section "OPTIONS"
+  help_flag "--smoke" "" "fast 2-case wiring check (routes to bin/smoke)"
+  help_flag "--preset" "nightly" "preset runner: 'nightly' for lms-focused overnight (routes to bin/nightly)"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "PASSTHROUGH FLAGS"
+  help_line "  All other flags are passed to the target command:"
+  help_line "    --agent, --models, --cases, --runtime, --dry-run, --verbose, etc."
+  help_line "  See: bin/bench --help, bin/smoke --help, bin/nightly --help"
+
+  help_section "EXAMPLES"
+  help_line "  Full matrix run (default):"
+  help_line "  \$ run --agent aider --model qwen/qwen3.5-9b"
+  help_line ""
+  help_line "  Fast wiring check:"
+  help_line "  \$ run --smoke"
+  help_line ""
+  help_line "  Overnight lms-focused run:"
+  help_line "  \$ run --preset nightly --all-cases"
+}
 
 REST=()
 SMOKE=0
@@ -20,16 +54,17 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --smoke) SMOKE=1; shift;;
     --preset) PRESET="$2"; shift 2;;
+    -h|--help) show_help; exit 0;;
     *) REST+=("$1"); shift;;
   esac
 done
 
 if [ "$SMOKE" = 1 ]; then
-  exec "$HERE/smoke" "${REST[@]}"
+  exec "$HERE/bin/smoke" "${REST[@]}"
 elif [ "$PRESET" = "nightly" ]; then
-  exec "$HERE/nightly" "${REST[@]}"
+  exec "$HERE/bin/nightly" "${REST[@]}"
 elif [ -n "$PRESET" ]; then
   echo "unknown --preset: $PRESET (valid: nightly)" >&2; exit 1
 else
-  exec "$HERE/bench" "${REST[@]}"
+  exec "$HERE/bin/bench" "${REST[@]}"
 fi
