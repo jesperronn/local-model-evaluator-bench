@@ -37,13 +37,28 @@ Field-note suggestion for this repo's agentic workflows:
 
 ## Proposed investigation steps
 
-- [ ] Inventory which repo runtimes expose a draft-model option (grep adapters / config.sh).
+- [x] Inventory which repo runtimes expose a draft-model option (grep adapters / config.sh).
 - [ ] Pick one runtime that supports it (likely `llama.cpp`).
 - [ ] Bench `qwen3-coder:30b` alone vs. + `qwen2.5-coder:1.5b` drafter: tokens/sec,
       acceptance rate, peak memory. Reuse the existing bench harness.
 - [ ] Test the Granite drafter too, to confirm/refute the cross-family penalty.
 - [ ] If it wins on 32GB, document as a per-model card recommendation + a setup note;
       if it doesn't fit memory, note it as a 48GB+ tier optimization.
+
+## Runtime support (findings)
+
+**Inventory completed 2026-07-04.** This repo uses three runtimes: `lms` (LM Studio), `mlx_lm.server`, and `ollama`. 
+`llama.cpp` is **not used** in this repo's adapters — all adapters target one of the three above.
+
+| Runtime | Draft-model flag | API parameter | Supported? | Notes |
+|---------|------------------|----------------|:----------:|-------|
+| **lms** (LM Studio) | UI-only in sidebar | None (OpenAI `/v1` API) | ✅ Yes | LM Studio 0.3.10+ supports speculative decoding. Draft model is selected via UI "Speculative Decoding" sidebar after loading the main model. **Command-line / API-level configuration not exposed** — requires graphical selection or programmatic use of LM Studio's Node.js SDK. Version 0.4.14 (2026) adds MTP (multi-token prediction) support for models with built-in prediction heads (DeepSeek-V3, DeepSeek-R1). |
+| **mlx_lm.server** | CLI flag | `draft_model` (server), `num_draft_tokens` | ✅ Yes | `mlx_lm.server` supports speculative decoding via `draft_model` parameter (string: model ID or `null`) and `num_draft_tokens` (int, default 3). Known limitation: "SpeculativeDecodingNotSupportedError" when batching is enabled on some model combinations; MoE models can see 35% performance regression if draft size is close to MoE active param count. |
+| **ollama** | None | None | ❌ No | Ollama does **not** support speculative decoding as of 2026-07-04. Issue #5800 (opened July 2024) remains open requesting `--model-draft` support matching `llama.cpp`. Feature is not implemented. |
+
+**Implication:** Only `lms` and `mlx_lm.server` can be used for speculative decoding in this repo. `lms` 
+support requires UI interaction (incompatible with automated bench harness); `mlx_lm.server` is the viable 
+automation target for quantitative benchmarking.
 
 ## Decision
 
