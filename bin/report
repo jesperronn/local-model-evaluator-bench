@@ -3,29 +3,42 @@
 # Defaults to the newest run under results/.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 usage() {
-  cat <<EOF
-Usage: $(basename "$0") [options] [results.csv]
+  help_header "report" "print leaderboards from a results CSV"
 
-Options:
-  -t, --agent TOOL[,TOOL...]    filter by adapter/tool (comma-separated)
-  -m, --model MODEL[,MODEL...]  filter by model (comma-separated)
-  -i, --interactive             use fzf to select tool(s) and model(s)
-  -a, --all                     merge all runs under results/ (latest result
-                                wins per adapter+model+case)
-  --speed                       show speed comparison (avg seconds per case),
-                                sorted fastest first
-  --save [FILE]                 write leaderboards as markdown
-                                (default: LEADERBOARD.md at repo root)
-  --prune                       delete run directories whose every result is
-                                superseded by a newer run (preview + confirm)
-  --yes                         skip confirmation prompt when used with --prune
-  -h, --help                    show this help
+  help_section "USAGE"
+  help_line "  report [OPTIONS] [results.csv]"
 
-Defaults to the newest results CSV under $RESULTS_DIR.
-EOF
+  help_section "DESCRIPTION"
+  help_line "  Print leaderboards and comparisons from bench results. Defaults"
+  help_line "  to the newest results.csv in results/ if no file is provided."
+
+  help_section "OPTIONS"
+  help_flag "-t, --agent" "TOOL[,TOOL...]" "filter by adapter/tool (comma-separated)"
+  help_flag "-m, --model" "MODEL[,MODEL...]" "filter by model (comma-separated)"
+  help_flag "-r, --runtime" "RUNTIME" "filter by runtime (lms|ollama|mlx)"
+  help_flag "-i, --interactive" "" "use fzf to select tool(s) and model(s)"
+  help_flag "-a, --all" "" "merge all runs (latest result wins per combo)"
+  help_flag "--speed" "" "show speed comparison (avg seconds), fastest first"
+  help_flag "--save" "[FILE]" "write leaderboards as markdown (default: LEADERBOARD.md)"
+  help_flag "--prune" "" "delete runs fully superseded by newer runs (confirm first)"
+  help_flag "--yes" "" "skip confirmation with --prune"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Show latest results:"
+  help_line "  \$ report"
+  help_line ""
+  help_line "  Filter by model and adapter:"
+  help_line "  \$ report --agent aider,cline --model qwen/qwen3.5-9b"
+  help_line ""
+  help_line "  Show speed comparison across all runs:"
+  help_line "  \$ report --all --speed"
+  help_line ""
+  help_line "  Save leaderboard to markdown:"
+  help_line "  \$ report --save LEADERBOARD.md"
   exit 0
 }
 
