@@ -302,7 +302,8 @@ preflight_check_models() {
       [ "${#missing[@]}" -eq 0 ] && return 0
       warn "models not found in LM Studio (lms ls):"
       for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
-      echo "  ${C_DIM}To add: download via LM Studio or lms pull <id>${C_RST}"
+      echo "  ${C_DIM}Download:${C_RST}"
+      for m in "${missing[@]}"; do echo "    ${C_DIM}lms get $m${C_RST}"; done
       ;;
     ollama)
       available="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | sed 's/:latest$//')"
