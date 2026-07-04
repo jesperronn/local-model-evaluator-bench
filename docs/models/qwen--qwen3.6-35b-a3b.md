@@ -21,7 +21,8 @@
 | **Parameter count** | 35B total, 3B active |
 | **Quantization** | MLX (LMS) / mxfp8 (Ollama `qwen3.6:35b-a3b-coding-mxfp8`) |
 | **Disk size** | 22.07 GB |
-| **Context window** | 65536 loaded for bench (`BENCH_CONTEXT`) |
+| **Context window** | 65536 loaded for bench (`BENCH_CONTEXT`); 256K max |
+| **Fits** | Tight on 32GB: ~26.6GB at full 256K context — a squeeze. Obvious pick at 128GB; on 32GB run reduced context (see caveat) |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-29 (run `20260629-005401`) |
 | **LMS entry removed** | 2026-06-10 |
@@ -136,6 +137,19 @@ Four new adapters tested on LMS runtime: goose, interpreter, pi (all 36/36 100%,
 **keep** — perfect scores across all 8 adapters tested (aider, codex, opencode, caveman, hermes, pi, goose, interpreter, cline). Top-ranked model in the suite. Only aider shows adapter-specific failures (js-03, js-04, js-06 — known format issue).
 
 **LMS entry history:** removed 2026-06-10 (replaced by qwen3.6-27b); re-added 2026-06-18 after qwen3.6-27b was removed for being strictly dominated (35.7% accuracy, 253s avg vs 94%+ and 48s avg for this model).
+
+## 32GB caveat & tuning notes
+
+**Memory on 32GB:** at its max 256K context this model needs ~26.6GB, leaving
+almost no headroom on a 32GB machine. It runs there only with heavily reduced
+context (32K–64K). At that point [qwen3-coder-30b](qwen--qwen3-coder-30b-mlx.md)
+(smaller KV footprint, code-tuned) is the more sensible 32GB target for surgical
+edits. Reserve 35b-a3b's full context for the 128GB tier.
+
+**Disable reasoning for agentic loops (field note, verify):** Qwen3.6 tends to
+overthink; in a tool loop chain-of-thought burns tokens and latency for little
+gain on surgical edits. Worth measuring a reasoning-off configuration for
+agentic adapters and recording the speed/accuracy delta here.
 
 ## Comparison within family
 
