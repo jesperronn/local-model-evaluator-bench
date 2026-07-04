@@ -58,13 +58,24 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/lib/versions.sh"
 
+# Recursively signal a process and all its descendants. Defined early so the
+# EXIT/INT/TERM traps below can reap the verbose tails' *children*: each tail is
+# `( tail -F | sed ) &`, so $! is the subshell wrapper — killing only that
+# orphans the tail/sed inside it (they reparent to PID 1 and spin forever). The
+# main run loop has its own kill_tree() further down; this is the trap-safe twin.
+_kill_tree() {
+  local p="$1" sig="${2:-TERM}" c
+  for c in $(pgrep -P "$p" 2>/dev/null); do _kill_tree "$c" "$sig"; done
+  kill "-$sig" "$p" 2>/dev/null || true
+}
+
 # Clean up verbose tail processes on exit (normal, interrupt, or error).
 # These are spawned with backgrounded tail -F during verbose mode runs
 # and must be killed before the script exits to avoid orphaned processes.
 _cleanup_verbose_tails() {
   if [ -n "${_vtail_pids:-}" ] && [ "${#_vtail_pids[@]}" -gt 0 ]; then
     for _vp in "${_vtail_pids[@]}"; do
-      kill "$_vp" 2>/dev/null; wait "$_vp" 2>/dev/null || true
+      _kill_tree "$_vp"; wait "$_vp" 2>/dev/null || true
     done
   fi
 }
@@ -734,8 +745,9 @@ for model_alias in "${MODEL_ARR[@]}"; do
           # Give buffered output a moment to flush before killing the tails.
           sleep 0.3
           for _vp in "${_vtail_pids[@]}"; do
-            kill "$_vp" 2>/dev/null; wait "$_vp" 2>/dev/null
+            _kill_tree "$_vp"; wait "$_vp" 2>/dev/null
           done
+          _vtail_pids=()  # reset so the EXIT trap doesn't re-wait dead PIDs
           # Fold verbose debug lines when all test cases passed.
           [ -t 1 ] && [ "$t_pass" = "$t_total" ] && [ "$t_total" -gt 0 ] && printf '\033[u\033[J'
         else
