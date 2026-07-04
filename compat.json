@@ -913,5 +913,85 @@
     "run_id": "20260704-200227",
     "symptom": "",
     "status": "open"
+  },
+  "opencode:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "opencode",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": "1.17.13",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "open"
+  },
+  "interpreter:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "interpreter",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "ERROR: Reconnecting... 1/5",
+    "status": "open"
+  },
+  "nanocoder:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "nanocoder",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "aider:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "aider",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "goose:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "goose",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": " 1.41.0",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "pi:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "pi",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": "0.80.3",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "Warning: Model \"mistralai/mistral-nemo-instruct-2407\" not found for provider \"lmstudio\". Using custom model id.",
+    "status": "open"
+  },
+  "hermes:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "hermes",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": "Hermes Agent v0.18.0 (2026.7.1)",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "cline:mistralai/mistral-nemo-instruct-2407:lms": {
+    "adapter": "cline",
+    "model": "mistralai/mistral-nemo-instruct-2407",
+    "runtime": "lms",
+    "agent_version": "3.0.37",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-203746",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
   }
 }

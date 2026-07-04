@@ -51,6 +51,9 @@ for arg in "$@"; do
   esac
 done
 
+# Track problems found during checks
+declare -a problems_found
+
 info "LM Studio server: $LMS_BASE_URL"
 if lms_up; then
   ok "reachable"
@@ -59,9 +62,11 @@ if lms_up; then
     echo "  loaded model ids:"; printf '    %s\n' $loaded
   else
     warn "no model currently loaded — load one in LM Studio or run: lms load <id>"
+    problems_found+=("no_model_loaded")
   fi
 else
   err "not reachable. Start it with:  lms server start"
+  problems_found+=("lms_not_reachable")
 fi
 
 echo
@@ -70,6 +75,7 @@ if command -v hf >/dev/null 2>&1; then
   ok "hf -> $(command -v hf)"
 else
   warn "hf not found — bin/lms_update needs it: brew install hf"
+  problems_found+=("hf_missing")
 fi
 
 echo
@@ -85,7 +91,7 @@ for name in $(for a in "$ADAPTERS_DIR"/*.sh; do
   echo "$n"
 done | sort -u); do
   if command -v "$name" >/dev/null 2>&1; then ok "$name -> $(command -v "$name")"
-  else warn "$name not on PATH (adapter present, tool missing)"; fi
+  else warn "$name not on PATH (adapter present, tool missing)"; problems_found+=("adapter_missing:$name"); fi
 done
 
 echo
@@ -105,6 +111,7 @@ if command -v hermes >/dev/null 2>&1; then
     echo "      backend: docker   AND   docker_mount_cwd_to_workspace: true   (safe: keeps container isolation; needs Docker running + image)"
     echo "      backend: local                                                (runs --yolo tools directly on the host — no sandbox)"
     echo "    Then add 'hermes' to DEFAULT_ADAPTERS in config.sh."
+    problems_found+=("hermes_not_ready")
   fi
 else
   echo "    hermes not installed — skipping"
@@ -148,6 +155,7 @@ if [ "$stuck_count" -eq 0 ]; then
   ok "no hung predictions detected"
 else
   warn "$stuck_count trial(s) with stuck predictions. Run 'bin/bench --resume' to retry."
+  problems_found+=("stuck_predictions")
 fi
 
 echo
@@ -168,12 +176,14 @@ if [ -n "$ram_gb" ] && [ "$ram_gb" -gt 0 ]; then
         else
           warn "  $primary (LMS) not installed"
           printf '  Next step: bin/setup --model %s\n' "$suggested_profile"
+          problems_found+=("model_not_installed:$suggested_profile")
         fi
       fi
     fi
   fi
 else
   warn "Could not detect system RAM"
+  problems_found+=("cannot_detect_ram")
 fi
 
 echo
@@ -230,3 +240,114 @@ else:
             print(f'  bin/bench --runtime {runtime} --agent {adapter} --model {model} --cases {cases_list}')
         print()
 PYEOF
+
+# ── Next Steps ──────────────────────────────────────────────────────────────
+# Only show if there are problems to fix
+if [ ${#problems_found[@]} -gt 0 ]; then
+  echo
+  help_section "NEXT STEPS"
+
+  # Build unique list of issues (dedup, handle special cases like adapter_missing:name)
+  declare -A unique_problems
+  for problem in "${problems_found[@]}"; do
+    # For "adapter_missing:name" style, track adapter name separately
+    if [[ "$problem" =~ ^adapter_missing: ]]; then
+      adapter="${problem#adapter_missing:}"
+      unique_problems["adapter_missing:$adapter"]=1
+    elif [[ "$problem" =~ ^model_not_installed: ]]; then
+      profile="${problem#model_not_installed:}"
+      unique_problems["model_not_installed:$profile"]=1
+    else
+      unique_problems["$problem"]=1
+    fi
+  done
+
+  step=1
+
+  # Problem: LM Studio not reachable
+  if [ -n "${unique_problems[lms_not_reachable]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Start LM Studio server${C_RST}"
+    help_line "     ${C_GRN}\$ lms server start${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: No model loaded
+  if [ -n "${unique_problems[no_model_loaded]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Load a model into LM Studio${C_RST}"
+    help_line "     ${C_GRN}\$ lms load <model-id>${C_RST}"
+    help_line "     ${C_DIM}Or browse available models:${C_RST} ${C_GRN}\$ lms ps${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: Missing adapters
+  if [[ -v unique_problems[adapter_missing:*] ]]; then
+    adapters_to_install=()
+    for problem in "${!unique_problems[@]}"; do
+      if [[ "$problem" =~ ^adapter_missing: ]]; then
+        adapter="${problem#adapter_missing:}"
+        adapters_to_install+=("$adapter")
+      fi
+    done
+    if [ ${#adapters_to_install[@]} -gt 0 ]; then
+      adapters_str="$(IFS=,; echo "${adapters_to_install[*]}")"
+      help_line "  ${step}. ${C_BLD}Install missing CLI adapters${C_RST}"
+      help_line "     ${C_GRN}\$ bin/setup --agent $adapters_str${C_RST}"
+      ((step++))
+    fi
+  fi
+
+  # Problem: hf missing
+  if [ -n "${unique_problems[hf_missing]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Install HuggingFace CLI (required for model downloads)${C_RST}"
+    help_line "     ${C_GRN}\$ brew install huggingface-cli${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: Model not installed for detected profile
+  if [[ -v unique_problems[model_not_installed:*] ]]; then
+    profiles_to_install=()
+    for problem in "${!unique_problems[@]}"; do
+      if [[ "$problem" =~ ^model_not_installed: ]]; then
+        profile="${problem#model_not_installed:}"
+        profiles_to_install+=("$profile")
+      fi
+    done
+    if [ ${#profiles_to_install[@]} -gt 0 ]; then
+      help_line "  ${step}. ${C_BLD}Download and load the model for your hardware profile${C_RST}"
+      for profile in "${profiles_to_install[@]}"; do
+        help_line "     ${C_GRN}\$ bin/setup --model $profile${C_RST}"
+      done
+      ((step++))
+    fi
+  fi
+
+  # Problem: Hermes not ready
+  if [ -n "${unique_problems[hermes_not_ready]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Configure Hermes sandbox settings${C_RST}"
+    help_line "     Edit ${C_DIM}\$HOME/.hermes/config.yaml${C_RST} to set up terminal backend:"
+    help_line "     ${C_GRN}\$ nano ~/.hermes/config.yaml${C_RST}"
+    help_line "     Then choose one configuration below:"
+    help_line "       ${C_DIM}Option A:${C_RST} ${C_GRN}backend: local${C_RST} ${C_DIM}(runs on host, no sandbox)${C_RST}"
+    help_line "       ${C_DIM}Option B:${C_RST} ${C_GRN}backend: docker${C_RST} + ${C_GRN}docker_mount_cwd_to_workspace: true${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: Stuck predictions
+  if [ -n "${unique_problems[stuck_predictions]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Retry benchmarks with stuck predictions${C_RST}"
+    help_line "     ${C_GRN}\$ bin/bench --resume${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: Cannot detect RAM
+  if [ -n "${unique_problems[cannot_detect_ram]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Manually set hardware profile in config.sh or environment${C_RST}"
+    help_line "     ${C_GRN}\$ export PREFERRED_PROFILE=32gb${C_RST}"
+    ((step++))
+  fi
+
+  # If step is still 1, no recognizable problems (shouldn't happen, but just in case)
+  if [ "$step" -eq 1 ]; then
+    help_line "  ${C_DIM}(problems detected, but detailed fixes not yet defined for this scenario)${C_RST}"
+  fi
+fi
