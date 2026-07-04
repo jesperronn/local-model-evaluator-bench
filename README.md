@@ -4,7 +4,11 @@ A repeatable harness for benchmarking **local models** on **agentic coding workf
 
 ---
 
-## Quick Start
+## Getting Started
+
+**New to this project?** Start here → **[ONBOARDING.md](docs/ONBOARDING.md)** (4 phases, step-by-step)
+
+Or if you've done this before, copy-paste the quick start:
 
 ```bash
 lms server start          # Start LM Studio's OpenAI-compatible server
@@ -83,6 +87,7 @@ The target workload is multi-agent: an orchestrator directing 2–3 agents all r
 
 ### Getting Started (Do This First)
 
+- [**ONBOARDING.md**](docs/ONBOARDING.md) — step-by-step guide: detect hardware → configure → verify → benchmark (4 phases)
 - [**WORKFLOW.md**](docs/WORKFLOW.md) — the complete workflow: adding adapters & models, running tests, interpreting results, managing incompatibilities
 - [**SETUP.md**](docs/SETUP.md) — LM Studio setup, per-tool config, IDE extensions, context window tuning
 

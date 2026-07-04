@@ -25,7 +25,7 @@ source "$HERE/bin/lib/help.sh" 2>/dev/null || true
 [ -f "$HERE/config.sh" ] && source "$HERE/config.sh" || true
 
 show_help() {
-  help_header "bootstrap-machine" "propose or apply per-tier hardware profile edits"
+  help_phase "2" "Apply Tier-Specific Configuration" "bin/bootstrap-machine" "bin/smoke"
 
   help_section "USAGE"
   help_line "  bootstrap-machine [OPTIONS]"

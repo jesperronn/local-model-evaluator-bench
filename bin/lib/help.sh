@@ -86,6 +86,18 @@ help_footer() {
   printf '\n%s\n' "${C_DIM}For more info, run: \$ <command> --help${C_RST}"
 }
 
+# Print an onboarding phase marker (for Command Boundary Pattern).
+# Shows which phase of the onboarding flow this command is in.
+# Usage: help_phase "1" "Hardware Detection" "hwprofile"
+help_phase() {
+  local num="$1" name="$2" cmd="$3"
+  help_section "ONBOARDING PHASE ${num}/4"
+  help_line "  ${name} — run: ${C_GRN}${cmd}${C_RST}"
+  if [ -n "${4:-}" ]; then
+    help_line "  Next phase: ${C_GRN}${4}${C_RST}"
+  fi
+}
+
 # Print a "Next steps:" section with numbered actions (Command Boundary Pattern).
 # Each arg is "step_description|command_to_run". Usage:
 #   help_next_steps_section \
