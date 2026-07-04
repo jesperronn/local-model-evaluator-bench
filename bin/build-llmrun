@@ -82,7 +82,9 @@ _rt_mlx_model() {
   curl -fsS --max-time 2 http://localhost:8080/v1/models 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data'][0]['id'])" 2>/dev/null
 }
-_rt_mlx_logfile="${TMPDIR:-/tmp}/llmrun-mlx.log"
+# Strip trailing slash from TMPDIR (typically ends with /) to avoid double-slash paths
+_rt_tmpdir="${TMPDIR%/}"; _rt_tmpdir="${_rt_tmpdir:-/tmp}"
+_rt_mlx_logfile="$_rt_tmpdir/llmrun-mlx.log"
 
 rt_status_one() {
   local rt="$1"
@@ -154,14 +156,14 @@ cmd_runtime_start() {
         open -a "$app"
       else
         info "starting ollama serve (background)..."
-        nohup ollama serve >"${TMPDIR:-/tmp}/llmrun-ollama.log" 2>&1 &
+        nohup ollama serve >"$_rt_tmpdir/llmrun-ollama.log" 2>&1 &
         disown
       fi
       for _i in 1 2 3 4 5 6 7 8 9 10; do
         ollama_up 2>/dev/null && { ok "ollama: started"; return; }
         sleep 1
       done
-      die "ollama did not come up within 10s — check ${TMPDIR:-/tmp}/llmrun-ollama.log"
+      die "ollama did not come up within 10s — check \${TMPDIR}/llmrun-ollama.log"
       ;;
     mlx)
       if mlx_up 2>/dev/null; then
@@ -172,7 +174,7 @@ cmd_runtime_start() {
       [ -z "$model" ] && die "usage: llmrun runtime start mlx <model>  (this repo also has model-specific wrappers — see bin/mlx-serve-*)"
       command -v mlx_lm.server >/dev/null 2>&1 || python3 -c "import mlx_lm" 2>/dev/null \
         || die "mlx_lm not found — pip install mlx-lm"
-      info "starting mlx_lm.server with $model (background, log: $_rt_mlx_logfile)..."
+      info "starting mlx_lm.server with $model (background, log: \${TMPDIR}/llmrun-mlx.log)..."
       nohup python3 -m mlx_lm.server --model "$model" --port 8080 >"$_rt_mlx_logfile" 2>&1 &
       disown
       for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
@@ -256,13 +258,13 @@ cmd_runtime_logs() {
       fi
       ;;
     ollama)
-      local log="${TMPDIR:-/tmp}/llmrun-ollama.log"
+      local log="$_rt_tmpdir/llmrun-ollama.log"
       [ -f "$HOME/Library/Logs/Ollama/server.log" ] && log="$HOME/Library/Logs/Ollama/server.log"
-      [ -f "$log" ] || die "no ollama log found at $log"
+      [ -f "$log" ] || die "no ollama log found at \${TMPDIR}/llmrun-ollama.log"
       if [ "$follow" = 1 ]; then tail -n "$n" -f "$log"; else tail -n "$n" "$log"; fi
       ;;
     mlx)
-      [ -f "$_rt_mlx_logfile" ] || die "no mlx log found at $_rt_mlx_logfile (started outside llmrun?)"
+      [ -f "$_rt_mlx_logfile" ] || die "no mlx log found at \${TMPDIR}/llmrun-mlx.log (started outside llmrun?)"
       if [ "$follow" = 1 ]; then tail -n "$n" -f "$_rt_mlx_logfile"; else tail -n "$n" "$_rt_mlx_logfile"; fi
       ;;
     *) die "unknown runtime: $tgt (valid: lms ollama mlx)";;
