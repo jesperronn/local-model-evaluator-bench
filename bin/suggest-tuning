@@ -24,9 +24,43 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
-source config.sh
+source config.sh; source lib/common.sh; source bin/lib/help.sh
+
+show_help() {
+  help_header "suggest-tuning" "derive per-model config recommendations"
+
+  help_section "USAGE"
+  help_line "  suggest-tuning [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Analyzes repo-local evidence (model cards, README, config.sh)"
+  help_line "  and emits per-model config recommendations as plan.jsonl for"
+  help_line "  'llmrun agents config apply'. Each row: {model, key, value, reason, source}."
+
+  help_section "EVIDENCE SOURCES"
+  help_line "  - docs/models/*.md: Quick verdict table (context window)"
+  help_line "  - README.md: hard floors (e.g. hermes requires >=64K context)"
+  help_line "  - config.sh: adapter defaults (temperature, max_tokens)"
+
+  help_section "OPTIONS"
+  help_flag "[model]" "" "filter to one model id (e.g. qwen/qwen3.6-35b-a3b)"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Analyze all model cards:"
+  help_line "  \$ suggest-tuning | jq '.'"
+  help_line ""
+  help_line "  Analyze one model:"
+  help_line "  \$ suggest-tuning qwen/qwen3.5-9b"
+  help_line ""
+  help_line "  See conflicting recommendations:"
+  help_line "  \$ suggest-tuning | jq 'group_by(.model, .key)'"
+
+  exit 0
+}
 
 FILTER="${1:-}"
+[ "$FILTER" = "-h" ] || [ "$FILTER" = "--help" ] && show_help
 HERMES_FLOOR=65536
 
 emit() {
