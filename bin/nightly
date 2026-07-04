@@ -5,6 +5,7 @@
 #   bin/nightly --model qwen3-coder-30b
 #   bin/nightly --all-cases        # include hard cases too
 #   bin/nightly --devstral         # after qwen3.6-35b finishes, also run devstral2-small
+#   bin/nightly --dry-run          # print commands without executing
 
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
@@ -12,15 +13,17 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 PRIMARY_MODEL="qwen/qwen3.6-35b-a3b"
 INCLUDE_DEVSTRAL=0
 INCLUDE_HARD=0
+DRY_RUN=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --model) PRIMARY_MODEL="$2"; shift 2;;
     --devstral) INCLUDE_DEVSTRAL=1; shift;;
     --all-cases) INCLUDE_HARD=1; shift;;
+    --dry-run) DRY_RUN=1; shift;;
     --help)
       echo "nightly bench runner (lms focused)"
-      echo "Flags: --model M, --devstral, --all-cases"
+      echo "Flags: --model M, --devstral, --all-cases, --dry-run"
       exit 0
       ;;
     *) shift;;
@@ -53,6 +56,30 @@ DIFFICULTY="easy,medium"
 echo "Difficulty tiers: $DIFFICULTY"
 echo "Adapters: $ADAPTERS (lms backend only; skipping external tools)"
 echo ""
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo "=== Dry run plan ==="
+  echo "Primary run:"
+  echo "  bin/bench \\"
+  echo "    --agent $ADAPTERS \\"
+  echo "    --model $PRIMARY_MODEL \\"
+  echo "    --difficulty $DIFFICULTY \\"
+  echo "    --timeout 300 \\"
+  echo "    --warmup 180 \\"
+  echo "    --stall 120"
+  if [ "$INCLUDE_DEVSTRAL" -eq 1 ]; then
+    echo ""
+    echo "Secondary run:"
+    echo "  bin/bench \\"
+    echo "    --agent $ADAPTERS \\"
+    echo "    --model mistralai/devstral-small-2-2512 \\"
+    echo "    --difficulty $DIFFICULTY \\"
+    echo "    --timeout 300 \\"
+    echo "    --warmup 180 \\"
+    echo "    --stall 120"
+  fi
+  exit 0
+fi
 
 # Run primary model (qwen3.6-35b or specified)
 echo "Starting primary run with $PRIMARY_MODEL..."
