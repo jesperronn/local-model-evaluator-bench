@@ -21,7 +21,37 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh" 2>/dev/null || true
 [ -f "$HERE/config.sh" ] && source "$HERE/config.sh" || true
+
+show_help() {
+  help_header "bootstrap-machine" "propose or apply per-tier hardware profile edits"
+
+  help_section "USAGE"
+  help_line "  bootstrap-machine [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Detects machine hardware via bin/hwprofile, looks up the detected"
+  help_line "  tier in profile.json, then generates models.txt and config.sh edits"
+  help_line "  to match that tier."
+
+  help_section "OPTIONS"
+  help_flag "--write" "" "apply proposed changes (default: dry-run preview only)"
+  help_flag "--tier" "GB" "override detected tier (for testing)"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Preview proposed changes for your detected tier:"
+  help_line "  \$ bootstrap-machine"
+  help_line ""
+  help_line "  Apply the proposed changes:"
+  help_line "  \$ bootstrap-machine --write"
+  help_line ""
+  help_line "  Test with a specific tier:"
+  help_line "  \$ bootstrap-machine --tier 128"
+
+  exit 0
+}
 
 WRITE=0
 TIER_OVERRIDE=""
@@ -30,10 +60,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --write) WRITE=1; shift;;
     --tier) TIER_OVERRIDE="$2"; shift 2;;
-    -h|--help)
-      sed -n '2,14p' "$0" | sed 's/^# \?//'
-      exit 0
-      ;;
+    -h|--help) show_help;;
     *) die "unknown option: $1";;
   esac
 done
