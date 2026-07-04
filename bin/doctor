@@ -253,10 +253,10 @@ if [ ${#problems_found[@]} -gt 0 ]; then
     # For "adapter_missing:name" style, track adapter name separately
     if [[ "$problem" =~ ^adapter_missing: ]]; then
       adapter="${problem#adapter_missing:}"
-      unique_problems["adapter_missing:$adapter"]=1
+      unique_problems["adapter_missing_${adapter}"]=1
     elif [[ "$problem" =~ ^model_not_installed: ]]; then
       profile="${problem#model_not_installed:}"
-      unique_problems["model_not_installed:$profile"]=1
+      unique_problems["model_not_installed_${profile}"]=1
     else
       unique_problems["$problem"]=1
     fi
@@ -280,20 +280,20 @@ if [ ${#problems_found[@]} -gt 0 ]; then
   fi
 
   # Problem: Missing adapters
-  if [[ -v unique_problems[adapter_missing:*] ]]; then
-    adapters_to_install=()
-    for problem in "${!unique_problems[@]}"; do
-      if [[ "$problem" =~ ^adapter_missing: ]]; then
-        adapter="${problem#adapter_missing:}"
-        adapters_to_install+=("$adapter")
-      fi
-    done
-    if [ ${#adapters_to_install[@]} -gt 0 ]; then
-      adapters_str="$(IFS=,; echo "${adapters_to_install[*]}")"
-      help_line "  ${step}. ${C_BLD}Install missing CLI adapters${C_RST}"
-      help_line "     ${C_GRN}\$ bin/setup --agent $adapters_str${C_RST}"
-      ((step++))
+  has_adapter_missing=false
+  adapters_to_install=()
+  for key in "${!unique_problems[@]}"; do
+    if [[ "$key" =~ ^adapter_missing_ ]]; then
+      has_adapter_missing=true
+      adapter="${key#adapter_missing_}"
+      adapters_to_install+=("$adapter")
     fi
+  done
+  if [ "$has_adapter_missing" = true ]; then
+    adapters_str="$(IFS=,; echo "${adapters_to_install[*]}")"
+    help_line "  ${step}. ${C_BLD}Install missing CLI adapters${C_RST}"
+    help_line "     ${C_GRN}\$ bin/setup --agent $adapters_str${C_RST}"
+    ((step++))
   fi
 
   # Problem: hf missing
@@ -304,28 +304,26 @@ if [ ${#problems_found[@]} -gt 0 ]; then
   fi
 
   # Problem: Model not installed for detected profile
-  if [[ -v unique_problems[model_not_installed:*] ]]; then
-    profiles_to_install=()
-    for problem in "${!unique_problems[@]}"; do
-      if [[ "$problem" =~ ^model_not_installed: ]]; then
-        profile="${problem#model_not_installed:}"
-        profiles_to_install+=("$profile")
-      fi
-    done
-    if [ ${#profiles_to_install[@]} -gt 0 ]; then
-      help_line "  ${step}. ${C_BLD}Download and load the model for your hardware profile${C_RST}"
-      for profile in "${profiles_to_install[@]}"; do
-        help_line "     ${C_GRN}\$ bin/setup --model $profile${C_RST}"
-      done
-      ((step++))
+  profiles_to_install=()
+  for key in "${!unique_problems[@]}"; do
+    if [[ "$key" =~ ^model_not_installed_ ]]; then
+      profile="${key#model_not_installed_}"
+      profiles_to_install+=("$profile")
     fi
+  done
+  if [ ${#profiles_to_install[@]} -gt 0 ]; then
+    help_line "  ${step}. ${C_BLD}Download and load the model for your hardware profile${C_RST}"
+    for profile in "${profiles_to_install[@]}"; do
+      help_line "     ${C_GRN}\$ bin/setup --model $profile${C_RST}"
+    done
+    ((step++))
   fi
 
   # Problem: Hermes not ready
   if [ -n "${unique_problems[hermes_not_ready]:-}" ]; then
     help_line "  ${step}. ${C_BLD}Configure Hermes sandbox settings${C_RST}"
-    help_line "     Edit ${C_DIM}\$HOME/.hermes/config.yaml${C_RST} to set up terminal backend:"
-    help_line "     ${C_GRN}\$ nano ~/.hermes/config.yaml${C_RST}"
+    help_line "     Edit ${C_DIM}$HOME/.hermes/config.yaml${C_RST} to set up terminal backend:"
+    help_line "     ${C_GRN}\$ nano $HOME/.hermes/config.yaml${C_RST}"
     help_line "     Then choose one configuration below:"
     help_line "       ${C_DIM}Option A:${C_RST} ${C_GRN}backend: local${C_RST} ${C_DIM}(runs on host, no sandbox)${C_RST}"
     help_line "       ${C_DIM}Option B:${C_RST} ${C_GRN}backend: docker${C_RST} + ${C_GRN}docker_mount_cwd_to_workspace: true${C_RST}"
