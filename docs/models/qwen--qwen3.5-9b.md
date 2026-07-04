@@ -24,6 +24,10 @@ None specifically identified as strictly better for the 32GB tier. Qwen3.6 varia
 | **Last run** | 2026-07-04 (run `20260704-113219`, 32GB tier) |
 | **Doc updated** | 2026-07-04 |
 
+## Prompt template compatibility
+
+✓ **Fully multi-role prompting support** — This model's Jinja2 prompt template in LM Studio properly handles `system`, `user`, and `assistant` roles. This is critical for agentic adapters that require system instructions for tool definitions and agent context. Unlike some other models (e.g., `mistralai/mistral-7b-instruct-v0.3`), this model has no template incompatibilities with aider, cline, hermes, or other multi-role-dependent adapters.
+
 ## Results summary
 
 Excellent small-model performer on 32GB hardware. 2026-07-04 run on 32GB tier: **aider 100% (21/21 cases, ~24s avg)**, cline 80% (17/21, hits 300s timeout on harder cases), openhands 67% (14/21), codex incomplete (2/7 cases). Strong compact model — loads in ~6s, efficient 9B dense architecture. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).

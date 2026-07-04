@@ -29,6 +29,10 @@
 | **LMS entry re-added** | 2026-06-18 (qwen3.6-27b removed; 35b-a3b returned) |
 | **Doc updated** | 2026-06-30 |
 
+## Prompt template compatibility
+
+✓ **Fully multi-role prompting support** — This model's Jinja2 prompt template in LM Studio properly handles `system`, `user`, and `assistant` roles. This is critical for agentic adapters that require system instructions for tool definitions and agent context. Verified to work reliably across all major adapters (aider, cline, hermes, pi, opencode, etc.) without template conflicts.
+
 ## Results summary
 
 The strongest general model in the suite. On the 2026-06-29 overnight run: aider, cline, codex, goose, hermes, interpreter, opencode, openhands, pi all scored **38/38 (100%)**. caveman and copilot are LMS-incompatible (not a model issue). Overall 366/406 (90%) including broken adapters; **100% across all working adapters**. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
