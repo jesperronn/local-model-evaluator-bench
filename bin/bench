@@ -524,6 +524,30 @@ kill_tree() {
   kill -"$sig" "$p" 2>/dev/null
 }
 
+# Parse lms log stream --json output and compute in-flight prediction count
+# (input events minus output events at the time of the call). Returns a string
+# like "5 in-flight" or empty if JSON is malformed or unavailable.
+lms_in_flight_count() {
+  local logf="$1"
+  [ -f "$logf" ] || return
+  # Count lines with llm.prediction.input and llm.prediction.output in the JSON stream
+  local inputs
+  inputs="$(grep -c '"type":"llm.prediction.input"' "$logf" 2>/dev/null)" || inputs=0
+  inputs="${inputs##[[:space:]]}"; inputs="${inputs%%[[:space:]]}"  # trim
+  [ -z "$inputs" ] && inputs=0
+  local outputs
+  outputs="$(grep -c '"type":"llm.prediction.output"' "$logf" 2>/dev/null)" || outputs=0
+  outputs="${outputs##[[:space:]]}"; outputs="${outputs%%[[:space:]]}"  # trim
+  [ -z "$outputs" ] && outputs=0
+  local inflight=$(( inputs - outputs ))
+  if [ "$inflight" -gt 0 ]; then
+    printf '%d in-flight' "$inflight"
+  elif [ "$inputs" -gt 0 ]; then
+    # Some activity seen but balanced; still generating
+    echo "balanced"
+  fi
+}
+
 # Run one (adapter,model,case) trial in its own sandbox; echo "pass total elapsed status".
 run_trial() {
   local adapter_sh="$1" model="$2" case_src="$3" sandbox="$4"
@@ -540,10 +564,11 @@ run_trial() {
   # lms token probe (diagnostic): capture the server log during the trial so a
   # stall can be classified as generating (model looping/rambling) vs idle (hung
   # or crashed). Lightweight log subscription; trials never run concurrently.
+  # Use --json output to track in-flight predictions (input - output counts).
   local lmslog="" lms_pid=""
   if [ "$WARMUP" -gt 0 ] && [ "$RUNTIME" = lms ] && command -v lms >/dev/null 2>&1; then
     lmslog="$sandbox/.lms-stream.log"
-    ( lms log stream --stats >"$lmslog" 2>/dev/null ) & lms_pid=$!
+    ( lms log stream --json --stats >"$lmslog" 2>/dev/null ) & lms_pid=$!
   fi
 
   # Launch the adapter under the hard ceiling, backgrounded so the watchdog can
@@ -586,8 +611,16 @@ run_trial() {
     if [ "$first_seen" = 1 ]; then phase="stall"; budget="$STALL"; else phase="warmup"; budget="$WARMUP"; fi
     if [ "$budget" -gt 0 ] && [ $(( $(date +%s) - last_prog )) -ge "$budget" ]; then
       local genx="idle"
-      if [ -n "$lmslog" ] && [ -f "$lmslog" ] && [ "$(wc -c <"$lmslog" 2>/dev/null || echo 0)" -gt 64 ]; then
-        genx="generating"
+      if [ -n "$lmslog" ] && [ -f "$lmslog" ]; then
+        # Try JSON-based in-flight count first
+        local inflight_info
+        inflight_info="$(lms_in_flight_count "$lmslog")"
+        if [ -n "$inflight_info" ]; then
+          genx="generating ($inflight_info, server-wide)"
+        elif [ "$(wc -c <"$lmslog" 2>/dev/null || echo 0)" -gt 64 ]; then
+          # Fallback: byte-check for older lms versions or non-JSON output
+          genx="generating"
+        fi
       fi
       printf 'WATCHDOG: %s phase — no progress for %ss (lms: %s) — aborting trial\n' "$phase" "$budget" "$genx" >>"$logf"
       abort_reason="stall"
