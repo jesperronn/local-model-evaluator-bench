@@ -45,7 +45,7 @@ The script is self-contained with no external dependencies beyond standard Unix 
 On Apple Silicon Macs, the GPU uses unified memory but macOS caps how much RAM the GPU can claim as "wired" memory (~75% of total by default). The human output displays a `sysctl` command to raise this cap if your machine has 16 GB or more total RAM:
 
 ```bash
-sudo sysctl iogpu.wired_mem_breakpoint_cap=<MB>
+sudo sysctl iogpu.wired_limit_mb=<MB>
 ```
 
 This setting:

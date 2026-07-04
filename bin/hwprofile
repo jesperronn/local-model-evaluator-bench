@@ -435,7 +435,7 @@ _output_human() {
     if [[ -n "$gpu_cap_mb" ]]; then
       echo "Tuning Tip (Apple Silicon):"
       echo "  Raise GPU memory cap for larger models/contexts (resets on reboot):"
-      printf "    sudo sysctl iogpu.wired_mem_breakpoint_cap=%s\n" "$gpu_cap_mb"
+      printf "    sudo sysctl iogpu.wired_limit_mb=%s\n" "$gpu_cap_mb"
       echo "  Close memory-heavy apps (Chrome, Docker) before deep agent loops."
     fi
   fi
