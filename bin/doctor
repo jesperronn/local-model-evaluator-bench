@@ -70,6 +70,34 @@ else
 fi
 
 echo
+info "LM Studio runtime engines:"
+if command -v lms >/dev/null 2>&1; then
+  if _runtimes="$(lms runtime ls 2>/dev/null)" && [ -n "$_runtimes" ]; then
+    # Check for selected runtime (marked with ✓)
+    _selected="$(printf '%s\n' "$_runtimes" | grep '✓' | awk '{print $1}' | head -1)"
+    if [ -n "$_selected" ]; then
+      ok "selected: $_selected"
+      # Extract format info for selected runtime
+      _format="$(printf '%s\n' "$_runtimes" | grep '✓' | awk '{for(i=NF;i>=1;i--) print $i}' | grep -E 'GGUF|safetensors|mlx|etc' | head -1)"
+      if [ -n "$_format" ]; then
+        echo "  format: $_format"
+      fi
+    fi
+    # Show all available runtimes
+    if [ "$(printf '%s\n' "$_runtimes" | wc -l)" -gt 2 ]; then
+      echo "  available engines:"
+      printf '%s\n' "$_runtimes" | tail -n +2 | sed 's/^/    /'
+    fi
+  else
+    warn "could not query runtime engines"
+    problems_found+=("runtime_query_failed")
+  fi
+else
+  warn "lms CLI not installed — runtime management unavailable"
+  problems_found+=("lms_cli_missing")
+fi
+
+echo
 info "Model management CLIs:"
 if command -v hf >/dev/null 2>&1; then
   ok "hf -> $(command -v hf)"
@@ -276,6 +304,8 @@ if [ ${#problems_found[@]} -gt 0 ]; then
     help_line "  ${step}. ${C_BLD}Load a model into LM Studio${C_RST}"
     help_line "     ${C_GRN}\$ lms load <model-id>${C_RST}"
     help_line "     ${C_DIM}Or browse available models:${C_RST} ${C_GRN}\$ lms ps${C_RST}"
+    help_line "     ${C_DIM}Note: if model fails to load, check runtime compatibility:${C_RST}"
+    help_line "     ${C_GRN}\$ lms runtime ls${C_RST}  ${C_DIM}(shows supported formats per engine)${C_RST}"
     ((step++))
   fi
 
@@ -316,6 +346,24 @@ if [ ${#problems_found[@]} -gt 0 ]; then
     for profile in "${profiles_to_install[@]}"; do
       help_line "     ${C_GRN}\$ bin/setup --model $profile${C_RST}"
     done
+    ((step++))
+  fi
+
+  # Problem: LMS CLI missing
+  if [ -n "${unique_problems[lms_cli_missing]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Install LM Studio CLI${C_RST}"
+    help_line "     Needed to manage runtimes and models from the command line"
+    help_line "     ${C_GRN}\$ npm install -g lm-cli${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: Runtime query failed
+  if [ -n "${unique_problems[runtime_query_failed]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Check and manage LM Studio runtime engines${C_RST}"
+    help_line "     ${C_GRN}\$ lms runtime ls${C_RST}          ${C_DIM}# list installed engines${C_RST}"
+    help_line "     ${C_GRN}\$ lms runtime get${C_RST}         ${C_DIM}# download additional runtimes${C_RST}"
+    help_line "     ${C_GRN}\$ lms runtime select${C_RST}      ${C_DIM}# switch between engines${C_RST}"
+    help_line "     Different runtimes support different model formats (GGUF, safetensors, MLX, etc)"
     ((step++))
   fi
 
