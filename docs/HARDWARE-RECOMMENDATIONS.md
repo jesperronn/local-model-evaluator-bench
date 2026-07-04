@@ -124,6 +124,13 @@ BENCH_PARALLEL=1
 BENCH_CONTEXT=32768    # 32K if 64K causes pressure
 ```
 
+**Don't start at a model's max context on 32 GB.** Even when a model advertises
+256K (e.g. qwen3-coder-30b), the KV cache plus app memory eats speed long before
+you hit the ceiling. For surgical edits, 32K–64K with good file selection
+out-performs a huge window — the model spends its budget on the right files
+rather than paying to hold context it won't use. Reserve large windows for the
+128 GB tier.
+
 ---
 
 ## Key Insights from Benchmarks
