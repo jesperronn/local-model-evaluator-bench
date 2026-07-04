@@ -8,13 +8,43 @@
 #   bin/nightly --dry-run          # print commands without executing
 
 set -euo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 PRIMARY_MODEL="qwen/qwen3.5-9b"
 INCLUDE_DEVSTRAL=0
 INCLUDE_HARD=0
 DRY_RUN=0
 TIER="32"
+
+show_help() {
+  help_header "nightly" "prepare and run nightly bench focusing on lms backend"
+
+  help_section "USAGE"
+  help_line "  nightly [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Runs nightly benchmarks optimized for 32GB tier with sensible"
+  help_line "  defaults and adapter presets. Results saved to results/."
+
+  help_section "OPTIONS"
+  help_flag "--model" "ID" "primary model to test (default: qwen/qwen3.5-9b)"
+  help_flag "--tier" "T" "hardware tier size (default: 32)"
+  help_flag "--devstral" "" "also run secondary devstral-small-2-2512 after primary"
+  help_flag "--all-cases" "" "include hard cases (default: easy+medium only)"
+  help_flag "--dry-run" "" "print commands without executing"
+  help_flag "--help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Run default nightly (qwen3.5-9b, easy+medium adapters):"
+  help_line "  \$ nightly"
+  help_line ""
+  help_line "  Run with custom model and all difficulty tiers:"
+  help_line "  \$ nightly --model meta-llama/llama-2-13b --all-cases"
+  help_line ""
+  help_line "  See the plan without executing:"
+  help_line "  \$ nightly --dry-run"
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -23,11 +53,7 @@ while [ $# -gt 0 ]; do
     --devstral) INCLUDE_DEVSTRAL=1; shift;;
     --all-cases) INCLUDE_HARD=1; shift;;
     --dry-run) DRY_RUN=1; shift;;
-    --help)
-      echo "nightly bench runner (lms focused) — 32GB tier"
-      echo "Flags: --model M, --tier T, --devstral, --all-cases, --dry-run"
-      exit 0
-      ;;
+    -h|--help) show_help; exit 0;;
     *) shift;;
   esac
 done
