@@ -10,27 +10,29 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
-PRIMARY_MODEL="qwen/qwen3.6-35b-a3b"
+PRIMARY_MODEL="qwen/qwen3.5-9b"
 INCLUDE_DEVSTRAL=0
 INCLUDE_HARD=0
 DRY_RUN=0
+TIER="32"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --model) PRIMARY_MODEL="$2"; shift 2;;
+    --tier) TIER="$2"; shift 2;;
     --devstral) INCLUDE_DEVSTRAL=1; shift;;
     --all-cases) INCLUDE_HARD=1; shift;;
     --dry-run) DRY_RUN=1; shift;;
     --help)
-      echo "nightly bench runner (lms focused)"
-      echo "Flags: --model M, --devstral, --all-cases, --dry-run"
+      echo "nightly bench runner (lms focused) — 32GB tier"
+      echo "Flags: --model M, --tier T, --devstral, --all-cases, --dry-run"
       exit 0
       ;;
     *) shift;;
   esac
 done
 
-echo "=== Nightly Bench Run ==="
+echo "=== Nightly Bench Run (32GB Tier) ==="
 echo "Primary model: $PRIMARY_MODEL"
 echo "Time: $(date)"
 echo ""
@@ -44,11 +46,10 @@ if [[ "$PRIMARY_MODEL" == *"qwen3.6-35b"* ]]; then
   fi
 fi
 
-# Build command: skip adapters with config issues
-# Broken: caveman (unknown provider), claude (malformed API response)
-# Not installed: forge, gptme, mini-swe-agent, swe-agent (external tools)
-ADAPTERS="aider,cline,codex,copilot,goose,opencode,pi"
+# Build command: 32GB tier adapters (aider, cline, openhands, codex)
+# Removed: caveman, copilot, goose, opencode, pi (external tools or missing deps)
 # hermes requires special config — comment out if not configured
+ADAPTERS="aider,cline,openhands,codex"
 
 DIFFICULTY="easy,medium"
 [ "$INCLUDE_HARD" -eq 1 ] && DIFFICULTY="easy,medium,hard"
