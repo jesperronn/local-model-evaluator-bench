@@ -16,6 +16,12 @@ bin/doctor                # Check server, CLIs, models, and test cases
 bin/smoke                 # Verify every tool can reach the model
 ```
 
+Try a single test case interactively:
+
+```bash
+bin/test-ide              # Run a test case in VS Code (Cline) or IntelliJ (Continue)
+```
+
 Then run a full benchmark:
 
 ```bash
@@ -248,6 +254,7 @@ See [WORKFLOW.md](docs/WORKFLOW.md) for detailed usage of each script.
 - `bin/viz` — rebuild the HTML dashboard
 
 ### Iteration & Debugging
+- `bin/test-ide` — interactively test IDE extensions (Cline/VS Code, Continue/IntelliJ) on individual cases
 - `bin/bench --list` — show what would run, without running
 - `bin/bench -i` — interactive fzf pickers
 - `bin/bench --trials N` — repeat and record medians

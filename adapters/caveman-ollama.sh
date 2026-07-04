@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # Adapter: caveman -> Ollama.
-# Uses the `ollama` provider defined in ~/.pi/agent/models.json
-# (baseUrl http://localhost:11434/v1, api openai-completions).
-# Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
+# Status: UNSUPPORTED — caveman-code (npm) does not support local Ollama provider.
+#
+# The npm caveman-code binary does not recognize "ollama" as a valid provider.
+# It only works with cloud providers (Anthropic, OpenAI, etc.) via environment variables.
+#
+# To enable this adapter, either:
+#   (a) npm caveman-code adds ollama-provider support (check caveman-code issues)
+#   (b) use pi-ollama instead (pi has full ollama support via ~/.pi/agent/models.json)
 set -euo pipefail
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# caveman runs on pi's runtime, so it inherits pi's edit tool and the same
-# nested-schema × flat-XML failure. Reapply the recovery shim (idempotent).
-# See docs/tools/pi.md (Known issues) and docs/SCORING.md (Workarounds).
-"$REPO_ROOT/bin/pi-patch-edit-shim" >/dev/null 2>&1 ||
-  echo "warn: pi edit-tool shim not applied (see docs/tools/pi.md)" >&2
+cat >&2 <<'EOF'
+Error: Unknown provider "ollama". Use --list-models to see available providers/models.
+The installed caveman-code (npm) does not support local providers.
+It only works with cloud providers (Anthropic, OpenAI, etc.) via environment variables.
 
-CAVEMAN_ARGS=(--provider ollama --model "$MODEL_ID" --thinking off)
-if [ ! -t 0 ]; then
-  CAVEMAN_ARGS+=(--print "$(cat)")
-fi
+See adapters/caveman-ollama.sh for details.
+EOF
 
-exec caveman "${CAVEMAN_ARGS[@]}" "$@"
+exit 1

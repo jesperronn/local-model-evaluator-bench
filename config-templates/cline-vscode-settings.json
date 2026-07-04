@@ -1,0 +1,11 @@
+{
+  "cline.apiConfiguration": {
+    "apiProvider": "openrouter",
+    "customHeaders": {
+      "User-Agent": "local-model-evaluator-bench"
+    }
+  },
+  "cline.customApiUrl": "http://localhost:1234/v1",
+  "cline.apiModelId": "local-model",
+  "cline.apiKey": "lm-studio"
+}

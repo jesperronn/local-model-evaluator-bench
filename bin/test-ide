@@ -1,0 +1,462 @@
+#!/usr/bin/env bash
+# bin/test-ide — interactively test IDE extensions on individual test cases.
+#
+# Detects IDE + extension (VS Code + Cline, IntelliJ + Continue), creates a
+# temp test repository, shows config instructions, and waits for completion
+# (auto-detect via grader or manual signal). Logs findings for extension cards.
+#
+# Usage:
+#   bin/test-ide [OPTIONS]
+#
+# Options:
+#   --ide vscode|idea      IDE to test (default: interactive picker)
+#   --case CASE_ID         test case to run (default: interactive picker)
+#   --no-auto-detect       require manual signal (don't auto-detect pass/fail)
+#   --timeout N            max wait time in seconds (default: 600)
+#   --verbose, -v          show file watch debug output
+#   -h, --help             show this help and exit
+#
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+IDE="${IDE:-}"
+CASE_ID="${CASE_ID:-}"
+NO_AUTO_DETECT=0
+TIMEOUT=600
+VERBOSE=0
+
+# Define success function if not already defined
+if ! declare -F success >/dev/null; then
+  success() { printf '%s\n' "${C_GRN}[OK]${C_RST} $*"; }
+fi
+
+# ── Help ──────────────────────────────────────────────────────────────────────
+show_help() {
+  help_header "test-ide" "interactively test IDE extensions on individual test cases"
+
+  help_section "USAGE"
+  help_line "  test-ide [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Creates a temp test repository, shows config instructions for an IDE"
+  help_line "  extension (Cline/VS Code or Continue/IntelliJ), and waits for completion."
+  help_line "  Auto-detects pass/fail via grader or manual signal."
+  help_line "  Logs findings to results/test-ide/ for extension card updates."
+
+  help_section "OPTIONS"
+  help_flag "--ide" "vscode|idea" "IDE to test (default: interactive picker)"
+  help_flag "--case" "CASE_ID" "test case to run (default: interactive picker)"
+  help_flag "--no-auto-detect" "" "require manual signal instead of auto-detecting"
+  help_flag "--timeout" "N" "max wait time in seconds (default: 600)"
+  help_flag "--verbose, -v" "" "show file watch debug output"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  test-ide                                  # Interactive picker for IDE & case"
+  help_line "  test-ide --ide vscode --case js-01-slugify-bug"
+  help_line "  test-ide --case js-01-slugify-bug --verbose"
+}
+
+# ── Parse arguments ───────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ide) IDE="$2"; shift 2 ;;
+    --case) CASE_ID="$2"; shift 2 ;;
+    --no-auto-detect) NO_AUTO_DETECT=1; shift ;;
+    --timeout) TIMEOUT="$2"; shift 2 ;;
+    --verbose|-v) VERBOSE=1; shift ;;
+    -h|--help) show_help; exit 0 ;;
+    *) die "Unknown option: $1"; ;;
+  esac
+done
+
+# ── Functions ─────────────────────────────────────────────────────────────────
+
+# Detect VS Code and Cline version
+detect_vscode_cline() {
+  if ! command -v code &>/dev/null; then
+    return 1
+  fi
+
+  local version
+  version=$(code --list-extensions --show-versions 2>/dev/null | grep '^cline\.cline' | cut -d@ -f2)
+
+  if [ -z "$version" ]; then
+    return 1
+  fi
+
+  echo "$version"
+}
+
+# Detect IntelliJ and Continue version (placeholder for now)
+detect_idea_continue() {
+  if ! command -v idea64 &>/dev/null && ! command -v idea &>/dev/null; then
+    return 1
+  fi
+
+  # TODO: implement proper Continue version detection for IntelliJ
+  echo "unknown"
+}
+
+# Interactive picker for IDE
+pick_ide() {
+  local vscode_version idea_version options=()
+
+  vscode_version=$(detect_vscode_cline) || vscode_version=""
+  idea_version=$(detect_idea_continue) || idea_version=""
+
+  if [ -z "$vscode_version" ] && [ -z "$idea_version" ]; then
+    die "No IDEs detected. Install VS Code (with Cline) or IntelliJ IDEA (with Continue)."
+  fi
+
+  if [ -n "$vscode_version" ]; then
+    options+=("vscode (Cline $vscode_version)")
+  fi
+  if [ -n "$idea_version" ]; then
+    options+=("idea (Continue $idea_version)")
+  fi
+
+  if [ ${#options[@]} -eq 1 ]; then
+    # Only one option, use it
+    echo "${options[0]}" | cut -d' ' -f1
+  else
+    # Multiple options, use fzf
+    printf '%s\n' "${options[@]}" | fzf --no-multi --header="Select IDE:" | cut -d' ' -f1
+  fi
+}
+
+# Interactive picker for case
+pick_case() {
+  local cases=()
+
+  # Find all case directories (excluding smoke cases unless explicitly asked)
+  while IFS= read -r -d '' dir; do
+    local case_name=$(basename "$dir")
+    if [[ ! "$case_name" =~ ^smoke- ]]; then
+      cases+=("$case_name")
+    fi
+  done < <(find "$HERE/cases" -maxdepth 1 -type d -print0 | sort -z)
+
+  if [ ${#cases[@]} -eq 0 ]; then
+    die "No test cases found in $HERE/cases/"
+  fi
+
+  if [ ${#cases[@]} -eq 1 ]; then
+    echo "${cases[0]}"
+  else
+    printf '%s\n' "${cases[@]}" | fzf --no-multi --header="Select test case:"
+  fi
+}
+
+# Create temp test repository
+setup_temp_repo() {
+  local case_id="$1"
+  local case_dir="$HERE/cases/$case_id"
+  local temp_dir="/tmp/lms-test-ide-${case_id}-$(date +%s)"
+
+  if [ ! -d "$case_dir" ]; then
+    die "Case not found: $case_dir"
+  fi
+
+  # Copy workdir to temp location
+  mkdir -p "$temp_dir"
+  cp -r "$case_dir/workdir"/* "$temp_dir/"
+
+  # Initialize git repo
+  cd "$temp_dir"
+  git init -q
+  git config user.email "test@local-model-evaluator-bench"
+  git config user.name "Test Runner"
+  git add .
+  git commit -q -m "Initial commit"
+
+  echo "$temp_dir"
+}
+
+# Show VS Code setup instructions
+show_vscode_setup() {
+  local config_file="$HERE/config-templates/cline-vscode-settings.json"
+
+  cat <<EOF
+
+${C_BLD}VS Code + Cline Setup${C_RST}
+${C_DIM}────────────────────${C_RST}
+
+1. Add these settings to your VS Code settings.json:
+   ${C_DIM}(Cmd+Shift+P → Preferences: Open Settings (JSON))${C_RST}
+
+${C_DIM}----------------------------------------------${C_RST}
+EOF
+  cat "$config_file" | sed 's/^/   /'
+  cat <<EOF
+${C_DIM}----------------------------------------------${C_RST}
+
+2. Open the test repository:
+   ${C_BLD}code "$1"${C_RST}
+
+3. Open Cline's chat and paste:
+   ${C_BLD}Solve this test case. Start by reading task.md for the requirements.${C_RST}
+
+${C_DIM}Waiting for Cline to complete...${C_RST}
+
+EOF
+}
+
+# Show IntelliJ setup instructions
+show_idea_setup() {
+  cat <<EOF
+
+${C_BLD}IntelliJ IDEA + Continue Setup${C_RST}
+${C_DIM}──────────────────────────────${C_RST}
+
+1. Configure Continue in IntelliJ:
+   ${C_DIM}(Settings → Continue)${C_RST}
+   - Provider: OpenAI-compatible
+   - URL: http://localhost:1234/v1
+   - API Key: lm-studio
+
+2. Open the test repository:
+   ${C_BLD}idea "$1"${C_RST}
+
+3. Open Continue's chat and paste:
+   ${C_BLD}Solve this test case. Start by reading task.md for the requirements.${C_RST}
+
+${C_DIM}Waiting for Continue to complete...${C_RST}
+
+EOF
+}
+
+# Watch for file changes and run grader when quiet
+watch_and_grade() {
+  local repo_dir="$1"
+  local case_id="$2"
+  local case_dir="$HERE/cases/$case_id"
+  local timeout_sec="$3"
+  local start_time elapsed last_change_time now
+
+  start_time=$(date +%s)
+  last_change_time=$start_time
+
+  while true; do
+    now=$(date +%s)
+    elapsed=$((now - start_time))
+
+    if [ $elapsed -ge $timeout_sec ]; then
+      echo "${C_YEL}⏱ Timeout reached (${timeout_sec}s).${C_RST}"
+      return 2
+    fi
+
+    # Check if any files have changed in the last 2 seconds
+    local quiet_time=$((now - last_change_time))
+
+    if [ $VERBOSE -eq 1 ]; then
+      echo "[WATCH] Elapsed: ${elapsed}s, Last change: ${quiet_time}s ago" >&2
+    fi
+
+    # Check for file changes
+    if find "$repo_dir" -type f -newermt "2 seconds ago" ! -path '*/.git/*' -print | grep -q .; then
+      last_change_time=$now
+      if [ $VERBOSE -eq 1 ]; then
+        echo "[CHANGE] Files modified" >&2
+      fi
+    fi
+
+    # After 2 seconds of silence, run grader
+    if [ $quiet_time -ge 2 ] && [ $quiet_time -lt 3 ]; then
+      echo ""
+      echo "${C_BLD}[TEST]${C_RST} Running grader..."
+
+      # Run the grader
+      if run_grader "$repo_dir" "$case_dir"; then
+        return 0
+      else
+        # Grader failed, keep watching
+        last_change_time=$now
+        echo "${C_YEL}[WAIT]${C_RST} Grader not passing yet, watching for more changes..."
+      fi
+    fi
+
+    sleep 1
+  done
+}
+
+# Run the grader for a test case
+run_grader() {
+  local repo_dir="$1"
+  local case_dir="$2"
+  local grader_script="$case_dir/check/run.sh"
+  local check_dir="$case_dir/check"
+
+  if [ ! -f "$grader_script" ]; then
+    echo "${C_RED}Error: grader script not found: $grader_script${C_RST}" >&2
+    return 1
+  fi
+
+  # Run grader in the repo directory
+  cd "$repo_dir"
+  local grader_output
+  grader_output=$(
+    CASE_DIR="$case_dir" REPO_ROOT="$HERE" bash "$grader_script" 2>&1
+  )
+
+  local result pass total
+  result=$(echo "$grader_output" | grep "^RESULT ")
+
+  if [ -z "$result" ]; then
+    if [ $VERBOSE -eq 1 ]; then
+      echo "Grader output:" >&2
+      echo "$grader_output" >&2
+    fi
+    return 1
+  fi
+
+  # Parse pass/total
+  pass=$(echo "$result" | grep -oE 'pass=([0-9]+)' | cut -d= -f2)
+  total=$(echo "$result" | grep -oE 'total=([0-9]+)' | cut -d= -f2)
+
+  if [ "$pass" -eq "$total" ] && [ "$total" -gt 0 ]; then
+    echo "${C_GREEN}✓ PASS${C_RST} ($pass/$total tests passed)"
+    return 0
+  else
+    echo "${C_YEL}○ NOT YET${C_RST} ($pass/$total tests passed)"
+    return 1
+  fi
+}
+
+# Log findings to results/test-ide
+log_findings() {
+  local ide="$1" plugin="$2" case_id="$3" result="$4" duration="$5"
+  local plugin_version="$6"
+  local results_dir="$HERE/results/test-ide/$(date +%Y-%m-%d)"
+  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  mkdir -p "$results_dir"
+
+  local log_file="$results_dir/${plugin}-${ide}.log"
+  local json_file="$results_dir/${plugin}-${ide}.json"
+
+  # Append to human-readable log
+  cat >> "$log_file" <<EOF
+
+Test run: $case_id
+Timestamp: $timestamp
+IDE: $ide
+Plugin: $plugin ($plugin_version)
+Result: $result
+Duration: ${duration}s
+─────────────────────────────────
+EOF
+
+  # Append to structured JSON (append to array)
+  local json_entry=$(cat <<EOF
+{
+  "timestamp": "$timestamp",
+  "ide": "$ide",
+  "plugin": "$plugin",
+  "plugin_version": "$plugin_version",
+  "case": "$case_id",
+  "result": "$result",
+  "duration_seconds": $duration
+}
+EOF
+)
+
+  # Simple append (not a full JSON array, just newline-delimited for now)
+  echo "$json_entry" >> "$json_file"
+
+  echo ""
+  echo "${C_DIM}Findings logged to:${C_RST}"
+  echo "  $log_file"
+  echo "  $json_file"
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+info "Local Model Evaluator Bench — IDE Extension Tester"
+echo ""
+
+# Pick IDE if not specified
+if [ -z "$IDE" ]; then
+  IDE=$(pick_ide) || die "No IDE selected"
+fi
+
+info "IDE: $IDE"
+
+# Pick case if not specified
+if [ -z "$CASE_ID" ]; then
+  CASE_ID=$(pick_case) || die "No case selected"
+fi
+
+info "Case: $CASE_ID"
+echo ""
+
+# Validate case exists
+if [ ! -d "$HERE/cases/$CASE_ID" ]; then
+  die "Case not found: $CASE_ID"
+fi
+
+# Create temp repository
+info "Setting up temp repository..."
+TEMP_REPO=$(setup_temp_repo "$CASE_ID")
+info "Created: $TEMP_REPO"
+echo ""
+
+# Show setup instructions based on IDE
+case "$IDE" in
+  vscode)
+    CLINE_VERSION=$(detect_vscode_cline)
+    show_vscode_setup "$TEMP_REPO"
+    PLUGIN_VERSION="$CLINE_VERSION"
+    ;;
+  idea)
+    IDEA_VERSION=$(detect_idea_continue)
+    show_idea_setup "$TEMP_REPO"
+    PLUGIN_VERSION="$IDEA_VERSION"
+    ;;
+  *)
+    die "Unknown IDE: $IDE"
+    ;;
+esac
+
+# Start timer
+START_TIME=$(date +%s)
+
+# Wait for completion
+if [ $NO_AUTO_DETECT -eq 1 ]; then
+  echo ""
+  echo "${C_BLD}Press any key when done...${C_RST}"
+  read -rsn1 < /dev/tty
+  RESULT="manual"
+else
+  watch_and_grade "$TEMP_REPO" "$CASE_ID" "$TIMEOUT" || RESULT="timeout"
+  if [ -z "${RESULT:-}" ]; then
+    RESULT="pass"
+  fi
+fi
+
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+echo ""
+echo "${C_BLD}Summary${C_RST}"
+echo "─────────────────────────────────"
+echo "IDE: $IDE"
+echo "Plugin: cline / continue"
+echo "Case: $CASE_ID"
+echo "Result: $RESULT"
+echo "Duration: ${DURATION}s"
+echo ""
+echo "Test repository: $TEMP_REPO"
+echo ""
+echo "Next: document findings on the ${IDE} extension card:"
+echo "  $HERE/docs/extensions/"
+echo ""
+
+# Log findings
+log_findings "$IDE" "cline" "$CASE_ID" "$RESULT" "$DURATION" "$PLUGIN_VERSION"
+
+success "Done!"
