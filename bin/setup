@@ -792,10 +792,10 @@ if [ "$STATUS_ONLY" = 1 ]; then
   if [ "$NEEDS_FORCE" = 1 ] && [ "$FORCE" = 0 ]; then
     warn "Changes needed (tools/models missing)"
     echo
-    printf '%s' "Install now? (y/n, auto-continue in 3s): "
+    printf '%s' "Install now? (y/n, auto-exit in 5s): "
 
-    # Read with 3-second timeout
-    if read -t 3 -r -n 1 response 2>/dev/null; then
+    # Read with 5-second timeout
+    if read -t 5 -r -n 1 response 2>/dev/null; then
       echo  # newline after single char input
       case "$response" in
         [yY])
@@ -809,10 +809,10 @@ if [ "$STATUS_ONLY" = 1 ]; then
           ;;
       esac
     else
-      # Timeout: auto-proceed with --force
+      # Timeout: exit without installing
       echo  # newline after timeout
-      echo "Auto-proceeding with --force..."
-      exec "$0" "$@" --force
+      echo "Skipped. To install later, run: bin/setup --force"
+      exit 0
     fi
   elif [ "$FORCE" = 1 ]; then
     ok "Running with --force (changes will be applied)"
