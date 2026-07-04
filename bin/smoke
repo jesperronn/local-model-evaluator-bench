@@ -100,6 +100,14 @@ show_help() {
         else { ord[++n]=key; grp[key]=$0 }
       }
       END { for(i=1;i<=n;i++) printf "  %s\n", grp[ord[i]] }'
+
+  help_section "TROUBLESHOOTING"
+  help_line "  If model fails with 'library not loaded' or format errors:"
+  help_line "    bin/recover-lms          # recover from corrupted LM Studio cache"
+  help_line ""
+  help_line "  If model format is not supported:"
+  help_line "    lms runtime ls           # check available runtime engines"
+  help_line "    lms runtime get          # download additional runtime formats"
 }
 
 RUNTIME="lms"

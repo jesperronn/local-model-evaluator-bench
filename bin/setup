@@ -112,6 +112,11 @@ show_help() {
   help_line "  setup --agent aider,hermes --dry-run  # status for multiple agents"
   help_line "  setup --all --force        # install all tools"
 
+  help_section "TROUBLESHOOTING"
+  help_line "  If LM Studio fails with 'library not loaded' or format errors after"
+  help_line "  a macOS update, run the recovery script to clear corrupted cache:"
+  help_line "    bin/recover-lms"
+
   help_section "OPTIONS"
   help_flag "-h, --help" "" "show this help and exit"
 }
