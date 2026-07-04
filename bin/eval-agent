@@ -19,6 +19,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
 
 VIA="lms"; MODEL=""; MODE="open"; SECTIONS=""; BANK="$HERE/eval/questions.jsonl"
 OUT=""; BASE_URL="${LMS_BASE_URL:-http://localhost:1234/v1}"; API_KEY="${LMS_API_KEY:-lm-studio}"
@@ -152,4 +153,13 @@ echo "  Decision accuracy % (B):    $(pct "${sec_corr[B]:-0}" "${sec_n[B]:-0}")"
 echo "  Method/process % (F+G):     $(pct "$(( ${sec_corr[F]:-0} + ${sec_corr[G]:-0} ))" "$(( ${sec_n[F]:-0} + ${sec_n[G]:-0} ))")"
 echo "  Citation rate % (all):      $(pct "$cites" "$total")"
 echo "  Correctness % (all):        $(pct "$corr" "$total")"
-echo "→ $OUT"
+
+help_section "NEXT STEPS"
+help_line "Results saved to: $OUT"
+help_line "View as table:    ${C_GRN}\$ column -t -s, < $OUT${C_RST}"
+help_line "See all runs:     ${C_GRN}\$ ls eval/runs/${C_RST}"
+help_line "Re-run with different model:"
+help_line "  ${C_GRN}\$ bin/eval-agent --via lms --model <model-id>${C_RST}"
+help_line ""
+help_line "Compare scores across models:"
+help_line "  ${C_GRN}\$ bin/eval-agent --all --mode open > all-scores.csv${C_RST}"
