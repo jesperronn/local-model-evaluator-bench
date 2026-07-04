@@ -97,10 +97,10 @@ detection heuristic, it's a scope boundary:
 llmrun                                        # bare = today's launcher behavior
 llmrun <agent> [--runtime] [--model]          # unchanged: --agent/--runtime/--model/prompt
 
-llmrun runtime status [lms|ollama|mlx|all]    # replaces: rt status/ram/who
-llmrun runtime start  <lms|ollama|mlx>        # NEW
-llmrun runtime stop   <lms|ollama|mlx|all>    # replaces: rt stop
-llmrun runtime logs   [-f] [N]                # replaces: rt log/watch
+llmrun runtime status [lms|ollama|mlx|all]           # replaces: rt status/ram/who
+llmrun runtime start  <lms|ollama|mlx>               # NEW
+llmrun runtime stop   <lms|ollama|mlx|all>           # replaces: rt stop
+llmrun runtime logs   [--all] [<lms|ollama|mlx>] [-f] [N]  # replaces: rt log/watch; --all shows all runtimes with colored prefixes
 
 llmrun model list     [--runtime]             # NEW
 llmrun model get      <id> --runtime X        # NEW
@@ -307,3 +307,23 @@ the reference from the output and pastes it into their terminal or editor.
 
 Found and fixed: `llmrun runtime logs` now shows `${TMPDIR}/llmrun-*.log`
 instead of the expanded path, and similarly for startup log suggestions.
+
+### `llmrun runtime logs --all` — multi-runtime aggregated logging
+
+**Feature**: When multiple runtimes are running concurrently, `llmrun runtime
+logs --all` streams logs from all three (lms, ollama, mlx) with each line
+prefixed by `[runtime_name]` in a distinct color — similar to `docker compose
+logs` behavior. Works in both static tail and live-follow modes:
+
+```
+llmrun runtime logs --all        # tail last 40 lines from all runtimes, exit
+llmrun runtime logs --all -f     # live-follow all runtimes until killed
+llmrun runtime logs --all 20     # tail last 20 lines from all runtimes
+llmrun runtime logs --all 20 -f  # live-follow all with custom line count
+```
+
+Each runtime's output is colored: lms (red), ollama (green), mlx (yellow).
+Runtimes without accessible logs are silently skipped. When multiple runtimes
+have logs available, output is interleaved by wall-clock arrival time (each
+process's tail output is captured and multiplexed). This is useful for
+debugging adapter sessions when multiple inference backends are in flight.

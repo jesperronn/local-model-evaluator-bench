@@ -226,16 +226,23 @@ cmd_runtime_stop() {
 }
 
 cmd_runtime_logs() {
-  local follow=0; local n=40
+  local follow=0; local n=40; local show_all=0
   for a in "$@"; do
     case "$a" in
       -f|--follow) follow=1;;
+      --all) show_all=1;;
       lms|ollama|mlx) TGT="$a";;
       *[0-9]*) n="$a";;
     esac
   done
+
+  if [ "$show_all" = 1 ]; then
+    _cmd_runtime_logs_all "$follow" "$n"
+    return
+  fi
+
   local tgt="${TGT:-}"
-  [ -z "$tgt" ] && die "usage: llmrun runtime logs <lms|ollama|mlx> [-f] [N]"
+  [ -z "$tgt" ] && die "usage: llmrun runtime logs [--all] [<lms|ollama|mlx>] [-f] [N]"
   case "$tgt" in
     lms)
       command -v lms >/dev/null 2>&1 || die "lms CLI not found on PATH"
@@ -267,8 +274,87 @@ cmd_runtime_logs() {
       [ -f "$_rt_mlx_logfile" ] || die "no mlx log found at \${TMPDIR}/llmrun-mlx.log (started outside llmrun?)"
       if [ "$follow" = 1 ]; then tail -n "$n" -f "$_rt_mlx_logfile"; else tail -n "$n" "$_rt_mlx_logfile"; fi
       ;;
-    *) die "unknown runtime: $tgt (valid: lms ollama mlx)";;
+    *) die "unknown runtime: $tgt (valid: lms ollama mlx all)";;
   esac
+}
+
+_cmd_runtime_logs_all() {
+  local follow="$1" n="$2"
+  local ollama_log tmpdir lms_tmplog
+
+  # Locate logfiles
+  ollama_log="$_rt_tmpdir/llmrun-ollama.log"
+  [ -f "$HOME/Library/Logs/Ollama/server.log" ] && ollama_log="$HOME/Library/Logs/Ollama/server.log"
+
+  # For --all, we'll use tail on multiple files to get interleaved output
+  # with header markers (==> file <==). We parse those to prefix each line
+  # with the runtime name and color.
+  local tail_cmd
+  if [ "$follow" = 1 ]; then
+    tail_cmd="tail -n $n -f"
+  else
+    tail_cmd="tail -n $n"
+  fi
+
+  # Create a temp file for lms logs since we can't use tail directly
+  tmpdir="${TMPDIR%/}"; tmpdir="${tmpdir:-/tmp}"
+  lms_tmplog="$tmpdir/llmrun-all-logs-lms-$$.txt"
+  trap "rm -f '$lms_tmplog'" RETURN
+
+  # Start background lms capture if available
+  if command -v lms >/dev/null 2>&1; then
+    (
+      if [ "$follow" = 1 ]; then
+        lms log stream 2>/dev/null
+      else
+        # Timeout-based capture for non-follow mode
+        if command -v timeout >/dev/null 2>&1; then
+          timeout 3 lms log stream 2>/dev/null || true
+        elif command -v gtimeout >/dev/null 2>&1; then
+          gtimeout 3 lms log stream 2>/dev/null || true
+        else
+          perl -e '$SIG{ALRM}=sub{exit 0}; alarm 3; exec @ARGV' lms log stream 2>/dev/null || true
+        fi
+      fi
+    ) > "$lms_tmplog" 2>&1 &
+    local lms_pid=$!
+  else
+    local lms_pid=""
+  fi
+
+  # Build tail command for ollama and mlx
+  local other_files=()
+  [ -f "$ollama_log" ] && other_files+=("$ollama_log")
+  [ -f "$_rt_mlx_logfile" ] && other_files+=("$_rt_mlx_logfile")
+
+  if [ ${#other_files[@]} -gt 0 ]; then
+    $tail_cmd "${other_files[@]}" 2>/dev/null | awk -v rs='\n' \
+      -v ollama_log="$ollama_log" \
+      -v mlx_log="$_rt_mlx_logfile" \
+      -v c_grn="$C_GRN" -v c_yel="$C_YEL" -v c_rst="$C_RST" \
+      '{
+        if ($0 ~ /^==> /) {
+          gsub(/^==> /, ""); gsub(/ <==$/, "");
+          if ($0 == ollama_log) {
+            current_rt = "ollama"; current_color = c_grn;
+          } else if ($0 == mlx_log) {
+            current_rt = "mlx"; current_color = c_yel;
+          } else {
+            next;
+          }
+        } else if ($0 != "") {
+          printf "%s[%s]%s %s\n", current_color, current_rt, c_rst, $0;
+        }
+      }'
+  fi
+
+  # Wait for lms to finish and cat its log with prefixes
+  if [ -n "${lms_pid:-}" ]; then
+    wait "$lms_pid" 2>/dev/null || true
+    if [ -f "$lms_tmplog" ]; then
+      cat "$lms_tmplog" | sed "s/^/${C_RED}[lms]${C_RST} /"
+    fi
+  fi
 }
 
 if [ "${1:-}" = "runtime" ]; then
@@ -281,10 +367,10 @@ if [ "${1:-}" = "runtime" ]; then
     logs)   cmd_runtime_logs   "$@";;
     -h|--help|help)
       cat <<'EOF'
-llmrun runtime status [lms|ollama|mlx|all]   show up/down + loaded model
-llmrun runtime start  <lms|ollama|mlx> [model]  start a runtime (mlx needs a model)
-llmrun runtime stop   <lms|ollama|mlx|all>   unload models and stop the runtime
-llmrun runtime logs   <lms|ollama|mlx> [-f] [N]  tail runtime server logs
+llmrun runtime status [lms|ollama|mlx|all]        show up/down + loaded model
+llmrun runtime start  <lms|ollama|mlx> [model]    start a runtime (mlx needs a model)
+llmrun runtime stop   <lms|ollama|mlx|all>        unload models and stop the runtime
+llmrun runtime logs   [--all] [<lms|ollama|mlx>] [-f] [N]  tail runtime logs (--all: all runtimes)
 EOF
       ;;
     *) die "unknown runtime subcommand: $RSUB (valid: status start stop logs)";;
