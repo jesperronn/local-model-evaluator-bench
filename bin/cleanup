@@ -30,6 +30,7 @@ SANDBOX_DAYS=7
 DO_EMPTY=0
 DO_PROCS=0
 DELETE=0
+DRY_RUN_EXPLICIT=0
 
 usage() {
   awk 'NR>1 && /^[^#]/{exit} NR>1{gsub(/^# ?/,""); print}' "$0"
@@ -47,6 +48,7 @@ while [ $# -gt 0 ]; do
     --empty)          DO_EMPTY=1; shift;;
     --procs)          DO_PROCS=1; shift;;
     --all)            DO_LOGS=1; DO_SCRATCH=1; DO_SANDBOXES=1; DO_EMPTY=1; DO_PROCS=1; shift;;
+    --dry-run)       DRY_RUN_EXPLICIT=1; shift;;
     -f|--force)       DELETE=1; shift;;
     -h|--help)        usage;;
     *) die "unknown option: $1";;
@@ -55,6 +57,10 @@ done
 
 if [ "$DO_LOGS" = 0 ] && [ "$DO_SCRATCH" = 0 ] && [ "$DO_SANDBOXES" = 0 ] && [ "$DO_EMPTY" = 0 ] && [ "$DO_PROCS" = 0 ]; then
   usage
+fi
+
+if [ "$DRY_RUN_EXPLICIT" = 1 ] && [ "$DELETE" = 1 ]; then
+  die "cannot use --dry-run and --force together"
 fi
 
 removed_bytes=0
