@@ -9,7 +9,12 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
-C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_RST=$'\033[0m'
+# Colors (disabled if NO_COLOR is set).
+if [ -z "${NO_COLOR:-}" ]; then
+  C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_RST=$'\033[0m'
+else
+  C_GRN=; C_RED=; C_RST=
+fi
 pass=0; fail=0
 
 check() {  # desc  expected  actual

@@ -1,8 +1,10 @@
 # lib/common.sh — helpers shared by bin/ scripts and adapters.
 # Source after config.sh.
 
-# Colors (disabled if not a TTY).
-if [ -t 1 ]; then
+# Colors (disabled if not a TTY or if NO_COLOR is set to a non-empty value).
+# Per https://no-color.org: if NO_COLOR env var is present with ANY non-empty value,
+# all color/ANSI output must be suppressed — regardless of TTY.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'
   C_BLU=$'\033[34m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'; C_BLD=$'\033[1m'
 else
