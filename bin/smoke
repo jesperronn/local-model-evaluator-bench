@@ -280,13 +280,17 @@ if [ -f "$RUN_JSON" ]; then
   fi
 fi
 fails=0
+declare -A passing_adapters
+declare -A all_adapters
 while IFS=, read -r adapter model_col case pass total score seconds status _rest; do
   [ "$adapter" = adapter ] && continue
+  all_adapters["$adapter"]=1
   key="$(printf '%-12s %-22s %s' "$adapter" "$model_col" "$case")"
   if   [ "$status" != ok ]; then
     err  "$(printf '%-60s FAIL    — %s' "$key" "$status")"; fails=$((fails+1))
   elif [ "$pass" = "$total" ]; then
     ok   "$(printf '%-60s PASS    (%ss)' "$key" "$seconds")"
+    passing_adapters["$adapter"]=1
   else
     warn "$(printf '%-60s PARTIAL — %s/%s (%ss)' "$key" "$pass" "$total" "$seconds")"
   fi
@@ -313,6 +317,18 @@ else
   warn "$fails adapter(s) could not reach the model — check the log path shown above"
 fi
 echo "${C_DIM}full details: $(dirname "$CSV")/results.csv${C_RST}"
+
+# Show next steps for full benchmarking
+if [ ${#passing_adapters[@]} -gt 0 ]; then
+  echo
+  help_section "NEXT STEPS"
+  help_line "Run full benchmark with passing adapters:"
+  _passing_list="$(printf '%s,' "${!passing_adapters[@]}" | sed 's/,$//')"
+  help_line "  ${C_GRN}\$ bin/bench --agent $_passing_list --models $MODEL_ID${C_RST}"
+  help_line ""
+  help_line "Or pick interactively:"
+  help_line "  ${C_GRN}\$ bin/bench --interactive${C_RST}"
+fi
 
 # ── Update compatibility registry ────────────────────────────────────────────
 update_compat() {
