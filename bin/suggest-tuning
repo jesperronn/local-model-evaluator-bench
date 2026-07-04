@@ -12,6 +12,7 @@
 #   docs/models/*.md         "Context window" row in the Quick verdict table
 #   README.md                hard floors that apply regardless of the model
 #                             (currently: hermes requires >=64K context)
+#   config.sh                adapter defaults (temperature, max_tokens)
 #
 # When two sources disagree for the same (model, key), BOTH rows are emitted —
 # this tool doesn't pick a winner; a human (or `agents config apply --write`)
@@ -23,6 +24,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
+source config.sh
 
 FILTER="${1:-}"
 HERMES_FLOOR=65536
@@ -69,4 +71,11 @@ for card in docs/models/*.md; do
     emit "$model_id" "context" "$HERMES_FLOOR" \
       "README.md: hermes hard-refuses any model loaded with <64K context" "README.md"
   fi
+
+  # Emit adapter defaults (temperature, max_tokens) for every model.
+  # These are system-wide fallbacks; model-specific overrides can go in the card.
+  emit "$model_id" "temperature" "$ADAPTER_DEFAULT_TEMPERATURE" \
+    "config.sh: safe default for coding (deterministic but not stiff)" "config.sh"
+  emit "$model_id" "max_tokens" "$ADAPTER_DEFAULT_MAX_TOKENS" \
+    "config.sh: typical response + edits" "config.sh"
 done

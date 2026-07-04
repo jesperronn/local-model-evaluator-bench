@@ -55,6 +55,12 @@ export BENCH_PARALLEL="${BENCH_PARALLEL:-3}"
 # See docs/AGENT-SELECTION.md for performance matrix and use-case guidance.
 DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot,nanocoder,cn}"
 
+# Adapter configuration defaults — applied globally by `bin/suggest-tuning | llmrun agents config apply`.
+# These are fallback values; model-specific overrides in docs/models/*.md take precedence.
+export ADAPTER_DEFAULT_TEMPERATURE="${ADAPTER_DEFAULT_TEMPERATURE:-0.7}"    # coding: deterministic but not stiff
+export ADAPTER_DEFAULT_MAX_TOKENS="${ADAPTER_DEFAULT_MAX_TOKENS:-8192}"     # typical response + edits
+export ADAPTER_DEFAULT_TOOL_CHOICE="${ADAPTER_DEFAULT_TOOL_CHOICE:-auto}"   # use tools when needed
+
 # Repo root, resolved regardless of where you invoke from.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_ROOT
