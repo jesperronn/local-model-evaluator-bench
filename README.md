@@ -95,6 +95,7 @@ The target workload is multi-agent: an orchestrator directing 2–3 agents all r
 ### Running & Debugging (Iteration)
 
 - [**TESTING-STRATEGY.md**](docs/TESTING-STRATEGY.md) — the gated funnel (L0 wiring → L1 qualify → L2 benchmark → L3 confidence)
+- [**CLI-DISCOVERY.md**](docs/CLI-DISCOVERY.md) — the Command Boundary Pattern: every tool shows what to do next
 - [**MODEL-RESEARCH.md**](docs/MODEL-RESEARCH.md) — dated candidates worth testing, with sources and re-runnable search queries
 - [**Troubleshooting**](docs/troubleshooting-qwen-reasoning-loops.md) — common issues and fixes
 

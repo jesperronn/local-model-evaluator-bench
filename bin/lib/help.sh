@@ -85,3 +85,20 @@ help_command() {
 help_footer() {
   printf '\n%s\n' "${C_DIM}For more info, run: \$ <command> --help${C_RST}"
 }
+
+# Print a "Next steps:" section with numbered actions (Command Boundary Pattern).
+# Each arg is "step_description|command_to_run". Usage:
+#   help_next_steps_section \
+#     "Download the models|lms get qwen/qwen3.5-9b" \
+#     "Verify setup|bin/smoke --runtime lms" \
+#     "Run benchmark|bin/bench --agent aider"
+help_next_steps_section() {
+  help_section "NEXT STEPS"
+  local step=1
+  for arg in "$@"; do
+    local desc="${arg%%|*}" cmd="${arg##*|}"
+    help_line "  ${step}. ${desc}"
+    help_line "     ${C_GRN}\$ ${cmd}${C_RST}"
+    ((step++))
+  done
+}
