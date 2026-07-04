@@ -167,7 +167,7 @@ main() {
     echo "Next steps:"
     echo "  1. Download the primary model for your tier:"
     primary_model=$(echo "$tier_config" | jq -r '.primary.model')
-    echo "     lms pull $primary_model"
+    echo "     lms get $primary_model"
     echo "  2. Verify the config:"
     echo "     bin/bench --list"
     echo "  3. Start benchmarking:"
