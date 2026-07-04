@@ -1,32 +1,304 @@
-# Onboarding: From Fresh Clone to First Benchmark
+# Onboarding: Two Paths
 
-**Start here.** This guide takes you from `git clone` through running your first benchmarks on a new machine.
+Pick your path based on what you want:
 
-The workflow is **4 phases**, each mapped to one command. Pick your path below:
+- **Path A: Quick Setup** — "I want a working local agent (1-2 to compare)"
+  - Time: ~20 min
+  - Scope: 1-2 agents + 1 model + your platform
+  - Goal: Integrate into IDE/CLI and start using it
+  
+- **Path B: Full Benchmarking** — "I want to measure all agents × all models"
+  - Time: hours
+  - Scope: all adapters × all models × all test cases
+  - Goal: Determine which combo is best for your machine
 
 ---
 
-## Quick Path (Copy-Paste)
+# Path A: Quick Setup (Get a Working Agent)
 
-If you know what you're doing, here are the 5 commands:
+**Goal:** Download a model, configure 1-2 agents, verify they work, integrate into your IDE.
+
+## Step 1: Check Prerequisites with `bin/doctor`
 
 ```bash
-bin/hwprofile                        # Phase 1: Detect your machine specs
-bin/bootstrap-machine --write         # Phase 2: Apply tier-specific config
-bin/smoke                            # Phase 3: Verify tools work
-bin/bench --agent hermes --trials 3  # Phase 4: Run benchmarks
-bin/report --all --save && bin/viz   # Phase 4 (cont): Merge & visualize
+$ bin/doctor
 ```
 
-Results go to `results/index.html` (interactive dashboard).
+This scans your environment and reports what's installed and what's missing. Output will look like:
+
+```
+ℹ LM Studio server: http://localhost:1234/v1
+✗ not reachable. Start it with: lms server start
+
+ℹ Model management CLIs:
+✓ hf → /opt/homebrew/bin/hf
+
+ℹ Coding CLIs (adapters):
+✗ aider not on PATH
+✗ cline not on PATH (VS Code extension, install via GUI)
+✓ hermes → /opt/homebrew/bin/hermes
+
+ℹ Models under test (models.txt):
+    qwen/qwen3.6-27b
+    llama/llama-3.1-8b-instruct
+
+ℹ Test cases:
+    smoke-00-hello [bash]
+    js-01-slugify-bug [javascript]
+    ...
+```
+
+**What to do next:** Fix each ✗ (red cross) before moving on.
 
 ---
 
-## Guided Path (Step-by-Step Walkthrough)
+## Step 2: Start Your Runtime
 
-Read this if you want to understand what each phase does and why.
+Choose **one** runtime (LM Studio, Ollama, or MLX) and start it:
 
-### Phase 1: Detect Your Hardware
+### Option A: LM Studio (macOS / Linux / Windows)
+
+```bash
+lms server start
+```
+
+Verify it's running:
+```bash
+lms ps                    # Shows loaded models (should be empty)
+curl http://localhost:1234/v1/models  # Should return JSON
+```
+
+### Option B: Ollama (macOS / Linux)
+
+```bash
+brew install ollama       # If not installed
+ollama serve              # Start the server (runs on :11434)
+```
+
+### Option C: MLX (Apple Silicon only)
+
+```bash
+pip install mlx-lm
+mlx_lm.server --host 0.0.0.0 --port 8080
+```
+
+(Requires Python setup; see [docs/runtimes/mlx.md](runtimes/mlx.md) for details.)
+
+**After starting:** Verify it's reachable by running `bin/doctor` again — should show "✓ reachable".
+
+---
+
+## Step 3: Download a Model
+
+Based on your machine's RAM:
+
+### 32 GB or less
+Pick a small model (7B–13B parameters):
+```bash
+lms get mistralai/mistral-7b-instruct-v0.3
+lms load mistralai/mistral-7b-instruct-v0.3 --context-length 8192
+```
+
+### 64 GB
+Pick a medium model (27B–35B):
+```bash
+lms get qwen/qwen3.6-27b
+lms load qwen/qwen3.6-27b --context-length 65536
+```
+
+### 128 GB+
+Pick a larger model (70B):
+```bash
+lms get qwen/qwen3.6-35b-a3b
+lms load qwen/qwen3.6-35b-a3b --context-length 65536
+```
+
+**Verify the model is loaded:**
+```bash
+lms ps                 # Should list your loaded model
+curl http://localhost:1234/v1/models  # Should show it
+```
+
+> **Note on context windows:** Higher context (65536) helps with multi-file edits but costs RAM. On 32 GB, use 8192–16384. On 64 GB+, use 65536.
+
+---
+
+## Step 4: Pick 1-2 Agents to Try
+
+Choose one or two agents from the list below. Pick based on how you'll use it:
+
+| Agent | Best for | Install |
+|-------|----------|---------|
+| **aider** | CLI tool in terminal | `brew install aider` or `pip install aider` |
+| **hermes** | Agentic CLI (more autonomous) | `brew install hermes` or `pip install hermes-ai` |
+| **cline** | VS Code extension | Install via VS Code extension marketplace |
+| **continue** | VS Code extension | Install via VS Code extension marketplace |
+| **caveman** | Simple, batteries-included | `pip install caveman-code` |
+| **opencode** | Node.js-based | `npm install -g opencode` |
+
+**Install 1-2 of these.** Example (aider + cline):
+
+```bash
+brew install aider    # Or: pip install aider
+
+# For cline: open VS Code → Extensions → search "Cline" → Install
+# Then configure: VS Code Settings → search "cline" → set model to match your LM Studio model
+```
+
+After installing, run `bin/doctor` again to verify they're on PATH (or installed as extensions).
+
+---
+
+## Step 5: Configure Your Agent(s) to Reach the Model
+
+Each agent needs to know where your LM Studio/Ollama/MLX server is and which model to use.
+
+### For CLI agents (aider, hermes, caveman, opencode):
+
+**aider:**
+```bash
+aider --openai-api-base http://localhost:1234/v1 \
+      --model openai/qwen/qwen3.6-27b \
+      --no-auto-commits
+```
+
+Or add to `~/.aider.conf.yaml`:
+```yaml
+openai-api-base: http://localhost:1234/v1
+model: openai/qwen/qwen3.6-27b
+no-auto-commits: true
+```
+
+**hermes:**
+```bash
+# Edit ~/.hermes/config.yaml
+# Under 'models:' add:
+  - id: qwen3.6-27b
+    provider: lmstudio
+    model: qwen/qwen3.6-27b
+# Then run:
+hermes -m qwen3.6-27b
+```
+
+**caveman:**
+Edit `~/.pi/agent/models.json` to add your model, then:
+```bash
+caveman --provider lmstudio --model qwen/qwen3.6-27b
+```
+
+### For IDE extensions (cline, continue):
+
+Open VS Code settings (Cmd+, or Ctrl+,):
+
+**Cline:**
+- Search "cline"
+- Set "API Base URL" → `http://localhost:1234/v1`
+- Set "Model" → `qwen/qwen3.6-27b` (must match your loaded model)
+
+**Continue:**
+- Search "continue"
+- Set "Model" → LM Studio
+- Set "API Base URL" → `http://localhost:1234/v1`
+
+---
+
+## Step 6: Quick Verify — Test Your Setup
+
+Run a smoke test on your chosen agent(s):
+
+```bash
+bin/smoke --agents aider,hermes
+```
+
+(Or whichever agents you installed.)
+
+This runs a trivial test case (`smoke-00-hello`) through each agent to confirm:
+- ✅ The agent can reach the model
+- ✅ The agent can make edits
+- ✅ The edits are correct
+
+**Example output:**
+```
+✓ aider: PASS (12s)
+✓ hermes: PASS (14s)
+
+Next steps:
+  Use your agent in the IDE or CLI:
+    aider <file>
+    cline (in VS Code)
+    hermes --model qwen3.6-27b
+```
+
+**If a test fails:**
+- Check the logs: `cat results/<timestamp>/sandbox/aider.bench.log`
+- Verify the model is still loaded: `lms ps`
+- Check agent config (see Step 5)
+
+---
+
+## Step 7: You're Done — Use It!
+
+Now integrate into your workflow:
+
+**For aider:**
+```bash
+cd your-project
+aider src/file.js  # Start an interactive session
+```
+
+**For hermes:**
+```bash
+hermes -m qwen3.6-27b your-project/
+```
+
+**For cline (VS Code):**
+- Open a file in VS Code
+- Cmd+K (or Ctrl+K) to open Cline
+- Ask it to edit code
+
+**For continue (VS Code):**
+- Same as Cline
+
+---
+
+## Troubleshooting Path A
+
+### "LM Studio not reachable"
+- Is the server running? `lms server start`
+- Is `config.sh` pointing to the right URL? Check: `grep LMS_BASE_URL config.sh`
+- On different machine / custom port? Update `config.sh:LMS_BASE_URL`
+
+### "Agent not on PATH"
+After installing (e.g., `brew install aider`), verify:
+```bash
+which aider  # Should show the path
+aider --version  # Should work
+```
+
+If not, restart your shell or reinstall.
+
+### "Model not loading"
+```bash
+lms ls                    # List available models
+lms load <model-id>       # Load it
+lms ps                    # Verify it's loaded
+```
+
+### "Smoke test: agent timeout"
+- Model is too slow. Try a smaller one: `lms get mistralai/mistral-7b-instruct-v0.3`
+- Or your machine doesn't have enough RAM. Check with `bin/hwprofile`
+
+### "Smoke test: agent produces wrong output"
+- Model isn't good at code generation. Try a different one (see [docs/REPORT-2026-06-30.md](../REPORT-2026-06-30.md) for ranked models)
+- Context window too small. Increase in Step 3: `lms load <id> --context-length 16384`
+
+---
+
+# Path B: Full Benchmarking (Measure All Combos)
+
+For when you want to **rigorously compare all agents × all models** on your machine.
+
+## Phase 1: Detect Your Hardware
 
 ```bash
 $ bin/hwprofile
@@ -49,7 +321,7 @@ $ bin/hwprofile
 
 ---
 
-### Phase 2: Apply Tier-Specific Configuration
+## Phase 2: Apply Tier-Specific Configuration
 
 ```bash
 $ bin/bootstrap-machine              # Preview (dry-run)
@@ -91,7 +363,7 @@ Apply? bin/bootstrap-machine --write
 
 ---
 
-### Phase 3: Verify All Tools Work
+## Phase 3: Verify All Tools Work
 
 ```bash
 $ bin/smoke
@@ -139,7 +411,7 @@ Next steps:
 
 ---
 
-### Phase 4: Run Benchmarks & Visualize
+## Phase 4: Run Benchmarks & Visualize
 
 ```bash
 $ bin/bench --agent hermes --trials 3
@@ -189,70 +461,7 @@ results/20260704-abc/sandbox/       # Per-run logs & transcripts
 
 ---
 
-## Reference: What Each File Does
-
-| File | Purpose |
-|------|---------|
-| `config.sh` | Global settings: endpoint URL, parallelism, context window, timeouts. Edited by Phase 2. |
-| `models.txt` | Which models to test. Edited by Phase 2. |
-| `lib/common.sh` | Shared utilities (logging, API calls, path handling). |
-| `adapters/<name>.sh` | How each CLI is driven non-interactively. 40+ adapters supported. |
-| `cases/<id>/` | Test cases: prompt, starter code, hidden grader. 12 built-in cases. |
-| `results/` | Benchmark output. Check here for detailed logs if something fails. |
-
----
-
-## Troubleshooting by Phase
-
-### Phase 1: hwprofile fails
-```bash
-$ bin/hwprofile
-[ERROR] failed to detect RAM
-```
-- macOS / Linux should auto-detect. If it fails, manually specify: `bin/bootstrap-machine --tier 64`
-
-### Phase 2: bootstrap-machine shows no changes
-```bash
-$ bin/bootstrap-machine
-Proposed changes: (none)
-```
-- Likely your current `models.txt` already matches the tier. This is fine. Proceed to Phase 3.
-
-### Phase 3: smoke test fails on all adapters
-```bash
-✗ aider [ConnectionError: failed to reach http://localhost:1234/v1]
-```
-- Is LM Studio running? Start it: `lms server start`
-- Is a model loaded? Check: `lms ps` (should list something). If empty, load one: `lms load <id>`
-- Is `config.sh` pointing to the right endpoint? Check: `grep LMS_BASE_URL config.sh`
-
-### Phase 3: smoke test passes but one adapter fails
-```bash
-✗ caveman (timeout after 30s)
-```
-- This adapter has an issue. You can skip it in Phase 4: `bin/bench --agent aider,hermes` (skip caveman)
-- Or debug it: see `docs/tools/caveman.md` for known issues and workarounds
-
-### Phase 4: benchmark runs but all results are 0/X (failing)
-```
-aider,qwen/qwen3.5-9b,js-01-slugify-bug,0,45s
-aider,qwen/qwen3.5-9b,js-02-debounce,0,48s
-```
-- The model may not be capable enough, or the prompt/context is too small
-- Check logs: `cat results/<timestamp>/sandbox/aider-qwen*.log`
-- Try a larger model: `bin/lms_update` (re-downloads latest versions)
-- Or try a different adapter: `bin/bench --agent hermes` (different tool might extract better code from the model)
-
-### Phase 4: benchmark timeout
-```
-[TIMEOUT] hermes × qwen/qwen3.5-70b took >300s
-```
-- This model is too slow for real-world use. It's disqualified by design.
-- Choose a smaller model: `bin/prune` (list available), or `lms get qwen/qwen3.6-27b`
-
----
-
-## Next: Understanding the Results
+## Understanding the Results
 
 Once Phase 4 completes, you have data. Here's how to interpret it:
 
@@ -280,39 +489,3 @@ Once Phase 4 completes, you have data. Here's how to interpret it:
 - [WORKFLOW.md](WORKFLOW.md) — how to add new models, adapters, or test cases
 - [PURPOSE.md](PURPOSE.md) — what this project measures and why
 - [HARDWARE-RECOMMENDATIONS.md](HARDWARE-RECOMMENDATIONS.md) — machine sizing by RAM tier
-
----
-
-## The Four Phases at a Glance
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ Phase 1: Detect (bin/hwprofile)                            │
-│ → Measures your RAM, finds benchmarked tier               │
-└────────────┬────────────────────────────────────────────────┘
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│ Phase 2: Setup (bin/bootstrap-machine --write)             │
-│ → Configures models.txt & config.sh for your tier         │
-└────────────┬────────────────────────────────────────────────┘
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│ Phase 3: Verify (bin/smoke)                                │
-│ → Smoke-tests all adapters; catches setup mistakes        │
-└────────────┬────────────────────────────────────────────────┘
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│ Phase 4: Benchmark (bin/bench + bin/report + bin/viz)      │
-│ → Runs the full matrix, grades, visualizes                │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-**Ready? Start with Phase 1:**
-
-```bash
-bin/hwprofile
-```
-
-Each command will tell you what to do next.

@@ -75,6 +75,7 @@ show_help() {
   help_flag "--dry-run" "" "show commands without running them"
   help_flag "--verbose" "" "extra output during installs"
   help_flag "--interactive" "" "use fzf pickers where applicable"
+  help_flag "--force" "" "actually install (without --force, shows what would change)"
 
   help_section "TOOL FLAGS"
   help_flag "--all" "" "install every tool below"
@@ -99,7 +100,8 @@ show_help() {
 }
 
 # ── Parse flags ──────────────────────────────────────────────────────────────
-DRY_RUN=0; VERBOSE=0; INTERACTIVE=0
+DRY_RUN=0; VERBOSE=0; INTERACTIVE=0; FORCE=0
+NEEDS_FORCE=0; STATUS_ONLY=0
 DO_ALL=0
 DO_LMS=0; DO_HERMES=0; DO_CODEX=0; DO_OPENCODE=0; DO_AIDER=0
 DO_CAVEMAN=0; DO_MLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0
@@ -111,6 +113,7 @@ while [ $# -gt 0 ]; do
     --dry-run)        DRY_RUN=1; shift;;
     --verbose)        VERBOSE=1; shift;;
     --interactive)    INTERACTIVE=1; shift;;
+    --force)          FORCE=1; shift;;
     --all)            DO_ALL=1; shift;;
     --lms)            DO_LMS=1; shift;;
     --hermes-cli)     DO_HERMES=1; shift;;
@@ -138,8 +141,17 @@ fi
 # ── Helpers ───────────────────────────────────────────────────────────────────
 step() { printf '\n%s\n' "${C_BLD}$*${C_RST}"; }
 
+NEEDS_FORCE=0
+
 run_or_dry() {
-  if [ "$DRY_RUN" = 1 ]; then
+  # In STATUS_ONLY mode without --force, act like dry-run
+  local effective_dry_run=$DRY_RUN
+  if [ "$STATUS_ONLY" = 1 ] && [ "$FORCE" = 0 ]; then
+    effective_dry_run=1
+    NEEDS_FORCE=1
+  fi
+
+  if [ "$effective_dry_run" = 1 ]; then
     printf '  %s%s%s\n' "$C_DIM" "would run: $*" "$C_RST"
   else
     [ "$VERBOSE" = 1 ] && info "running: $*"
@@ -149,6 +161,7 @@ run_or_dry() {
 
 # check_cmd NAME CMD INSTALL_CMD [NOTES]
 # Prints ok/warn; returns 0 if installed, 1 if not.
+# In STATUS_ONLY mode, tracks missing items for --force suggestion.
 check_cmd() {
   local name="$1" cmd="$2" install="$3" notes="${4:-}"
   if command -v "$cmd" >/dev/null 2>&1; then
@@ -159,6 +172,9 @@ check_cmd() {
     warn "$name  ${C_DIM}not found${C_RST}"
     printf '    install: %s\n' "$install"
     [ -n "$notes" ] && printf '    %s\n' "$notes"
+    if [ "$STATUS_ONLY" = 1 ]; then
+      NEEDS_FORCE=1
+    fi
     return 1
   fi
 }
@@ -461,6 +477,9 @@ setup_model_profile() {
   fi
 
   if [ "$have_cmds" = 1 ]; then
+    if [ "$STATUS_ONLY" = 1 ]; then
+      NEEDS_FORCE=1
+    fi
     info "Next step: copy and run the commands above, then re-run:"
     printf '  %s\n' "bin/setup --model $profile"
   else
@@ -575,7 +594,7 @@ if [ -n "$MODEL_PROFILE" ]; then
   exit 0
 fi
 
-# ── Status-only (no flags given) ───────────────────────────────────────────────
+# ── Status-only (no flags given, or --force alone) ───────────────────────────
 STATUS_ONLY=0
 if [ "$DO_ALL$DO_LMS$DO_HERMES$DO_CODEX$DO_OPENCODE$DO_AIDER$DO_CAVEMAN$DO_MLX$DO_OLLAMA$DO_FZF$DO_HF$DO_MODEL" = "000000000000" ]; then
   STATUS_ONLY=1
@@ -585,7 +604,7 @@ fi
 [ "$DRY_RUN" = 1 ] && info "dry-run mode — no changes will be made"
 
 if [ "$STATUS_ONLY" = 1 ]; then
-  info "Tool status (pass --all or a specific flag to install)"
+  info "Tool status (read-only check; pass --force to install)"
   setup_lms
   setup_hermes
   setup_codex
@@ -614,7 +633,27 @@ if [ "$STATUS_ONLY" = 1 ]; then
       echo "    (shows which models to download, then run again to verify)"
     fi
   fi
-  exit 0
+
+  # If anything needs changes, require --force
+  echo
+  if [ "$NEEDS_FORCE" = 1 ] && [ "$FORCE" = 0 ]; then
+    warn "Changes needed (tools/models missing)"
+    printf '\nTo install: %s\n' "bin/setup --force"
+    printf 'To install specific tool: %s\n' "bin/setup --lms --force  (or any --flag)"
+    exit 1
+  elif [ "$FORCE" = 1 ]; then
+    ok "Running with --force (changes will be applied)"
+    # Enable all tools for installation
+    DO_ALL=1
+  else
+    # No changes needed, exit cleanly
+    exit 0
+  fi
+fi
+
+if [ "$DO_ALL" = 1 ]; then
+  DO_LMS=1; DO_HERMES=1; DO_CODEX=1; DO_OPENCODE=1; DO_AIDER=1
+  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1
 fi
 
 [ "$DO_LMS" = 1 ]     && setup_lms
