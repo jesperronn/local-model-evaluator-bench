@@ -207,7 +207,7 @@ Open VS Code settings (Cmd+, or Ctrl+,):
 Run a smoke test on your chosen agent(s):
 
 ```bash
-bin/smoke --agents aider,hermes
+bin/smoke --agent aider,hermes
 ```
 
 (Or whichever agents you installed.)
