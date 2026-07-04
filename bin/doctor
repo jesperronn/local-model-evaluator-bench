@@ -97,6 +97,33 @@ for d in "$CASES_DIR"/*/; do
 done
 
 echo
+info "Hung predictions (stuck runs with in-flight predictions):"
+# Scan recent trial sandboxes for unbalanced input/output events that suggest
+# hung predictions. These are trials that stalled with predictions still in-flight.
+stuck_count=0
+for lmslog in $(find "$RESULTS_DIR" -name '.lms-stream.log' -type f -mtime -1 2>/dev/null | head -50); do
+  [ ! -f "$lmslog" ] && continue
+  _inputs="$(grep -c '"type":"llm.prediction.input"' "$lmslog" 2>/dev/null)" || _inputs=0
+  _inputs="${_inputs##[[:space:]]}"; _inputs="${_inputs%%[[:space:]]}"  # trim
+  [ -z "$_inputs" ] && _inputs=0
+  _outputs="$(grep -c '"type":"llm.prediction.output"' "$lmslog" 2>/dev/null)" || _outputs=0
+  _outputs="${_outputs##[[:space:]]}"; _outputs="${_outputs%%[[:space:]]}"  # trim
+  [ -z "$_outputs" ] && _outputs=0
+  _inflight=$(( _inputs - _outputs ))
+  if [ "$_inflight" -gt 0 ]; then
+    _sandbox_dir="$(dirname "$lmslog")"
+    _trial_path="${_sandbox_dir#$RESULTS_DIR/}"
+    printf '    %s — %d in-flight (inputs=%d outputs=%d)\n' "$_trial_path" "$_inflight" "$_inputs" "$_outputs"
+    stuck_count=$((stuck_count + 1))
+  fi
+done
+if [ "$stuck_count" -eq 0 ]; then
+  ok "no hung predictions detected"
+else
+  warn "$stuck_count trial(s) with stuck predictions. Run 'bin/bench --resume' to retry."
+fi
+
+echo
 info "Coverage gaps (missing adapter × model × case combos):"
 RESULTS_DIR="$RESULTS_DIR" python3 - << 'PYEOF'
 import glob, csv, os, sys
