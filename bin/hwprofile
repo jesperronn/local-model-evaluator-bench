@@ -250,12 +250,31 @@ _mlx_models_info() {
 
 # Disk free space (GB)
 _disk_free_gb_numeric() {
-  local os="$1" size
+  local os="$1" size num unit val
   case "$os" in
     macos|linux)
-      size=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}' | sed 's/[GTM]i*//;s/[GTM]//')
-      # Rough numeric extraction; return as-is for now
-      echo "$size" | grep -o '^[0-9]*' || echo "?"
+      size=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}')
+      # Extract number and unit separately using bash string operations
+      # Remove all non-digit and non-dot characters to get number
+      num="${size//[!0-9.]/}"
+      # Extract unit (last 1-2 chars)
+      unit="${size:${#num}}"
+
+      # Handle edge cases
+      [[ -z "$num" || "$num" == "." ]] && { echo "?"; return 1; }
+
+      # Convert to GB based on unit
+      case "$unit" in
+        Ti) printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num * 1024}")" ;;
+        Gi) printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num * 1}")" ;;
+        Mi) printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num / 1024}")" ;;
+        Ki) printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num / (1024 * 1024)}")" ;;
+        T)  printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num * 1000}")" ;;
+        G)  printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num * 1}")" ;;
+        M)  printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num / 1000}")" ;;
+        K)  printf "%.0f" "$(awk "BEGIN {printf \"%.0f\", $num / (1000 * 1000)}")" ;;
+        *)  printf "%.0f" "$num" ;;
+      esac
       ;;
     windows)
       wmic logicaldisk where "name='${SYSTEMDRIVE:-C:}'" get FreeSpace 2>/dev/null | tail -1 | awk '{printf "%.0f", $1/1073741824}' || echo "?"
