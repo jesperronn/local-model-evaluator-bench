@@ -2,19 +2,38 @@
 # bin/results — grouped entry point for results-dir hygiene.
 # Thin dispatcher: delegates to bin/stale and bin/cleanup. See
 # docs/PLAN-CLI-UNIFICATION.md.
-#
-# Usage:
-#   bin/results stale [--adapter/-model/-case filters ...]   = bin/stale
-#   bin/results clean [--logs --scratch --sandboxes N --empty]  = bin/cleanup
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
-usage() { sed -n '2,8p' "$0"; exit 0; }
+usage() {
+  help_header "results" "grouped entry point for results-dir hygiene"
+
+  help_section "USAGE"
+  help_line "  results SUBCOMMAND [OPTIONS]"
+
+  help_section "SUBCOMMANDS"
+  help_command "stale" "list stale results by adapter, model, or case"
+  help_command "clean" "remove old runs and temporary files"
+
+  help_section "STALE SUBCOMMAND"
+  help_line "  results stale [--adapter FILTER] [--model FILTER] [--case FILTER] ..."
+  help_line "  List results that are outdated."
+
+  help_section "CLEAN SUBCOMMAND"
+  help_line "  results clean [--logs] [--scratch] [--sandboxes N] [--empty]"
+  help_line "  Remove old runs and temporary files from results/."
+
+  help_section "OPTIONS"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  exit 0
+}
 
 SUB="${1:-}"; shift 2>/dev/null || true
 case "$SUB" in
-  stale) exec "$HERE/stale" "$@";;
-  clean) exec "$HERE/cleanup" "$@";;
+  stale) exec "$HERE/bin/stale" "$@";;
+  clean) exec "$HERE/bin/cleanup" "$@";;
   -h|--help|"") usage;;
   *) echo "unknown subcommand: $SUB (valid: stale clean)" >&2; exit 1;;
 esac
