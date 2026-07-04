@@ -6,9 +6,8 @@
 # Linux, and Windows (Git Bash/WSL/Cygwin).
 #
 # Usage:
-#   hwprofile              human-readable detailed specs + RAM tier
+#   hwprofile              human-readable detailed specs
 #   hwprofile --json       machine-readable JSON for tooling
-#   hwprofile --tier       just the RAM tier number (for scripting)
 #   hwprofile --minimal    compact one-liner
 #
 # Also buckets total RAM into benchmarked tiers (24/32/48/64/128 GB).
@@ -110,13 +109,21 @@ _cpu_cores() {
   esac
 }
 
-# CPU: base frequency (GHz) - Apple Silicon may not report this
+# CPU: base frequency (GHz)
 _cpu_freq_ghz() {
   local os="$1" freq
   case "$os" in
     macos)
+      # Try hw.cpufrequency_max (Intel), then hw.cpufrequency
       freq=$(sysctl -n hw.cpufrequency_max 2>/dev/null)
-      [[ -n "$freq" ]] && awk -v f="$freq" 'BEGIN {printf "%.1f", f/1000000000}' || echo "N/A"
+      if [[ -z "$freq" ]] || [[ "$freq" == "0" ]]; then
+        freq=$(sysctl -n hw.cpufrequency 2>/dev/null)
+      fi
+      # If still nothing, try extracting from system_profiler (Apple Silicon may have GHz in description)
+      if [[ -z "$freq" ]] || [[ "$freq" == "0" ]]; then
+        freq=$(system_profiler SPHardwareDataType 2>/dev/null | grep -i "cpu frequency" | grep -oE "[0-9.]+ GHz" | head -1 | awk '{print $1 * 1000000000}')
+      fi
+      [[ -n "$freq" && "$freq" != "0" ]] && awk -v f="$freq" 'BEGIN {printf "%.1f", f/1000000000}' || echo "N/A"
       ;;
     linux)
       grep "^cpu MHz" /proc/cpuinfo 2>/dev/null | head -1 | awk '{printf "%.1f", $2/1000}' || echo "N/A"
@@ -260,7 +267,11 @@ _output_human() {
   echo "Processor:"
   printf "  Model:               %s\n" "$cpu_model"
   printf "  Cores:               %s\n" "$cpu_cores"
-  printf "  Base Frequency:      %s GHz\n" "$cpu_ghz"
+  if [[ "$cpu_ghz" == "N/A" ]]; then
+    printf "  Base Frequency:      %s (not available on this architecture)\n" "$cpu_ghz"
+  else
+    printf "  Base Frequency:      %s GHz\n" "$cpu_ghz"
+  fi
   echo ""
   echo "Storage:"
   printf "  Free Space:          %s\n" "$disk_free"
@@ -299,20 +310,12 @@ _output_minimal() {
     "$(uname -s)" "$ram_total" "$cpu_cores" "$cpu_ghz" "$disk_free" "$tier"
 }
 
-# Just the tier for scripting
-_output_tier() {
-  local os="$1" ram_total
-
-  ram_total=$(_total_ram_gb "$os") || { echo "error" >&2; return 1; }
-  _nearest_tier "$ram_total"
-}
 
 main() {
   local mode="human" os
 
   case "${1:-}" in
     --json)    mode="json" ;;
-    --tier)    mode="tier" ;;
     --minimal) mode="minimal" ;;
     -h|--help)
       sed -n '2,19p' "$0" | sed 's/^# \?//'
@@ -331,7 +334,6 @@ main() {
 
   case "$mode" in
     json)    _output_json "$os" ;;
-    tier)    _output_tier "$os" ;;
     minimal) _output_minimal "$os" ;;
     human)   _output_human "$os" ;;
   esac
