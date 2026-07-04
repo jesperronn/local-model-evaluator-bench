@@ -215,21 +215,58 @@ fi
 
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
 
-# Validate that all requested adapters exist
-_invalid_adapters=()
+# Validate that requested adapters exist; filter out unavailable ones with guidance
+_available_adapters=()
+_unavailable_adapters=()
+_unavailable_in_runtime=()
 IFS=',' read -ra _check_adapters <<< "$ADAPTERS"
 for _ca in "${_check_adapters[@]}"; do
   _ca_sh="$ADAPTERS_DIR/$_ca-$RUNTIME.sh"
   [ -f "$_ca_sh" ] || _ca_sh="$ADAPTERS_DIR/$_ca.sh"
-  if ! [ -f "$_ca_sh" ]; then
-    _invalid_adapters+=("$_ca")
+  if [ -f "$_ca_sh" ]; then
+    _available_adapters+=("$_ca")
+  else
+    _unavailable_adapters+=("$_ca")
+    # Check if this adapter exists for a different runtime
+    for _rt in lms ollama mlx; do
+      [ "$_rt" = "$RUNTIME" ] && continue
+      if [ -f "$ADAPTERS_DIR/$_ca-$_rt.sh" ] || [ -f "$ADAPTERS_DIR/$_ca.sh" ]; then
+        _unavailable_in_runtime+=("$_ca (exists for $RUNTIME, not $RUNTIME)")
+        break
+      fi
+    done
   fi
 done
 
-if [ ${#_invalid_adapters[@]} -gt 0 ]; then
-  echo "${C_RED}[FAIL]${C_RST} unknown adapter(s): ${_invalid_adapters[*]}" >&2
+# If some adapters are unavailable but some are available, warn and continue with available
+if [ ${#_unavailable_adapters[@]} -gt 0 ] && [ ${#_available_adapters[@]} -gt 0 ]; then
+  warn "adapters not available for $RUNTIME: ${_unavailable_adapters[*]}"
+  echo "${C_DIM}  Available: ${_available_adapters[*]}${C_RST}"
+  echo "${C_DIM}  Skipping unavailable adapters and continuing with available ones.${C_RST}"
+  echo
+  ADAPTERS="$(IFS=','; printf '%s' "${_available_adapters[*]}")"
+elif [ ${#_unavailable_adapters[@]} -gt 0 ]; then
+  # All requested adapters are unavailable
+  echo "${C_RED}[FAIL]${C_RST} no adapters available for $RUNTIME: ${_unavailable_adapters[*]}" >&2
   echo >&2
-  show_available_adapters "$RUNTIME" >&2
+  echo "${C_YEL}Next steps:${C_RST}"
+  echo "  1. Use available adapters for $RUNTIME:"
+  show_available_adapters "$RUNTIME" | sed 's/^/     /'
+  echo
+  echo "  2. Or specify a different runtime where these adapters exist:"
+  for _ca in "${_unavailable_adapters[@]}"; do
+    for _rt in lms ollama mlx; do
+      [ "$_rt" = "$RUNTIME" ] && continue
+      _ca_lms="$ADAPTERS_DIR/$_ca-$_rt.sh"
+      [ -f "$_ca_lms" ] || _ca_lms="$ADAPTERS_DIR/$_ca.sh"
+      if [ -f "$_ca_lms" ]; then
+        echo "     bin/bench --runtime $_rt --agent $_ca --model ..."
+        break
+      fi
+    done
+  done
+  echo
+  echo "  3. Check docs/AGENT-SELECTION.md for adapter/runtime compatibility."
   exit 1
 fi
 
