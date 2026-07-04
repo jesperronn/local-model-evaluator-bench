@@ -95,17 +95,40 @@ Hermes takes 157 seconds on smoke-02-numbers (vs 17-19s on other cases), but com
 
 **Recommendation:** Acceptable for production; increase timeouts if needed for complex tasks.
 
+## Full Bench Results (Run 20260704-215238)
+
+**Overall: 84.5% (120/142 cases)**
+
+| Adapter | Score | Speed | Trials | Notes |
+|---------|-------|-------|--------|-------|
+| pi | 100.0% (38/38) | 51.0s | 3 | PERFECT — use this |
+| hermes | 88.9% (32/36) | 88.1s | 3 | Excellent, 1 bash fail |
+| aider | 88.9% (32/36) | 38.6s | 3 | Excellent, fastest accurate |
+| interpreter | 56.2% (18/32) | 131.2s | 3 | Weak — avoid |
+
+**Failures (10 cases across adapters):**
+- aider: js-04 (multifile), ts-01 (groupby)
+- hermes: bash-01 (pipeline)
+- interpreter: bash-01, js-01 partial, js-02 partial, js-03 partial, js-05, smoke-01 partial, ts-01
+
+**Pattern:** Failures cluster on complex multi-file and bash tasks. Interpreter struggles on all complex cases.
+
 ## Status
 
-**keep — Recommended 20B tier model.** gpt-oss-20b achieved the highest smoke test score of all models tested (88.9%), with four adapters at perfect 100% compatibility. The MoE architecture (20.9B parameters, 3.6B active) delivers exceptional speed (25s average) while remaining efficient enough for 32GB machines (13-16GB resident). This is OpenAI's first open-weight model release and it validates the field reports of strong reasoning and tool routing.
+**keep — Recommended 20B tier model.** gpt-oss-20b achieved the highest overall score of all models tested (84.5% full bench, 88.9% smoke), with **pi adapter at perfect 100% reliability**. The MoE architecture (20.9B parameters, 3.6B active) delivers exceptional speed while remaining efficient enough for 32GB machines (13-16GB resident). This is OpenAI's first open-weight model release and it validates field reports of strong reasoning and tool routing.
 
-The two adapter failures (opencode, cline on one edge case) are minor and do not impact real agentic coding workflows.
-
-**Recommended usage:**
+**Recommended usage (pi adapter — PERFECT):**
 ```bash
-bin/bench --runtime ollama --agent aider,pi,interpreter,hermes \
-  --model gpt-oss:20b --trials 3
+bin/bench --runtime ollama --agent pi --model gpt-oss:20b
 ```
+
+**Good alternatives (aider/hermes — 88.9%):**
+```bash
+bin/bench --runtime ollama --agent aider --model gpt-oss:20b  # Fast (38.6s)
+bin/bench --runtime ollama --agent hermes --model gpt-oss:20b # Steady (88.1s)
+```
+
+**Avoid interpreter** (56.2% on complex tasks)
 
 ## See also
 
