@@ -21,12 +21,49 @@
 # Exit: 0 if all linted cards pass, 1 if any fail, 2 on usage error.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/lib/common.sh"
+source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 SPEC="$HERE/docs/CARD-SPEC.md"
 [ -f "$SPEC" ] || die "missing $SPEC"
 
 C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_YEL=$'\033[33m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
+
+show_help() {
+  help_header "lint-cards" "validate model/tool/runtime cards against CARD-SPEC.md"
+
+  help_section "USAGE"
+  help_line "  lint-cards [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Validates cards against docs/CARD-SPEC.md. A card passes when:"
+  help_line "  - every required section heading is present"
+  help_line "  - the Quick verdict table has all 5 metrics filled (no empty)"
+  help_line "  - no required area contains a placeholder (TODO / <!-- … --> / unknown)"
+
+  help_section "OPTIONS"
+  help_flag "--type" "model|tool|runtime" "lint only this card type (default: all)"
+  help_flag "--card" "PATH" "lint a single card (type inferred from path)"
+  help_flag "--quiet" "" "only print failures and summary"
+  help_flag "--json" "" "machine-readable per-card result (for loops)"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXIT CODES"
+  help_line "  0: all linted cards pass"
+  help_line "  1: one or more cards fail"
+  help_line "  2: usage error"
+
+  help_section "EXAMPLES"
+  help_line "  Lint all model and tool cards:"
+  help_line "  \$ lint-cards"
+  help_line ""
+  help_line "  Lint only model cards:"
+  help_line "  \$ lint-cards --type model"
+  help_line ""
+  help_line "  Lint single card with JSON output:"
+  help_line "  \$ lint-cards --card docs/models/qwen.md --json"
+
+  exit 0
+}
 
 TYPE=""; CARD=""; QUIET=0; JSON=0
 while [ $# -gt 0 ]; do
@@ -35,7 +72,7 @@ while [ $# -gt 0 ]; do
     --card) CARD="${2:-}"; shift 2 ;;
     --quiet) QUIET=1; shift ;;
     --json) JSON=1; shift ;;
-    -h|--help) grep -E '^#( |$)' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) show_help ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
