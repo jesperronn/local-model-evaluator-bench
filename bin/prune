@@ -462,6 +462,16 @@ do_interactive() {
 
 if $INTERACTIVE; then
   do_interactive
+  echo
+  echo "${BOLD}Next steps:${RESET}"
+  if [ "$RUNTIME" = "lms" ] || [ "$RUNTIME" = "all" ]; then
+    echo "  Restart LM Studio daemon:    ${GREEN_BOLD}pkill llmster && lms server start${RESET}"
+  fi
+  echo "  Check available disk space:  ${GREEN_BOLD}df -h${RESET}"
+  echo "  Run again to remove more:    ${GREEN_BOLD}bin/prune --interactive${RESET}"
+  if [ -n "$RUNTIME" ] && [ "$RUNTIME" != "all" ]; then
+    echo "  Show all runtimes:           ${GREEN_BOLD}bin/prune${RESET}"
+  fi
 else
   $DRY_RUN && printf "${DIM}(dry-run — use --interactive to select models for removal)${RESET}\n\n"
   print_table
@@ -469,4 +479,13 @@ else
   total=$(echo "$entries_tsv" | wc -l | tr -d ' ')
   total_bytes=$(echo "$entries_tsv" | awk -F'\t' '{sum+=$3} END{print sum+0}')
   printf "${DIM}%d models, %s total${RESET}\n" "$total" "$(fmt_bytes "$total_bytes")"
+  echo
+  echo "${BOLD}Next steps:${RESET}"
+  echo "  Select models to remove:     ${GREEN_BOLD}bin/prune --interactive${RESET}"
+  if $UNUSED; then
+    echo "  Show all models (incl. used): ${GREEN_BOLD}bin/prune${RESET}"
+  else
+    echo "  Show only unused models:     ${GREEN_BOLD}bin/prune --unused${RESET}"
+  fi
+  echo "  Filter by runtime:           ${GREEN_BOLD}bin/prune --runtime=lms${RESET}"
 fi
