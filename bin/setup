@@ -44,6 +44,7 @@ show_help() {
   help_section "DESCRIPTION"
   help_line "  With no flags: prints a status table for every tool (read-only)."
   help_line "  With tool flags: installs/configures those tools."
+  help_line "  With --model <profile>: downloads recommended models for that hardware tier."
 
   help_section "OPTIONS"
   help_flag "--dry-run" "" "show commands without running them"
@@ -64,7 +65,7 @@ show_help() {
   help_flag "--hf" "" "HuggingFace CLI (required for bin/lms_update)"
 
   help_section "MODEL FLAGS"
-  help_flag "--model" "" "show model status across runtimes"
+  help_flag "--model" "[PROFILE]" "show model status (or download PROFILE if specified)"
   help_flag "--runtime" "lms|ollama|mlx" "filter --model to one runtime"
   help_flag "--sync-models" "" "regenerate opencode/pi model configs"
 
@@ -77,7 +78,7 @@ DRY_RUN=0; VERBOSE=0; INTERACTIVE=0
 DO_ALL=0
 DO_LMS=0; DO_HERMES=0; DO_CODEX=0; DO_OPENCODE=0; DO_AIDER=0
 DO_CAVEMAN=0; DO_MLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0
-DO_MODEL=0; RUNTIME=""
+DO_MODEL=0; MODEL_PROFILE=""; RUNTIME=""
 DO_SYNC=0
 
 while [ $# -gt 0 ]; do
@@ -96,7 +97,7 @@ while [ $# -gt 0 ]; do
     --ollama)         DO_OLLAMA=1; shift;;
     --fzf)            DO_FZF=1; shift;;
     --hf)             DO_HF=1; shift;;
-    --model)          DO_MODEL=1; shift;;
+    --model)          DO_MODEL=1; MODEL_PROFILE="${2:-}"; shift; [ -n "$MODEL_PROFILE" ] && shift || true;;
     --sync-models)    DO_SYNC=1; shift;;
     --runtime)        RUNTIME="$2"; shift 2;;
     -h|--help) show_help; exit 0;;
@@ -336,6 +337,112 @@ setup_hf() {
 
 # ── Model status ──────────────────────────────────────────────────────────────
 
+setup_model_profile() {
+  local profile="$1"
+  source "$HERE/bin/lib/model-profiles.sh"
+
+  step "Models for profile: $profile"
+
+  if ! profile_exists "$profile"; then
+    die "Profile '$profile' not found. Available: $(profiles_list)"
+  fi
+
+  local desc; desc="$(profile_description "$profile")"
+  ok "$desc"
+
+  local aliases; aliases="$(profile_aliases "$profile")"
+  [ -z "$aliases" ] && { warn "no aliases in profile"; return 0; }
+
+  local primary; primary="$(profile_primary "$profile")"
+  info "Recommended models for $profile (primary: $primary)"
+
+  # For each alias in profile, check all runtimes and show what to download
+  local to_download_lms=() to_download_ollama=() to_download_mlx=()
+
+  for alias in $aliases; do
+    # LM Studio models
+    local lms_id; lms_id="$(alias_ids "$alias" lms)"
+    if [ "$lms_id" != "-" ] && [ -n "$lms_id" ]; then
+      # Check if already loaded in LM Studio
+      if lms_up 2>/dev/null; then
+        local loaded; loaded="$(lms_loaded_models)"
+        if ! printf '%s\n' "$loaded" | grep -qxF "$lms_id"; then
+          to_download_lms+=("$lms_id")
+        else
+          ok "  $alias ($lms_id) — already loaded in LM Studio"
+        fi
+      else
+        to_download_lms+=("$lms_id")
+      fi
+    fi
+
+    # Ollama models
+    local ollama_id; ollama_id="$(alias_ids "$alias" ollama)"
+    if [ "$ollama_id" != "-" ] && [ -n "$ollama_id" ] && command -v ollama >/dev/null 2>&1; then
+      local installed; installed="$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')"
+      if ! printf '%s\n' "$installed" | grep -qxF "$ollama_id"; then
+        to_download_ollama+=("$ollama_id")
+      else
+        ok "  $alias ($ollama_id) — already installed in Ollama"
+      fi
+    fi
+
+    # MLX models (local paths or HF models)
+    local mlx_id; mlx_id="$(alias_ids "$alias" mlx)"
+    if [ "$mlx_id" != "-" ] && [ -n "$mlx_id" ]; then
+      if [ -d "$mlx_id" ]; then
+        ok "  $alias — already present at $mlx_id"
+      elif [ -f "$HERE/models-mlx.txt" ] && grep -qF "$mlx_id" "$HERE/models-mlx.txt"; then
+        info "  $alias ($mlx_id) — referenced in models-mlx.txt (downloads on first use)"
+      else
+        to_download_mlx+=("$mlx_id")
+      fi
+    fi
+  done
+
+  # Print next-steps: copy-paste commands
+  echo
+  local have_cmds=0
+
+  if [ ${#to_download_lms[@]} -gt 0 ]; then
+    have_cmds=1
+    echo "# LM Studio models (download in LM Studio GUI or via lms):"
+    for lms_id in "${to_download_lms[@]}"; do
+      echo "lms get $lms_id"
+    done
+    echo
+  fi
+
+  if [ ${#to_download_ollama[@]} -gt 0 ]; then
+    have_cmds=1
+    echo "# Ollama models (requires Ollama installed):"
+    for ollama_id in "${to_download_ollama[@]}"; do
+      echo "ollama pull $ollama_id"
+    done
+    echo
+  fi
+
+  if [ ${#to_download_mlx[@]} -gt 0 ]; then
+    have_cmds=1
+    echo "# MLX models (download via HuggingFace CLI or on first use):"
+    for mlx_id in "${to_download_mlx[@]}"; do
+      if [[ "$mlx_id" == /* ]]; then
+        echo "# MLX local: $mlx_id"
+      else
+        echo "huggingface-cli download $mlx_id"
+      fi
+    done
+    echo
+  fi
+
+  if [ "$have_cmds" = 1 ]; then
+    info "Next step: copy and run the commands above, then re-run:"
+    printf '  %s\n' "bin/setup --model $profile"
+  else
+    ok "All models for $profile are ready!"
+  fi
+}
+
 show_models() {
   step "Model status"
 
@@ -435,6 +542,13 @@ $(read_list "$HERE/models-mlx.txt" | sed 's/^/mlx:/')"
     done <<< "$sel"
   fi
 }
+
+# ── Handle model profile setup ────────────────────────────────────────────────
+if [ -n "$MODEL_PROFILE" ]; then
+  [ "$DRY_RUN" = 1 ] && info "dry-run mode — showing commands only"
+  setup_model_profile "$MODEL_PROFILE"
+  exit 0
+fi
 
 # ── Status-only (no flags given) ───────────────────────────────────────────────
 STATUS_ONLY=0

@@ -1,3 +1,22 @@
+---
+title: "google/gemma-4-26b-a4b-qat"
+model_key: "google/gemma-4-26b-a4b-qat"
+family: "Gemma 4"
+params_total: "26B"
+params_active: "4B"
+quantization: "GGUF Q4 (LMS), MLX 4-bit QAT"
+disk_size: "~17.5 GiB"
+context: "65536 loaded (4k default)"
+status: "keep"
+recommended_for: ["64gb"]
+tier: "64gb"
+best_adapter: "hermes"
+accuracy: "91%"
+speed_avg: "~83-110s per case"
+added: "2026-06-08"
+last_run: "2026-06-29"
+---
+
 # google/gemma-4-26b-a4b-qat
 
 ## Quick verdict

@@ -1,3 +1,22 @@
+---
+title: "qwen/qwen3-coder-next"
+model_key: "qwen/qwen3-coder-next"
+family: "Qwen3-Coder"
+params_total: "30B"
+params_active: "~10"
+quantization: "GGUF Q4 (LMS), MLX 6-bit"
+disk_size: "~20 GiB (MLX 6-bit)"
+context: "65536 loaded (128k max)"
+status: "keep"
+recommended_for: ["32gb-balance", "64gb-specialist"]
+tier: "32gb"
+best_adapter: "hermes"
+accuracy: "94%"
+speed_avg: "~40s per case"
+added: "2026-06-18"
+last_run: "2026-06-29"
+---
+
 # qwen/qwen3-coder-next
 
 ## Quick verdict

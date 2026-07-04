@@ -3,6 +3,33 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+source "$HERE/bin/lib/model-profiles.sh"
+
+# ── Hardware detection ───────────────────────────────────────────────────────
+detect_system_ram_gb() {
+  # Return system RAM in GB (rounded down)
+  case "$(uname -s)" in
+    Darwin) sysctl -n hw.memsize 2>/dev/null | awk '{printf "%d", $1 / 1024 / 1024 / 1024}';;
+    Linux)  grep MemTotal /proc/meminfo 2>/dev/null | awk '{printf "%d", $2 / 1024 / 1024}';;
+    *)      echo "0";;
+  esac
+}
+
+suggest_profile_for_ram() {
+  local ram_gb="$1"
+  # Suggest based on available RAM
+  if [ "$ram_gb" -ge 128 ]; then
+    echo "128gb"
+  elif [ "$ram_gb" -ge 64 ]; then
+    echo "64gb"
+  elif [ "$ram_gb" -ge 32 ]; then
+    echo "32gb"
+  elif [ "$ram_gb" -ge 24 ]; then
+    echo "24gb"
+  else
+    echo ""
+  fi
+}
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 show_help() {
@@ -121,6 +148,32 @@ if [ "$stuck_count" -eq 0 ]; then
   ok "no hung predictions detected"
 else
   warn "$stuck_count trial(s) with stuck predictions. Run 'bin/bench --resume' to retry."
+fi
+
+echo
+info "Model profiles and availability:"
+ram_gb="$(detect_system_ram_gb)"
+if [ -n "$ram_gb" ] && [ "$ram_gb" -gt 0 ]; then
+  suggested_profile="$(suggest_profile_for_ram "$ram_gb")"
+  if [ -n "$suggested_profile" ]; then
+    printf '  System RAM: %sGB  →  Profile: %s\n' "$ram_gb" "$suggested_profile"
+
+    # Check if primary model for this profile is available
+    primary="$(profile_primary "$suggested_profile")"
+    if [ -n "$primary" ]; then
+      lms_id="$(alias_ids "$primary" lms 2>/dev/null || echo "")"
+      if [ -n "$lms_id" ] && [ "$lms_id" != "-" ]; then
+        if lms_up 2>/dev/null && printf '%s\n' "$(lms_loaded_models 2>/dev/null || true)" | grep -qxF "$lms_id"; then
+          ok "  $primary is loaded in LM Studio"
+        else
+          warn "  $primary (LMS) not installed"
+          printf '  Next step: bin/setup --model %s\n' "$suggested_profile"
+        fi
+      fi
+    fi
+  fi
+else
+  warn "Could not detect system RAM"
 fi
 
 echo

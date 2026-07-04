@@ -1,3 +1,22 @@
+---
+title: "qwen/qwen3-coder-30b"
+model_key: "qwen/qwen3-coder-30b"
+family: "Qwen3-Coder"
+params_total: "30B"
+params_active: "3B"
+quantization: "GGUF Q4 (LMS)"
+disk_size: "~18.6 GiB"
+context: "65536 loaded (128k max)"
+status: "keep"
+recommended_for: ["32gb-fast", "64gb-specialist"]
+tier: "32gb"
+best_adapter: "aider"
+accuracy: "97%"
+speed_avg: "~11.6s per case (aider)"
+added: "2026-06-10"
+last_run: "2026-06-29"
+---
+
 # qwen/qwen3-coder-30b
 
 ## Quick verdict

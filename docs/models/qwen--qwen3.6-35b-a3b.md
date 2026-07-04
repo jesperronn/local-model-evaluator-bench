@@ -1,3 +1,22 @@
+---
+title: "qwen/qwen3.6-35b-a3b"
+model_key: "qwen/qwen3.6-35b-a3b"
+family: "Qwen3.6"
+params_total: "35B"
+params_active: "3B"
+quantization: "GGUF (LMS) / mxfp8 (Ollama)"
+disk_size: "22.07 GiB"
+context: "65536 loaded (256k max)"
+status: "keep"
+recommended_for: ["32gb", "32gb-balance", "64gb", "64gb-specialist", "128gb"]
+tier: "32gb"
+best_adapter: "aider"
+accuracy: "100%"
+speed_avg: "~24-64s per case"
+added: "2026-06-08"
+last_run: "2026-06-29"
+---
+
 # qwen/qwen3.6-35b-a3b
 
 ## Quick verdict

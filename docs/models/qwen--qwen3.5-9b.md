@@ -1,3 +1,22 @@
+---
+title: "qwen/qwen3.5-9b"
+model_key: "qwen/qwen3.5-9b"
+family: "Qwen3.5"
+params_total: "9B"
+params_active: "9B"
+quantization: "fp16, GGUF Q4"
+disk_size: "~5.57 GiB"
+context: "32k (native 256k)"
+status: "keep"
+recommended_for: ["24gb", "32gb", "64gb"]
+tier: "24gb"
+best_adapter: "aider"
+accuracy: "100%"
+speed_avg: "~24-34s per case"
+added: "2026-06-08"
+last_run: "2026-07-04"
+---
+
 # qwen/qwen3.5-9b
 
 ## Quick verdict
