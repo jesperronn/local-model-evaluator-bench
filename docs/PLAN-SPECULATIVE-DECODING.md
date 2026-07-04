@@ -38,7 +38,7 @@ Field-note suggestion for this repo's agentic workflows:
 ## Proposed investigation steps
 
 - [x] Inventory which repo runtimes expose a draft-model option (grep adapters / config.sh).
-- [ ] Pick one runtime that supports it (likely `llama.cpp`).
+- [ ] Pick one runtime that supports it → `mlx_lm.server` (only automatable target; LM Studio is UI-only, Ollama unsupported).
 - [ ] Bench `qwen3-coder:30b` alone vs. + `qwen2.5-coder:1.5b` drafter: tokens/sec,
       acceptance rate, peak memory. Reuse the existing bench harness.
 - [ ] Test the Granite drafter too, to confirm/refute the cross-family penalty.
@@ -61,6 +61,8 @@ support requires UI interaction (incompatible with automated bench harness); `ml
 automation target for quantitative benchmarking.
 
 ## Decision
+
+> **Deferred 2026-07-04 — pick up here.** Runtime inventory is done (see findings above): of the repo's three runtimes, only `mlx_lm.server` can be automated for speculative decoding (`draft_model` + `num_draft_tokens`); LM Studio is UI-only, Ollama doesn't support it (issue #5800). **Next step when resumed:** benchmark `qwen3-coder:30b` + a same-family drafter (`qwen2.5-coder:1.5b`) on `mlx_lm.server` — tokens/sec, acceptance rate, peak memory — and watch the documented MoE regression risk when draft size nears the active-param count.
 
 Do **not** wire this into any script yet. Revisit as a benchmark task once runtime
 support is confirmed. Output of the investigation → model card guidance +
