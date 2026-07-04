@@ -60,9 +60,45 @@ Before a user ever runs an adapter, this project generates a plan of recommended
 - `bin/doctor` — shows which adapters are installed + which global configs exist (as a readiness check)
 - Setup workflows (TBD) — e.g., `bin/setup` or `bin/init` could run `bin/suggest-tuning | llmrun agents config apply --write` to auto-seed new machines
 
+## Implementation status
+
+**Pre-configuration (✓ done)**:
+- [bin/suggest-tuning](../bin/suggest-tuning) reads model cards (`docs/models/*.md`) and extracts:
+  - **Context window** from "**Context window**" metadata row
+  - **Temperature** = 0.7 (from `ADAPTER_DEFAULT_TEMPERATURE` in config.sh)
+  - **Max tokens** = 8192 (from `ADAPTER_DEFAULT_MAX_TOKENS` in config.sh)
+- Emits plan.jsonl rows: `{model, key, value, reason, source}` for `llmrun agents config apply`
+- `llmrun agents config apply plan.jsonl --write` writes settings to `~/.config/llmrun/agents.json`
+- `llmrun agents config {get,set,unset,list,apply}` provide the UI (in [bin/build-llmrun](../bin/build-llmrun))
+- Test suite: [bin/suggest-tuning.test.sh](../bin/suggest-tuning.test.sh)
+
+**Usage**: 
+```bash
+# Generate plan from model cards
+bin/suggest-tuning > /tmp/plan.jsonl
+
+# Preview what will be set (dry-run)
+llmrun agents config apply /tmp/plan.jsonl
+
+# Apply to global config
+llmrun agents config apply /tmp/plan.jsonl --write
+
+# Verify settings took effect
+llmrun agents config get qwen/qwen3.6-35b-a3b context
+# → 65536
+llmrun agents config get qwen/qwen3.6-35b-a3b temperature
+# → 0.7
+```
+
+**Documentation (TBD)**:
+- Card templates: add "Launching" section with example commands
+- Model card Quick verdict: add "Launching" subsection per model
+- See [docs/PLAN-CLI-UNIFICATION.md](PLAN-CLI-UNIFICATION.md) for related config CRUD design
+
 ## Success criteria
 
 **When this is done:**
 1. A user installs an adapter (e.g., `pip install aider`)
-2. Runs `llmrun --agent aider --model hermes` (from a card, or copy-pasted from a model doc)
-3. It works immediately — no manual config tweaking, no "context window too small" errors that the project could have prevented
+2. Runs `bin/suggest-tuning | llmrun agents config apply --write` to pre-configure
+3. Runs an adapter (e.g., `llmrun --agent aider --model hermes`) from a card or copied from a model doc
+4. It works immediately — no manual config tweaking, no "context window too small" errors that the project could have prevented

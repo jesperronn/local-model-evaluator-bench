@@ -147,6 +147,11 @@ trust convention `sync-agent-configs` already uses. `llmrun` never has to know
 *why* a value is right, only how to write it; the "why" (reason + source
 citation) travels in the plan file and gets printed at apply time for review.
 
+**See [docs/ADAPTER-SETUP.md](ADAPTER-SETUP.md)** for the full zero-friction
+adapter onboarding story: combining pre-configuration (via `suggest-tuning` +
+`agents config apply`) with card documentation ensures adapters "just work"
+out of the box — no manual tuning.
+
 Fold `bin/sync-agent-configs` into `agents sync` — it's already global-scope
 (writes to `~/.config`, `~/.pi`, not this repo) and already runtime/model
 lifecycle-adjacent, so it belongs in `llmrun`, not in project-local `bin/`.
