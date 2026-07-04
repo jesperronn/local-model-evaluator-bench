@@ -7,6 +7,7 @@
 #
 # Usage:
 #   hwprofile              human-readable detailed specs
+#   hwprofile --full       specs + installed models and disk usage
 #   hwprofile --json       machine-readable JSON for tooling
 #   hwprofile --minimal    compact one-liner
 #
@@ -200,6 +201,71 @@ _gpu_wired_mem_cap_mb() {
   fi
 }
 
+# Model discovery: LMS
+_lms_models_info() {
+  # Returns: count total_gb (space-separated), or empty if LMS unavailable/no models
+  local json
+  json=$(command -v lms &>/dev/null && lms ls --json 2>/dev/null) || return 1
+  [[ -z "$json" || "$json" == "[]" ]] && return 1
+
+  local count total_gb
+  # Use jq if available, else fall back to grep+awk
+  if command -v jq &>/dev/null; then
+    count=$(echo "$json" | jq 'length' 2>/dev/null)
+    total_gb=$(echo "$json" | jq '[.[].sizeBytes] | add // 0' 2>/dev/null | awk '{printf "%.0f", $1/1073741824}')
+  else
+    count=$(echo "$json" | grep -o '"modelKey"' | wc -l)
+    total_gb=$(echo "$json" | grep -o '"sizeBytes"[^,]*' | grep -o '[0-9]*' | awk '{sum+=$1} END {printf "%.0f", sum/1073741824}')
+  fi
+
+  [[ "$count" -gt 0 ]] && echo "$count $total_gb"
+}
+
+# Model discovery: Ollama
+_ollama_models_info() {
+  # Returns: count total_gb (space-separated), or empty if Ollama unavailable/no models
+  local rows
+  rows=$(command -v ollama &>/dev/null && ollama list 2>/dev/null | tail -n +2 | grep -v '^$') || return 1
+  [[ -z "$rows" ]] && return 1
+
+  local count total_gb
+  count=$(echo "$rows" | wc -l | tr -d ' ')
+  total_gb=$(echo "$rows" | awk '{
+    v=$3; u=$4
+    if (u=="GB") gb=v+0; else if (u=="MB") gb=v/1024; else gb=0
+    t+=gb
+  } END {printf "%.0f", t}')
+
+  if [[ "$count" -gt 0 ]]; then
+    echo "$count $total_gb"
+  fi
+}
+
+# Model discovery: MLX (HuggingFace cache)
+_mlx_models_info() {
+  # Returns: "cached" if HF_HUB_CACHE exists with content, or empty
+  local hf_cache="${HF_HUB_CACHE:-$HOME/.cache/huggingface/hub}"
+  [[ -d "$hf_cache" && -n "$(find "$hf_cache" -type f 2>/dev/null | head -1)" ]] && echo "cached"
+}
+
+# Disk free space (GB)
+_disk_free_gb_numeric() {
+  local os="$1" size
+  case "$os" in
+    macos|linux)
+      size=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}' | sed 's/[GTM]i*//;s/[GTM]//')
+      # Rough numeric extraction; return as-is for now
+      echo "$size" | grep -o '^[0-9]*' || echo "?"
+      ;;
+    windows)
+      wmic logicaldisk where "name='${SYSTEMDRIVE:-C:}'" get FreeSpace 2>/dev/null | tail -1 | awk '{printf "%.0f", $1/1073741824}' || echo "?"
+      ;;
+    *)
+      echo "?"
+      ;;
+  esac
+}
+
 # JSON output
 _output_json() {
   local os="$1" ram_total ram_used cpu_model cpu_cores cpu_ghz disk_free tier benchmarked hostname username
@@ -310,15 +376,66 @@ _output_minimal() {
     "$(uname -s)" "$ram_total" "$cpu_cores" "$cpu_ghz" "$disk_free" "$tier"
 }
 
+# Full output: hardware + installed models
+_output_full() {
+  local os="$1" ram_total cpu_cores disk_free_human disk_free_gb lms_info ollama_info mlx_info
+
+  ram_total=$(_total_ram_gb "$os") || ram_total="N/A"
+  cpu_cores=$(_cpu_cores "$os")
+  disk_free_human=$(_disk_free_human "$os")
+  disk_free_gb=$(_disk_free_gb_numeric "$os")
+
+  # Show hardware (like human output)
+  _output_human "$os"
+
+  echo ""
+  echo "════════════════════════════════════════════════════"
+  echo "Installed Models & Runtime Environments"
+  echo "════════════════════════════════════════════════════"
+  echo ""
+
+  # LMS models
+  lms_info=$(_lms_models_info 2>/dev/null) || lms_info=""
+  if [[ -n "$lms_info" ]]; then
+    local lms_count lms_gb
+    read lms_count lms_gb <<< "$lms_info"
+    printf "LM Studio:     %s models  %s GB used\n" "$lms_count" "$lms_gb"
+  else
+    printf "LM Studio:     %s\n" "(not installed or no models)"
+  fi
+
+  # Ollama models
+  ollama_info=$(_ollama_models_info 2>/dev/null) || ollama_info=""
+  if [[ -n "$ollama_info" ]]; then
+    local ollama_count ollama_gb
+    read ollama_count ollama_gb <<< "$ollama_info"
+    printf "Ollama:        %s models  %s GB used\n" "$ollama_count" "$ollama_gb"
+  else
+    printf "Ollama:        %s\n" "(not installed or no models)"
+  fi
+
+  # MLX models (HF cache)
+  mlx_info=$(_mlx_models_info 2>/dev/null) || mlx_info=""
+  if [[ -n "$mlx_info" ]]; then
+    printf "MLX:           %s\n" "HuggingFace models cached locally"
+  else
+    printf "MLX:           %s\n" "(no HuggingFace cache)"
+  fi
+
+  echo ""
+  printf "Disk available for models:  %s GB free\n" "$disk_free_gb"
+  echo "════════════════════════════════════════════════════"
+}
 
 main() {
   local mode="human" os
 
   case "${1:-}" in
     --json)    mode="json" ;;
+    --full)    mode="full" ;;
     --minimal) mode="minimal" ;;
     -h|--help)
-      sed -n '2,19p' "$0" | sed 's/^# \?//'
+      sed -n '2,22p' "$0" | sed 's/^# \?//'
       exit 0
       ;;
     *)
@@ -334,6 +451,7 @@ main() {
 
   case "$mode" in
     json)    _output_json "$os" ;;
+    full)    _output_full "$os" ;;
     minimal) _output_minimal "$os" ;;
     human)   _output_human "$os" ;;
   esac

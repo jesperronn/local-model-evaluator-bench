@@ -12,7 +12,7 @@ When you learn or decide something worth remembering for next time, write it
 to the appropriate doc instead of (or in addition to) saving it as memory:
 
 - Policy/process decisions → `docs/WORKFLOW.md` (`## Conventions`)
-- Tool/adapter evaluation notes → `docs/tools/<name>.md`
+- Tool/adapter evaluation notes → `docs/tools/<name>.md` (e.g., [`docs/tools/hwprofile.md`](docs/tools/hwprofile.md) for hardware detection)
 - One-off "should we adopt X" investigations → `docs/DECISION-<topic>.md`
 - Ideas not yet implemented → `docs/FUTURE-IDEAS.md`
 - Setup/environment specifics → `docs/SETUP.md`

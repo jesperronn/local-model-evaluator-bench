@@ -11,9 +11,6 @@ bin/hwprofile
 # Machine-readable JSON (for tooling/CI)
 bin/hwprofile --json
 
-# Just the RAM tier (for scripting)
-bin/hwprofile --tier
-
 # Compact one-liner summary
 bin/hwprofile --minimal
 
@@ -41,7 +38,6 @@ The script is self-contained with no external dependencies beyond standard Unix 
 
 - **Human** (default): Pretty-printed table with all details
 - **JSON**: Machine-readable for tooling and CI pipelines
-- **Tier**: Outputs the nearest RAM tier (24/32/48/64/128 GB) — used internally by bootstrap scripts to select hardware recommendations
 - **Minimal**: Single-line summary
 
 ## Tuning tip (Apple Silicon)
