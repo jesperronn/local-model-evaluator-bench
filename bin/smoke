@@ -235,7 +235,9 @@ if [ "$RUNTIME" = "lms" ]; then
 
       if [[ "$_lms_output" == *"safetensors"* ]]; then
         err "  → model format not supported (safetensors)"
-        err "  → next: try a different model format, or run 'lms ls' to see available models"
+        err "  → next: check available runtimes with 'lms runtime ls'"
+        err "  →       or download a compatible runtime: 'lms runtime get'"
+        err "  →       then switch with 'lms runtime select'"
       elif [[ "$_lms_output" == *"not found"* ]] || [[ "$_lms_output" == *"No such"* ]]; then
         err "  → model not found in LM Studio"
         err "  → next: run 'lms ls' to list available models, or add the model via the LM Studio GUI"
@@ -250,7 +252,9 @@ if [ "$RUNTIME" = "lms" ]; then
         fi
       else
         err "  → error: $(printf '%s' "$_lms_output" | head -1 | cut -c1-100)"
-        err "  → next: check 'lms ls' or load it in the LM Studio GUI"
+        err "  → next: check available models with 'lms ls'"
+        err "  →       check available runtimes with 'lms runtime ls'"
+        err "  →       or load the model in the LM Studio GUI"
         die "model load failed"
       fi
     fi
