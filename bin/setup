@@ -33,6 +33,31 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+source "$HERE/bin/lib/model-profiles.sh"
+
+# ── Hardware detection ───────────────────────────────────────────────────────
+detect_system_ram_gb() {
+  case "$(uname -s)" in
+    Darwin) sysctl -n hw.memsize 2>/dev/null | awk '{printf "%d", $1 / 1024 / 1024 / 1024}';;
+    Linux)  grep MemTotal /proc/meminfo 2>/dev/null | awk '{printf "%d", $2 / 1024 / 1024}';;
+    *)      echo "0";;
+  esac
+}
+
+suggest_profile_for_ram() {
+  local ram_gb="$1"
+  if [ "$ram_gb" -ge 128 ]; then
+    echo "128gb"
+  elif [ "$ram_gb" -ge 64 ]; then
+    echo "64gb"
+  elif [ "$ram_gb" -ge 32 ]; then
+    echo "32gb"
+  elif [ "$ram_gb" -ge 24 ]; then
+    echo "24gb"
+  else
+    echo ""
+  fi
+}
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 show_help() {
@@ -573,6 +598,22 @@ if [ "$STATUS_ONLY" = 1 ]; then
   setup_hf
   echo
   show_models
+  echo
+
+  # Detect hardware and suggest a profile
+  info "Quick start — hardware-aware model setup"
+  ram_gb="$(detect_system_ram_gb)"
+  if [ -n "$ram_gb" ] && [ "$ram_gb" -gt 0 ]; then
+    suggested_profile="$(suggest_profile_for_ram "$ram_gb")"
+    if [ -n "$suggested_profile" ]; then
+      printf '  System RAM: %sGB  →  Profile: %s\n' "$ram_gb" "$suggested_profile"
+      desc="$(profile_description "$suggested_profile")"
+      printf '  %s\n' "$desc"
+      echo
+      printf '  Next step: bin/setup --model %s\n' "$suggested_profile"
+      echo "    (shows which models to download, then run again to verify)"
+    fi
+  fi
   exit 0
 fi
 
