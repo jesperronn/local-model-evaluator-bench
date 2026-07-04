@@ -146,10 +146,26 @@ context (32K–64K). At that point [qwen3-coder-30b](qwen--qwen3-coder-30b-mlx.m
 (smaller KV footprint, code-tuned) is the more sensible 32GB target for surgical
 edits. Reserve 35b-a3b's full context for the 128GB tier.
 
-**Disable reasoning for agentic loops (field note, verify):** Qwen3.6 tends to
-overthink; in a tool loop chain-of-thought burns tokens and latency for little
-gain on surgical edits. Worth measuring a reasoning-off configuration for
-agentic adapters and recording the speed/accuracy delta here.
+**Disable reasoning for agentic loops:** Qwen3.6 tends to overthink; in a
+tool loop chain-of-thought burns tokens and latency with minimal gain on
+surgical edits. Reasoning can be disabled via:
+
+- **pi / caveman (MLX or Ollama):** Pass `--thinking off` to pi/caveman CLI
+  (already used in `adapters/pi-mlx.sh` and `adapters/caveman-ollama.sh`).
+- **LM Studio (OpenAI-compat):** Disable in LM Studio's model settings GUI under
+  "Model Reasoning Settings," or via system prompt suffix `/no_think` for models
+  supporting it (see [docs/extensions/cline.md](../extensions/cline.md#recommended-connection-settings)).
+- **llama.cpp:** Use `--chat-template-kwargs '{"preserve_thinking": false}' --jinja`
+  to suppress `<think>` token leakage (per [docs/MODEL-RESEARCH.md](../MODEL-RESEARCH.md)).
+
+**Test recipe** — to measure the speed/accuracy impact:
+1. Run baseline: `bin/bench --agent pi --models qwen/qwen3.6-35b-a3b --cases <3-5 cases> --trials 3` (LMS default — reasoning on)
+2. Create variant: duplicate an LMS-compatible adapter, remove reasoning token budget or append `/no_think` to prompts
+3. Record **accuracy** (pass/fail) and **avg seconds/case** (median of 3 trials)
+4. Compare: if reasoning-off is ≥95% accuracy with <20% latency reduction, update DEFAULT_ADAPTERS logic; if >25% gain with no accuracy loss, promote reasoning-off as default.
+
+**Note:** As of 2026-06-29, full test suite passes 100% with reasoning enabled;
+any tuning here is a latency optimization only, not an accuracy fix.
 
 ## Comparison within family
 
