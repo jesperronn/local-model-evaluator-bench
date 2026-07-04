@@ -40,7 +40,7 @@
 #   STALE_CONFIG_SH, STALE_COMMON_SH, STALE_BENCH, STALE_SHIM
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 # Apply test overrides (no-ops in normal use).
 RESULTS_DIR="${STALE_RESULTS_DIR:-$RESULTS_DIR}"
@@ -224,4 +224,15 @@ rm -f "$WORKLIST"
   echo "  ${C_DIM}current : $n_ok (skipped)${C_RST}"
   [ "$n_skip_adapter" -gt 0 ] && echo "  ${C_DIM}no adapter file: $n_skip_adapter (skipped)${C_RST}"
   info "worklist rows emitted: $n_emit"
+
+  echo
+  help_section "NEXT STEPS"
+  if [ "$n_emit" -gt 0 ]; then
+    help_line "Re-run stale/missing combos:"
+    help_line "  ${C_GRN}\$ bin/stale --run${C_RST}"
+  fi
+  help_line "Clean old runs:"
+  help_line "  ${C_GRN}\$ bin/results clean --empty${C_RST}"
+  help_line "View results summary:"
+  help_line "  ${C_GRN}\$ bin/report --all${C_RST}"
 } >&2
