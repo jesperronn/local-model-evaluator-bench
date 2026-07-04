@@ -8,14 +8,38 @@
 #   bin/cards fix   --card X --via model  [claude|lms]       = bin/fix-card
 #   bin/cards fix   --card X --via agent  [opencode-lms]     = bin/sweep-cards
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
-usage() { sed -n '2,10p' "$0"; exit 0; }
+usage() {
+  help_header "cards" "grouped entry point for the card-conformance lifecycle"
+
+  help_section "USAGE"
+  help_line "  cards SUBCOMMAND [OPTIONS]"
+
+  help_section "SUBCOMMANDS"
+  help_command "lint" "check card conformance (delegates to bin/lint-cards)"
+  help_command "fix" "fix a card with model or agent (delegates to bin/fix-card or bin/sweep-cards)"
+
+  help_section "LINT SUBCOMMAND"
+  help_line "  cards lint [--type model|tool|runtime] [cards...]"
+  help_line "  Validate cards against conformance spec."
+
+  help_section "FIX SUBCOMMAND"
+  help_line "  cards fix --card X --via model [backend]"
+  help_line "  cards fix --card X --via agent [adapter]"
+  help_line "  Fix a card using either model-based or agent-based approach."
+
+  help_section "OPTIONS"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  exit 0
+}
 
 SUB="${1:-}"; shift 2>/dev/null || true
 case "$SUB" in
   lint)
-    exec "$HERE/lint-cards" "$@"
+    exec "$HERE/bin/lint-cards" "$@"
     ;;
   fix)
     VIA=""; REST=()
@@ -30,13 +54,13 @@ case "$SUB" in
         BACKEND="${REST[0]:-}"
         if [ -n "$BACKEND" ] && [[ "$BACKEND" != --* ]]; then
           REST=("${REST[@]:1}")
-          exec "$HERE/fix-card" --via "$BACKEND" "${REST[@]}"
+          exec "$HERE/bin/fix-card" --via "$BACKEND" "${REST[@]}"
         else
-          exec "$HERE/fix-card" "${REST[@]}"
+          exec "$HERE/bin/fix-card" "${REST[@]}"
         fi
         ;;
       agent)
-        exec "$HERE/sweep-cards" "${REST[@]}"
+        exec "$HERE/bin/sweep-cards" "${REST[@]}"
         ;;
       *)
         echo "usage: bin/cards fix --via model|agent [...]" >&2; exit 1;;
