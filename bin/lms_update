@@ -208,4 +208,14 @@ if [ "$DRY_RUN" -eq 0 ] && [ "${#stale_dirs[@]}" -gt 0 ]; then
     hf download "$hf_repo" --local-dir "${MODELS_ROOT}/${name}"
     echo
   done
+
+  # Show next steps after download
+  echo
+  source "$HERE/bin/lib/help.sh"
+  help_section "NEXT STEPS"
+  help_line "Verify adapters with updated models:"
+  help_line "  ${C_GRN}\$ bin/smoke${C_RST}"
+  help_line ""
+  help_line "Run benchmark with updated models:"
+  help_line "  ${C_GRN}\$ bin/bench --agent aider --models qwen/qwen3.6-27b${C_RST}"
 fi
