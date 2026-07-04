@@ -1,33 +1,163 @@
 #!/usr/bin/env bash
-# bin/hwprofile — detect total RAM and bucket it into a benchmarked tier.
+# hwprofile — comprehensive hardware detection for local agent benchmarking.
 #
-# Pure detection, no side effects. Phase-3 (port) building block: other
-# scripts (bin/bootstrap-machine, once it exists) call this to decide which
-# tier of docs/HARDWARE-RECOMMENDATIONS.md / profile.json applies here.
-# See docs/PLAN-MULTI-MACHINE-PORTABILITY.md.
+# Detects machine specs to help participants understand their capacity for
+# running local models. No elevated permissions required. Works on macOS,
+# Linux, and Windows (Git Bash/WSL/Cygwin).
 #
 # Usage:
-#   bin/hwprofile          human-readable: total RAM + nearest tier
-#   bin/hwprofile --json   {"ram_gb":N,"tier":N,"benchmarked":true|false}
-#   bin/hwprofile --tier   just the tier number (for scripting)
+#   hwprofile              human-readable detailed specs + RAM tier
+#   hwprofile --json       machine-readable JSON for tooling
+#   hwprofile --tier       just the RAM tier number (for scripting)
+#   hwprofile --minimal    compact one-liner
+#
+# Also buckets total RAM into benchmarked tiers (24/32/48/64/128 GB).
+# When distributed as a gist: curl <url> | bash
 #
 set -uo pipefail
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Tiers we define. "benchmarked" tiers have real data in
-# docs/HARDWARE-RECOMMENDATIONS.md; others are placeholders until T12 lands.
+# Tiers: "benchmarked" tiers have real data; others are placeholders.
 TIERS=(24 32 48 64 128)
 BENCHMARKED_TIERS=(32 128)
 
-_total_ram_gb() {
-  local bytes
-  bytes=$(sysctl -n hw.memsize 2>/dev/null) || { echo "0"; return 1; }
-  awk -v b="$bytes" 'BEGIN { printf "%.0f", b/1073741824 }'
+# OS detection
+_detect_os() {
+  case "$(uname -s)" in
+    Darwin)  echo "macos" ;;
+    Linux)   echo "linux" ;;
+    MINGW*|MSYS*|CYGWIN*)  echo "windows" ;;
+    *)       echo "unknown" ;;
+  esac
 }
 
+# RAM: total (GB)
+_total_ram_gb() {
+  local os="$1" bytes
+  case "$os" in
+    macos)
+      bytes=$(sysctl -n hw.memsize 2>/dev/null) || return 1
+      awk -v b="$bytes" 'BEGIN { printf "%.0f", b/1073741824 }'
+      ;;
+    linux)
+      awk '/^MemTotal:/ {printf "%.0f", $2/1048576}' /proc/meminfo 2>/dev/null || return 1
+      ;;
+    windows)
+      wmic OS get TotalVisibleMemorySize 2>/dev/null | tail -1 | awk '{printf "%.0f", $1/1048576}' || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# RAM: used (GB) - best-effort
+_used_ram_gb() {
+  local os="$1" total free
+  case "$os" in
+    macos)
+      total=$(sysctl -n hw.memsize 2>/dev/null) || return 1
+      free=$(vm_stat 2>/dev/null | awk '/Pages free:/ {print $3}' | tr -d '.')
+      [[ -z "$free" ]] && return 1
+      awk -v t="$total" -v f="$free" 'BEGIN {printf "%.0f", (t - f*4096)/1073741824}'
+      ;;
+    linux)
+      awk '/^MemAvailable:/ {avail=$2} /^MemTotal:/ {total=$2} END {printf "%.0f", (total-avail)/1048576}' /proc/meminfo 2>/dev/null || return 1
+      ;;
+    windows)
+      wmic OS get FreePhysicalMemory 2>/dev/null | tail -1 | awk -v total="$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tail -1)" '{printf "%.0f", (total-$1)/1048576}' || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# CPU: model name
+_cpu_model() {
+  local os="$1"
+  case "$os" in
+    macos)
+      sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "Unknown"
+      ;;
+    linux)
+      grep "^model name" /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs || echo "Unknown"
+      ;;
+    windows)
+      wmic CPU get Name 2>/dev/null | tail -1 | xargs || echo "Unknown"
+      ;;
+    *)
+      echo "Unknown"
+      ;;
+  esac
+}
+
+# CPU: core count
+_cpu_cores() {
+  local os="$1"
+  case "$os" in
+    macos)
+      sysctl -n hw.ncpu 2>/dev/null || echo "unknown"
+      ;;
+    linux)
+      nproc 2>/dev/null || grep -c "^processor" /proc/cpuinfo 2>/dev/null || echo "unknown"
+      ;;
+    windows)
+      wmic CPU get NumberOfCores 2>/dev/null | tail -1 | xargs || echo "unknown"
+      ;;
+    *)
+      echo "unknown"
+      ;;
+  esac
+}
+
+# CPU: base frequency (GHz) - Apple Silicon may not report this
+_cpu_freq_ghz() {
+  local os="$1" freq
+  case "$os" in
+    macos)
+      freq=$(sysctl -n hw.cpufrequency_max 2>/dev/null)
+      [[ -n "$freq" ]] && awk -v f="$freq" 'BEGIN {printf "%.1f", f/1000000000}' || echo "N/A"
+      ;;
+    linux)
+      grep "^cpu MHz" /proc/cpuinfo 2>/dev/null | head -1 | awk '{printf "%.1f", $2/1000}' || echo "N/A"
+      ;;
+    windows)
+      wmic CPU get MaxClockSpeed 2>/dev/null | tail -1 | awk '{printf "%.1f", $1/1000}' || echo "N/A"
+      ;;
+    *)
+      echo "N/A"
+      ;;
+  esac
+}
+
+# Disk: free space (human-readable)
+_disk_free_human() {
+  local os="$1" size
+  case "$os" in
+    macos|linux)
+      df -h / 2>/dev/null | tail -1 | awk '{print $4}'
+      ;;
+    windows)
+      local drive="${SYSTEMDRIVE:-C:}"
+      wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tail -1 | awk '{printf "%.0fGB", $1/1073741824}'
+      ;;
+    *)
+      echo "unknown"
+      ;;
+  esac
+}
+
+# Username and hostname
+_username() {
+  echo "${USER:-$(whoami)}"
+}
+
+_hostname() {
+  hostname 2>/dev/null || echo "unknown"
+}
+
+# Nearest tier by absolute distance; ties favor the smaller tier (conservative)
 _nearest_tier() {
-  # Nearest defined tier by absolute distance; ties favor the smaller tier
-  # (conservative: under-provision, don't assume headroom that isn't there).
   local ram="$1" best="" best_dist=""
   for t in "${TIERS[@]}"; do
     local dist=$(( ram > t ? ram - t : t - ram ))
@@ -41,47 +171,169 @@ _nearest_tier() {
 _is_benchmarked() {
   local tier="$1"
   for t in "${BENCHMARKED_TIERS[@]}"; do
-    [[ "$t" == "$tier" ]] && { echo "true"; return; }
+    [[ "$t" == "$tier" ]] && echo "true" && return
   done
   echo "false"
 }
 
+# Detect Apple Silicon (macOS + "Apple" in CPU model)
+_is_apple_silicon() {
+  local os="$1" cpu_model="$2"
+  [[ "$os" == "macos" ]] && [[ "$cpu_model" =~ Apple ]] && echo "true" || echo "false"
+}
+
+# Compute recommended GPU wired memory cap (MB) for Apple Silicon
+# Leaves 4 GB for the OS; only suggests if total RAM >= 16 GB
+_gpu_wired_mem_cap_mb() {
+  local ram_gb="$1"
+  if [[ "$ram_gb" != "N/A" ]] && (( ram_gb >= 16 )); then
+    awk -v gb="$ram_gb" 'BEGIN { printf "%.0f", (gb - 4) * 1024 }'
+  else
+    echo ""
+  fi
+}
+
+# JSON output
+_output_json() {
+  local os="$1" ram_total ram_used cpu_model cpu_cores cpu_ghz disk_free tier benchmarked hostname username
+
+  ram_total=$(_total_ram_gb "$os") || ram_total="N/A"
+  ram_used=$(_used_ram_gb "$os") || ram_used="N/A"
+  cpu_model=$(_cpu_model "$os")
+  cpu_cores=$(_cpu_cores "$os")
+  cpu_ghz=$(_cpu_freq_ghz "$os")
+  disk_free=$(_disk_free_human "$os")
+  hostname=$(_hostname)
+  username=$(_username)
+
+  [[ "$ram_total" != "N/A" ]] && tier=$(_nearest_tier "$ram_total") || tier="N/A"
+  [[ "$tier" != "N/A" ]] && benchmarked=$(_is_benchmarked "$tier") || benchmarked="false"
+
+  # Escape quotes in strings
+  cpu_model="${cpu_model//\"/\\\"}"
+
+  printf '{'
+  printf '"os":"%s",' "$os"
+  printf '"hostname":"%s",' "$hostname"
+  printf '"username":"%s",' "$username"
+  printf '"ram_gb":"%s",' "$ram_total"
+  printf '"ram_used_gb":"%s",' "$ram_used"
+  printf '"cpu":"%s",' "$cpu_model"
+  printf '"cpu_cores":%s,' "$cpu_cores"
+  printf '"cpu_ghz":"%s",' "$cpu_ghz"
+  printf '"disk_free":"%s",' "$disk_free"
+  printf '"ram_tier_gb":"%s",' "$tier"
+  printf '"tier_benchmarked":%s' "$benchmarked"
+  printf '}\n'
+}
+
+# Human-readable output
+_output_human() {
+  local os="$1" ram_total ram_used cpu_model cpu_cores cpu_ghz disk_free tier benchmarked hostname username is_apple_silicon gpu_cap_mb
+
+  ram_total=$(_total_ram_gb "$os") || ram_total="N/A"
+  ram_used=$(_used_ram_gb "$os") || ram_used="N/A"
+  cpu_model=$(_cpu_model "$os")
+  cpu_cores=$(_cpu_cores "$os")
+  cpu_ghz=$(_cpu_freq_ghz "$os")
+  disk_free=$(_disk_free_human "$os")
+  hostname=$(_hostname)
+  username=$(_username)
+
+  [[ "$ram_total" != "N/A" ]] && tier=$(_nearest_tier "$ram_total") || tier="N/A"
+  [[ "$tier" != "N/A" ]] && benchmarked=$(_is_benchmarked "$tier") || benchmarked="no"
+  [[ "$benchmarked" == "true" ]] && benchmarked="yes" || benchmarked="no"
+
+  echo "════════════════════════════════════════════════════"
+  echo "Hardware Profile — Local Model Agent Benchmarking"
+  echo "════════════════════════════════════════════════════"
+  echo ""
+  echo "Machine Identity:"
+  printf "  Hostname:            %s\n" "$hostname"
+  printf "  Username:            %s\n" "$username"
+  printf "  OS:                  %s\n" "$(uname -s)"
+  echo ""
+  echo "Memory:"
+  printf "  Total RAM:           %s GB\n" "$ram_total"
+  printf "  RAM Used:            %s GB\n" "$ram_used"
+  echo ""
+  echo "Processor:"
+  printf "  Model:               %s\n" "$cpu_model"
+  printf "  Cores:               %s\n" "$cpu_cores"
+  printf "  Base Frequency:      %s GHz\n" "$cpu_ghz"
+  echo ""
+  echo "Storage:"
+  printf "  Free Space:          %s\n" "$disk_free"
+  echo ""
+  echo "Benchmark Tier:"
+  printf "  Nearest RAM Tier:    %s GB\n" "$tier"
+  printf "  Data Available:      %s (see docs/HARDWARE-RECOMMENDATIONS.md)\n" "$benchmarked"
+  echo ""
+
+  # Apple Silicon tuning tip
+  is_apple_silicon=$(_is_apple_silicon "$os" "$cpu_model")
+  if [[ "$is_apple_silicon" == "true" ]]; then
+    gpu_cap_mb=$(_gpu_wired_mem_cap_mb "$ram_total")
+    if [[ -n "$gpu_cap_mb" ]]; then
+      echo "Tuning Tip (Apple Silicon):"
+      echo "  Raise GPU memory cap for larger models/contexts (resets on reboot):"
+      printf "    sudo sysctl iogpu.wired_mem_breakpoint_cap=%s\n" "$gpu_cap_mb"
+      echo "  Close memory-heavy apps (Chrome, Docker) before deep agent loops."
+    fi
+  fi
+
+  echo "════════════════════════════════════════════════════"
+}
+
+# Minimal one-liner output
+_output_minimal() {
+  local os="$1" ram_total cpu_cores cpu_ghz disk_free tier
+
+  ram_total=$(_total_ram_gb "$os") || ram_total="N/A"
+  cpu_cores=$(_cpu_cores "$os")
+  cpu_ghz=$(_cpu_freq_ghz "$os")
+  disk_free=$(_disk_free_human "$os")
+  [[ "$ram_total" != "N/A" ]] && tier=$(_nearest_tier "$ram_total") || tier="N/A"
+
+  printf "%s | %s GB RAM | %s cores @ %s GHz | %s free | Tier: %s GB\n" \
+    "$(uname -s)" "$ram_total" "$cpu_cores" "$cpu_ghz" "$disk_free" "$tier"
+}
+
+# Just the tier for scripting
+_output_tier() {
+  local os="$1" ram_total
+
+  ram_total=$(_total_ram_gb "$os") || { echo "error" >&2; return 1; }
+  _nearest_tier "$ram_total"
+}
+
 main() {
-  local mode="human"
+  local mode="human" os
+
   case "${1:-}" in
-    --json) mode="json" ;;
-    --tier) mode="tier" ;;
+    --json)    mode="json" ;;
+    --tier)    mode="tier" ;;
+    --minimal) mode="minimal" ;;
     -h|--help)
-      sed -n '2,15p' "$0" | sed 's/^# \?//'
+      sed -n '2,19p' "$0" | sed 's/^# \?//'
       exit 0
+      ;;
+    *)
       ;;
   esac
 
-  local ram tier benchmarked
-  ram=$(_total_ram_gb)
-  if [[ "$ram" == "0" ]]; then
-    echo "hwprofile: could not read hw.memsize (not macOS?)" >&2
+  os=$(_detect_os)
+
+  if [[ "$os" == "unknown" ]]; then
+    echo "hwprofile: Unable to detect OS. macOS, Linux, or Windows (Git Bash/WSL/Cygwin) required." >&2
     exit 1
   fi
-  tier=$(_nearest_tier "$ram")
-  benchmarked=$(_is_benchmarked "$tier")
 
   case "$mode" in
-    json)
-      printf '{"ram_gb":%s,"tier":%s,"benchmarked":%s}\n' "$ram" "$tier" "$benchmarked"
-      ;;
-    tier)
-      echo "$tier"
-      ;;
-    human)
-      echo "Total RAM:   ${ram} GB"
-      echo "Nearest tier: ${tier} GB"
-      if [[ "$benchmarked" == "true" ]]; then
-        echo "Benchmarked: yes — see docs/HARDWARE-RECOMMENDATIONS.md"
-      else
-        echo "Benchmarked: no — this tier has no recorded results yet (TASKS.md T12)"
-      fi
-      ;;
+    json)    _output_json "$os" ;;
+    tier)    _output_tier "$os" ;;
+    minimal) _output_minimal "$os" ;;
+    human)   _output_human "$os" ;;
   esac
 }
 
