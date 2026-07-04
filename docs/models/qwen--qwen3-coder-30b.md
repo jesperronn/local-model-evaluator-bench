@@ -43,6 +43,33 @@ One of the top-performing models in the suite. 2026-06-29 full sweep on LMS: aid
 | cline | not run | — |
 | opencode | not run | — |
 
+## Thinking level / reasoning
+
+**Model has reasoning capability:** Qwen3-Coder-30B includes native chain-of-thought
+via `<think>` tokens in its chat template (accessible to all runners: LM Studio,
+Ollama, llama.cpp, MLX, pi, caveman).
+
+**Reasoning disabled by default in agentic adapters** — pi and caveman CLI adapters
+pass `--thinking off`. LM Studio adapters can disable via "Model Reasoning Settings"
+GUI or `/no_think` system-prompt directives.
+
+**Why:** In agentic tool-loop workflows, reasoning burns tokens and latency with
+minimal accuracy gain on surgical edits (97%+ accuracy already achieved at
+reasoning-off). **Workarounds needed if enabling:** See
+[docs/troubleshooting-qwen-reasoning-loops.md](../troubleshooting-qwen-reasoning-loops.md)
+for attention reinforcement loop mitigation (temperature 0.6–0.7, penalties 0.1–0.3,
+fresh context, loop-blocking prompts).
+
+**Recommended hyperparameter overrides if using reasoning:**
+```bash
+# Via config.sh or agent config apply:
+# ADAPTER_DEFAULT_TEMPERATURE=0.65       # 0.6–0.7, avoid 0 (causes rigid loops)
+# ADAPTER_DEFAULT_PRESENCE_PENALTY=0.15  # 0.1–0.3, penalizes repetitive tokens
+# ADAPTER_DEFAULT_FREQUENCY_PENALTY=0.15 # Mitigates "Wait..." / "Actually..." loops
+```
+
+**Baseline (reasoning off, current default):** 97%+ accuracy; 48s avg per case.
+
 ## Timing observations
 
 - **aider:** avg 11s, range 6–24s. Fastest adapter by far. MoE 3B active makes this model extremely responsive.

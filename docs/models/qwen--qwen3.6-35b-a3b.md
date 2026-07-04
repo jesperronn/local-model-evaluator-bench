@@ -138,6 +138,47 @@ Four new adapters tested on LMS runtime: goose, interpreter, pi (all 36/36 100%,
 
 **LMS entry history:** removed 2026-06-10 (replaced by qwen3.6-27b); re-added 2026-06-18 after qwen3.6-27b was removed for being strictly dominated (35.7% accuracy, 253s avg vs 94%+ and 48s avg for this model).
 
+## Thinking level / reasoning
+
+**Model has reasoning capability:** Qwen3.6 includes native chain-of-thought via
+`<think>` tokens in its chat template (accessible to all runners: LM Studio, Ollama,
+llama.cpp, MLX, pi, caveman).
+
+**Reasoning disabled by default in agentic adapters** for this benchmark — see
+[adapters/pi-mlx.sh](../../adapters/pi-mlx.sh) and
+[adapters/caveman-ollama.sh](../../adapters/caveman-ollama.sh) which pass
+`--thinking off` to the CLI. LM Studio adapters strip reasoning via `/no_think`
+system-prompt directives or "Model Reasoning Settings" GUI toggle.
+
+**Why:** In agentic tool-loop workflows, reasoning burns tokens and latency with
+minimal accuracy gain on surgical edits (100% accuracy already achieved at
+reasoning-off). The deeper issue: Qwen3.6's "attention reinforcement trap"
+causes reasoning to get stuck in **infinite loops** of self-doubt and
+re-verification when iterating on code edits — see
+[docs/troubleshooting-qwen-reasoning-loops.md](../troubleshooting-qwen-reasoning-loops.md).
+
+**If you enable reasoning locally:**
+- **Known issue:** Risk of attention reinforcement loops (endless re-verification
+  of the same concern). **Workarounds needed:** fresh context, temperature
+  0.6–0.7 (not 0), presence/frequency penalties 0.1–0.3, loop-blocking prompt
+  directives. See [troubleshooting guide](../troubleshooting-qwen-reasoning-loops.md).
+- **LM Studio (OpenAI-compatible):** Disable in model settings GUI under
+  "Model Reasoning Settings," or append `/no_think` to system prompt.
+- **llama.cpp:** Use `--chat-template-kwargs '{"preserve_thinking": false}' --jinja`
+  to suppress `<think>` token leakage.
+- **pi / caveman CLI:** Pass `--thinking on` (default is `off`).
+
+**Recommended hyperparameter overrides if using reasoning:**
+```bash
+# Via config.sh or agent config apply:
+# ADAPTER_DEFAULT_TEMPERATURE=0.65       # 0.6–0.7, avoid 0 (causes rigid loops)
+# ADAPTER_DEFAULT_PRESENCE_PENALTY=0.15  # 0.1–0.3, penalizes repetitive tokens
+# ADAPTER_DEFAULT_FREQUENCY_PENALTY=0.15 # Mitigates "Wait..." / "Actually..." loops
+```
+
+**Baseline (reasoning off, current default):** Full 100% accuracy; 48s avg per case.
+Any reasoning-on tuning should target a latency reduction without accuracy loss.
+
 ## 32GB caveat & tuning notes
 
 **Memory on 32GB:** at its max 256K context this model needs ~26.6GB, leaving
@@ -145,27 +186,6 @@ almost no headroom on a 32GB machine. It runs there only with heavily reduced
 context (32K–64K). At that point [qwen3-coder-30b](qwen--qwen3-coder-30b-mlx.md)
 (smaller KV footprint, code-tuned) is the more sensible 32GB target for surgical
 edits. Reserve 35b-a3b's full context for the 128GB tier.
-
-**Disable reasoning for agentic loops:** Qwen3.6 tends to overthink; in a
-tool loop chain-of-thought burns tokens and latency with minimal gain on
-surgical edits. Reasoning can be disabled via:
-
-- **pi / caveman (MLX or Ollama):** Pass `--thinking off` to pi/caveman CLI
-  (already used in `adapters/pi-mlx.sh` and `adapters/caveman-ollama.sh`).
-- **LM Studio (OpenAI-compat):** Disable in LM Studio's model settings GUI under
-  "Model Reasoning Settings," or via system prompt suffix `/no_think` for models
-  supporting it (see [docs/extensions/cline.md](../extensions/cline.md#recommended-connection-settings)).
-- **llama.cpp:** Use `--chat-template-kwargs '{"preserve_thinking": false}' --jinja`
-  to suppress `<think>` token leakage (per [docs/MODEL-RESEARCH.md](../MODEL-RESEARCH.md)).
-
-**Test recipe** — to measure the speed/accuracy impact:
-1. Run baseline: `bin/bench --agent pi --models qwen/qwen3.6-35b-a3b --cases <3-5 cases> --trials 3` (LMS default — reasoning on)
-2. Create variant: duplicate an LMS-compatible adapter, remove reasoning token budget or append `/no_think` to prompts
-3. Record **accuracy** (pass/fail) and **avg seconds/case** (median of 3 trials)
-4. Compare: if reasoning-off is ≥95% accuracy with <20% latency reduction, update DEFAULT_ADAPTERS logic; if >25% gain with no accuracy loss, promote reasoning-off as default.
-
-**Note:** As of 2026-06-29, full test suite passes 100% with reasoning enabled;
-any tuning here is a latency optimization only, not an accuracy fix.
 
 ## Comparison within family
 
