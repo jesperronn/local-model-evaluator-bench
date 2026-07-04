@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# bin/verify-model-availability — reproducibly test if models exist on HuggingFace
+#
+# Usage:
+#   bin/verify-model-availability <model1> [model2] ...
+#   bin/verify-model-availability --tier 13-14b
+#
+# This script tests models by attempting `lms get` with a short timeout.
+# A model "exists" if lms starts resolving (not if it fails immediately).
+# Results are reproducible and can be re-run to verify the same model names.
+
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Predefined model tiers
+declare -A TIERS=(
+  [13-14b]="meta-llama/Llama-3.1-8B-Instruct mistralai/Mistral-7B-Instruct-v0.3 mistralai/Mistral-Nemo-Instruct-2407 microsoft/phi-4 deepseek-ai/deepseek-coder-6.7b-instruct meta-llama/CodeLlama-13b-instruct-hf"
+)
+
+show_help() {
+  cat << 'HELP'
+Usage: bin/verify-model-availability [OPTIONS] <model1> [model2] ...
+       bin/verify-model-availability --tier <name>
+
+OPTIONS:
+  --tier NAME    Test predefined tier (available: 13-14b)
+  -h, --help     Show this message
+
+EXAMPLES:
+  # Test individual models
+  $ bin/verify-model-availability meta-llama/Llama-3.1-8B-Instruct
+
+  # Test a preset tier
+  $ bin/verify-model-availability --tier 13-14b
+
+Each model is tested by attempting `lms get <model>` with a 5-second timeout.
+If lms starts resolving (not instant error), the model exists and is accessible.
+
+IMPORTANT: This is a reproducible verification. Copy the command and model list
+if you need to test again later.
+HELP
+}
+
+if [ $# -eq 0 ]; then
+  show_help
+  exit 0
+fi
+
+models=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) show_help; exit 0;;
+    --tier)
+      tier="$2"
+      if [ -z "${TIERS[$tier]:-}" ]; then
+        echo "Unknown tier: $tier"
+        exit 1
+      fi
+      models=( ${TIERS[$tier]} )
+      shift 2
+      ;;
+    *) models+=("$1"); shift;;
+  esac
+done
+
+echo "Verifying model availability via 'lms get' (5s timeout per model)"
+echo "Command for reproducibility:"
+echo "  bin/verify-model-availability $(printf '%s ' "${models[@]}")"
+echo
+
+pass=0
+fail=0
+
+for model in "${models[@]}"; do
+  printf "Testing %s ... " "$model"
+
+  # Run lms get with 5s timeout. Capture both stdout and stderr.
+  # A successful resolve will show "Resolving download plan..."
+  # A missing model shows "The artifact does not exist"
+  output=$(timeout 5 lms get "$model" 2>&1 || true)
+
+  if echo "$output" | grep -q "The artifact does not exist"; then
+    echo "✗ NOT FOUND"
+    echo "    $(echo "$output" | grep "The artifact does not exist" | head -1)"
+    ((fail++))
+  elif echo "$output" | grep -q "do not have permission\|permission denied"; then
+    echo "✗ NO PERMISSION"
+    echo "    $(echo "$output" | grep -E "permission|Permission" | head -1)"
+    ((fail++))
+  elif echo "$output" | grep -qE "Error:.*Failed to resolve"; then
+    echo "✗ RESOLUTION FAILED"
+    echo "    $(echo "$output" | grep -E "Error:.*Failed" | head -1)"
+    ((fail++))
+  elif echo "$output" | tail -1 | grep -q "Error:"; then
+    echo "✗ ERROR"
+    echo "    $(echo "$output" | tail -1)"
+    ((fail++))
+  else
+    # No error at end = likely succeeded (lms downloads in background)
+    echo "✓ FOUND"
+    ((pass++))
+  fi
+done
+
+echo
+echo "Summary: $pass found, $fail not found"
+[ $fail -eq 0 ] && exit 0 || exit 1
