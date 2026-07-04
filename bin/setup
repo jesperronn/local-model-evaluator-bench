@@ -520,8 +520,17 @@ get_agent_config_guidance() {
       printf "  Configure API endpoint and model settings.\n"
       ;;
     pi)
-      printf "  pi uses --provider lmstudio and --model flags inline (no persistent config).\n"
-      printf "  Shares ~/.pi/agent/models.json with caveman — avoid running both concurrently.\n"
+      printf "  pi requires a model ID at runtime (no persistent config).\n"
+      printf "  Available models in LM Studio:\n"
+      printf "    \$ lms ls           (list all models)\n"
+      printf "    \$ lms loaded       (show currently loaded model)\n"
+      printf "\n"
+      printf "  To evaluate with pi, use:\n"
+      printf "    \$ bin/eval-agent --via lms --model <model-id>\n"
+      printf "\n"
+      printf "  Example:\n"
+      printf "    \$ lms ls          # find a model ID like qwen/qwen3.6-35b\n"
+      printf "    \$ bin/eval-agent --via lms --model qwen/qwen3.6-35b\n"
       ;;
     forge)
       printf "  Forge uses OPENAI_API_BASE / OPENAI_API_KEY env vars (no persistent config).\n"
@@ -564,7 +573,7 @@ show_agent_status() {
   info "Next steps:"
   printf "  1. Configure the agent per guidance above\n"
   printf "  2. Test with: bin/smoke --agent %s --dry-run\n" "$agent"
-  printf "  3. Run evaluation: bin/eval --agent %s\n" "$agent"
+  printf "  3. Run evaluation: bin/eval-agent --via lms --model <model-id>\n"
 }
 
 # ── Model status ──────────────────────────────────────────────────────────────
