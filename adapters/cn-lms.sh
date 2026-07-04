@@ -43,15 +43,36 @@ models:
       - tool_use
 EOF
 
+# Forward tuned sampling params to the LM Studio API via Continue's
+# defaultCompletionOptions. Continue is the only LMS adapter that can carry
+# per-request temperature/penalties (pi/cline expose no such CLI flags), so the
+# ADAPTER_DEFAULT_* knobs from config.sh are honoured here. Penalties are only
+# emitted when set (non-empty) — keeps baseline runs byte-identical to before.
+{
+  echo "    defaultCompletionOptions:"
+  echo "      temperature: ${ADAPTER_DEFAULT_TEMPERATURE}"
+  [ -n "${ADAPTER_DEFAULT_PRESENCE_PENALTY:-}" ]  && echo "      presencePenalty: ${ADAPTER_DEFAULT_PRESENCE_PENALTY}"
+  [ -n "${ADAPTER_DEFAULT_FREQUENCY_PENALTY:-}" ] && echo "      frequencyPenalty: ${ADAPTER_DEFAULT_FREQUENCY_PENALTY}"
+} >> "$CONFIG_FILE"
+
 CN_ARGS=(
   --config "$CONFIG_FILE"
   -p            # print-and-exit (headless) mode
   --auto        # auto mode: allow all tools, no interactive approval prompt
-  --silent      # strip <think></think> tags from reasoning models
 )
+# Reasoning toggle: default off strips <think> for clean tool output; on lets the
+# model reason (paired with a /think directive on the prompt). See config.sh
+# ADAPTER_REASONING and docs/troubleshooting-qwen-reasoning-loops.md.
+THINK_DIRECTIVE="/no_think"
+if [ "${ADAPTER_REASONING:-off}" = "on" ]; then
+  THINK_DIRECTIVE="/think"
+else
+  CN_ARGS+=(--silent)   # strip <think></think> tags from reasoning models
+fi
 
 if [ ! -t 0 ]; then
-  exec cn "${CN_ARGS[@]}" "$(cat)"
+  exec cn "${CN_ARGS[@]}" "${THINK_DIRECTIVE}
+$(cat)"
 else
   exec cn --config "$CONFIG_FILE"
 fi

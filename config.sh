@@ -60,6 +60,17 @@ DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpret
 export ADAPTER_DEFAULT_TEMPERATURE="${ADAPTER_DEFAULT_TEMPERATURE:-0.7}"    # coding: deterministic but not stiff
 export ADAPTER_DEFAULT_MAX_TOKENS="${ADAPTER_DEFAULT_MAX_TOKENS:-8192}"     # typical response + edits
 export ADAPTER_DEFAULT_TOOL_CHOICE="${ADAPTER_DEFAULT_TOOL_CHOICE:-auto}"   # use tools when needed
+# Anti-loop penalties for reasoning models. Empty by default (no override) so
+# baseline runs are unaffected; set to 0.1–0.3 only when enabling reasoning, to
+# discourage the attention-reinforcement trap (repeated "Wait…"/"Actually…").
+# See docs/troubleshooting-qwen-reasoning-loops.md. Currently only wired into
+# the cn adapter (Continue's defaultCompletionOptions forwards them to the API);
+# pi has no CLI sampling flags, cline has none — see that doc's plumbing note.
+export ADAPTER_DEFAULT_PRESENCE_PENALTY="${ADAPTER_DEFAULT_PRESENCE_PENALTY:-}"   # 0.1–0.3 if reasoning on
+export ADAPTER_DEFAULT_FREQUENCY_PENALTY="${ADAPTER_DEFAULT_FREQUENCY_PENALTY:-}" # 0.1–0.3 if reasoning on
+# Reasoning toggle for adapters that support it (cn). "off" (default) strips/avoids
+# <think>; "on" enables chain-of-thought. Override per-run: ADAPTER_REASONING=on
+export ADAPTER_REASONING="${ADAPTER_REASONING:-off}"                          # off|on
 
 # Repo root, resolved regardless of where you invoke from.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
