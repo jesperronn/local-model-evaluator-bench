@@ -6,26 +6,37 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"
-source "$HERE/lib/common.sh"
+source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 usage() {
-  cat <<EOF
-Usage: $(basename "$0") [options] [results.csv]
+  help_header "gen-evals" "collect results and repo context for eval-page generation"
 
-Collect benchmark results and repo context, then emit a context bundle for the
-eval-page generation agent. Pipe to \`claude --print\` or run /gen-evals in
-Claude Code.
+  help_section "USAGE"
+  help_line "  gen-evals [OPTIONS] [results.csv]"
 
-Options:
-  --all         merge all runs (latest result per adapter+model+case)
-  -h, --help    show this help
+  help_section "DESCRIPTION"
+  help_line "  Collects benchmark results and repo context, then emits a"
+  help_line "  structured markdown context bundle for the eval-page generation"
+  help_line "  agent. Output suitable for piping to \`claude --print\` or using"
+  help_line "  in Claude Code's /gen-evals skill."
 
-Examples:
-  bin/gen-evals                          # latest run
-  bin/gen-evals --all                    # merge all runs
-  bin/gen-evals results/20260608/results.csv
-  bin/gen-evals | claude --print
-EOF
+  help_section "OPTIONS"
+  help_flag "--all" "" "merge all runs (latest result per adapter+model+case)"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Emit context from latest run:"
+  help_line "  \$ gen-evals"
+  help_line ""
+  help_line "  Merge all runs and emit:"
+  help_line "  \$ gen-evals --all"
+  help_line ""
+  help_line "  Use specific CSV:"
+  help_line "  \$ gen-evals results/20260608/results.csv"
+  help_line ""
+  help_line "  Pipe to Claude:"
+  help_line "  \$ gen-evals | claude --print"
+
   exit 0
 }
 
