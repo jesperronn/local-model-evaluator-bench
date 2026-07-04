@@ -546,7 +546,32 @@ main() {
     --full)    mode="full" ;;
     --minimal) mode="minimal" ;;
     -h|--help)
-      sed -n '2,22p' "$0" | sed 's/^# \?//'
+      printf '%s\n' "hwprofile — comprehensive hardware detection for local agent benchmarking"
+      echo ""
+      printf '%s\n' "USAGE"
+      printf '  %s\n' "hwprofile [OPTIONS]"
+      echo ""
+      printf '%s\n' "DESCRIPTION"
+      printf '  %s\n' "Detects machine specs to help participants understand their capacity"
+      printf '  %s\n' "for running local models. Works on macOS, Linux, and Windows."
+      printf '  %s\n' "No elevated permissions required. When distributed as gist: curl <url> | bash"
+      echo ""
+      printf '%s\n' "OPTIONS"
+      printf '  %-28s%s\n' "(default)" "human-readable detailed specs"
+      printf '  %-28s%s\n' "--full" "specs + installed models and disk usage"
+      printf '  %-28s%s\n' "--json" "machine-readable JSON for tooling"
+      printf '  %-28s%s\n' "--minimal" "compact one-liner"
+      printf '  %-28s%s\n' "-h, --help" "show this help and exit"
+      echo ""
+      printf '%s\n' "EXAMPLES"
+      printf '  %s\n' "Show detailed specs:"
+      printf '  $ %s\n' "hwprofile"
+      printf '  %s\n' ""
+      printf '  %s\n' "Get machine-readable output for scripting:"
+      printf '  $ %s\n' "hwprofile --json"
+      printf '  %s\n' ""
+      printf '  %s\n' "Get compact one-liner:"
+      printf '  $ %s\n' "hwprofile --minimal"
       exit 0
       ;;
     *)
