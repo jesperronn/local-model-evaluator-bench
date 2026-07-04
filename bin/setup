@@ -213,6 +213,35 @@ do_install() {
 
 # ── Tool definitions ──────────────────────────────────────────────────────────
 
+show_lms_runtimes() {
+  step "LM Studio runtime engines"
+  if ! command -v lms >/dev/null 2>&1; then
+    warn "lms CLI not installed — install with: bin/setup --lms"
+    return
+  fi
+
+  if ! _runtimes="$(lms runtime ls 2>/dev/null)" || [ -z "$_runtimes" ]; then
+    warn "could not query runtime engines"
+    return
+  fi
+
+  # Find selected runtime
+  _selected="$(printf '%s\n' "$_runtimes" | grep '✓' | head -1)"
+  if [ -n "$_selected" ]; then
+    _name="$(printf '%s' "$_selected" | awk '{print $1}')"
+    ok "selected: $_name"
+    echo "  available:"
+    printf '%s\n' "$_runtimes" | tail -n +2 | sed 's/^/    /'
+    echo
+    echo "  ${C_DIM}Manage runtimes:${C_RST}"
+    echo "    ${C_GRN}\$ lms runtime get${C_RST}      ${C_DIM}download additional runtime${C_RST}"
+    echo "    ${C_GRN}\$ lms runtime select${C_RST}   ${C_DIM}switch to a different runtime${C_RST}"
+    echo "    ${C_GRN}\$ lms runtime update${C_RST}   ${C_DIM}update installed runtimes${C_RST}"
+  else
+    warn "could not detect selected runtime"
+  fi
+}
+
 setup_lms() {
   step "LM Studio (lms)"
   if ! check_cmd "lms CLI" lms "brew install --cask lm-studio" \
@@ -782,6 +811,8 @@ fi
 if [ "$STATUS_ONLY" = 1 ]; then
   info "Tool status (read-only check; pass --force to install)"
   setup_lms
+  show_lms_runtimes
+  echo
   setup_hermes
   setup_codex
   setup_opencode
