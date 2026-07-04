@@ -993,5 +993,45 @@
     "run_id": "20260704-203746",
     "symptom": "MISS: hello.txt not created",
     "status": "open"
+  },
+  "nanocoder:microsoft/phi-4:lms": {
+    "adapter": "nanocoder",
+    "model": "microsoft/phi-4",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-204639",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "hermes:microsoft/phi-4:lms": {
+    "adapter": "hermes",
+    "model": "microsoft/phi-4",
+    "runtime": "lms",
+    "agent_version": "Hermes Agent v0.18.0 (2026.7.1)",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-204639",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "opencode:microsoft/phi-4:lms": {
+    "adapter": "opencode",
+    "model": "microsoft/phi-4",
+    "runtime": "lms",
+    "agent_version": "1.17.13",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-204639",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "open"
+  },
+  "interpreter:microsoft/phi-4:lms": {
+    "adapter": "interpreter",
+    "model": "microsoft/phi-4",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-04",
+    "run_id": "20260704-204639",
+    "symptom": "MISS: greeting.txt has 4 lines, expected 3",
+    "status": "open"
   }
 }
