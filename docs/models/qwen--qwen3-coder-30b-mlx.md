@@ -19,8 +19,10 @@
 |-------|-------|
 | **Model key** | `/Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit` |
 | **Runtime** | `mlx` (mlx_lm.server at localhost:8080) |
-| **Family / arch** | Qwen3-Coder, MoE (30B total, ~3B active) |
+| **Family / arch** | Qwen3-Coder, MoE (30.5B total, ~3.3B active) |
 | **Quantization** | MLX 4-bit |
+| **Context window** | 256K native |
+| **Fits** | 32GB unified RAM (LM Studio lists ~15GB minimum) |
 | **Added** | 2026-06-21 |
 | **Last run** | 2026-06-21 |
 | **Doc updated** | 2026-06-21 |
