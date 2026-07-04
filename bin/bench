@@ -58,6 +58,18 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/lib/versions.sh"
 
+# Clean up verbose tail processes on exit (normal, interrupt, or error).
+# These are spawned with backgrounded tail -F during verbose mode runs
+# and must be killed before the script exits to avoid orphaned processes.
+_cleanup_verbose_tails() {
+  if [ -n "${_vtail_pids:-}" ] && [ "${#_vtail_pids[@]}" -gt 0 ]; then
+    for _vp in "${_vtail_pids[@]}"; do
+      kill "$_vp" 2>/dev/null; wait "$_vp" 2>/dev/null || true
+    done
+  fi
+}
+
+trap _cleanup_verbose_tails EXIT
 trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
 trap '' PIPE  # don't die when stdout pipe breaks (e.g. bin/bench | tee)
 
