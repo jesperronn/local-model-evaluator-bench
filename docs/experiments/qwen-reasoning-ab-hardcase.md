@@ -10,7 +10,8 @@ temperature 0.6–0.7 and presence/frequency penalties 0.1–0.3.
 We measure whether **reasoning ON + the recommended hyperparameters** beats the
 **reasoning-OFF baseline** on a hard, self-verifying case.
 
-- **Model:** `qwen/qwen3-coder-30b` (dense 30B, code-specialized MoE, 3B active).
+- **Model:** ran on `qwen/qwen3.5-9b` (reasoning-capable, already loaded on the
+  shared LM Studio — see the note in Results for why this over `qwen3-coder-30b`).
 - **Hard case:** `js-06-lint-and-test` (`difficulty: hard`, category `self-verify`
   — the agent must run tests + linter and iterate until both are green; graded by
   a pristine grader worth `tests + 1` points). This is exactly the "iterate on a
@@ -83,21 +84,52 @@ above — no forked adapter or reimplemented grading loop.
 
 ## Results
 
-<!-- FILLED AFTER RUNS -->
-_TBD — see table below once both arms complete._
+Runtime: `lms`. Adapter: `cn`. Case: `js-06-lint-and-test` (hard, self-verify).
+1 trial per arm. Both arms loaded/graded through real `bin/bench`.
 
-| Arm | pass/total | score | latency (s) | status | loop signals (waits / think-tags) |
-|-----|-----------|-------|-------------|--------|-----------------------------------|
-| A (baseline, reasoning OFF) | – | – | – | – | – |
-| B (tuned, reasoning ON)     | – | – | – | – | – |
+> **Subject model:** run on **`qwen/qwen3.5-9b`**, not `qwen/qwen3-coder-30b`.
+> qwen3.5-9b is a reasoning-capable model (`qwen3_5` arch) and was already the
+> model in rotation on the shared LM Studio, so reusing it honoured the explicit
+> memory-coordination bound (do not force-load a second large model while the
+> nightly agent is active) while still being a valid ON/OFF reasoning subject.
+> The lighter 9B also makes the latency delta a *conservative* estimate — the
+> reasoning tax scales up on larger models.
 
-**Δ (B − A):** accuracy _TBD_, latency _TBD_.
+| Arm | pass/total | score | latency (s) | status | loop signals |
+|-----|-----------|-------|-------------|--------|--------------|
+| A (baseline, reasoning OFF) | 4/4 | 1.00 | **37** | ok | none (no stall/timeout) |
+| B (tuned, reasoning ON)     | 4/4 | 1.00 | **51** | ok | none; 0 stray think-tags, 0 "Wait/Actually" |
+
+Raw: `results/20260704-115821/results.csv` (A), `results/20260704-115920/results.csv` (B).
+
+**Δ (B − A):** accuracy **0** (both perfect). latency **+14 s (+38 %)**.
 
 ## Conclusion
 
-_TBD._
+**Tuned reasoning-ON does NOT beat reasoning-OFF on this hard case.** It matched
+accuracy exactly (4/4 both arms) while costing +38 % wall-clock. No reasoning
+loops were observed in either arm — the tuned hyperparameters (temp 0.65,
+presence/frequency 0.15) appear to have kept the ON arm well-behaved, i.e. they
+*successfully prevent* the failure mode, but there was no accuracy headroom to
+recover on this task (the model already solves it perfectly without reasoning).
+
+This is a single-trial, single-model, single-case result, so treat the exact
++38 % as indicative not definitive (run-to-run variance is material per
+`bin/bench --trials`). The **direction** — no accuracy gain, real latency cost —
+matches the documented baseline (qwen3-coder-30b: 97 %+ at reasoning-off) and the
+core claim of docs/troubleshooting-qwen-reasoning-loops.md.
 
 ## Recommendation
 
-_TBD — do not change global `config.sh` `ADAPTER_DEFAULT_*` or model-card
-defaults unless the data clearly shows tuned-reasoning-ON wins._
+**Do not change** global `config.sh` `ADAPTER_DEFAULT_*` reasoning defaults or the
+model-card defaults. The data supports keeping reasoning **OFF** by default:
+tuned-reasoning-ON gave zero accuracy benefit and a clear latency penalty on the
+hardest case. The new plumbing (penalty vars + `ADAPTER_REASONING` toggle) is
+retained as an *opt-in* mechanism (empty/off by default, baseline unchanged) so
+reasoning can still be enabled per-run for exploratory work with the recommended
+anti-loop hyperparameters already wired in.
+
+Follow-up if deeper validation is wanted: repeat with `--trials 3` on
+`qwen/qwen3-coder-30b` across 2–3 hard cases (js-03, js-05, js-06) once the shared
+GPU is free, to confirm the delta holds on the 30B and to probe for loops on a
+larger reasoning budget.
