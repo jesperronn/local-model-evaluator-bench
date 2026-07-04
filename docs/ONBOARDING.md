@@ -123,27 +123,50 @@ curl http://localhost:1234/v1/models  # Should show it
 
 ---
 
-## Step 4: Pick 1-2 Agents to Try
+## Step 4: Install & Configure 1-2 Agents
 
 Choose one or two agents from the list below. Pick based on how you'll use it:
 
-| Agent | Best for | Install |
-|-------|----------|---------|
-| **aider** | CLI tool in terminal | `brew install aider` or `pip install aider` |
-| **hermes** | Agentic CLI (more autonomous) | `brew install hermes` or `pip install hermes-ai` |
-| **cline** | VS Code extension | Install via VS Code extension marketplace |
-| **continue** | VS Code extension | Install via VS Code extension marketplace |
-| **caveman** | Simple, batteries-included | `pip install caveman-code` |
-| **opencode** | Node.js-based | `npm install -g opencode` |
+| Agent | Best for |
+|-------|----------|
+| **aider** | CLI tool in terminal |
+| **hermes** | Agentic CLI (more autonomous) |
+| **cline** | VS Code extension |
+| **continue** | VS Code extension |
+| **caveman** | Simple, batteries-included |
+| **opencode** | Node.js-based |
 
-**Install 1-2 of these.** Example (aider + cline):
+### Recommended: Use `bin/setup --agent`
+
+The easiest way is to use the project's setup tool:
 
 ```bash
-brew install aider    # Or: pip install aider
-
-# For cline: open VS Code → Extensions → search "Cline" → Install
-# Then configure: VS Code Settings → search "cline" → set model to match your LM Studio model
+bin/setup --agent aider,hermes
 ```
+
+This will:
+1. Show installation status of each agent
+2. Guide you through configuration for each
+3. Show next steps (what to do after installing)
+
+### Alternative: Manual Installation
+
+If you prefer manual installation:
+
+**For CLI agents** (aider, hermes, caveman, opencode):
+```bash
+brew install aider    # Or: pip install aider
+brew install hermes   # Or: pip install hermes-ai
+pip install caveman-code
+npm install -g opencode
+```
+
+**For IDE extensions** (cline, continue):
+- Open VS Code → Extensions → search "Cline" or "Continue" → Install
+
+**Then configure:** See Step 5 below.
+
+---
 
 After installing, run `bin/doctor` again to verify they're on PATH (or installed as extensions).
 
@@ -153,7 +176,11 @@ After installing, run `bin/doctor` again to verify they're on PATH (or installed
 
 Each agent needs to know where your LM Studio/Ollama/MLX server is and which model to use.
 
-### For CLI agents (aider, hermes, caveman, opencode):
+### If you used `bin/setup --agent`
+
+Configuration guidance was shown at the end of the setup. Just follow those instructions—they include the exact files to edit and example values.
+
+### Manual Configuration for CLI agents (aider, hermes, caveman, opencode):
 
 **aider:**
 ```bash
