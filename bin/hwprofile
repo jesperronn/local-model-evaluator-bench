@@ -316,11 +316,19 @@ _ram_gb_breakdown() {
 
 # Runtime detection
 _lms_up() {
-  command -v lms &>/dev/null && lms_loaded_models &>/dev/null 2>&1
+  # Check if lms CLI exists and server is reachable
+  if ! command -v lms &>/dev/null; then return 1; fi
+  # Try to query processes - if this succeeds without error, the server is up
+  # Note: lms ps outputs to stderr when no models loaded, so capture both
+  lms ps 2>&1 | grep -qE "IDENTIFIER|No models|loaded" && return 0 || return 1
 }
 
 _lms_loaded_models() {
   command -v lms &>/dev/null && lms ps --json 2>/dev/null | grep -o '"identifier":"[^"]*' | cut -d'"' -f4
+}
+
+_lms_runtimes() {
+  command -v lms &>/dev/null && lms runtime ls 2>/dev/null | grep -v "^LLM ENGINE" | grep -v "^---" || true
 }
 
 _ollama_up() {
@@ -523,6 +531,26 @@ _output_full() {
   fi
 
   echo ""
+
+  # LMS Runtime Engines
+  lms_runtimes=$(_lms_runtimes 2>/dev/null) || lms_runtimes=""
+  if [[ -n "$lms_runtimes" ]]; then
+    echo "LM Studio Runtime Engines:"
+    # Show selected runtime (marked with ✓) with format
+    selected_line=$(printf '%s\n' "$lms_runtimes" | grep '✓' | head -1)
+    if [[ -n "$selected_line" ]]; then
+      selected=$(printf '%s' "$selected_line" | awk '{print $1}')
+      format=$(printf '%s' "$selected_line" | awk '{for(i=NF;i>=1;i--) if($i ~ /^[A-Z]+$/) {print $i; break}}')
+      if [[ -n "$format" ]]; then
+        printf "  Selected: %s  (%s)\n" "$selected" "$format"
+      else
+        printf "  Selected: %s\n" "$selected"
+      fi
+    fi
+    total=$(printf '%s\n' "$lms_runtimes" | wc -l)
+    printf "  Available: %d runtime engine(s)\n" "$total"
+    echo ""
+  fi
 
   # LMS models
   lms_info=$(_lms_models_info 2>/dev/null) || lms_info=""
