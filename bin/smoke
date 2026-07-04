@@ -222,9 +222,38 @@ if [ "$RUNTIME" = "lms" ]; then
       lms unload "$LMS_ID" >/dev/null 2>&1 || true
     fi
     info "loading $LMS_ID (ttl ${SMOKE_TTL:-none}s, ctx ${SMOKE_CTX}) ..."
-    ensure_model_loaded "$LMS_ID" "${SMOKE_TTL:-}" "${SMOKE_CTX}" \
-      && ok "loaded $LMS_ID" \
-      || die "could not load $LMS_ID — check 'lms ls' or load it in the GUI"
+
+    # Capture lms load output to provide actionable error messages
+    _lms_output=""
+    _lms_rc=0
+    _lms_output="$(lms load "$LMS_ID" --yes ${SMOKE_TTL:+--ttl "$SMOKE_TTL"} ${SMOKE_CTX:+-c "$SMOKE_CTX"} 2>&1)" || _lms_rc=$?
+
+    if [ $_lms_rc -eq 0 ]; then
+      ok "loaded $LMS_ID"
+    else
+      err "could not load $LMS_ID"
+
+      if [[ "$_lms_output" == *"safetensors"* ]]; then
+        err "  → model format not supported (safetensors)"
+        err "  → next: try a different model format, or run 'lms ls' to see available models"
+      elif [[ "$_lms_output" == *"not found"* ]] || [[ "$_lms_output" == *"No such"* ]]; then
+        err "  → model not found in LM Studio"
+        err "  → next: run 'lms ls' to list available models, or add the model via the LM Studio GUI"
+      elif [[ "$_lms_output" == *"already"* ]]; then
+        warn "  → model identifier collision; trying cleanup..."
+        lms unload "$LMS_ID" >/dev/null 2>&1 || true
+        if _lms_output="$(lms load "$LMS_ID" --yes ${SMOKE_TTL:+--ttl "$SMOKE_TTL"} ${SMOKE_CTX:+-c "$SMOKE_CTX"} 2>&1)"; then
+          ok "loaded $LMS_ID (after cleanup)"
+        else
+          err "  → cleanup failed: $(printf '%s' "$_lms_output" | head -1)"
+          die "run 'lms ps' to check for stuck models, then try 'lms unload <model>' manually"
+        fi
+      else
+        err "  → error: $(printf '%s' "$_lms_output" | head -1 | cut -c1-100)"
+        err "  → next: check 'lms ls' or load it in the LM Studio GUI"
+        die "model load failed"
+      fi
+    fi
   fi
 
 elif [ "$RUNTIME" = "ollama" ]; then
