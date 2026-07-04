@@ -388,10 +388,10 @@ fi
 
 # ── Next steps hint ──────────────────────────────────────────────────────────
 echo
-echo "${C_DIM}Next steps:${C_RST}"
+help_section "NEXT STEPS"
 [ "$ALL_RUNS" -eq 0 ] && \
-  echo "${C_DIM}  bin/report --all                   # merge all historical runs${C_RST}"
+  help_line "Merge all historical runs:    ${C_GRN}\$ bin/report --all${C_RST}"
 [ -z "$SAVE_MD" ] && \
-  echo "${C_DIM}  bin/report --all --save            # persist merged leaderboard → LEADERBOARD.md${C_RST}"
-echo "${C_DIM}  bin/gen-evals --all                # build context bundle for eval pages${C_RST}"
-echo "${C_DIM}  bin/viz                            # rebuild interactive HTML dashboard${C_RST}"
+  help_line "Save leaderboard markdown:    ${C_GRN}\$ bin/report --all --save${C_RST}"
+help_line "Visualize results interactively:"
+help_line "  ${C_GRN}\$ bin/viz${C_RST}"
