@@ -285,3 +285,25 @@ they drift.
    the card-sourced and README-sourced rows are emitted with distinct
    `reason`/`source` fields, and a human (or a future policy) chooses via
    which row survives to `agents config apply --write`.
+
+## Developer experience principle: copy-paste-friendly error messages
+
+When error messages reference paths or commands, prefer environment variable
+or shell syntax that developers can copy-paste directly:
+
+**Good (copy-paste ready):**
+```
+[FAIL] no ollama log found at ${TMPDIR}/llmrun-ollama.log
+```
+
+**Avoid (requires re-typing):**
+```
+[FAIL] no ollama log found at /var/folders/vc/ckfmj.../T/llmrun-ollama.log
+```
+
+This applies to all paths, variables, and command snippets in error messages,
+help text, and suggestions. The goal is zero friction when a developer copies
+the reference from the output and pastes it into their terminal or editor.
+
+Found and fixed: `llmrun runtime logs` now shows `${TMPDIR}/llmrun-*.log`
+instead of the expanded path, and similarly for startup log suggestions.
