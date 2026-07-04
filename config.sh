@@ -34,13 +34,27 @@ export SMOKE_TTL="${SMOKE_TTL:-600}"
 #   floor and aborts on startup (error in ~3s) for any smaller model, which is
 #   what silently zeroed every hermes trial. 65536 also covers full-file edits +
 #   tool-call history for the other adapters. Safe on 128 GB — KV cache cost is low.
-# PARALLEL: slots for simultaneous predictions. Set to match the real
-#   multi-agent concurrency you care about (orchestrator + 2-3 agents = 3-4).
-#   Default 3 mirrors the target workload; lower to 1 for max single-request
-#   throughput, raise to 4 for a heavier orchestration scenario.
+#   On 32 GB: use 65536 for qwen3.5-9b (tiny KV cache), reduce to 32768 for larger models.
+# PARALLEL: slots for simultaneous predictions. Each agent adds ~4 GB KV cache at 65K context.
+#   Auto-calculated per machine RAM: ≤32GB→2, 64GB→3, 128GB+→4. Override with
+#   BENCH_PARALLEL=N if needed. See lib/common.sh:_get_bench_parallel_for_ram().
 export BENCH_TTL_MINUTES="${BENCH_TTL_MINUTES:-10}"
 export BENCH_CONTEXT="${BENCH_CONTEXT:-65536}"
-export BENCH_PARALLEL="${BENCH_PARALLEL:-3}"
+
+# Source common.sh to access hardware detection, but only if we haven't already
+# (avoids double-sourcing in scripts that source config.sh multiple times).
+if [ -z "${_COMMON_SH_LOADED:-}" ]; then
+  . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+  _COMMON_SH_LOADED=1
+fi
+
+# Calculate BENCH_PARALLEL based on machine RAM if not already set by user.
+if [ -z "${BENCH_PARALLEL_EXPLICIT:-}" ]; then
+  _AUTO_PARALLEL=$(_get_bench_parallel_for_ram)
+  export BENCH_PARALLEL="${BENCH_PARALLEL:-$_AUTO_PARALLEL}"
+else
+  export BENCH_PARALLEL="${BENCH_PARALLEL}"
+fi
 
 # Which CLI adapters to exercise by default (one file per name in adapters/).
 # Override per-run with:  bin/bench --adapters aider,opencode

@@ -8,8 +8,8 @@ quantization: "GGUF (LMS) / mxfp8 (Ollama)"
 disk_size: "22.07 GiB"
 context: "65536 loaded (256k max)"
 status: "keep"
-recommended_for: ["32gb", "32gb-balance", "64gb", "64gb-specialist", "128gb"]
-tier: "32gb"
+recommended_for: ["64gb", "64gb-specialist", "128gb"]
+tier: "64gb"
 best_adapter: "aider"
 accuracy: "100%"
 speed_avg: "~24-64s per case"
@@ -41,7 +41,7 @@ last_run: "2026-06-29"
 | **Quantization** | MLX (LMS) / mxfp8 (Ollama `qwen3.6:35b-a3b-coding-mxfp8`) |
 | **Disk size** | 22.07 GB |
 | **Context window** | 65536 loaded for bench (`BENCH_CONTEXT`); 256K max |
-| **Fits** | Tight on 32GB: ~26.6GB at full 256K context — a squeeze. Obvious pick at 128GB; on 32GB run reduced context (see caveat) |
+| **Fits** | NOT COMPATIBLE with 32GB M2 Max (fails to load). Fits comfortably at 64GB+ |
 | **Added** | 2026-06-08 |
 | **Last run** | 2026-06-29 (run `20260629-005401`) |
 | **LMS entry removed** | 2026-06-10 |
@@ -202,13 +202,15 @@ re-verification when iterating on code edits — see
 **Baseline (reasoning off, current default):** Full 100% accuracy; 48s avg per case.
 Any reasoning-on tuning should target a latency reduction without accuracy loss.
 
-## 32GB caveat & tuning notes
+## 32GB compatibility & memory notes
 
-**Memory on 32GB:** at its max 256K context this model needs ~26.6GB, leaving
-almost no headroom on a 32GB machine. It runs there only with heavily reduced
-context (32K–64K). At that point [qwen3-coder-30b](qwen--qwen3-coder-30b-mlx.md)
-(smaller KV footprint, code-tuned) is the more sensible 32GB target for surgical
-edits. Reserve 35b-a3b's full context for the 128GB tier.
+**NOT RECOMMENDED FOR 32GB M2 MAX:** This model fails to load on 32GB Apple Silicon machines due to LM Studio's resource guardrails. When quantized to 22.07 GB disk size, it requires ~26–28 GB in RAM during loading, leaving no margin for OS, KV cache, or other processes. 
+
+**Empirical result (2026-07-04):** Attempted load on M2 Max 32GB failed with "insufficient system resources" error, even with no other applications running.
+
+**Better 32GB alternatives:** Use [qwen3-coder-30b](qwen--qwen3-coder-30b.md) (18.6 GB, 97% accuracy, 11.6s/task on aider) or [gemma4-26b-a4b-qat](gemma--gemma4-26b-a4b-qat.md) (14–17.5 GB, 91% accuracy, more headroom).
+
+**For 32GB+:** This model is a good choice at 64GB and above where you have adequate memory headroom for both loading and full 256K context.
 
 ## Comparison within family
 

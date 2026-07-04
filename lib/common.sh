@@ -248,3 +248,40 @@ warn_filtered_adapters() {
     done
   fi
 }
+
+# Calculate BENCH_PARALLEL slots based on total machine RAM.
+# Each slot uses ~4 GB KV cache at 65K context. Returns safe default: 2 for ≤32GB,
+# 3 for 64GB, 4 for 128GB+. On detection error, returns 2 (conservative).
+_get_bench_parallel_for_ram() {
+  local os total_ram_gb
+  os="$(uname -s)"
+  case "$os" in
+    Darwin)
+      total_ram_gb=$(sysctl -n hw.memsize 2>/dev/null | awk 'BEGIN {OFMT="%.0f"} {print $1 / 1073741824}')
+      ;;
+    Linux)
+      total_ram_gb=$(awk '/^MemTotal:/ {printf "%.0f", $2 / 1048576}' /proc/meminfo 2>/dev/null)
+      ;;
+    *)
+      # Windows or unknown: default to 2 (conservative)
+      echo "2"
+      return 0
+      ;;
+  esac
+
+  if [ -z "$total_ram_gb" ] || [ "$total_ram_gb" -le 0 ]; then
+    echo "2"  # Fallback to conservative default
+    return 0
+  fi
+
+  # 128 GB+: 4 slots
+  if [ "$total_ram_gb" -ge 128 ]; then
+    echo "4"
+  # 64 GB+: 3 slots
+  elif [ "$total_ram_gb" -ge 64 ]; then
+    echo "3"
+  # ≤32 GB: 2 slots (conservative; leaves headroom for OS + other apps)
+  else
+    echo "2"
+  fi
+}

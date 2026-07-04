@@ -465,18 +465,18 @@ get_agent_install_cmd() {
     codex)     echo "npm install --global @openai/codex";;
     opencode)  echo "brew install opencode";;
     caveman)   echo "npm install --global @juliusbrussee/caveman-code";;
-    cline)     echo "npm install --global @raidendotai/cline";;
+    cline)     echo "npm install --global cline";;
     claude)    echo "npm install --global claude";;
     copilot)   echo "npm install --global @github-copilot/copilot-cli";;
     goose)     echo "brew install goose  # or: pip install goose-code";;
     gptme)     echo "pip install gpt-me";;
     interpreter) echo "pip install open-interpreter";;
-    cn)        echo "pip install cn";;
-    openhands) echo "pip install openhands";;
+    cn)        echo "npm install --global cn";;
+    openhands) echo "npm install --global @openhands/agent-canvas";;
     pi)        echo "npm install --global @earendil-works/pi-coding-agent";;
-    forge)     echo "cargo install forge-cli";;
+    forge)     echo "npm install --global @hoangsonw/forge";;
     mini-swe-agent) echo "python3 -m pip install --break-system-packages mini-swe-agent";;
-    nanocoder) echo "npm install --global nanocoder";;
+    nanocoder) echo "npm install --global @nanocollective/nanocoder";;
     *) return 1;;
   esac
 }
