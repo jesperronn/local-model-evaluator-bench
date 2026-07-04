@@ -1,0 +1,67 @@
+{
+  "generated": "2026-07-04T00:00:00Z",
+  "source_machine": "M3 Max 128GB (placeholder; awaits bin/qualify T1)",
+  "note": "This is a bootstrap profile pending bin/qualify --emit-profile. Eventually emitted from results/*/results.csv + checks.csv.",
+  "tiers": {
+    "24": {
+      "benchmarked": false,
+      "primary": {
+        "model": "qwen/qwen3.5-9b",
+        "adapters": ["aider", "cline", "openhands"],
+        "context": 16384,
+        "parallel": 1,
+        "ttl_minutes": 10
+      }
+    },
+    "32": {
+      "benchmarked": true,
+      "primary": {
+        "model": "qwen/qwen3.6-27b",
+        "adapters": ["aider", "cline", "openhands", "codex"],
+        "context": 32768,
+        "parallel": 2,
+        "ttl_minutes": 10
+      },
+      "secondary": {
+        "model": "qwen/qwen3.5-9b",
+        "adapters": ["aider", "cline"],
+        "context": 32768,
+        "parallel": 2
+      }
+    },
+    "48": {
+      "benchmarked": false,
+      "primary": {
+        "model": "qwen/qwen3-coder-30b",
+        "adapters": ["aider", "cline", "openhands", "codex"],
+        "context": 32768,
+        "parallel": 2,
+        "ttl_minutes": 10
+      }
+    },
+    "64": {
+      "benchmarked": false,
+      "primary": {
+        "model": "qwen/qwen3-coder-30b",
+        "adapters": ["aider", "cline", "openhands", "codex", "caveman"],
+        "context": 65536,
+        "parallel": 3,
+        "ttl_minutes": 15
+      }
+    },
+    "128": {
+      "benchmarked": true,
+      "primary": {
+        "model": "qwen/qwen3.6-35b-a3b",
+        "adapters": ["aider", "cline", "codex", "caveman", "hermes", "interpreter", "opencode", "openhands", "pi", "goose", "copilot", "nanocoder", "cn"],
+        "context": 65536,
+        "parallel": 3,
+        "ttl_minutes": 10
+      },
+      "secondary": {
+        "model": "qwen/qwen3-coder-30b",
+        "adapters": ["aider", "cline", "codex"]
+      }
+    }
+  }
+}
