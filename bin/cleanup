@@ -7,7 +7,12 @@
 #   --sandboxes N   Strip sandbox/ dirs from runs older than N days (default: 7)
 #                   Keeps results.csv + run.json; removes the agent workdir.
 #   --empty         Remove results dirs with no run.json (aborted / pre-versioning)
-#   --all           Equivalent to --logs --scratch --sandboxes 7 --empty
+#   --procs         Reap orphaned bench helper processes — `tail -F` followers
+#                   and cline hub daemons left behind by dead/killed runs. An
+#                   orphan is one whose owning `bin/bench` is no longer alive
+#                   (reparented to PID 1). Safe while a bench is running: only
+#                   helpers with no live bench master are touched.
+#   --all           Equivalent to --logs --scratch --sandboxes 7 --empty --procs
 #
 # By default, runs in dry-run mode and prints what would be deleted.
 # Pass -f/--force to actually remove files.
@@ -23,6 +28,7 @@ DO_SCRATCH=0
 DO_SANDBOXES=0
 SANDBOX_DAYS=7
 DO_EMPTY=0
+DO_PROCS=0
 DELETE=0
 
 usage() {
@@ -39,14 +45,15 @@ while [ $# -gt 0 ]; do
                         SANDBOX_DAYS="$1"; shift
                       fi;;
     --empty)          DO_EMPTY=1; shift;;
-    --all)            DO_LOGS=1; DO_SCRATCH=1; DO_SANDBOXES=1; DO_EMPTY=1; shift;;
+    --procs)          DO_PROCS=1; shift;;
+    --all)            DO_LOGS=1; DO_SCRATCH=1; DO_SANDBOXES=1; DO_EMPTY=1; DO_PROCS=1; shift;;
     -f|--force)       DELETE=1; shift;;
     -h|--help)        usage;;
     *) die "unknown option: $1";;
   esac
 done
 
-if [ "$DO_LOGS" = 0 ] && [ "$DO_SCRATCH" = 0 ] && [ "$DO_SANDBOXES" = 0 ] && [ "$DO_EMPTY" = 0 ]; then
+if [ "$DO_LOGS" = 0 ] && [ "$DO_SCRATCH" = 0 ] && [ "$DO_SANDBOXES" = 0 ] && [ "$DO_EMPTY" = 0 ] && [ "$DO_PROCS" = 0 ]; then
   usage
 fi
 
@@ -138,6 +145,59 @@ if [ "$DO_SANDBOXES" = 1 ]; then
   done < <(ls -dt "$RESULTS_DIR"/[0-9]*-[0-9]*/ 2>/dev/null)
   [ "$found" = 0 ] && echo "  (none found)"
   echo
+fi
+
+# ── Orphaned bench helper processes ──────────────────────────────────────────
+if [ "$DO_PROCS" = 1 ]; then
+  info "Checking for orphaned bench helper processes…"
+  killed=0
+
+  # A bench run owns short-lived helpers: verbose `tail -F` log followers and,
+  # for the cline adapter, a `cline --cline-hub-daemon`. These must die with the
+  # run. If no `bin/bench` master is alive, any survivor is an orphan (typically
+  # reparented to PID 1 after the parent was SIGKILLed or the terminal closed).
+  bench_alive=0
+  pgrep -f '[b]in/bench' >/dev/null 2>&1 && bench_alive=1
+
+  reap() {
+    # reap <pid> <label>
+    local pid="$1" label="$2"
+    if [ "$DELETE" = 1 ]; then
+      kill "$pid" 2>/dev/null; ( sleep 2; kill -KILL "$pid" 2>/dev/null ) &
+      printf '  %s  pid %s  %s\n' "${C_RED}killed${C_RST}" "$pid" "$label"
+    else
+      printf '  %s  pid %s  %s\n' "${C_YEL}would kill${C_RST}" "$pid" "$label"
+    fi
+    killed=$(( killed + 1 ))
+  }
+
+  if [ "$bench_alive" = 1 ]; then
+    warn "a bin/bench run is active — reaping only helpers orphaned to PID 1"
+  fi
+
+  # tail -F followers on any run's .bench.log (or hermes agent.log).
+  while IFS= read -r pid; do
+    [ -n "$pid" ] || continue
+    # Skip helpers of a live run: only touch orphans (PPID 1) when bench is up.
+    if [ "$bench_alive" = 1 ]; then
+      ppid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')"
+      [ "$ppid" = 1 ] || continue
+    fi
+    reap "$pid" "$(ps -o command= -p "$pid" 2>/dev/null | cut -c1-80)"
+  done < <(pgrep -f 'tail -n 0 -F.*\.bench\.log' 2>/dev/null
+           pgrep -f "tail -n 0 -F.*/\.hermes/logs/agent\.log" 2>/dev/null)
+
+  # cline hub daemon — persistent; only reap when no bench/cline run is active.
+  if [ "$bench_alive" = 0 ]; then
+    while IFS= read -r pid; do
+      [ -n "$pid" ] || continue
+      reap "$pid" "$(ps -o command= -p "$pid" 2>/dev/null | cut -c1-80)"
+    done < <(pgrep -f 'cline-hub-daemon' 2>/dev/null)
+  fi
+
+  if [ "$killed" = 0 ]; then echo "  (none found)"; fi
+  echo
+  removed_items=$(( removed_items + killed ))
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
