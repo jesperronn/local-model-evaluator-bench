@@ -93,40 +93,6 @@ _model_count_color() {
   fi
 }
 
-_relative_time() {
-  # Convert timestamp like "20260704-183325" to "2 hours ago"
-  local timestamp=$1
-  # Parse YYYYMMDDhhmmss format
-  local year=${timestamp:0:4}
-  local month=${timestamp:4:2}
-  local day=${timestamp:6:2}
-  local hour=${timestamp:9:2}
-  local min=${timestamp:11:2}
-  local sec=${timestamp:13:2}
-
-  # Convert to Unix timestamp
-  local run_time; run_time=$(date -j -f "%Y%m%d%H%M%S" "${year}${month}${day}${hour}${min}${sec}" +%s 2>/dev/null || echo 0)
-  local now; now=$(date +%s)
-  local elapsed=$((now - run_time))
-
-  if [ "$elapsed" -lt 0 ]; then
-    printf "now"
-  elif [ "$elapsed" -lt 60 ]; then
-    printf "%ds ago" "$elapsed"
-  elif [ "$elapsed" -lt 3600 ]; then
-    local mins=$((elapsed / 60))
-    printf "%dm ago" "$mins"
-  elif [ "$elapsed" -lt 86400 ]; then
-    local hours=$((elapsed / 3600))
-    printf "%dh ago" "$hours"
-  elif [ "$elapsed" -lt 604800 ]; then
-    local days=$((elapsed / 86400))
-    printf "%dd ago" "$days"
-  else
-    printf "long ago"
-  fi
-}
-
 # ── subcommands ───────────────────────────────────────────────────────────────
 
 cmd_ram() {
@@ -371,7 +337,27 @@ print(status,queued,age)
       breakdown=$(tail -n +2 "$latest_csv" 2>/dev/null \
         | awk -F, '{cases[$1]++} END {for (a in cases) printf "    %-14s %s cases\n", a, cases[a]}' \
         | sort)
-      local rel_time; rel_time=$(_relative_time "$run")
+      # Get last modified time of any file in the test folders (most recent test activity)
+      local run_dir; run_dir=$(dirname "$(dirname "$latest_csv")")
+      local last_modified_ts; last_modified_ts=$(find "$run_dir/sandbox" -type f -print0 2>/dev/null \
+        | xargs -0 stat -f %m 2>/dev/null | sort -rn | head -1 || echo 0)
+      local now; now=$(date +%s)
+      local elapsed=$((now - last_modified_ts))
+      local rel_time
+      if [ "$elapsed" -lt 60 ]; then
+        rel_time=$(printf "%ds ago" "$elapsed")
+      elif [ "$elapsed" -lt 3600 ]; then
+        local mins=$((elapsed / 60))
+        rel_time=$(printf "%dm ago" "$mins")
+      elif [ "$elapsed" -lt 86400 ]; then
+        local hours=$((elapsed / 3600))
+        rel_time=$(printf "%dh ago" "$hours")
+      elif [ "$elapsed" -lt 604800 ]; then
+        local days=$((elapsed / 86400))
+        rel_time=$(printf "%dd ago" "$days")
+      else
+        rel_time="long ago"
+      fi
       printf '  last run: %s  (%s results)  —  %s\n' "${C_DIM}$run${C_RST}" "$count" "${C_DIM}$rel_time${C_RST}"
       [ -n "$breakdown" ] && printf '%s\n' "${C_DIM}$breakdown${C_RST}"
       # Show time since model last generated (even when bench is idle)
