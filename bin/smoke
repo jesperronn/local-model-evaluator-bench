@@ -32,7 +32,7 @@
 # listening before running.  Pass --no-proxy-check to suppress.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 # ── Model aliases: cross-runtime short names (mirrors bin/bench) ───────────────
 # models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id
@@ -65,9 +65,31 @@ _help_runtime="lms"; _prev=""
 for _a in "$@"; do [ "$_prev" = "--runtime" ] && _help_runtime="$_a"; _prev="$_a"; done
 
 show_help() {
-  awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
-  echo
-  echo "Available adapters:"
+  help_header "smoke" "prove every installed adapter can drive a model end-to-end"
+
+  help_section "USAGE"
+  help_line "  smoke [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Runs two lightweight cases per adapter:"
+  help_line "    - smoke-00-hello: write a file from scratch (pure text output)"
+  help_line "    - smoke-01-edit-file: edit an existing file (tool-call path)"
+  help_line "    - smoke-02-numbers: number sequence task"
+  help_line "  Much faster than a full bench run — useful after setting up a"
+  help_line "  new model, adapter, or runtime."
+
+  help_section "OPTIONS"
+  help_flag "--runtime" "NAME" "lms | ollama | mlx (default: lms)"
+  help_flag "--model, -m" "ID" "model to test (default: \$SMOKE_MODEL for lms)"
+  help_flag "--agent, -t" "NAME" "only test this adapter (default: all)"
+  help_flag "--retry-broken[=ADAPTERS]" "" "retry adapters marked as broken in compat.json"
+  help_flag "--no-proxy-check" "" "skip proxy liveness check for Ollama"
+  help_flag "--verbose, -v" "" "pass --verbose to bench (shows error excerpts)"
+  help_flag "--dry-run, -n" "" "print the plan and exit (no trials)"
+  help_flag "--skip-compat-update" "" "don't update compat.json with results"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "AVAILABLE ADAPTERS"
   ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
     | xargs -I{} basename {} .sh \
     | sed "s/-${_help_runtime}$//" \
@@ -77,7 +99,7 @@ show_help() {
         if (key in grp) grp[key]=grp[key]" "$0
         else { ord[++n]=key; grp[key]=$0 }
       }
-      END { for(i=1;i<=n;i++) print "  "grp[ord[i]] }'
+      END { for(i=1;i<=n;i++) printf "  %s\n", grp[ord[i]] }'
 }
 
 RUNTIME="lms"
