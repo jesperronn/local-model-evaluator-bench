@@ -141,6 +141,20 @@ show_help() {
   read_list "$mfile" | sed 's/^/  /'
 }
 
+# Show available adapters for discovery/error recovery
+show_available_adapters() {
+  local runtime="$1"
+  echo "Available adapters for $runtime:"
+  ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
+    | xargs -I{} basename {} .sh \
+    | sed "s/-${runtime}$//" \
+    | sort -u | sed 's/^/  /'
+  echo
+  echo "Examples:"
+  echo "  bin/bench --agent aider --models qwen/qwen3.5-9b"
+  echo "  bin/bench --agent hermes --interactive"
+}
+
 ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""; SKIP_COMPAT_FILTER=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -200,6 +214,24 @@ if [ "$INTERACTIVE" = 1 ]; then
 fi
 
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
+
+# Validate that all requested adapters exist
+_invalid_adapters=()
+IFS=',' read -ra _check_adapters <<< "$ADAPTERS"
+for _ca in "${_check_adapters[@]}"; do
+  _ca_sh="$ADAPTERS_DIR/$_ca-$RUNTIME.sh"
+  [ -f "$_ca_sh" ] || _ca_sh="$ADAPTERS_DIR/$_ca.sh"
+  if ! [ -f "$_ca_sh" ]; then
+    _invalid_adapters+=("$_ca")
+  fi
+done
+
+if [ ${#_invalid_adapters[@]} -gt 0 ]; then
+  echo "${C_RED}[FAIL]${C_RST} unknown adapter(s): ${_invalid_adapters[*]}" >&2
+  echo >&2
+  show_available_adapters "$RUNTIME" >&2
+  exit 1
+fi
 
 # Warn about slow/weak agents if selected
 _slow_agents="pi|opencode|codex|interpreter|copilot"
