@@ -2,7 +2,27 @@
 # bin/doctor — verify the environment: server up, CLIs installed, models present.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+# ── Help ─────────────────────────────────────────────────────────────────────
+show_help() {
+  help_header "doctor" "verify the environment: server, CLIs, models, adapters"
+  help_section "USAGE"
+  help_line "  doctor [OPTIONS]"
+  help_section "DESCRIPTION"
+  help_line "  Checks LM Studio connectivity, CLI tools (aider, cline, etc),"
+  help_line "  model availability, test cases, and reports missing coverage gaps."
+  help_section "OPTIONS"
+  help_flag "-h, --help" "" "show this help and exit"
+}
+
+# Parse args
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help; exit 0;;
+    *) die "unknown option: $arg";;
+  esac
+done
 
 info "LM Studio server: $LMS_BASE_URL"
 if lms_up; then
