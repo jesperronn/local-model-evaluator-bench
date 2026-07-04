@@ -80,6 +80,7 @@ Pick next unblocked `todo` → `wip` → do it (worktree if it touches tracked f
 ## Worklog
 
 <!-- newest first: `- YYYY-MM-DD  <id>  what landed` -->
+- 2026-07-04  doc  32GB tier nightly run (20260704-113219): qwen3.5-9b model card updated with results. **aider 100% (21/21, ~24s avg) — winner for 32GB tier.** cline 80% (hits 300s timeout on 3 cases), openhands 67%, codex incomplete (dropped from recommendation). [docs/models/qwen--qwen3.5-9b.md](docs/models/qwen--qwen3.5-9b.md) updated with results summary, timing, failure patterns, and 32GB tier recommendation.
 - 2026-07-04  T9  Added `bin/hwprofile` (RAM detection + tier bucketing, `--json`/`--tier` flags) and [docs/PLAN-MULTI-MACHINE-PORTABILITY.md](docs/PLAN-MULTI-MACHINE-PORTABILITY.md) naming the bench→run→port gaps (profile.json, bin/qualify, bootstrap-machine, missing 64/48/24GB tiers).
 - 2026-06-25  decomp  Per-check decomposition + difficulty tiers: `lib/grader.sh` (CHECK contract), graders emit `CHECK pass|fail <id>`, `bin/bench` records `checks.csv`, `difficulty` added to all case metas, `--difficulty` filter on `bin/bench`/`bin/stale`. Docs in [CASES.md](docs/CASES.md).
 - 2026-06-25  loops  Added `bin/stale` (+ `bin/stale.test.sh`), `bin/bench-overnight --worklist/--stale`, `bin/investigate`, and this backlog.
