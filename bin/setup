@@ -62,8 +62,10 @@ suggest_profile_for_ram() {
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 get_available_agents() {
-  # Extract unique agent names from adapters/ directory
-  (cd "$HERE/adapters" && ls -1 *.sh 2>/dev/null | sed 's/-.*\.sh$//' | sort -u)
+  # Extract unique agent names from adapters/ directory. Strips the trailing
+  # -<runtime>.sh suffix rather than everything after the first hyphen, so
+  # multi-word agent names (e.g. mini-swe-agent) survive intact.
+  (cd "$HERE/adapters" && ls -1 *.sh 2>/dev/null | sed -E 's/-(proxy-ollama|lms|mlx|ollama)\.sh$//' | sort -u)
 }
 
 show_help() {
@@ -412,6 +414,10 @@ get_agent_cli_cmd() {
     interpreter) echo "interpreter";;
     cn)        echo "cn";;
     openhands) echo "openhands";;
+    pi)        echo "pi";;
+    forge)     echo "forge";;
+    mini-swe-agent) echo "mini-swe-agent";;
+    nanocoder) echo "nanocoder";;
     *) return 1;;
   esac
 }
@@ -433,6 +439,10 @@ get_agent_install_cmd() {
     interpreter) echo "pip install open-interpreter";;
     cn)        echo "pip install cn";;
     openhands) echo "pip install openhands";;
+    pi)        echo "npm install --global @earendil-works/pi-coding-agent";;
+    forge)     echo "cargo install forge-cli";;
+    mini-swe-agent) echo "python3 -m pip install --break-system-packages mini-swe-agent";;
+    nanocoder) echo "npm install --global nanocoder";;
     *) return 1;;
   esac
 }
@@ -474,6 +484,19 @@ get_agent_config_guidance() {
     goose)
       printf "  Goose uses configuration files in ~/.goose/\n"
       printf "  Configure API endpoint and model settings.\n"
+      ;;
+    pi)
+      printf "  pi uses --provider lmstudio and --model flags inline (no persistent config).\n"
+      printf "  Shares ~/.pi/agent/models.json with caveman — avoid running both concurrently.\n"
+      ;;
+    forge)
+      printf "  Forge uses OPENAI_API_BASE / OPENAI_API_KEY env vars (no persistent config).\n"
+      ;;
+    mini-swe-agent)
+      printf "  Routes through LiteLLM via OPENAI_API_BASE / OPENAI_API_KEY env vars.\n"
+      ;;
+    nanocoder)
+      printf "  No config file: provider JSON is passed via the NANOCODER_PROVIDERS env var.\n"
       ;;
     *)
       printf "  See adapter: adapters/%s-*.sh for configuration details.\n" "$agent"

@@ -8,6 +8,8 @@
 #        --yes-always, --dangerously-bypass-approvals-and-sandbox,
 #        --allow-dangerously-skip-permissions, --auto-approve, --yolo,
 #        --no-git, --no-auto-commits, --no-dirty-commits
+#   3. Every agent with an adapter is recognized by bin/setup's --agent
+#      (get_agent_cli_cmd/get_agent_install_cmd/get_agent_config_guidance)
 #
 # Exit 0 = all clean, exit 1 = failures found.
 set -uo pipefail
@@ -56,6 +58,23 @@ for adapter in "$HERE/adapters"/*.sh; do
     failures=$((failures + 1))
   else
     ok "$name"
+  fi
+done
+
+# 3. Every agent that has an adapter must be recognized by bin/setup --agent.
+#    get_available_agents() derives its list the same way (adapters/*.sh
+#    filename prefix), so this only checks that bin/setup's hand-written
+#    case statements haven't drifted from that list.
+known_agents="$(awk '
+  /^get_agent_cli_cmd\(\)/ { in_fn=1; next }
+  in_fn && /^\}/ { exit }
+  in_fn { print }
+' "$HERE/bin/setup" | grep -oE '^[[:space:]]*[a-z0-9_-]+\)' | tr -d ') ')"
+
+for agent in $(cd "$HERE/adapters" && ls -1 *.sh | sed -E 's/-(proxy-ollama|lms|mlx|ollama)\.sh$//' | sort -u); do
+  if ! echo "$known_agents" | grep -qxF "$agent"; then
+    fail "agent '$agent' has an adapter but is missing from bin/setup's get_agent_cli_cmd/get_agent_install_cmd/get_agent_config_guidance"
+    failures=$((failures + 1))
   fi
 done
 
