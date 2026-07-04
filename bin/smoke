@@ -251,10 +251,19 @@ if [ "$RUNTIME" = "lms" ]; then
           die "run 'lms ps' to check for stuck models, then try 'lms unload <model>' manually"
         fi
       else
-        err "  → error: $(printf '%s' "$_lms_output" | head -1 | cut -c1-100)"
-        err "  → next: check available models with 'lms ls'"
-        err "  →       check available runtimes with 'lms runtime ls'"
-        err "  →       or load the model in the LM Studio GUI"
+        # Check for common recovery scenarios
+        if printf '%s\n' "$_lms_output" | grep -qi "dylib\|library not loaded"; then
+          err "  → symptom: broken dynamic library (macOS update issue)"
+          err "  → recovery: bin/recover-lms"
+        elif printf '%s\n' "$_lms_output" | grep -qi "no runtime\|no llm runtime"; then
+          err "  → symptom: corrupted runtime cache"
+          err "  → recovery: bin/recover-lms"
+        else
+          err "  → error: $(printf '%s' "$_lms_output" | head -1 | cut -c1-100)"
+          err "  → next: check available models with 'lms ls'"
+          err "  →       check available runtimes with 'lms runtime ls'"
+          err "  →       or load the model in the LM Studio GUI"
+        fi
         die "model load failed"
       fi
     fi

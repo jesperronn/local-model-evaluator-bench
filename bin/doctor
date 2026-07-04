@@ -72,7 +72,21 @@ fi
 echo
 info "LM Studio runtime engines:"
 if command -v lms >/dev/null 2>&1; then
-  if _runtimes="$(lms runtime ls 2>/dev/null)" && [ -n "$_runtimes" ]; then
+  _runtimes_err=""
+  if ! _runtimes="$(lms runtime ls 2>&1)" || [ -z "$_runtimes" ]; then
+    # Check for common error patterns
+    if printf '%s\n' "$_runtimes" | grep -qi "dylib\|library not loaded"; then
+      warn "detected broken dynamic library dependencies (likely macOS update issue)"
+      echo "  error: ${_runtimes}" | head -1
+      problems_found+=("runtime_dylib_broken")
+    elif printf '%s\n' "$_runtimes" | grep -qi "no runtime found\|no llm runtime"; then
+      warn "detected corrupted or missing runtime cache"
+      problems_found+=("runtime_cache_corrupted")
+    else
+      warn "could not query runtime engines"
+      problems_found+=("runtime_query_failed")
+    fi
+  else
     # Check for selected runtime (marked with ✓)
     _selected="$(printf '%s\n' "$_runtimes" | grep '✓' | awk '{print $1}' | head -1)"
     if [ -n "$_selected" ]; then
@@ -88,9 +102,6 @@ if command -v lms >/dev/null 2>&1; then
       echo "  available engines:"
       printf '%s\n' "$_runtimes" | tail -n +2 | sed 's/^/    /'
     fi
-  else
-    warn "could not query runtime engines"
-    problems_found+=("runtime_query_failed")
   fi
 else
   warn "lms CLI not installed — runtime management unavailable"
@@ -357,7 +368,36 @@ if [ ${#problems_found[@]} -gt 0 ]; then
     ((step++))
   fi
 
-  # Problem: Runtime query failed
+  # Problem: Runtime dylib broken (macOS security/update issue)
+  if [ -n "${unique_problems[runtime_dylib_broken]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Recover from corrupted LM Studio runtime (macOS update issue)${C_RST}"
+    help_line "     This typically happens after macOS updates tighten security policies."
+    help_line "     Run the automated recovery:"
+    help_line ""
+    help_line "     ${C_GRN}\$ bin/recover-lms${C_RST}"
+    help_line ""
+    help_line "     ${C_DIM}Or manually:${C_RST}"
+    help_line "     ${C_GRN}\$ lms daemon down && pkill -f 'LM Studio' && pkill -f lms || true${C_RST}"
+    help_line "     ${C_GRN}\$ rm -rf ~/.lmstudio/extensions/backends ~/.lmstudio/cache${C_RST}"
+    help_line "     ${C_GRN}\$ lms daemon up && lms runtime get default${C_RST}"
+    help_line "     ${C_GRN}\$ lms load <model-id>${C_RST}"
+    help_line ""
+    help_line "     ${C_DIM}If symlink issues persist (dotfiles setup), move ~/.lmstudio out of${C_RST}"
+    help_line "     ${C_DIM}symlinked directories temporarily during recovery.${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: Runtime cache corrupted
+  if [ -n "${unique_problems[runtime_cache_corrupted]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Clear corrupted LM Studio cache${C_RST}"
+    help_line "     ${C_GRN}\$ rm -rf ~/.lmstudio/extensions/backends${C_RST}"
+    help_line "     ${C_GRN}\$ rm -rf ~/.lmstudio/cache${C_RST}"
+    help_line "     ${C_GRN}\$ lms daemon down && lms daemon up${C_RST}"
+    help_line "     ${C_GRN}\$ lms runtime ls${C_RST}  ${C_DIM}(verify runtimes recovered)${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: Runtime query failed (generic)
   if [ -n "${unique_problems[runtime_query_failed]:-}" ]; then
     help_line "  ${step}. ${C_BLD}Check and manage LM Studio runtime engines${C_RST}"
     help_line "     ${C_GRN}\$ lms runtime ls${C_RST}          ${C_DIM}# list installed engines${C_RST}"

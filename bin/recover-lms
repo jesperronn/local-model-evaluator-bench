@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# bin/recover-lms — recover from corrupted LM Studio cache/runtime (macOS update issues)
+#
+# Clears corrupted binary extensions, cache, and daemon state, then force-redownloads
+# clean, native-compiled runtimes. Useful after macOS security updates that invalidate
+# cached .node extensions and vendored Python libraries (libpython3.11.dylib, etc).
+#
+# Usage: bin/recover-lms [--help] [--dry-run]
+#
+# The recovery sequence:
+#   1. Kill background daemon and lingering LM Studio processes
+#   2. Clear corrupted binary extensions and cache
+#   3. Restart the daemon
+#   4. Force-download fresh, native runtimes
+#   5. Verify runtime readiness
+
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+DRY_RUN=0
+
+show_help() {
+  help_header "recover-lms" "recover from corrupted LM Studio runtime cache"
+
+  help_section "USAGE"
+  help_line "  recover-lms [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Clears corrupted LM Studio binary extensions, cache, and daemon state,"
+  help_line "  then force-downloads clean, natively-compiled Apple Silicon runtimes."
+  help_line ""
+  help_line "  Useful after macOS updates that invalidate cached .node extensions and"
+  help_line "  vendored Python libraries (e.g., libpython3.11.dylib not found errors)."
+
+  help_section "OPTIONS"
+  help_flag "--dry-run" "" "show recovery steps without executing them"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "RECOVERY SEQUENCE"
+  help_line "  1. Kill background daemon and lingering LM Studio processes"
+  help_line "  2. Clear corrupted binary extensions and cache:"
+  help_line "     ~/.lmstudio/extensions/backends"
+  help_line "     ~/.lmstudio/cache"
+  help_line "  3. Restart the daemon"
+  help_line "  4. Force-download fresh, native-compiled runtimes"
+  help_line "  5. Verify runtime readiness"
+}
+
+# Parse args
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help; exit 0;;
+    --dry-run) DRY_RUN=1; shift;;
+    *) die "unknown option: $arg";;
+  esac
+done
+
+run_or_die() {
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "${C_DIM}(dry-run)${C_RST} $*"
+  else
+    "$@" || die "$* failed"
+  fi
+}
+
+echo
+info "LM Studio Runtime Recovery"
+echo
+
+# Check if lms CLI is available
+if ! command -v lms >/dev/null 2>&1; then
+  die "lms CLI not found — install with: bin/setup --lms"
+fi
+
+# Step 1: Kill processes
+echo
+info "Step 1: Stop background daemon and processes"
+run_or_die lms daemon down
+if [ "$DRY_RUN" = 0 ]; then
+  # Give daemon time to shut down gracefully
+  sleep 1
+fi
+run_or_die pkill -f "LM Studio" || true
+run_or_die pkill -f lms || true
+if [ "$DRY_RUN" = 0 ]; then
+  ok "processes stopped"
+  sleep 1
+else
+  echo
+fi
+
+# Step 2: Clear corrupted cache
+echo
+info "Step 2: Clear corrupted cache and extensions"
+_backends_path="$HOME/.lmstudio/extensions/backends"
+_cache_path="$HOME/.lmstudio/cache"
+
+if [ -d "$_backends_path" ]; then
+  run_or_die rm -rf "$_backends_path"
+  [ "$DRY_RUN" = 0 ] && ok "cleared $_backends_path"
+fi
+if [ -d "$_cache_path" ]; then
+  run_or_die rm -rf "$_cache_path"
+  [ "$DRY_RUN" = 0 ] && ok "cleared $_cache_path"
+fi
+
+# Step 3: Restart daemon
+echo
+info "Step 3: Restart daemon"
+run_or_die lms daemon up
+if [ "$DRY_RUN" = 0 ]; then
+  # Give daemon time to start
+  sleep 2
+  ok "daemon restarted"
+else
+  echo
+fi
+
+# Step 4: Redownload runtimes
+echo
+info "Step 4: Force-download fresh, native-compiled runtimes"
+run_or_die lms runtime get default
+if [ "$DRY_RUN" = 0 ]; then
+  sleep 1
+fi
+
+# Also get MLX if on Apple Silicon
+if [ "$(uname -m)" = "arm64" ]; then
+  info "Downloading MLX runtime for Apple Silicon..."
+  run_or_die lms runtime get mlx-llm-mac-arm64-apple-metal-advsimd || true
+fi
+
+# Step 5: Verify
+echo
+info "Step 5: Verify runtime readiness"
+if [ "$DRY_RUN" = 0 ]; then
+  if _runtimes="$(lms runtime ls 2>&1)" && [ -n "$_runtimes" ]; then
+    ok "runtime list recovered"
+    printf '%s\n' "$_runtimes" | grep '✓' | head -3 | sed 's/^/  selected: /'
+  else
+    warn "runtime list still unavailable"
+    echo "$_runtimes"
+  fi
+fi
+
+echo
+if [ "$DRY_RUN" = 1 ]; then
+  info "dry-run complete — no changes made"
+else
+  ok "recovery complete"
+  echo
+  help_section "NEXT STEPS"
+  help_line "  1. Reload your model:"
+  help_line "     ${C_GRN}\$ lms load <model-id>${C_RST}"
+  help_line ""
+  help_line "  2. Run smoke tests:"
+  help_line "     ${C_GRN}\$ bin/smoke --model <model-id> --agent <agent>${C_RST}"
+  echo
+  echo "  ${C_DIM}If symlink issues persist (e.g., dotfiles setup), temporarily move${C_RST}"
+  echo "  ${C_DIM}~/.lmstudio outside symlinked directories during recovery.${C_RST}"
+fi
