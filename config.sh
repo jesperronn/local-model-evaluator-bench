@@ -2,16 +2,16 @@
 # Edit these to match your LM Studio setup.
 
 # LM Studio's OpenAI-compatible server. Start it with: `lms server start`
-export LMS_BASE_URL="${LMS_BASE_URL:-http://localhost:1234/v1}"
+export LMS_BASE_URL="${LMS_BASE_URL:-http://127.0.0.1:1234/v1}"
 # LM Studio ignores the key, but the clients require *some* value.
 export LMS_API_KEY="${LMS_API_KEY:-lm-studio}"
 
 # Ollama base URL used by adapters. Override to route through bin/tool-call-proxy
 # when testing models (e.g. qwen2.5-coder) that emit JSON text instead of
 # structured tool_calls:
-#   OLLAMA_BASE_URL=http://localhost:11435/v1 bin/bench --runtime ollama ...
+#   OLLAMA_BASE_URL=http://127.0.0.1:11435/v1 bin/bench --runtime ollama ...
 # Start the proxy first: bin/tool-call-proxy &
-export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434/v1}"
+export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
 
 # Default model used by adapters when MODEL_ID is not set externally.
 # Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh
