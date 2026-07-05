@@ -1,14 +1,14 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-07-05 16:40
+**Generated:** 2026-07-05 19:41
 
 ## Leaderboard — by runtime
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
 | lms | 3803/5500 | 69.1% | 94.8 |
-| ollama | 1285/1975 | 65.1% | 86.2 |
+| ollama | 1332/2075 | 64.2% | 83.5 |
 | mlx | 374/654 | 57.2% | 61.4 |
 
 ## Leaderboard — by adapter × model
@@ -152,6 +152,7 @@
 | ollama | aider | qwen3.6-35b-mlx | 29/36 | 80.6% | 118.1 | 1 |
 | mlx | pi | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 27/34 | 79.4% | 59.0 | 1 |
 | ollama | hermes | gpt-oss:20b | 30/38 | 78.9% | 186.5 | 1 |
+| ollama | aider | qwen2.5-coder:7b | 30/38 | 78.9% | 58.1 | 1 |
 | lms | interpreter | mistralai/devstral-small-2-2512 | 30/38 | 78.9% | 211.3 | 1 |
 | ollama | aider | phi4 | 26/33 | 78.8% | 91.8 | 1 |
 | lms | nanocoder | qwen/qwen2.5-coder-7b | 26/33 | 78.8% | 20.8 | 1 |
@@ -166,7 +167,6 @@
 | ollama | cline | gpt-oss:20b | 15/21 | 71.4% | 41.4 | 1 |
 | ollama | aider | gemma4-claude | 24/34 | 70.6% | 105.0 | 1 |
 | lms | openhands | google/gemma-4-26b-a4b | 26/38 | 68.4% | 119.5 | 1 |
-| ollama | aider | qwen2.5-coder:7b | 19/28 | 67.9% | 27.7 | 1 |
 | ollama | pi | gemma4:26b-mlx | 23/34 | 67.6% | 137.0 | 1 |
 | ollama | opencode | gpt-oss:20b | 4/6 | 66.7% | 32.7 | 1 |
 | ollama | cline | gemma4:12b-mlx | 4/6 | 66.7% | 82.3 | 1 |
@@ -227,11 +227,14 @@
 | lms | codex | google/gemma-4-e4b | 13/34 | 38.2% | 81.5 | 1 |
 | lms | codex | google/gemma-4-e2b | 13/34 | 38.2% | 36.0 | 1 |
 | ollama | pi | qwen3.6-35b-mlx | 12/32 | 37.5% | 1.7 | 1 |
+| ollama | pi | qwen2.5-coder:7b | 12/32 | 37.5% | 9.1 | 1 |
 | ollama | pi | phi4 | 12/32 | 37.5% | 2.0 | 1 |
 | ollama | openhands | qwen2.5-coder-7b | 12/32 | 37.5% | 39.8 | 1 |
 | ollama | opencode | qwen3.6-35b-mlx | 12/32 | 37.5% | 3.2 | 1 |
+| ollama | hermes | qwen2.5-coder:7b | 12/32 | 37.5% | 6.1 | 1 |
 | ollama | hermes | qwen2.5-coder-7b | 12/32 | 37.5% | 16.7 | 1 |
 | ollama | hermes | phi4 | 12/32 | 37.5% | 4.3 | 1 |
+| ollama | copilot | qwen2.5-coder-7b | 12/32 | 37.5% | 41.5 | 1 |
 | ollama | copilot | gpt-oss:20b | 12/32 | 37.5% | 181.0 | 1 |
 | ollama | codex | gemma4-claude | 12/32 | 37.5% | 2.0 | 1 |
 | ollama | cline | qwen3.6-35b-mlx | 12/32 | 37.5% | 5.1 | 1 |
@@ -310,7 +313,6 @@
 | ollama | opencode | qwen2.5-coder-7b | 0/6 | 0.0% | 2.0 | 1 |
 | ollama | opencode | gemma4:12b-mlx | 0/6 | 0.0% | 2.0 | 1 |
 | ollama | interpreter | qwen2.5-coder-7b | 0/6 | 0.0% | 11.3 | 1 |
-| ollama | copilot | qwen2.5-coder-7b | 0/6 | 0.0% | 39.0 | 1 |
 | ollama | codex | qwen2.5-coder-7b | 0/6 | 0.0% | 2.0 | 1 |
 | ollama | codex | gemma4-12b-mlx | 0/6 | 0.0% | 92.7 | 1 |
 | ollama | cline | qwen2.5-coder-7b | 0/6 | 0.0% | 12.7 | 1 |
@@ -399,9 +401,9 @@
 | ollama | phi4 | 50/97 | 51.5% | 32.7 |
 | lms | qwen2.5-coder-7b | 94/183 | 51.4% | 46.6 |
 | lms | ibm/granite-4.1-30b | 89/175 | 50.9% | 310.6 |
+| ollama | qwen2.5-coder:7b | 56/130 | 43.1% | 19.4 |
 | lms | zai-org/glm-4.7-flash | 159/390 | 40.8% | 177.5 |
-| ollama | qwen2.5-coder:7b | 21/56 | 37.5% | 14.3 |
-| ollama | qwen2.5-coder-7b | 49/144 | 34.0% | 28.5 |
+| ollama | qwen2.5-coder-7b | 61/170 | 35.9% | 30.3 |
 | ollama | qwen3.5-claude | 14/48 | 29.2% | 131.9 |
 | lms | liquid/lfm2-24b-a2b | 22/96 | 22.9% | 40.5 |
 | ollama | qwen3.5:9b | 1/5 | 20.0% | 190.5 |
@@ -424,15 +426,15 @@
 | interpreter | 446/533 | 83.7% | 103.9 |
 | goose | 309/387 | 79.8% | 121.1 |
 | nanocoder | 244/315 | 77.5% | 75.0 |
-| pi | 546/705 | 77.4% | 80.5 |
 | cline | 440/573 | 76.8% | 106.2 |
-| aider | 792/1052 | 75.3% | 78.2 |
+| pi | 558/737 | 75.7% | 77.3 |
+| aider | 803/1062 | 75.6% | 78.9 |
 | openhands | 267/396 | 67.4% | 104.6 |
-| hermes | 735/1121 | 65.6% | 106.3 |
+| hermes | 747/1153 | 64.8% | 103.3 |
 | opencode | 541/852 | 63.5% | 61.8 |
 | codex | 495/840 | 58.9% | 107.0 |
 | caveman | 397/801 | 49.6% | 54.3 |
-| copilot | 191/457 | 41.8% | 122.8 |
+| copilot | 203/483 | 42.0% | 118.9 |
 | claude | 5/27 | 18.5% | 18.5 |
 | mini-swe-agent | 0/8 | 0.0% | 137.2 |
 | forge | 0/6 | 0.0% | 23.3 |
