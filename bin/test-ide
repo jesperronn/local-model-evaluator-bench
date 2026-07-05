@@ -455,6 +455,10 @@ echo ""
 echo "Next: document findings on the ${IDE} extension card:"
 echo "  $HERE/docs/extensions/"
 echo ""
+echo "For broader agent evaluation:"
+echo "  bin/eval-agent          # Benchmark agent on 100-question suite"
+echo "  bin/bench --agent <tool> # Run full test suite on this tool"
+echo ""
 
 # Log findings
 log_findings "$IDE" "cline" "$CASE_ID" "$RESULT" "$DURATION" "$PLUGIN_VERSION"

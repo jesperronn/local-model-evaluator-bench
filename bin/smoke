@@ -502,4 +502,18 @@ else
   [ "$UPDATE_COMPAT" = 0 ] && info "skipped compat.json update (--skip-compat-update)"
 fi
 
+if [ "$fails" -eq 0 ]; then
+  echo ""
+  echo "Smoke test passed! Next:"
+  echo "  Run a qualifying subset: bin/qualify"
+  echo "  Run full benchmark:     bin/bench --agent aider --trials 1"
+  echo "  Debug failures (if any): bin/trace-edit <adapter> <model> [case]"
+else
+  echo ""
+  echo "Smoke test had failures. Next:"
+  echo "  Investigate: bin/trace-edit <adapter> <model>"
+  echo "  Debug:       bin/debug"
+  echo "  Recover:     bin/recover-lms"
+fi
+
 exit "$([ "$fails" -eq 0 ] && echo 0 || echo 1)"

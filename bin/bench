@@ -945,3 +945,11 @@ done
 echo
 info "results: $CSV"
 "$HERE/bin/report" "$CSV"
+
+echo ""
+echo "Next:"
+echo "  Merge all results:       bin/report --all --save"
+echo "  View result summary:     bin/bench-status"
+echo "  Investigate failures:    bin/investigate --failures <run-id>"
+echo "  Schedule recurring:      bin/bench-overnight --stale    (or cron)"
+echo "  Update dashboard:        bin/viz"

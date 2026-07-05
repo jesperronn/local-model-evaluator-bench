@@ -436,4 +436,15 @@ if [ ${#problems_found[@]} -gt 0 ]; then
   if [ "$step" -eq 1 ]; then
     help_line "  ${C_DIM}(problems detected, but detailed fixes not yet defined for this scenario)${C_RST}"
   fi
+
+  echo ""
+  help_section "NEXT STEPS"
+  help_line "If all checks pass above:"
+  help_line "  ${C_GRN}\$ bin/smoke${C_RST}                    # Quick L0 test (2 min)"
+  help_line "  ${C_GRN}\$ bin/bench --agent aider --trials 1${C_RST}  # Try one adapter (5-10 min)"
+  help_line ""
+  help_line "For troubleshooting:"
+  help_line "  ${C_GRN}\$ bin/debug${C_RST}                    # Advanced diagnostics"
+  help_line "  ${C_GRN}\$ bin/recover-lms${C_RST}              # Recover corrupted LM Studio"
+  help_line "  ${C_GRN}\$ bin/lms_gc${C_RST}                  # Free memory from idle models"
 fi

@@ -288,6 +288,28 @@ See [WORKFLOW.md](docs/WORKFLOW.md) for detailed usage of each script.
 - `bin/pi-patch-edit-shim` — reapply Qwen3-Coder edit-tool shim
 - `bin/mlx-serve-qwen3-coder` — MLX server wrapper
 
+### Internal & Advanced Tools
+
+These scripts are discoverable via next-steps guidance from the main pipeline, or are specialized utilities for advanced use cases:
+
+**Recovery & Management**
+- `bin/debug` — advanced diagnostics and troubleshooting
+- `bin/recover-lms` — recover corrupted LM Studio installations (macOS issues)
+- `bin/results` — manage and clean old benchmark results (called by `bin/stale`)
+- `bin/verify-model-availability` — check if models are available on HuggingFace / OllamaHUB
+
+**Scheduling & Variants**
+- `bin/qualify` — L1 filter: read L0 smoke results, output viable (adapter, model) pairs (internal gating)
+- `bin/sweep-cards` — automated card maintenance via local agent (advanced workflow)
+- `bin/sync-agent-configs` — synchronize agent configs across machines (multi-machine setup)
+- `bin/run` — execution wrapper for orchestrated workflows
+
+**Project Infrastructure**
+- `bin/test` — run colocated shell test files (`.test.sh`), used in CI/pre-commit
+- `bin/mlx-serve-qwen3-next` — MLX server variant for Qwen3-Coder-Next (experimental)
+
+**Why these aren't in the core pipeline:** They're either discoverable via next-steps from other commands (e.g., `bin/doctor` suggests `bin/recover-lms`), or they're internal utilities for advanced/specialized workflows. Users following the happy path won't need them; they surface contextually when needed.
+
 ---
 
 ## Adding & Contributing
