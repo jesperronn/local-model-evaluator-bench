@@ -1,30 +1,43 @@
 # Local Model Evaluator Bench
 
-A repeatable harness for benchmarking **local models** on **agentic coding workflows** — measuring the smallest, fastest model that reliably passes real test cases, across CLIs ([aider](docs/tools/aider.md), [hermes](docs/tools/hermes.md), [opencode](docs/tools/opencode.md), etc.) and IDE extensions (VS Code + Cline/Continue, JetBrains).
+Get a **working local coding agent** on a new machine fast — and, when you want it,
+a repeatable harness for **benchmarking local models** on agentic coding workflows
+(the smallest, fastest model that reliably passes real test cases), across CLIs
+([aider](docs/tools/aider.md), [hermes](docs/tools/hermes.md), [opencode](docs/tools/opencode.md), etc.)
+and IDE extensions (VS Code + Cline/Continue, JetBrains).
 
 ---
 
 ## Getting Started
 
-**New to this project?** Start here → **[ONBOARDING.md](docs/ONBOARDING.md)** (4 phases, step-by-step)
+There are two ways to use this repo. Most people want Path A.
 
-Or if you've done this before, copy-paste the quick start:
+### Path A — Get a working local coding agent (≈20 min)
+
+Detect your hardware, install a runtime + model + one or two agents, wire them to
+your local server, and prove it works. Full walkthrough →
+**[ONBOARDING.md](docs/ONBOARDING.md)** (Path A).
 
 ```bash
-lms server start          # Start LM Studio's OpenAI-compatible server
-bin/doctor                # Check server, CLIs, models, and test cases
-bin/smoke                 # Verify every tool can reach the model
+lms server start                # start LM Studio's OpenAI-compatible server (or: ollama serve)
+bin/setup                       # status: what's installed, your RAM tier, recommended model
+bin/setup --agent aider,hermes  # install + WIRE agents (writes each agent's native config → config.sh)
+bin/doctor                      # confirm server, model, AND agent configs are correct
+bin/smoke --agent aider,hermes  # prove each agent can actually drive the model
 ```
 
-Try a single test case interactively:
+`bin/setup --agent …` now configures the agents for you — it writes each agent's
+own config file (aider, opencode, pi, hermes) to point at your local endpoint via
+[`bin/agents-config`](bin/agents-config). Re-run any step; they're idempotent.
+Next, wire up an **IDE plugin** with `bin/test-ide` (VS Code + Cline, or JetBrains + Continue).
+
+### Path B — Benchmark everything (advanced)
+
+Measure which model × tool is the smallest/fastest that still passes on your
+machine. Full guide → [ONBOARDING.md](docs/ONBOARDING.md) (Path B).
 
 ```bash
-bin/test-ide              # Run a test case in VS Code (Cline) or IntelliJ (Continue)
-```
-
-Then run a full benchmark:
-
-```bash
+lms server start
 bin/bench --agent hermes --trials 3 && bin/report --all --save && bin/viz
 ```
 
@@ -301,7 +314,7 @@ These scripts are discoverable via next-steps guidance from the main pipeline, o
 **Scheduling & Variants**
 - `bin/qualify` — L1 filter: read L0 smoke results, output viable (adapter, model) pairs (internal gating)
 - `bin/sweep-cards` — automated card maintenance via local agent (advanced workflow)
-- `bin/agents-config` — synchronize agent configs across machines (multi-machine setup)
+- `bin/agents-config` — reconcile each agent's native config to config.sh: model lists + endpoint/api-key settings (`--verify` to check, `--write` to apply)
 - `bin/run` — execution wrapper for orchestrated workflows
 
 **Project Infrastructure**

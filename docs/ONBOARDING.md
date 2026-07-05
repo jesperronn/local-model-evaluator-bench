@@ -27,7 +27,7 @@ $ bin/doctor
 This scans your environment and reports what's installed and what's missing. Output will look like:
 
 ```
-ℹ LM Studio server: http://localhost:1234/v1
+ℹ LM Studio server: http://127.0.0.1:1234/v1
 ✗ not reachable. Start it with: lms server start
 
 ℹ Model management CLIs:
@@ -65,7 +65,7 @@ lms server start
 Verify it's running:
 ```bash
 lms ps                    # Shows loaded models (should be empty)
-curl http://localhost:1234/v1/models  # Should return JSON
+curl http://127.0.0.1:1234/v1/models  # Should return JSON
 ```
 
 ### Option B: Ollama (macOS / Linux)
@@ -116,7 +116,7 @@ lms load qwen/qwen3.6-35b-a3b --context-length 65536
 **Verify the model is loaded:**
 ```bash
 lms ps                 # Should list your loaded model
-curl http://localhost:1234/v1/models  # Should show it
+curl http://127.0.0.1:1234/v1/models  # Should show it
 ```
 
 > **Note on context windows:** Higher context (65536) helps with multi-file edits but costs RAM. On 32 GB, use 8192–16384. On 64 GB+, use 65536.
@@ -146,8 +146,13 @@ bin/setup --agent aider,hermes
 
 This will:
 1. Show installation status of each agent
-2. Guide you through configuration for each
-3. Show next steps (what to do after installing)
+2. **Wire each agent's native config to `config.sh`** (endpoint + api key, and
+   aider's default model) via `bin/agents-config` — so the agent works when run
+   directly, not just through the bench
+3. Verify what it wrote and show next steps
+
+Because this writes each agent's own config file, you can usually **skip Step 5**
+(manual configuration). It's idempotent — safe to re-run.
 
 ### Alternative: Manual Installation
 
@@ -178,20 +183,29 @@ Each agent needs to know where your LM Studio/Ollama/MLX server is and which mod
 
 ### If you used `bin/setup --agent`
 
-Configuration guidance was shown at the end of the setup. Just follow those instructions—they include the exact files to edit and example values.
+Your agents were already configured — `setup` wrote each one's native config from
+`config.sh`. Confirm it stuck:
+
+```bash
+bin/agents-config --verify        # reads each config back, compares to config.sh
+```
+
+All PASS means you can go straight to Step 6. Only read the manual steps below if
+you're configuring an agent by hand or `--verify` reports drift (then just run
+`bin/agents-config --write`).
 
 ### Manual Configuration for CLI agents (aider, hermes, caveman, opencode):
 
 **aider:**
 ```bash
-aider --openai-api-base http://localhost:1234/v1 \
+aider --openai-api-base http://127.0.0.1:1234/v1 \
       --model openai/qwen/qwen3.6-27b \
       --no-auto-commits
 ```
 
 Or add to `~/.aider.conf.yaml`:
 ```yaml
-openai-api-base: http://localhost:1234/v1
+openai-api-base: http://127.0.0.1:1234/v1
 model: openai/qwen/qwen3.6-27b
 no-auto-commits: true
 ```
@@ -219,13 +233,13 @@ Open VS Code settings (Cmd+, or Ctrl+,):
 
 **Cline:**
 - Search "cline"
-- Set "API Base URL" → `http://localhost:1234/v1`
+- Set "API Base URL" → `http://127.0.0.1:1234/v1`
 - Set "Model" → `qwen/qwen3.6-27b` (must match your loaded model)
 
 **Continue:**
 - Search "continue"
 - Set "Model" → LM Studio
-- Set "API Base URL" → `http://localhost:1234/v1`
+- Set "API Base URL" → `http://127.0.0.1:1234/v1`
 
 ---
 
@@ -398,7 +412,7 @@ $ bin/smoke
 
 **What it does:**
 - Checks that LM Studio is running (or Ollama / MLX if you configured those)
-- Tries to reach the server at your configured endpoint (default: `http://localhost:1234/v1`)
+- Tries to reach the server at your configured endpoint (default: `http://127.0.0.1:1234/v1`)
 - Runs a trivial test case (`cases/smoke-00-hello`) through every adapter (aider, hermes, opencode, cline, continue, etc.)
 - Reports which adapters work and which fail
 
