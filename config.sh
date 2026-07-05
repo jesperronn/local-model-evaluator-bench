@@ -15,7 +15,8 @@ export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434/v1}"
 
 # Default model used by adapters when MODEL_ID is not set externally.
 # Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh
-export PREFERRED_MODEL_ID="${PREFERRED_MODEL_ID:-qwen/qwen3.6-35b-a3b}"
+# Standard model for local evaluations: qwen2.5-coder-7b (balanced speed/quality for smaller models)
+export PREFERRED_MODEL_ID="${PREFERRED_MODEL_ID:-qwen2.5-coder-7b}"
 
 # Model used by `bin/smoke` to verify every tool can reach LM Studio. Pick a
 # small, fast one — the smoke case is trivial, so capability doesn't matter.
@@ -66,8 +67,9 @@ fi
 #   ✨ Recommended: openhands (fast+accurate), cline (100% accurate), aider (reliable)
 #   ⚠️  Caution: goose (slow), pi (very slow), opencode (very slow)
 #   ❌ Incompatible: copilot (cloud-only, expects Anthropic API not local models), claude (SDK incompatibility with local servers)
+# For small model evaluation (3.8B-9B): use pi only (verified via fair-comparison testing 2026-07-05)
 # See docs/ADAPTER-SETUP.md and docs/AGENT-SELECTION.md for full compatibility matrix.
-DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot,nanocoder,cn}"
+DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-pi}"
 
 # Adapter configuration defaults — applied globally by `bin/suggest-tuning | llmrun agents config apply`.
 # These are fallback values; model-specific overrides in docs/models/*.md take precedence.

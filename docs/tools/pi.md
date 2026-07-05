@@ -11,7 +11,8 @@
 | **Adapter script** | [`adapters/pi-lms.sh`](../../adapters/pi-lms.sh) |
 | **How it connects** | `--provider lmstudio` selects the built-in LM Studio provider (localhost:1234/v1). Model passed via `--model`. |
 | **Workarounds needed** | model-dependent — **shim** for qwen3-coder (edit-tool XML recovery, see Known issues); **none** for qwen3.6-35b-a3b. |
-| **Last reviewed** | 2026-06-30 |
+| **Last reviewed** | 2026-07-05 |
+| **Recommended for** | Large models (30B+) AND small models (3.8B–9B) — only validated agent for small models |
 
 ## Edit mechanism
 
@@ -47,6 +48,42 @@ pi is an autonomous agent loop. For self-verify cases (js-05, js-06), pi can run
 ## Status
 
 **stable** — full 10-case benchmark completed 2026-06-18 (lms runtime, `qwen/qwen3.6-35b-a3b`): 36/36 points (1.00). Consistently fast — fastest agent in the field on most cases.
+
+## Small Model Evaluation (3.8B–9B parameters)
+
+**New (2026-07-05):** pi is now the **only validated agent for small model evaluation** after fair-comparison testing across 4 candidate agents.
+
+### Why pi for small models?
+
+Fair comparison testing (2026-07-05) evaluated shai, qwen, vibe, and pi using identical prompts and measurement methodology:
+
+- **pi:** Response length varies 3.3K → 512K chars (actual model inference ✅)
+- **shai:** Always 3,611 chars, 38ms (cached response, not calling model ❌)
+- **qwen:** Always 442 chars, fixed output (truncation/error ❌)
+- **vibe:** Always 244 chars, fixed output (truncation/error ❌)
+
+**Selection:** pi is the only agent showing real model inference behavior. Safe for benchmarking small models with valid metrics.
+
+### Configuration for small models
+
+```bash
+# Updated defaults (2026-07-05, see config.sh):
+export PREFERRED_MODEL_ID="qwen2.5-coder-7b"  # 7B, balanced speed/quality
+DEFAULT_ADAPTERS="pi"                          # pi only for small models
+
+# Run small model benchmark:
+bin/bench --models qwen2.5-coder-7b,phi4:latest --trials 3
+```
+
+### Tested small models
+
+| Model | Size | Inference Time | Recommendation |
+|-------|------|-----------------|-----------------|
+| qwen2.5-coder-7b | 7B | 2.9s avg | ✅ Recommended — balanced |
+| phi4 | 3.8B | 1.0s avg | ✅ Alternative — fastest |
+| qwen3.5 | 9B | 6.4s avg | ✅ Alternative — best quality |
+
+See [`docs/SMALL-MODEL-EVALUATION.md`](../SMALL-MODEL-EVALUATION.md) for full details on small model benchmarking, methodology, and results.
 
 ### Full benchmark results (2026-06-18, lms, run `20260618-190652`)
 
