@@ -18,7 +18,7 @@ the leaner global equivalent (no bench/results awareness).
 commands run against the real running lms/ollama/mlx on this machine, plus the
 existing `*.test.sh` suites re-run clean): `llmrun model {list,get,load,unload}`
 inline; `model {rm,update}` and `agents sync` delegate by baked project path to
-`bin/prune`/`bin/lms_update`/`bin/outdated`/`bin/sync-agent-configs` (same
+`bin/prune`/`bin/lms_update`/`bin/outdated`/`bin/agents-config` (same
 "point to, don't inline" principle the adapters already use — see Migration
 approach); `llmrun agents config {list,get,set,unset,apply}` implemented
 against a new intermediate store (resolves open Q4, below); project-local
@@ -109,7 +109,7 @@ llmrun model unload   [<id>] [--idle 30m] --runtime X   # replaces: lms_gc (gene
 llmrun model rm       [<id>] [--unused] [--interactive] # replaces: prune
 llmrun model update   [<id>] [--check]        # replaces: lms_update (write) + outdated (read-only via --check)
 
-llmrun agents sync         [--write] [--opencode-only|--pi-only|...]       # = sync-agent-configs, generalized
+llmrun agents sync         [--write] [--opencode-only|--pi-only|...]       # = agents-config, generalized
 
 llmrun agents config list  [--target opencode|pi|...]                     # NEW — dump effective settings, all targets
 llmrun agents config get   <model> <key>          [--target X]            # NEW — e.g. get hermes context
@@ -120,7 +120,7 @@ llmrun agents config apply <plan.jsonl>  [--write]                        # NEW 
 
 **Global adapter-config gap (your second question) — real, partially filled,
 now split into three pieces instead of one `tune` command.**
-[bin/sync-agent-configs](../bin/sync-agent-configs) already re-derives
+[bin/agents-config](../bin/agents-config) already re-derives
 `~/.config/opencode/opencode.jsonc`'s model list and
 `~/.pi/agent/models.json` from `lms ls --json` / `ollama list`, filtering out
 combos `compat.json` marks broken — that's `agents sync`, folded in as-is.
@@ -143,7 +143,7 @@ tried to cover in one shot. On review that conflated two different jobs:
 The bridge between the two is `agents config apply <plan.jsonl>`: it reads a
 flat plan (one JSON object per line: `{model, key, value, reason, source}`)
 and calls `set` for each row, dry-run by default, `--write` to commit — same
-trust convention `sync-agent-configs` already uses. `llmrun` never has to know
+trust convention `agents-config` already uses. `llmrun` never has to know
 *why* a value is right, only how to write it; the "why" (reason + source
 citation) travels in the plan file and gets printed at apply time for review.
 
@@ -152,7 +152,7 @@ adapter onboarding story: combining pre-configuration (via `suggest-tuning` +
 `agents config apply`) with card documentation ensures adapters "just work"
 out of the box — no manual tuning.
 
-Fold `bin/sync-agent-configs` into `agents sync` — it's already global-scope
+Fold `bin/agents-config` into `agents sync` — it's already global-scope
 (writes to `~/.config`, `~/.pi`, not this repo) and already runtime/model
 lifecycle-adjacent, so it belongs in `llmrun`, not in project-local `bin/`.
 
@@ -226,7 +226,7 @@ battle-tested and repo-coupled the underlying logic was:
 - **Delegated by baked project path** (same "point to, don't inline"
   principle `build-llmrun` already uses for adapters): `model rm` →
   `bin/prune`, `model update` → `bin/lms_update`/`bin/outdated`, `agents sync`
-  → `bin/sync-agent-configs`. These have substantial, already-correct logic
+  → `bin/agents-config`. These have substantial, already-correct logic
   (HF API staleness checks, LM Studio index parsing, jsonc-preserving node
   patching) that would be all downside to reimplement inline in a bash
   heredoc — copying ~1200 lines of tested logic into the template's string
@@ -245,7 +245,7 @@ battle-tested and repo-coupled the underlying logic was:
   a one-line deprecated shim that execs `bin/debug`.
 
 Old scripts were **not deleted** — `bin/rt`, `prune`, `lms_gc`, `lms_update`,
-`outdated`, `sync-agent-configs`, `lint-cards`, `fix-card`, `sweep-cards`,
+`outdated`, `agents-config`, `lint-cards`, `fix-card`, `sweep-cards`,
 `stale`, `cleanup`, `bench`, `smoke`, `nightly` all still work standalone and
 remain the implementation the new entry points call into or sit alongside.
 `bin/lms_gc`'s standalone TTL-sweep behavior isn't yet exposed through `llmrun

@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# bin/agents-config — reconcile each coding agent's NATIVE config to project truth.
+#
+# Two concerns, both idempotent:
+#   1. model lists   — re-derive opencode + pi model lists from what's actually
+#                      installed (lms ls / ollama list), minus known-broken combos.
+#   2. settings      — push config.sh's endpoint + api key (and aider's default
+#                      model) into each agent's own config file so the agent works
+#                      when run directly, not just via the bench adapters.
+#
+# config.sh is the single source of truth (LMS_BASE_URL, LMS_API_KEY,
+# OLLAMA_BASE_URL, PREFERRED_MODEL_ID). Re-run after any `lms get/rm`,
+# `ollama pull/rm`, or after editing config.sh.
+#
+# Usage:
+#   bin/agents-config                 dry-run: unified diffs for both concerns
+#   bin/agents-config --write         apply changes (timestamped backups)
+#   bin/agents-config --verify        read settings back, compare to config.sh
+#   bin/agents-config --settings-only apply only endpoint/model settings
+#   bin/agents-config --no-settings   only model-list sync (legacy behavior)
+#   bin/agents-config --agent pi      restrict to one agent (aider,opencode,pi,hermes)
+#   bin/agents-config --opencode-only / --pi-only   (aliases for --agent)
+#
+# Agents: aider (settings), opencode (models+settings), pi (models+settings) are
+# on by default. hermes is SETTINGS-only and OPT-IN (--agent hermes) because its
+# config is machine-serialized and its LMS endpoint key is `api`, not base_url.
+# Default model is written only for aider (its id form is unambiguous); pi/opencode
+# keep whatever default model you chose.
+#
+# What it does NOT touch: mlx / ollama_proxy providers in opencode, and pi/opencode
+# top-level default model.
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh" 2>/dev/null || true
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/agent-settings.sh"
+source "$HERE/bin/lib/help.sh" 2>/dev/null || true
+
+OPENCODE_CFG="${OPENCODE_CFG:-$HOME/.config/opencode/opencode.jsonc}"
+[ -f "$OPENCODE_CFG" ] || [ ! -f "${OPENCODE_CFG%.jsonc}.json" ] || OPENCODE_CFG="${OPENCODE_CFG%.jsonc}.json"
+PI_LIVE_CFG="${PI_LIVE_CFG:-$HOME/.pi/agent/models.json}"
+PI_TEMPLATE="$HERE/config-templates/pi-agent-models.json"
+AIDER_CFG="${AIDER_CFG:-$HOME/.aider.conf.yaml}"
+AIDER_TEMPLATE="$HERE/config-templates/aider.conf.yaml"
+HERMES_CFG="${HERMES_CFG:-$HOME/.hermes/config.yaml}"
+COMPAT_JSON="$HERE/compat.json"
+
+WRITE=0
+VERIFY=0
+DO_MODELS=1
+DO_SETTINGS=1
+AGENT_FILTER=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --write) WRITE=1; shift;;
+    --verify) VERIFY=1; shift;;
+    --settings-only) DO_MODELS=0; shift;;
+    --no-settings) DO_SETTINGS=0; shift;;
+    --agent) AGENT_FILTER="$2"; shift 2;;
+    --agent=*) AGENT_FILTER="${1#*=}"; shift;;
+    --opencode-only) AGENT_FILTER="opencode"; shift;;
+    --pi-only) AGENT_FILTER="pi"; shift;;
+    -h|--help) sed -n '2,33p' "$0"; exit 0;;
+    *) echo "unknown option: $1" >&2; exit 1;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || die "jq required"
+command -v node >/dev/null 2>&1 || die "node required"
+
+# Effective agent set: explicit filter wins (and may include hermes); otherwise
+# the safe default set (hermes excluded).
+if [ -n "$AGENT_FILTER" ]; then AGENTS="${AGENT_FILTER//,/ }"; else AGENTS="aider opencode pi"; fi
+
+# ── Discover installed models (for the model-list concern) ────────────────────
+LMS_JSON="[]"
+if command -v lms >/dev/null 2>&1; then
+  LMS_JSON="$(lms ls --json 2>/dev/null | jq -c '[.[] | select(.type=="llm")]')"
+fi
+OLLAMA_JSON="[]"
+if command -v ollama >/dev/null 2>&1; then
+  OLLAMA_JSON="$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | jq -R . | jq -s .)"
+fi
+
+broken_keys_for() {
+  local adapter="$1"
+  jq -r --arg a "$adapter" 'to_entries[] | select(.value.adapter==$a) | .value.model' "$COMPAT_JSON" 2>/dev/null | sort -u
+}
+
+# ── Concern 1: model lists ───────────────────────────────────────────────────
+sync_one_pi_file() {
+  local target="$1" label="$2"
+  [ -f "$target" ] || { echo "$label: not found, skipping (run bin/setup --caveman-cli first)"; return; }
+  local broken_json; broken_json="$(broken_keys_for pi | jq -R . | jq -s .)"
+  local lms_models ollama_models
+  lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_json" '
+    [.[] | .modelKey as $k | select($broken | index($k) | not) | {id: $k}] | sort_by(.id)')"
+  ollama_models="$(echo "$OLLAMA_JSON" | jq --argjson broken "$broken_json" '
+    [.[] | select(test("embed") | not) | select(. as $k | $broken | index($k) | not) | {id: .}] | sort_by(.id)')"
+  jq --argjson lms "$lms_models" --argjson ollama "$ollama_models" '
+    .providers.lmstudio.models = $lms
+    | if .providers.ollama then .providers.ollama.models = $ollama else . end
+  ' "$target" | commit_if_changed "$target" "$label" "$WRITE"
+}
+
+sync_pi_models() {
+  sync_one_pi_file "$PI_LIVE_CFG" "$PI_LIVE_CFG"
+  sync_one_pi_file "$PI_TEMPLATE" "config-templates/pi-agent-models.json"
+}
+
+sync_opencode_models() {
+  [ -f "$OPENCODE_CFG" ] || { echo "opencode config not found at $OPENCODE_CFG (skipping)" >&2; return; }
+  local broken_lms; broken_lms="$(broken_keys_for opencode | jq -R . | jq -s .)"
+  local existing; existing="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" lmstudio ollama)"
+  local lms_models ollama_models
+  lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
+    [.[] | .modelKey as $k | select($broken | index($k) | not)
+         | {($k): ($existing.lmstudio[$k] // {name: .displayName})}]
+    | sort_by(keys[0]) | add // {}')"
+  ollama_models="$(echo "$OLLAMA_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
+    def titlecase: gsub("[:_-]"; " ") | split(" ") | map(
+        if test("^[0-9]") then . else (.[0:1] | ascii_upcase) + .[1:] end
+      ) | join(" ");
+    [.[] | select(test("embed") | not)
+         | select(. as $k | $broken | index($k) | not)
+         | {(.): ($existing.ollama[.] // {name: (. | titlecase)})}]
+    | sort_by(keys[0]) | add // {}')"
+  local out; out="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" write "$OPENCODE_CFG" lmstudio "$lms_models" ollama "$ollama_models")"
+  printf '%s\n' "$out" | commit_if_changed "$OPENCODE_CFG" "$OPENCODE_CFG" "$WRITE"
+}
+
+# ── Concern 2: settings (endpoint / api key / default model) ─────────────────
+settings_aider() {
+  local content
+  if [ -f "$AIDER_CFG" ]; then content="$(cat "$AIDER_CFG")"; else content="$(cat "$AIDER_TEMPLATE")"; fi
+  printf '%s\n' "$content" \
+    | yaml_upsert_flat openai-api-base "$LMS_BASE_URL" \
+    | yaml_upsert_flat openai-api-key "$LMS_API_KEY" \
+    | yaml_upsert_flat model "openai/${PREFERRED_MODEL_ID}" \
+    | commit_if_changed "$AIDER_CFG" "aider settings ($AIDER_CFG)" "$WRITE"
+}
+
+settings_pi() {
+  [ -f "$PI_LIVE_CFG" ] || { echo "pi settings: $PI_LIVE_CFG not found, skipping (run bin/setup --caveman-cli)"; return; }
+  json_set "$PI_LIVE_CFG" '
+    .providers.lmstudio.baseUrl = $url
+    | .providers.lmstudio.apiKey = $key
+    | (if .providers.ollama then .providers.ollama.baseUrl = $ourl else . end)
+  ' --arg url "$LMS_BASE_URL" --arg key "$LMS_API_KEY" --arg ourl "$OLLAMA_BASE_URL" \
+    | commit_if_changed "$PI_LIVE_CFG" "pi settings ($PI_LIVE_CFG)" "$WRITE"
+}
+
+settings_opencode() {
+  [ -f "$OPENCODE_CFG" ] || { echo "opencode settings: $OPENCODE_CFG not found (skipping)"; return; }
+  local -a paths=(
+    provider.lmstudio.options.baseURL "$(json_str "$LMS_BASE_URL")"
+    provider.lmstudio.options.apiKey  "$(json_str "$LMS_API_KEY")"
+  )
+  if node "$_AS_MJS" get "$OPENCODE_CFG" provider.ollama.options.baseURL >/dev/null 2>&1; then
+    paths+=( provider.ollama.options.baseURL "$(json_str "$OLLAMA_BASE_URL")" )
+  fi
+  if ! jsonc_set "$OPENCODE_CFG" "${paths[@]}" 2>/dev/null | commit_if_changed "$OPENCODE_CFG" "opencode settings ($OPENCODE_CFG)" "$WRITE"; then
+    warn "opencode settings: could not patch $OPENCODE_CFG (lmstudio provider/options block missing?)"
+  fi
+}
+
+settings_hermes() {
+  [ -f "$HERMES_CFG" ] || { warn "hermes settings: $HERMES_CFG not found — run hermes once to generate it, then re-run"; return; }
+  if [ -z "$(yaml_get_nested providers lmstudio api "    " < "$HERMES_CFG")" ]; then
+    warn "hermes settings: providers.lmstudio.api not found at 4-space indent — skipping (won't insert into hermes-managed file)"
+    return
+  fi
+  yaml_set_nested providers lmstudio api "$LMS_BASE_URL" "    " < "$HERMES_CFG" \
+    | yaml_set_nested providers lmstudio api_key "$LMS_API_KEY" "    " \
+    | commit_if_changed "$HERMES_CFG" "hermes settings ($HERMES_CFG)" "$WRITE"
+}
+
+# ── Concern 2 (verify): read settings back, compare to config.sh ─────────────
+VERIFY_FAIL=0
+_vchk() { # label expected actual
+  if [ "$2" = "$3" ]; then ok "$1"; else err "$1  (want '$2' got '$3')"; VERIFY_FAIL=1; fi
+}
+verify_aider() {
+  [ -f "$AIDER_CFG" ] || { warn "aider: $AIDER_CFG missing"; VERIFY_FAIL=1; return; }
+  _vchk "aider openai-api-base" "$LMS_BASE_URL"                  "$(yaml_get_flat openai-api-base < "$AIDER_CFG")"
+  _vchk "aider model"           "openai/${PREFERRED_MODEL_ID}"   "$(yaml_get_flat model < "$AIDER_CFG")"
+}
+verify_pi() {
+  [ -f "$PI_LIVE_CFG" ] || { warn "pi: $PI_LIVE_CFG missing"; VERIFY_FAIL=1; return; }
+  _vchk "pi baseUrl" "$LMS_BASE_URL" "$(jq -r '.providers.lmstudio.baseUrl // ""' "$PI_LIVE_CFG")"
+  _vchk "pi apiKey"  "$LMS_API_KEY"  "$(jq -r '.providers.lmstudio.apiKey // ""' "$PI_LIVE_CFG")"
+}
+verify_opencode() {
+  [ -f "$OPENCODE_CFG" ] || { warn "opencode: $OPENCODE_CFG missing"; VERIFY_FAIL=1; return; }
+  _vchk "opencode baseURL" "$LMS_BASE_URL" "$(jsonc_get "$OPENCODE_CFG" provider.lmstudio.options.baseURL 2>/dev/null || echo "")"
+}
+verify_hermes() {
+  [ -f "$HERMES_CFG" ] || { warn "hermes: $HERMES_CFG missing (opt-in)"; return; }
+  _vchk "hermes api" "$LMS_BASE_URL" "$(yaml_get_nested providers lmstudio api "    " < "$HERMES_CFG")"
+}
+
+# ── Orchestrate ──────────────────────────────────────────────────────────────
+run_agent() {
+  local a="$1"
+  if [ "$VERIFY" = "1" ]; then
+    case "$a" in
+      aider) verify_aider;; pi) verify_pi;; opencode) verify_opencode;; hermes) verify_hermes;;
+      *) warn "unknown agent: $a";;
+    esac
+    return 0
+  fi
+  case "$a" in
+    pi)       [ "$DO_MODELS" = 1 ] && sync_pi_models;       [ "$DO_SETTINGS" = 1 ] && settings_pi;;
+    opencode) [ "$DO_MODELS" = 1 ] && sync_opencode_models; [ "$DO_SETTINGS" = 1 ] && settings_opencode;;
+    aider)    [ "$DO_SETTINGS" = 1 ] && settings_aider;;
+    hermes)   [ "$DO_SETTINGS" = 1 ] && settings_hermes;;
+    *) warn "unknown agent: $a";;
+  esac
+  return 0
+}
+
+for a in $AGENTS; do run_agent "$a"; done
+
+if [ "$VERIFY" = "1" ]; then
+  echo
+  if [ "$VERIFY_FAIL" = 0 ]; then ok "all configs match config.sh"; else die "some configs drift from config.sh — run: bin/agents-config --write"; fi
+  exit 0
+fi
+
+# ── Next steps (Command Boundary Pattern) ────────────────────────────────────
+echo
+if [ "$WRITE" = "0" ]; then
+  if declare -f help_next_steps_section >/dev/null 2>&1; then
+    help_next_steps_section \
+      "Apply the changes|bin/agents-config --write" \
+      "Confirm settings stuck|bin/agents-config --verify" \
+      "Prove agents reach the model|bin/smoke"
+  else
+    echo "(dry-run — pass --write to apply)"
+  fi
+else
+  if declare -f help_next_steps_section >/dev/null 2>&1; then
+    help_next_steps_section \
+      "Confirm settings stuck|bin/agents-config --verify" \
+      "Prove agents reach the model|bin/smoke"
+  fi
+fi

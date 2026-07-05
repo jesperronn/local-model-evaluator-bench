@@ -12,9 +12,11 @@
 // This is intentionally dumb text surgery instead.
 
 const [, , mode, file, ...rest] = process.argv;
-if (!mode || !file || (mode !== "read" && mode !== "write")) {
-  console.error("usage: patch-jsonc-models.mjs read <file> <providerKey> [<providerKey> ...]");
+if (!mode || !file || !["read", "write", "set", "get"].includes(mode)) {
+  console.error("usage: patch-jsonc-models.mjs read  <file> <providerKey> [<providerKey> ...]");
   console.error("       patch-jsonc-models.mjs write <file> <providerKey> <modelsJson> [...]");
+  console.error("       patch-jsonc-models.mjs set   <file> <dotted.path> <jsonScalar> [<path> <scalar> ...]");
+  console.error("       patch-jsonc-models.mjs get   <file> <dotted.path>");
   process.exit(1);
 }
 
@@ -103,6 +105,104 @@ function locateModelsBlock(providerKey) {
   return findBlock(text, modelsFromIdx);
 }
 
+// Find `"key" :` within the (from, to) window and return the value-start index
+// (just past the colon + whitespace) plus the key-match start. Comment/string
+// aware via the same forward walk used by findBlock, so it never matches a key
+// that appears inside a comment or string literal.
+function locateKey(text, from, to, key) {
+  const target = JSON.stringify(key); // quoted, escaped
+  let i = from;
+  let inStr = false, strCh = "", inLineComment = false, inBlockComment = false, escape = false;
+  for (; i < to; i++) {
+    const c = text[i];
+    const c2 = text[i + 1];
+    if (inLineComment) { if (c === "\n") inLineComment = false; continue; }
+    if (inBlockComment) { if (c === "*" && c2 === "/") { inBlockComment = false; i++; } continue; }
+    if (inStr) {
+      if (escape) { escape = false; continue; }
+      if (c === "\\") { escape = true; continue; }
+      if (c === strCh) inStr = false;
+      continue;
+    }
+    if (c === "/" && c2 === "/") { inLineComment = true; i++; continue; }
+    if (c === "/" && c2 === "*") { inBlockComment = true; i++; continue; }
+    if (c === '"' || c === "'") {
+      // Does the quoted key start exactly here?
+      if (text.startsWith(target, i)) {
+        let j = i + target.length;
+        while (j < to && /\s/.test(text[j])) j++;
+        if (text[j] === ":") {
+          j++;
+          while (j < to && /\s/.test(text[j])) j++;
+          return { keyStart: i, valueStart: j };
+        }
+      }
+      inStr = true; strCh = c; continue;
+    }
+  }
+  return null;
+}
+
+// Walk a dotted path (e.g. "provider.lmstudio.options.baseURL"). Returns the
+// enclosing block of the final parent and the located leaf key (or null leaf if
+// the final key is absent so callers can insert it). Throws on a missing
+// intermediate object so we never silently corrupt the file.
+function walkPath(path) {
+  const segs = path.split(".");
+  let block = { openIdx: 0, closeIdx: text.length }; // whole document
+  for (let s = 0; s < segs.length - 1; s++) {
+    const hit = locateKey(text, block.openIdx, block.closeIdx, segs[s]);
+    if (!hit) throw new Error(`path segment "${segs[s]}" not found in ${file}`);
+    block = findBlock(text, hit.valueStart);
+  }
+  const leafKey = segs[segs.length - 1];
+  const leaf = locateKey(text, block.openIdx, block.closeIdx, leafKey);
+  return { block, leafKey, leaf };
+}
+
+const SCALAR_RE = /^("(?:[^"\\]|\\.)*"|true|false|null|-?\d[\d.eE+-]*)/;
+
+if (mode === "get") {
+  const path = rest[0];
+  const { leaf } = walkPath(path);
+  if (!leaf) { console.error(`path "${path}" not found in ${file}`); process.exit(1); }
+  const m = SCALAR_RE.exec(text.slice(leaf.valueStart));
+  if (!m) { console.error(`value at "${path}" is not a scalar`); process.exit(1); }
+  process.stdout.write(JSON.parse(m[1] === "null" ? "null" : m[1]) + "");
+  process.exit(0);
+}
+
+if (mode === "set") {
+  for (let k = 0; k < rest.length; k += 2) {
+    const path = rest[k];
+    const value = JSON.parse(rest[k + 1]); // caller passes a JSON scalar
+    const { block, leafKey, leaf } = walkPath(path);
+    const valJson = JSON.stringify(value);
+    if (leaf) {
+      const m = SCALAR_RE.exec(text.slice(leaf.valueStart));
+      if (!m) throw new Error(`value at "${path}" is not a scalar (won't overwrite an object/array)`);
+      text = text.slice(0, leaf.valueStart) + valJson + text.slice(leaf.valueStart + m[1].length);
+    } else {
+      // Insert leaf as the first entry of the parent block.
+      const baseIndent = indentOf(text, block.openIdx);
+      const inner = baseIndent + "  ";
+      // Empty block "{ }" / "{}" → write single entry; else prepend with comma.
+      const afterBrace = text.slice(block.openIdx + 1, block.closeIdx - 1);
+      if (/^\s*$/.test(afterBrace)) {
+        text = text.slice(0, block.openIdx) +
+          `{\n${inner}${JSON.stringify(leafKey)}: ${valJson}\n${baseIndent}}` +
+          text.slice(block.closeIdx);
+      } else {
+        text = text.slice(0, block.openIdx + 1) +
+          `\n${inner}${JSON.stringify(leafKey)}: ${valJson},` +
+          text.slice(block.openIdx + 1);
+      }
+    }
+  }
+  process.stdout.write(text);
+  process.exit(0);
+}
+
 if (mode === "read") {
   const result = {};
   for (const providerKey of rest) {
@@ -114,6 +214,7 @@ if (mode === "read") {
   process.exit(0);
 }
 
+// mode === "write"
 for (let k = 0; k < rest.length; k += 2) {
   const providerKey = rest[k];
   const modelsObj = JSON.parse(rest[k + 1]);

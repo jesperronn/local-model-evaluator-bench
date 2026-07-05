@@ -539,7 +539,7 @@ _agents_store_read() {
 
 cmd_agents_sync() {
   _require_project "agents sync"
-  exec "$_PROJECT/bin/sync-agent-configs" "$@"
+  exec "$_PROJECT/bin/agents-config" "$@"
 }
 
 cmd_agents_config_list() {

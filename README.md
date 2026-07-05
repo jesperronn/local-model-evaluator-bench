@@ -301,7 +301,7 @@ These scripts are discoverable via next-steps guidance from the main pipeline, o
 **Scheduling & Variants**
 - `bin/qualify` — L1 filter: read L0 smoke results, output viable (adapter, model) pairs (internal gating)
 - `bin/sweep-cards` — automated card maintenance via local agent (advanced workflow)
-- `bin/sync-agent-configs` — synchronize agent configs across machines (multi-machine setup)
+- `bin/agents-config` — synchronize agent configs across machines (multi-machine setup)
 - `bin/run` — execution wrapper for orchestrated workflows
 
 **Project Infrastructure**

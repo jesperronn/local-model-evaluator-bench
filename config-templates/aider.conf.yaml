@@ -1,0 +1,12 @@
+# ~/.aider.conf.yaml — minimal aider config for a local LM Studio server.
+#
+# Seeded by `bin/agents-config --write` when no ~/.aider.conf.yaml exists, then
+# kept in sync with config.sh (LMS_BASE_URL / LMS_API_KEY / PREFERRED_MODEL_ID).
+# Edit config.sh and re-run `bin/agents-config --write` rather than hand-editing.
+#
+# The `openai/` prefix routes the model through aider's OpenAI-compatible client
+# (matches adapters/aider-lms.sh, which invokes `--model openai/<id>`).
+
+openai-api-base: http://localhost:1234/v1
+openai-api-key: lm-studio
+model: openai/qwen2.5-coder-7b
