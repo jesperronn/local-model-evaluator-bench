@@ -1124,7 +1124,10 @@
     "run_id": "20260705-115601",
     "symptom": "Error: Could not locate the bindings file. Tried:",
     "status": "open",
-    "verdict": "maybe-fixable"
+    "verdict": "deprecated",
+    "last_seen": "2026-07-05",
+    "last_run_id": "20260705-194245",
+    "reason": "better-sqlite3 native binding not compilable on arm64 macOS"
   },
   "mini-swe-agent:liquid/lfm2-24b-a2b:lms": {
     "adapter": "mini-swe-agent",
