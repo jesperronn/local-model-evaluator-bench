@@ -2,6 +2,19 @@
 
 **Principle**: Adapters ship documentation + pre-configured global settings so users never hit "why isn't this working?" before they even start using them.
 
+## Adapter compatibility
+
+### ✅ Recommended for local models
+**aider**, **cline**, **hermes**, **opencode**, **pi** — tested and stable across multiple models and runtimes.
+
+### ⚠️ Limited support or slow
+**caveman**, **codex**, **interpreter**, **openhands**, **nanocoder**, **cn**, **goose**, **gptme**, **forge**, **mini-swe-agent** — work but may be slower, resource-intensive, or have edge cases. See [TESTING-STRATEGY.md](TESTING-STRATEGY.md) for coverage status.
+
+### ❌ Incompatible with local models
+**copilot** — requires the cloud-hosted Anthropic API. Uses cloud-specific patch formats that local open-source models don't produce. Cannot be adapted for local use without fundamental rewrites. [See compat.json](../compat.json) for known failures.
+
+---
+
 Two pieces work together:
 
 ## 1. Documentation: launch commands on every card

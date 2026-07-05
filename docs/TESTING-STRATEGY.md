@@ -48,38 +48,47 @@ incomplete) **/ FAIL** (never reached the model — a wiring problem).
 
 ---
 
-## L1 — Qualify + prune (`bin/qualify`, proposed)
+## L1 — Qualify + prune (`bin/qualify`)
 
-**Question:** can this combo do *one real tool-call task* at all, how fast — and
-once we know that, is it even worth benchmarking given what we already have?
+**Question:** which L0-passing combos are actually viable — and once we know
+that, which are dominated by faster/smaller alternatives?
 
-Two sub-steps; the second is free.
+Two sub-steps; the second is free and uses compat.json integration.
 
-### L1a — Qualify (one real case, one trial)
+### L1a — Qualify (filter L0 results, mark viability)
 
-Run a single representative bugfix case (default `js-01-slugify-bug`) at a tight
-timeout. Record `(pass, seconds)`.
+Read L0 (smoke) results and check compat.json for known failures. Mark each
+combo that passed L0 and has no open issues as "qualified". This is a
+pre-filter: use `bin/qualify` after L0 to generate a manifest of viable combos.
 
-- **Cost:** one short inference per combo.
-- **Cuts:** models that can't reliably tool-call on a real task, or are wildly
-  too slow, before they ever enter the matrix.
+```bash
+bin/smoke                           # runs L0 (writes results/*/results.csv)
+bin/qualify --from-smoke <csv>      # reads L0, filters by compat.json
+                                    # outputs qualified-combos.json
+bin/bench --from-qualified <json>   # uses manifest to skip unviable combos
+```
 
-### L1b — Dominance prune (pure arithmetic, no inference)
+- **Cost:** zero inference (pure filtering).
+- **Cuts:** adapters with known open issues in compat.json, early, before
+  expensive L2 runs.
+- **Output:** `qualified-combos.json` — a manifest of (adapter, model) pairs
+  safe to test. Can be piped to `bin/bench --from-qualified` to skip L0
+  failures and known-broken combos.
 
-Over the combos that qualified, drop every one that is **Pareto-dominated**:
-another combo passes the same case with score ≥ this one's **and** is faster
-**and** is smaller-or-equal in size. Survivors form the **speed/size frontier**.
-Only the frontier proceeds to L2.
+### L1b — Dominance prune (optional post-L2 analysis)
 
-- **Cost:** none — it's a computation on numbers L1a already collected.
-- **Cuts:** the 30B that a 7B already beats on both accuracy *and* speed. This is
-  the mechanical version of "eliminate slower models that clearly have a
-  smaller/faster alternative."
+After L2 runs complete, analyze the results and identify which combos are
+Pareto-dominated: another combo passes the same case with score ≥ this one's
+**and** is faster **and** is smaller-or-equal in size. Mark these for L3
+skipping.
+
+- **Cost:** none — a post-hoc computation on L2 results.
+- **Cuts:** the 30B that a 7B already beats on both accuracy *and* speed.
 
 **Run it when:**
 
-- you added a new model (after L0 has passed once),
-- you added a new adapter and it cleared L0.
+- you ran L0 and want to skip L0-broken combos before L2 (use `bin/qualify`),
+- after L2 completes, to identify dominated combos for L3 skipping (manual analysis).
 
 ---
 

@@ -65,8 +65,8 @@ fi
 # All adapters available for testing. Guidance on which to prefer:
 #   ✨ Recommended: openhands (fast+accurate), cline (100% accurate), aider (reliable)
 #   ⚠️  Caution: goose (slow), pi (very slow), opencode (very slow)
-#   ❌ Not recommended: codex, copilot, caveman, hermes, interpreter, claude
-# See docs/AGENT-SELECTION.md for performance matrix and use-case guidance.
+#   ❌ Incompatible: copilot (cloud-only, expects Anthropic API not local models), claude (SDK incompatibility with local servers)
+# See docs/ADAPTER-SETUP.md and docs/AGENT-SELECTION.md for full compatibility matrix.
 DEFAULT_ADAPTERS="${DEFAULT_ADAPTERS:-aider,cline,codex,caveman,hermes,interpreter,opencode,openhands,pi,goose,copilot,nanocoder,cn}"
 
 # Adapter configuration defaults — applied globally by `bin/suggest-tuning | llmrun agents config apply`.

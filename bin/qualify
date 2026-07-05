@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# bin/qualify — L1 qualification tier: filter L0 results, output viable combos
+#
+# Reads L0 (smoke test) results and outputs a manifest of (adapter, model) pairs
+# that passed L0 smoke tests and are not marked as broken in compat.json.
+#
+# This manifest can then be fed to `bin/bench --from-qualified` to skip
+# unviable combos early, or used standalone to see which combos are worth testing.
+#
+# Workflow:
+#   1. bin/smoke → produces smoke results in results/<ts>/results.csv (L0 pass/fail)
+#   2. bin/qualify → reads smoke results, filters via compat.json
+#   3. Output: qualified-combos.json with viable (adapter, model) pairs
+#   4. (Optional) bin/bench --from-qualified → uses manifest to skip L0 failures
+#
+# Flags:
+#   --from-smoke FILE  read L0 results from FILE (default: most recent results/*/results.csv)
+#   --output FILE      write manifest to FILE (default: qualified-combos.json)
+#   --agent/-t NAME    filter to only this adapter
+#   --model/-m ID      filter to only this model
+#   --skip-compat      ignore compat.json breakages (test everything that passed L0)
+#   --list             print qualified combos as tsv and exit
+#   -h/--help          show this message
+#
+# Output format (qualified-combos.json):
+# {
+#   "timestamp": "2026-07-05T...",
+#   "description": "L0-passing combos (smoke-00-hello + smoke-01-edit-file)",
+#   "source_run": "20260705-001234",
+#   "qualified": [
+#     {"adapter": "aider", "model": "qwen:7b"},
+#     {"adapter": "cline", "model": "mistral:7b"}
+#   ],
+#   "qualified_count": 2,
+#   "filtered_by_compat": 3
+# }
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+FROM_SMOKE=""
+OUTPUT_FILE="qualified-combos.json"
+AGENT_FILTER=""
+MODEL_FILTER=""
+SKIP_COMPAT=0
+LIST_ONLY=0
+
+parse_opts() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --from-smoke)     FROM_SMOKE="$2"; shift 2 ;;
+      --output)         OUTPUT_FILE="$2"; shift 2 ;;
+      --agent|-t)       AGENT_FILTER="$2"; shift 2 ;;
+      --model|-m)       MODEL_FILTER="$2"; shift 2 ;;
+      --skip-compat)    SKIP_COMPAT=1; shift ;;
+      --list)           LIST_ONLY=1; shift ;;
+      -h|--help)
+        awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
+        exit 0
+        ;;
+      *)                die "unknown flag: $1" ;;
+    esac
+  done
+}
+
+parse_opts "$@"
+
+# Find most recent smoke results if not specified
+if [ -z "$FROM_SMOKE" ]; then
+  FROM_SMOKE="$(ls -dt "$HERE/results"/*/results.csv 2>/dev/null | head -1)"
+  if [ -z "$FROM_SMOKE" ]; then
+    die "no previous benchmark results found; run bin/smoke first"
+  fi
+fi
+[ -f "$FROM_SMOKE" ] || die "smoke results not found: $FROM_SMOKE"
+
+source_run="$(dirname "$FROM_SMOKE" | xargs basename)"
+info "reading L0 results from: results/$source_run/"
+
+# Parse compat.json to find known-broken combos
+declare -A BROKEN=()  # adapter,model -> broken status
+if [ -f "$HERE/compat.json" ] && [ "$SKIP_COMPAT" = 0 ]; then
+  # Extract "adapter:model:runtime" entries with status=open (broken)
+  # Simplified: just mark any combo with "open" status as broken
+  while read -r line; do
+    if [[ "$line" =~ \"([^\":]*):([^\":]*):([^\"]*)\".*(\"open\"|\"failed\") ]]; then
+      adapter="${BASH_REMATCH[1]}"
+      model="${BASH_REMATCH[2]}"
+      status="${BASH_REMATCH[4]}"
+      if [[ "$status" == *open* ]]; then
+        BROKEN["$adapter,$model"]=1
+      fi
+    fi
+  done < "$HERE/compat.json"
+fi
+
+# Extract L0-passing adapters from smoke results
+# A combo passes L0 if BOTH smoke cases pass (smoke-00-hello and smoke-01-edit-file)
+declare -A L0_PASS=()  # adapter,model -> pass_count
+declare -A L0_TOTAL=() # adapter,model -> total_count
+
+while IFS=, read -r adapter model case pass total score seconds status runtime; do
+  [ "$adapter" = adapter ] && continue  # skip header
+
+  # Only process smoke cases (L0)
+  if [[ "$case" == smoke-* ]]; then
+    key="$adapter,$model"
+    L0_TOTAL[$key]=$((${L0_TOTAL[$key]:-0} + total))
+    [ "$status" = ok ] && L0_PASS[$key]=$((${L0_PASS[$key]:-0} + pass))
+  fi
+done < "$FROM_SMOKE"
+
+# Determine which combos are L0-viable (all smoke cases passed)
+declare -a QUALIFIED=()
+declare -a FILTERED_COMPAT=()
+
+for key in "${!L0_TOTAL[@]}"; do
+  adapter="${key%,*}"
+  model="${key#*,}"
+
+  # Apply filters if requested
+  [ -n "$AGENT_FILTER" ] && [ "$adapter" != "$AGENT_FILTER" ] && continue
+  [ -n "$MODEL_FILTER" ] && [ "$model" != "$MODEL_FILTER" ] && continue
+
+  # Check if L0 passed (all smoke cases got through)
+  pass_count="${L0_PASS[$key]:-0}"
+  total_count="${L0_TOTAL[$key]:-0}"
+
+  if [ "$total_count" -gt 0 ] && [ "$pass_count" -eq "$total_count" ]; then
+    # L0 passed; check compat.json
+    if [ -n "${BROKEN[$key]:-}" ]; then
+      FILTERED_COMPAT+=("$adapter,$model")
+    else
+      QUALIFIED+=("$adapter,$model")
+    fi
+  fi
+done
+
+if [ ${#QUALIFIED[@]} -eq 0 ]; then
+  die "no L0-passing combos found (checked ${#L0_TOTAL[@]} combos)"
+fi
+
+info "L0 pass: ${#QUALIFIED[@]} qualified, ${#FILTERED_COMPAT[@]} filtered by compat.json"
+
+if [ "$LIST_ONLY" = 1 ]; then
+  printf "adapter\tmodel\n"
+  for combo in "${QUALIFIED[@]}"; do
+    printf '%s\t%s\n' "${combo%,*}" "${combo#*,}"
+  done
+  exit 0
+fi
+
+# Write output manifest
+timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+output_dir="$(dirname "$OUTPUT_FILE")"
+[ -d "$output_dir" ] || mkdir -p "$output_dir"
+
+{
+  echo "{"
+  echo "  \"timestamp\": \"$timestamp\","
+  echo "  \"description\": \"L0-passing combos (smoke-00-hello + smoke-01-edit-file)\","
+  echo "  \"source_run\": \"$source_run\","
+  echo "  \"qualified\": ["
+  first=true
+  for combo in "${QUALIFIED[@]}"; do
+    adapter="${combo%,*}"
+    model="${combo#*,}"
+    [ "$first" = true ] && first=false || echo ","
+    printf '    {"adapter": "%s", "model": "%s"}' "$adapter" "$model"
+  done
+  echo ""
+  echo "  ],"
+  echo "  \"qualified_count\": ${#QUALIFIED[@]},"
+  echo "  \"filtered_by_compat\": ${#FILTERED_COMPAT[@]}"
+  echo "}"
+} > "$OUTPUT_FILE"
+
+info "✓ wrote $OUTPUT_FILE"
+info "qualified combos: ${#QUALIFIED[@]}"
+[ ${#FILTERED_COMPAT[@]} -gt 0 ] && info "filtered by compat.json: ${#FILTERED_COMPAT[@]}"
+echo ""
+echo "Next steps:"
+echo "  1. Review: cat $OUTPUT_FILE | jq"
+echo "  2. Run L2: bin/bench --agent <adapter> --model <model>"
+echo "  3. Or bulk L2: bin/bench --from-qualified $OUTPUT_FILE --difficulty medium,easy"
