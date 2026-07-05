@@ -45,7 +45,10 @@ _total_ram_gb() {
       ;;
     windows)
       local kb
-      kb=$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tr -d '\r' | tail -1 | xargs) || return 1
+      kb=$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tr -d '\r' | tail -1 | xargs) || kb=""
+      if [[ -z "$kb" || "$kb" == "0" ]]; then
+        kb=$(powershell -Command "Write-Host ([Math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1KB))" 2>/dev/null) || return 1
+      fi
       [[ -z "$kb" || "$kb" == "0" ]] && return 1
       awk -v kb="$kb" 'BEGIN { printf "%.0f", kb/1048576 }'
       ;;
@@ -70,8 +73,13 @@ _used_ram_gb() {
       ;;
     windows)
       local total_kb free_kb
-      total_kb=$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tr -d '\r' | tail -1 | xargs) || return 1
-      free_kb=$(wmic OS get FreePhysicalMemory 2>/dev/null | tr -d '\r' | tail -1 | xargs) || return 1
+      total_kb=$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tr -d '\r' | tail -1 | xargs) || total_kb=""
+      free_kb=$(wmic OS get FreePhysicalMemory 2>/dev/null | tr -d '\r' | tail -1 | xargs) || free_kb=""
+
+      if [[ -z "$total_kb" || "$total_kb" == "0" || -z "$free_kb" || "$free_kb" == "0" ]]; then
+        total_kb=$(powershell -Command "[Math]::Round((Get-CimInstance Win32_OperatingSystem).TotalVisibleMemorySize/1KB)" 2>/dev/null) || total_kb=""
+        free_kb=$(powershell -Command "[Math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory)" 2>/dev/null) || free_kb=""
+      fi
       [[ -z "$total_kb" || -z "$free_kb" || "$total_kb" == "0" ]] && return 1
       awk -v total="$total_kb" -v free="$free_kb" 'BEGIN {printf "%.0f", (total-free)/1048576}'
       ;;
@@ -92,7 +100,10 @@ _cpu_model() {
       grep "^model name" /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs || echo "Unknown"
       ;;
     windows)
-      name=$(wmic CPU get Name 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "Unknown"
+      name=$(wmic CPU get Name 2>/dev/null | tr -d '\r' | tail -1 | xargs) || name=""
+      if [[ -z "$name" ]]; then
+        name=$(powershell -Command "(Get-CimInstance Win32_Processor).Name" 2>/dev/null) || name=""
+      fi
       [[ -n "$name" ]] && echo "$name" || echo "Unknown"
       ;;
     *)
@@ -112,7 +123,10 @@ _cpu_cores() {
       nproc 2>/dev/null || grep -c "^processor" /proc/cpuinfo 2>/dev/null || echo "unknown"
       ;;
     windows)
-      cores=$(wmic CPU get NumberOfCores 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "unknown"
+      cores=$(wmic CPU get NumberOfCores 2>/dev/null | tr -d '\r' | tail -1 | xargs) || cores=""
+      if [[ -z "$cores" || "$cores" == "0" ]]; then
+        cores=$(powershell -Command "(Get-CimInstance Win32_Processor).NumberOfCores" 2>/dev/null) || cores=""
+      fi
       [[ -n "$cores" && "$cores" != "0" ]] && echo "$cores" || echo "unknown"
       ;;
     *)
@@ -141,7 +155,10 @@ _cpu_freq_ghz() {
       grep "^cpu MHz" /proc/cpuinfo 2>/dev/null | head -1 | awk '{printf "%.1f", $2/1000}' || echo "N/A"
       ;;
     windows)
-      freq=$(wmic CPU get MaxClockSpeed 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "N/A"
+      freq=$(wmic CPU get MaxClockSpeed 2>/dev/null | tr -d '\r' | tail -1 | xargs) || freq=""
+      if [[ -z "$freq" || "$freq" == "0" ]]; then
+        freq=$(powershell -Command "(Get-CimInstance Win32_Processor).MaxClockSpeed" 2>/dev/null) || freq=""
+      fi
       [[ -n "$freq" && "$freq" != "0" ]] && awk -v mhz="$freq" 'BEGIN {printf "%.1f", mhz/1000}' || echo "N/A"
       ;;
     *)
@@ -159,7 +176,10 @@ _disk_free_human() {
       ;;
     windows)
       local drive="${SYSTEMDRIVE:-C:}"
-      free_bytes=$(wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "unknown"
+      free_bytes=$(wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tr -d '\r' | tail -1 | xargs) || free_bytes=""
+      if [[ -z "$free_bytes" || "$free_bytes" == "0" ]]; then
+        free_bytes=$(powershell -Command "[Math]::Round((Get-Volume -DriveLetter ${drive:0:1}).SizeRemaining)" 2>/dev/null) || free_bytes=""
+      fi
       if [[ -n "$free_bytes" && "$free_bytes" != "0" ]]; then
         awk -v bytes="$free_bytes" 'BEGIN {printf "%.0fGB", bytes/1073741824}'
       else
@@ -295,7 +315,10 @@ _disk_free_gb_numeric() {
       ;;
     windows)
       local drive="${SYSTEMDRIVE:-C:}" free_bytes
-      free_bytes=$(wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "?"
+      free_bytes=$(wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tr -d '\r' | tail -1 | xargs) || free_bytes=""
+      if [[ -z "$free_bytes" || "$free_bytes" == "0" ]]; then
+        free_bytes=$(powershell -Command "[Math]::Round((Get-Volume -DriveLetter ${drive:0:1}).SizeRemaining)" 2>/dev/null) || free_bytes=""
+      fi
       if [[ -n "$free_bytes" && "$free_bytes" != "0" ]]; then
         awk -v bytes="$free_bytes" 'BEGIN {printf "%.0f", bytes/1073741824}'
       else
