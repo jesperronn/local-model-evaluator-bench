@@ -1,3 +1,8 @@
+---
+name: model-add
+description: Add a new model to the benchmark interactively, with automatic metadata detection and smoke testing.
+---
+
 # model-add
 
 Add a new model to the benchmark.
