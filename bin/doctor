@@ -157,6 +157,22 @@ else
 fi
 
 echo
+info "Agent config wired to config.sh (endpoint/api key/model):"
+# Delegates to bin/agents-config --verify, but only for agents actually on PATH
+# so uninstalled agents don't show as drift. This is the config-level check;
+# reachability is proven separately by bin/smoke.
+_cfg_agents=()
+for _a in aider opencode pi; do command -v "$_a" >/dev/null 2>&1 && _cfg_agents+=("$_a"); done
+if [ "${#_cfg_agents[@]}" -eq 0 ]; then
+  echo "    no configurable agents installed — skipping"
+else
+  _csv="$(IFS=,; echo "${_cfg_agents[*]}")"
+  _vout="$("$HERE/bin/agents-config" --verify --agent "$_csv" 2>&1)"; _vrc=$?
+  printf '%s\n' "$_vout" | sed 's/^/    /'
+  [ "$_vrc" -eq 0 ] || problems_found+=("agent_config_drift")
+fi
+
+echo
 info "Models under test ($MODELS_FILE):"
 read_list "$MODELS_FILE" | sed 's/^/    /'
 
@@ -334,6 +350,13 @@ if [ ${#problems_found[@]} -gt 0 ]; then
     adapters_str="$(IFS=,; echo "${adapters_to_install[*]}")"
     help_line "  ${step}. ${C_BLD}Install missing CLI adapters${C_RST}"
     help_line "     ${C_GRN}\$ bin/setup --agent $adapters_str${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: agent configs drifted from config.sh
+  if [ -n "${unique_problems[agent_config_drift]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Wire agent configs to config.sh (endpoint/api key/model)${C_RST}"
+    help_line "     ${C_GRN}\$ bin/agents-config --write${C_RST}"
     ((step++))
   fi
 
