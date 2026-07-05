@@ -5,6 +5,9 @@
 # running local models. No elevated permissions required. Works on macOS,
 # Linux, and Windows (Git Bash/WSL/Cygwin).
 #
+# Quick start:
+#   curl -fsS https://raw.githubusercontent.com/jesperronn/local-model-evaluator-bench/refs/heads/main/bin/hwprofile | bash
+#
 # Usage:
 #   hwprofile              human-readable detailed specs
 #   hwprofile --full       specs + installed models and disk usage
@@ -12,7 +15,6 @@
 #   hwprofile --minimal    compact one-liner
 #
 # Also buckets total RAM into benchmarked tiers (24/32/48/64/128 GB).
-# When distributed as a gist: curl <url> | bash
 #
 set -uo pipefail
 
