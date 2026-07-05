@@ -136,3 +136,8 @@ echo ""
 echo "=== Nightly bench complete ==="
 echo "Results saved to results/"
 ls -lth results/results.csv 2>/dev/null | head -1
+echo ""
+echo "Next:"
+echo "  Merge results:  bin/report --all --save"
+echo "  View results:   bin/bench-status --history 2"
+echo "  Update viz:     bin/viz"

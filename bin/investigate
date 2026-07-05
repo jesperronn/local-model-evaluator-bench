@@ -137,3 +137,12 @@ rm -f "$CANDIDATES"
 echo
 info "done — $n_sig signature, $n_clean clean, $n_noedit no-edit, $n_notrace no-transcript"
 info "report: ${REPORT#"$HERE"/}"
+echo ""
+echo "Next:"
+if [ "$n_sig" -gt 0 ]; then
+  echo "  Auto-fixable ($n_sig): run bin/pi-patch-edit-shim, then re-bench"
+fi
+if [ "$n_clean" -gt 0 ]; then
+  echo "  Genuine failures ($n_clean): update docs/tools/*.md card + backprop §V invariant"
+fi
+echo "  See full report: cat ${REPORT#"$HERE"/}"

@@ -159,4 +159,9 @@ else
     -Dsonar.host.url="${SONAR_URL}" \
     -Dsonar.login="${SONAR_TOKEN}" \
     "${SONAR_ARGS[@]}"
+
+  echo ""
+  echo "Lint complete. Next:"
+  echo "  View results: ${SONAR_URL}/projects/${SONAR_PROJECT}"
+  echo "  Fix issues and commit changes"
 fi

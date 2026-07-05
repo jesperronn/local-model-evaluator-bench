@@ -229,7 +229,9 @@ rm -f "$WORKLIST"
   help_section "NEXT STEPS"
   if [ "$n_emit" -gt 0 ]; then
     help_line "Re-run stale/missing combos:"
-    help_line "  ${C_GRN}\$ bin/stale --run${C_RST}"
+    help_line "  ${C_GRN}\$ bin/bench-overnight --stale${C_RST}   # auto-detect + bench"
+    help_line "  or save output and:"
+    help_line "  ${C_GRN}\$ bin/bench-overnight --worklist stale.csv${C_RST}"
   fi
   help_line "Clean old runs:"
   help_line "  ${C_GRN}\$ bin/results clean --empty${C_RST}"

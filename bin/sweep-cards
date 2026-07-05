@@ -109,4 +109,10 @@ Rules:
 done
 
 echo; echo "${C_CYN}sweep done:${C_RST} ${green} green, ${stuck} stuck (of ${#WORK[@]})"
-echo "review with: git diff --stat   |   revert with: git checkout -- docs/"
+echo ""
+echo "Next:"
+echo "  Review changes:  git diff docs/"
+echo "  Revert if needed: git checkout -- docs/"
+if [ "$green" -gt 0 ]; then
+  echo "  Commit changes:  git add docs/ && git commit -m 'chore(cards): automated sweep'"
+fi

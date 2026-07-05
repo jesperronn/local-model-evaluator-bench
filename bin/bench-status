@@ -278,6 +278,11 @@ show_status() {
     printf "    %-10s %-25s %-20s %s/%s\n", $1, $2, $3, $4, $5
   }'
   echo ""
+  echo "  Next:"
+  echo "    Triage failures: bin/investigate --failures $run_id"
+  echo "    View leaderboard: bin/report --all"
+  echo "    Update dashboard: bin/viz"
+  echo ""
 }
 
 if [ "$WATCH" = 1 ]; then
