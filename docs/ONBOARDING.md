@@ -1,5 +1,49 @@
 # Onboarding: Two Paths
 
+## Flow at a glance (new machine, from scratch)
+
+```
+                     NEW MACHINE  ──  from nothing to a working agent
+                     ═══════════════════════════════════════════════
+
+  [0]  Get the code + a runtime
+       git clone <repo> && cd local-model-evaluator-bench
+       install LM Studio (`lms`)   ·or·   Ollama
+                     │
+                     ▼
+  [1]  See what you have / need ........... bin/setup
+       detects RAM tier · recommends a model · lists missing tools
+                     │
+                     ▼
+  [2]  Start the model server ............. lms server start      (or: ollama serve)
+                     │
+                     ▼
+  [3]  Download a model for your tier ..... bin/setup --model <tier>
+       (tier from bin/hwprofile — e.g. 32gb · 64gb · 128gb)
+                     │
+                     ▼
+  [4]  Install + WIRE agents .............. bin/setup --agent aider,hermes
+       writes each agent's native config → config.sh (endpoint · api key · model)
+                     │
+                     ▼
+  [5]  Check everything ................... bin/doctor
+       server reachable? · model loaded? · agent configs correct?
+                     │
+                     ▼
+  [6]  Prove it end-to-end ................ bin/smoke --agent aider,hermes
+       each agent actually drives the model → PASS / PARTIAL / FAIL
+                     │
+                     ▼
+  [7]  Use it   ─┬─ CLI ...... aider · hermes · opencode · pi
+                 └─ IDE (Part 2) ... bin/test-ide   (VS Code+Cline · JetBrains+Continue)
+
+  Every step is idempotent — safe to re-run.
+  Drift? bin/agents-config --verify  (check)   ·   bin/agents-config --write  (fix)
+  Shortcut: the generated kit bundles [1]–[6] into one command →  ./onboard
+```
+
+---
+
 Pick your path based on what you want:
 
 - **Path A: Quick Setup** — "I want a working local agent (1-2 to compare)"

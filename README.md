@@ -16,7 +16,8 @@ There are two ways to use this repo. Most people want Path A.
 
 Detect your hardware, install a runtime + model + one or two agents, wire them to
 your local server, and prove it works. Full walkthrough →
-**[ONBOARDING.md](docs/ONBOARDING.md)** (Path A).
+**[ONBOARDING.md](docs/ONBOARDING.md)** (Path A) — start with the
+**[visual flow at a glance](docs/ONBOARDING.md#flow-at-a-glance-new-machine-from-scratch)**.
 
 ```bash
 lms server start                # start LM Studio's OpenAI-compatible server (or: ollama serve)
