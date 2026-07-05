@@ -340,7 +340,20 @@ print(status,queued,age)
       # Get last modified time of any file in the test folders (most recent test activity)
       local run_dir; run_dir=$(dirname "$(dirname "$latest_csv")")
       local last_modified_ts; last_modified_ts=$(find "$run_dir/sandbox" -type f -print0 2>/dev/null \
-        | xargs -0 stat -f %m 2>/dev/null | sort -rn | head -1 || echo 0)
+        | xargs -0 stat -f %m 2>/dev/null | sort -rn | head -1)
+
+      # If no files found, parse timestamp from directory name (format: YYYYMMDD-HHMMSS)
+      if [ -z "$last_modified_ts" ]; then
+        local dir_name; dir_name=$(basename "$run_dir")
+        if [[ $dir_name =~ ^([0-9]{4})([0-9]{2})([0-9]{2})-([0-9]{2})([0-9]{2})([0-9]{2})$ ]]; then
+          local ts_str="${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}${BASH_REMATCH[4]}${BASH_REMATCH[5]}${BASH_REMATCH[6]}"
+          last_modified_ts=$(date -j -f "%Y%m%d%H%M%S" "$ts_str" +%s 2>/dev/null)
+        fi
+      fi
+
+      # Final fallback if timestamp extraction failed
+      [ -z "$last_modified_ts" ] && last_modified_ts=$(stat -f %m "$run_dir" 2>/dev/null || echo 0)
+
       local now; now=$(date +%s)
       local elapsed=$((now - last_modified_ts))
       local rel_time
