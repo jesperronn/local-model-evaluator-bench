@@ -44,7 +44,10 @@ _total_ram_gb() {
       awk '/^MemTotal:/ {printf "%.0f", $2/1048576}' /proc/meminfo 2>/dev/null || return 1
       ;;
     windows)
-      wmic OS get TotalVisibleMemorySize 2>/dev/null | tail -1 | awk '{printf "%.0f", $1/1048576}' || return 1
+      local kb
+      kb=$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tr -d '\r' | tail -1 | xargs) || return 1
+      [[ -z "$kb" || "$kb" == "0" ]] && return 1
+      awk -v kb="$kb" 'BEGIN { printf "%.0f", kb/1048576 }'
       ;;
     *)
       return 1
@@ -66,7 +69,11 @@ _used_ram_gb() {
       awk '/^MemAvailable:/ {avail=$2} /^MemTotal:/ {total=$2} END {printf "%.0f", (total-avail)/1048576}' /proc/meminfo 2>/dev/null || return 1
       ;;
     windows)
-      wmic OS get FreePhysicalMemory 2>/dev/null | tail -1 | awk -v total="$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tail -1)" '{printf "%.0f", (total-$1)/1048576}' || return 1
+      local total_kb free_kb
+      total_kb=$(wmic OS get TotalVisibleMemorySize 2>/dev/null | tr -d '\r' | tail -1 | xargs) || return 1
+      free_kb=$(wmic OS get FreePhysicalMemory 2>/dev/null | tr -d '\r' | tail -1 | xargs) || return 1
+      [[ -z "$total_kb" || -z "$free_kb" || "$total_kb" == "0" ]] && return 1
+      awk -v total="$total_kb" -v free="$free_kb" 'BEGIN {printf "%.0f", (total-free)/1048576}'
       ;;
     *)
       return 1
@@ -76,7 +83,7 @@ _used_ram_gb() {
 
 # CPU: model name
 _cpu_model() {
-  local os="$1"
+  local os="$1" name
   case "$os" in
     macos)
       sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "Unknown"
@@ -85,7 +92,8 @@ _cpu_model() {
       grep "^model name" /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs || echo "Unknown"
       ;;
     windows)
-      wmic CPU get Name 2>/dev/null | tail -1 | xargs || echo "Unknown"
+      name=$(wmic CPU get Name 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "Unknown"
+      [[ -n "$name" ]] && echo "$name" || echo "Unknown"
       ;;
     *)
       echo "Unknown"
@@ -95,7 +103,7 @@ _cpu_model() {
 
 # CPU: core count
 _cpu_cores() {
-  local os="$1"
+  local os="$1" cores
   case "$os" in
     macos)
       sysctl -n hw.ncpu 2>/dev/null || echo "unknown"
@@ -104,7 +112,8 @@ _cpu_cores() {
       nproc 2>/dev/null || grep -c "^processor" /proc/cpuinfo 2>/dev/null || echo "unknown"
       ;;
     windows)
-      wmic CPU get NumberOfCores 2>/dev/null | tail -1 | xargs || echo "unknown"
+      cores=$(wmic CPU get NumberOfCores 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "unknown"
+      [[ -n "$cores" && "$cores" != "0" ]] && echo "$cores" || echo "unknown"
       ;;
     *)
       echo "unknown"
@@ -132,7 +141,8 @@ _cpu_freq_ghz() {
       grep "^cpu MHz" /proc/cpuinfo 2>/dev/null | head -1 | awk '{printf "%.1f", $2/1000}' || echo "N/A"
       ;;
     windows)
-      wmic CPU get MaxClockSpeed 2>/dev/null | tail -1 | awk '{printf "%.1f", $1/1000}' || echo "N/A"
+      freq=$(wmic CPU get MaxClockSpeed 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "N/A"
+      [[ -n "$freq" && "$freq" != "0" ]] && awk -v mhz="$freq" 'BEGIN {printf "%.1f", mhz/1000}' || echo "N/A"
       ;;
     *)
       echo "N/A"
@@ -142,14 +152,19 @@ _cpu_freq_ghz() {
 
 # Disk: free space (human-readable)
 _disk_free_human() {
-  local os="$1" size
+  local os="$1" size free_bytes
   case "$os" in
     macos|linux)
       df -h / 2>/dev/null | tail -1 | awk '{print $4}'
       ;;
     windows)
       local drive="${SYSTEMDRIVE:-C:}"
-      wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tail -1 | awk '{printf "%.0fGB", $1/1073741824}'
+      free_bytes=$(wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "unknown"
+      if [[ -n "$free_bytes" && "$free_bytes" != "0" ]]; then
+        awk -v bytes="$free_bytes" 'BEGIN {printf "%.0fGB", bytes/1073741824}'
+      else
+        echo "unknown"
+      fi
       ;;
     *)
       echo "unknown"
@@ -279,7 +294,13 @@ _disk_free_gb_numeric() {
       esac
       ;;
     windows)
-      wmic logicaldisk where "name='${SYSTEMDRIVE:-C:}'" get FreeSpace 2>/dev/null | tail -1 | awk '{printf "%.0f", $1/1073741824}' || echo "?"
+      local drive="${SYSTEMDRIVE:-C:}" free_bytes
+      free_bytes=$(wmic logicaldisk where "name='${drive}'" get FreeSpace 2>/dev/null | tr -d '\r' | tail -1 | xargs) || echo "?"
+      if [[ -n "$free_bytes" && "$free_bytes" != "0" ]]; then
+        awk -v bytes="$free_bytes" 'BEGIN {printf "%.0f", bytes/1073741824}'
+      else
+        echo "?"
+      fi
       ;;
     *)
       echo "?"
