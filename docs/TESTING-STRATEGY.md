@@ -131,3 +131,24 @@ Full case set, `--trials 3` or more (median score/seconds), `BENCH_PARALLEL=3`
 
 The funnel never spends L3 effort on a combo that failed L0, and never spends
 L2 effort on a combo that L1b proved is dominated.
+
+---
+
+## L3 Promotion Criteria
+
+**When to graduate an L2 combo to L3 (confidence tier with leaderboard-grade results):**
+
+An L2 combo is eligible for L3 if it meets either criterion:
+
+1. **Performance threshold:** Score ≥ 0.90 across all cases in the latest L2 run, indicating reliable accuracy without variance risk.
+
+2. **Priority adapters:** Top-tier adapters known to be stable across models (aider, cline, hermes, opencode, pi), even if one case dips below 0.90 due to single-trial variance. These have earned L3 status through repeated L2 evidence.
+
+**Current workflow:** Manual review
+
+1. After L2 completes (`bin/bench --trials 1`), review `results/<timestamp>/results.csv`
+2. Identify combos matching criteria above
+3. Run with confidence: `bin/bench --agent <name> --model <id> --trials 3+` or `bin/bench-overnight --stale`
+4. Leaderboard updates only from L3 results (see [BENCHMARK-RESULTS.md](../BENCHMARK-RESULTS.md))
+
+**Future optimization:** If L2 runs become weekly+, consider `bin/promote-to-l3 --from-run <id> --threshold 0.90` to automate step 2. For now, manual review catches edge cases and adapts thresholds per model family.
