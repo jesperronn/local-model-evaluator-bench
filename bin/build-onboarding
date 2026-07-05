@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+# bin/build-onboarding — generate a curated "onboarding kit" from this repo.
+#
+# The kit is the education-focused subset: everything needed to get a working
+# local coding agent on a new machine (detect hardware → install runtime + model
+# + agents → wire configs → verify), WITHOUT the benchmarking/leaderboard/card
+# machinery. This repo stays the single source of truth; the kit is generated,
+# so it can never drift.
+#
+# Why a keep-list (not a drop-list): the runtime scripts are enumerated
+# explicitly so newly-added reporting/leaderboard scripts never leak into the kit
+# by default.
+#
+# Usage:
+#   bin/build-onboarding                 # → ./onboarding-kit (dry-run manifest first)
+#   bin/build-onboarding --dest DIR      # choose output directory
+#   bin/build-onboarding --agents a,b    # CLI agents to include (default below)
+#   bin/build-onboarding --cases 'pat'   # extra case globs (smoke-* always kept)
+#   bin/build-onboarding --tar           # also produce DIR.tar.gz
+#   bin/build-onboarding --force         # overwrite an existing DIR
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/lib/common.sh"
+
+DEST="$HERE/onboarding-kit"
+AGENTS="aider,hermes,opencode,pi"          # smoke-testable CLI agents
+IDE_AGENTS="cline,continue"                # IDE (Part 2) — adapters + guides only
+EXTRA_CASES=""
+DO_TAR=0
+FORCE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dest) DEST="$2"; shift 2;;
+    --dest=*) DEST="${1#*=}"; shift;;
+    --agents) AGENTS="$2"; shift 2;;
+    --agents=*) AGENTS="${1#*=}"; shift;;
+    --cases) EXTRA_CASES="$2"; shift 2;;
+    --cases=*) EXTRA_CASES="${1#*=}"; shift;;
+    --tar) DO_TAR=1; shift;;
+    --force) FORCE=1; shift;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+# ── What goes in the kit ─────────────────────────────────────────────────────
+# Runtime scripts (keep-list). Bench engine is included because bin/smoke (the
+# onboarding verify step) runs its cases through bin/bench.
+KEEP_BIN=(
+  setup doctor smoke bench report agents-config hwprofile bootstrap-machine
+  tool-call-proxy setup-ollama-modelfile verify-model-availability
+  recover-lms lms_update rt
+)
+# report is kept because bin/bench calls it on completion (and bin/smoke runs
+# through bin/bench) — it writes a local CSV summary, not the shared leaderboard.
+# Explicitly EXCLUDED (documented so the omission is visible, never silent):
+DROP_BIN=(
+  viz gen-evals qualify nightly bench-overnight bench-status stale
+  investigate fix-card lint-cards lint lint-adapters sweep-cards eval-agent
+  suggest-tuning outdated prune cards results debug trace-edit trace-tool-calls
+  cleanup build-llmrun build-onboarding lms_gc pi-patch-edit-shim
+  mlx-serve-qwen3-coder mlx-serve-qwen3-next troubleshoot recover stale
+)
+
+ALL_AGENTS="${AGENTS},${IDE_AGENTS}"
+
+info "Building onboarding kit"
+echo "  dest:    $DEST"
+echo "  agents:  $AGENTS  (+ IDE: $IDE_AGENTS)"
+echo "  bin:     ${#KEEP_BIN[@]} scripts kept; leaderboard/report/card tooling dropped"
+
+if [ -e "$DEST" ] && [ "$FORCE" = 0 ]; then
+  die "$DEST exists — pass --force to overwrite"
+fi
+
+# ── copy helpers ─────────────────────────────────────────────────────────────
+_copy() { # src-rel  [dest-rel]
+  local src="$HERE/$1" dst="$DEST/${2:-$1}"
+  [ -e "$src" ] || { warn "skip (missing): $1"; return 0; }
+  mkdir -p "$(dirname "$dst")"
+  cp -R "$src" "$dst"
+}
+
+rm -rf "$DEST"
+mkdir -p "$DEST/bin/lib" "$DEST/lib" "$DEST/adapters" "$DEST/cases" "$DEST/docs"
+
+# bin/ (keep-list) + bin/lib/ (all, minus tests)
+for b in "${KEEP_BIN[@]}"; do _copy "bin/$b"; done
+for f in "$HERE"/bin/lib/*; do
+  case "$f" in *.test.sh) continue;; esac
+  _copy "bin/lib/$(basename "$f")"
+done
+# lib/ (minus tests)
+for f in "$HERE"/lib/*; do
+  case "$f" in *.test.sh) continue;; esac
+  _copy "lib/$(basename "$f")"
+done
+
+# adapters for the selected agents (all runtime variants + sidecar json)
+IFS=',' read -ra _ag <<< "$ALL_AGENTS"
+for a in "${_ag[@]}"; do
+  a="$(printf '%s' "$a" | xargs)"
+  for f in "$HERE"/adapters/"$a"-*.sh "$HERE"/adapters/"$a"-*.json; do
+    [ -e "$f" ] || continue
+    _copy "adapters/$(basename "$f")"
+  done
+done
+
+# cases: smoke-* always, plus a couple representative real ones + any --cases
+_case_globs=(smoke-* js-01-slugify-bug ts-01-groupby)
+[ -n "$EXTRA_CASES" ] && IFS=',' read -ra _extra <<< "$EXTRA_CASES" && _case_globs+=("${_extra[@]}")
+for g in "${_case_globs[@]}"; do
+  for d in "$HERE"/cases/$g/; do
+    [ -d "$d" ] || continue
+    _copy "cases/$(basename "$d")"
+  done
+done
+
+# config + templates + data files agents-config/smoke/bench need
+for f in config.sh compat.json profile.json models-aliases.conf models.txt \
+         models-ollama.txt models-mlx.txt; do
+  _copy "$f"
+done
+_copy "config-templates"
+
+# docs: onboarding path + setup + hardware + runtimes + kept tool cards
+for d in ONBOARDING.md SETUP.md HARDWARE-RECOMMENDATIONS.md CASES.md \
+         CLI-DISCOVERY.md runtimes extensions; do
+  _copy "docs/$d"
+done
+for a in "${_ag[@]}"; do
+  a="$(printf '%s' "$a" | xargs)"
+  _copy "docs/tools/$a.md"
+done
+
+# ── generate RECOMMENDATIONS.md (distilled from the leaderboard) ──────────────
+_rec="$DEST/RECOMMENDATIONS.md"
+{
+  echo "# Recommended models & agents"
+  echo
+  echo "_Generated by \`bin/build-onboarding\` from this machine's benchmark data."
+  echo "Regenerate after re-benchmarking._"
+  echo
+  echo "## By hardware tier"
+  echo
+  echo "Run \`bin/hwprofile\` to detect your tier, then \`bin/setup --model <tier>\`."
+  echo "See [docs/HARDWARE-RECOMMENDATIONS.md](docs/HARDWARE-RECOMMENDATIONS.md)."
+  echo
+  if [ -f "$HERE/LEADERBOARD.md" ]; then
+    echo "## Leaderboard summary (top rows)"
+    echo
+    echo '```'
+    # First markdown table in the leaderboard: header + up to 15 rows.
+    awk '/^\|/{n++; print; if(n>=17) exit}' "$HERE/LEADERBOARD.md"
+    echo '```'
+    echo
+    echo "_Full rankings live in the source repo's LEADERBOARD.md._"
+  else
+    echo "## Leaderboard"
+    echo
+    echo "No LEADERBOARD.md found at generation time — run the bench in the source"
+    echo "repo first, then re-run \`bin/build-onboarding\`."
+  fi
+  echo
+  echo "## Agents included in this kit"
+  echo
+  echo "- CLI (smoke-verified): \`${AGENTS}\`"
+  echo "- IDE (Part 2, guides + adapters): \`${IDE_AGENTS}\`"
+} > "$_rec"
+
+# ── generate the onboard launcher ────────────────────────────────────────────
+_onboard="$DEST/onboard"
+cat > "$_onboard" <<EOF
+#!/usr/bin/env bash
+# onboard — one-shot: detect hardware, set up agents, verify.
+# Generated by bin/build-onboarding. Re-runnable (every step is idempotent).
+set -euo pipefail
+HERE="\$(cd "\$(dirname "\$0")" && pwd)"
+cd "\$HERE"
+AGENTS="\${1:-$AGENTS}"
+
+echo "==> 1/4  Detect hardware"; bin/hwprofile || true
+echo "==> 2/4  Install & wire agents (\$AGENTS)"; bin/setup --agent "\$AGENTS"
+echo "==> 3/4  Check environment & agent configs"; bin/doctor || true
+echo "==> 4/4  Prove agents reach the model"; bin/smoke --agent "\$AGENTS"
+
+echo
+echo "Done. Next: wire an IDE plugin and test it —  bin/test-ide"
+EOF
+chmod +x "$_onboard"
+
+# ── generate the kit README ──────────────────────────────────────────────────
+cat > "$DEST/README.md" <<EOF
+# Local Coding Agent — Onboarding Kit
+
+Get a working local coding agent on this machine. Generated from the
+\`local-model-evaluator-bench\` repo (source of truth); do not hand-edit — change
+the source and re-run \`bin/build-onboarding\`.
+
+## Quick start
+
+\`\`\`bash
+lms server start        # or: ollama serve
+./onboard               # detect hardware → install+wire agents → verify
+\`\`\`
+
+Or step by step — see [docs/ONBOARDING.md](docs/ONBOARDING.md) (Path A).
+
+## What's here / not here
+
+- **Included:** hardware detection, runtime/model/agent setup, config wiring
+  (\`bin/agents-config\`), and end-to-end verify (\`bin/doctor\`, \`bin/smoke\`),
+  for agents: \`${AGENTS}\` (+ IDE guides: \`${IDE_AGENTS}\`).
+- **Not included:** benchmarking/leaderboard/reporting/card tooling — that lives
+  in the full source repo. See [RECOMMENDATIONS.md](RECOMMENDATIONS.md) for the
+  distilled "which model/agent" answer.
+EOF
+
+# ── report manifest ──────────────────────────────────────────────────────────
+echo
+ok "kit written to $DEST"
+echo "  bin scripts:  $(find "$DEST/bin" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+echo "  adapters:     $(find "$DEST/adapters" -type f | wc -l | tr -d ' ')"
+echo "  cases:        $(find "$DEST/cases" -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ')"
+echo "  dropped bin:  ${#DROP_BIN[@]} scripts (report/viz/gen-evals/qualify/… — see keep/drop lists)"
+
+if [ "$DO_TAR" = 1 ]; then
+  _tar="${DEST}.tar.gz"
+  ( cd "$(dirname "$DEST")" && tar czf "$_tar" "$(basename "$DEST")" )
+  ok "tarball: $_tar"
+fi
+
+if declare -f help_next_steps_section >/dev/null 2>&1; then
+  :
+fi
+echo
+echo "Next steps:"
+echo "  1. Inspect the kit:   ls $DEST && cat $DEST/README.md"
+echo "  2. Try it locally:    (cd $DEST && ./onboard)"
+echo "  3. Share it:          bin/build-onboarding --tar   # → ${DEST}.tar.gz"

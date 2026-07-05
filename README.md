@@ -298,6 +298,7 @@ See [WORKFLOW.md](docs/WORKFLOW.md) for detailed usage of each script.
 - `bin/setup-ollama-modelfile` — build custom Ollama model variants
 - `bin/tool-call-proxy` — Ollama proxy for Qwen tool calls
 - `bin/build-llmrun` — generate standalone llmrun launcher
+- `bin/build-onboarding` — generate a curated onboarding kit (get-a-working-agent subset, minus leaderboard/report tooling) for new machines
 - `bin/pi-patch-edit-shim` — reapply Qwen3-Coder edit-tool shim
 - `bin/mlx-serve-qwen3-coder` — MLX server wrapper
 
