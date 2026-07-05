@@ -190,7 +190,9 @@ if [ -n "$FROM_QUALIFIED" ]; then
   [ -n "$_qualified_models" ] || die "no qualified models in manifest"
   ADAPTERS="$_qualified_adapters"
   MODELS="$_qualified_models"
-  info "loaded from $FROM_QUALIFIED: ${#ADAPTERS//,} adapters, ${#MODELS//,} models"
+  _adapter_count=$(echo "$ADAPTERS" | tr ',' '\n' | wc -l)
+  _model_count=$(echo "$MODELS" | tr ',' '\n' | wc -l)
+  info "loaded from $FROM_QUALIFIED: $_adapter_count adapters, $_model_count models"
 fi
 
 if [ "$INTERACTIVE" = 1 ]; then

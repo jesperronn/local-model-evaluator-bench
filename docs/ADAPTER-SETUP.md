@@ -13,6 +13,10 @@
 ### ❌ Incompatible with local models
 **copilot** — requires the cloud-hosted Anthropic API. Uses cloud-specific patch formats that local open-source models don't produce. Cannot be adapted for local use without fundamental rewrites. [See compat.json](../compat.json) for known failures.
 
+**claude** — Stainless SDK incompatibility with local model servers. The SDK expects tool execution feedback that LM Studio's OpenAI endpoint doesn't provide, causing file creation to silently fail. Unfixable without changes to the SDK or server implementation. [See ADAPTER-TEST-RESULTS.md](ADAPTER-TEST-RESULTS.md) for diagnostic details.
+
+**mini-swe-agent** (v2.4.2) — Non-interactive stdin incompatible. Always prompts for model/API setup, even with `--model` flag, `.env` pre-config, or `MINI_CONFIG_INTERACTIVE=0`. Root cause: Early initialization before CLI parsing treats piped stdin as input to interactive prompt, not the task. [See DEPRECATED-mini-swe-agent.md](models/DEPRECATED-mini-swe-agent.md) for details and revisit options.
+
 ---
 
 Two pieces work together:
