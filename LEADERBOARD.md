@@ -1,6 +1,6 @@
 # Benchmark Results
 
-**Runs:** 221  **Generated:** 2026-07-05 04:07
+**Runs:** 224  **Generated:** 2026-07-05 11:39
 
 ## Leaderboard — by adapter × model
 
@@ -143,6 +143,7 @@
 | interpreter | mistralai/devstral-small-2-2512 | lms | 30/38 | 78.9% | 211.3 | 1 |
 | hermes | gpt-oss:20b | ollama | 30/38 | 78.9% | 186.5 | 1 |
 | nanocoder | qwen/qwen2.5-coder-7b | lms | 26/33 | 78.8% | 20.8 | 1 |
+| aider | phi4 | ollama | 26/33 | 78.8% | 91.8 | 1 |
 | caveman | google/gemma-4-e4b-qat | lms | 22/28 | 78.6% | 46.3 | 1 |
 | aider | google/gemma-4-e2b-qat | lms | 22/28 | 78.6% | 19.7 | 1 |
 | openhands | gpt-oss:20b | ollama | 26/34 | 76.5% | 123.9 | 1 |
@@ -154,7 +155,7 @@
 | cline | gpt-oss:20b | ollama | 15/21 | 71.4% | 41.4 | 1 |
 | aider | gemma4-claude | ollama | 24/34 | 70.6% | 105.0 | 1 |
 | hermes | gemma4:12b-mlx | ollama | 21/30 | 70.0% | 150.5 | 1 |
-| pi | gemma4:12b-mlx | ollama | 22/32 | 68.8% | 133.7 | 1 |
+| pi | gemma4:12b-mlx | ollama | 22/32 | 68.8% | 124.3 | 1 |
 | openhands | google/gemma-4-26b-a4b | lms | 26/38 | 68.4% | 119.5 | 1 |
 | aider | qwen2.5-coder:7b | ollama | 19/28 | 67.9% | 27.7 | 1 |
 | pi | gemma4:26b-mlx | ollama | 23/34 | 67.6% | 137.0 | 1 |
@@ -165,7 +166,6 @@
 | opencode | gpt-oss:20b | ollama | 4/6 | 66.7% | 32.7 | 1 |
 | nanocoder | qwen2.5-coder-7b | lms | 4/6 | 66.7% | 22.0 | 1 |
 | nanocoder | microsoft/phi-4 | lms | 4/6 | 66.7% | 149.3 | 1 |
-| copilot | gpt-oss:20b | ollama | 4/6 | 66.7% | 95.3 | 1 |
 | cn | liquid/lfm2-24b-a2b | lms | 4/6 | 66.7% | 8.7 | 1 |
 | cline | liquid/lfm2-24b-a2b | lms | 4/6 | 66.7% | 25.7 | 1 |
 | cline | gemma4:12b-mlx | ollama | 4/6 | 66.7% | 82.3 | 1 |
@@ -189,7 +189,7 @@
 | copilot | google/gemma-4-26b-a4b-qat | lms | 18/32 | 56.2% | 79.9 | 1 |
 | codex | gpt-oss:20b | ollama | 18/32 | 56.2% | 183.3 | 1 |
 | aider | gemma4:26b-mlx | ollama | 18/32 | 56.2% | 102.3 | 1 |
-| aider | gemma4:12b-mlx | ollama | 18/32 | 56.2% | 95.2 | 1 |
+| aider | gemma4:12b-mlx | ollama | 18/32 | 56.2% | 99.0 | 1 |
 | aider | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-35B-A3B-MLX-4bit | mlx | 18/32 | 56.2% | 17.6 | 1 |
 | codex | google/gemma-4-12b-qat | lms | 19/34 | 55.9% | 216.1 | 1 |
 | caveman | google/gemma-4-e2b-qat | lms | 15/28 | 53.6% | 21.9 | 1 |
@@ -215,6 +215,7 @@
 | codex | google/gemma-4-e2b | lms | 13/34 | 38.2% | 36.0 | 1 |
 | pi | zai-org/glm-4.7-flash | lms | 12/32 | 37.5% | 132.7 | 1 |
 | pi | qwen3.6-35b-mlx | ollama | 12/32 | 37.5% | 1.7 | 1 |
+| pi | phi4 | ollama | 12/32 | 37.5% | 2.0 | 1 |
 | openhands | zai-org/glm-4.7-flash | lms | 12/32 | 37.5% | 122.4 | 1 |
 | openhands | qwen2.5-coder-7b | ollama | 12/32 | 37.5% | 39.8 | 1 |
 | openhands | mistralai/devstral-small-2-2512 | lms | 12/32 | 37.5% | 122.2 | 1 |
@@ -225,11 +226,13 @@
 | nanocoder | zai-org/glm-4.7-flash | lms | 12/32 | 37.5% | 300.6 | 1 |
 | hermes | zai-org/glm-4.7-flash | lms | 12/32 | 37.5% | 180.7 | 1 |
 | hermes | qwen2.5-coder-7b | ollama | 12/32 | 37.5% | 16.7 | 1 |
+| hermes | phi4 | ollama | 12/32 | 37.5% | 4.3 | 1 |
 | goose | zai-org/glm-4.7-flash | lms | 12/32 | 37.5% | 141.1 | 1 |
 | copilot | zai-org/glm-4.7-flash | lms | 12/32 | 37.5% | 300.8 | 1 |
 | copilot | qwen/qwen3.5-9b | lms | 12/32 | 37.5% | 181.4 | 1 |
 | copilot | qwen/qwen3-coder-30b | lms | 12/32 | 37.5% | 34.5 | 1 |
 | copilot | mistralai/devstral-small-2-2512 | lms | 12/32 | 37.5% | 187.4 | 1 |
+| copilot | gpt-oss:20b | ollama | 12/32 | 37.5% | 181.0 | 1 |
 | copilot | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-35B-A3B-MLX-4bit | mlx | 12/32 | 37.5% | 75.9 | 1 |
 | codex | google/gemma-4-26b-a4b | lms | 12/32 | 37.5% | 2.1 | 1 |
 | codex | gemma4-claude | ollama | 12/32 | 37.5% | 2.0 | 1 |
@@ -322,6 +325,7 @@
 | cline | mistralai/mistral-nemo-instruct-2407 | lms | 0/6 | 0.0% | 29.3 | 1 |
 | cline | mistralai/mistral-7b-instruct-v0.3 | lms | 0/6 | 0.0% | 4.0 | 1 |
 | cline | mistralai/devstral-2-2512 | lms | 0/6 | 0.0% | 100.3 | 1 |
+| claude | liquid/lfm2-24b-a2b | lms | 0/6 | 0.0% | 56.7 | 1 |
 | caveman | qwen2.5-coder-7b | lms | 0/6 | 0.0% | 2.3 | 1 |
 | caveman | qwen/qwen3.6-27b | lms | 0/6 | 0.0% | 2.0 | 1 |
 | caveman | phi4-mini:latest | ollama | 0/2 | 0.0% | 1.0 | 1 |
@@ -356,12 +360,12 @@
 | qwen3.6-35b-mlx | 175/246 | 71.1% | 67.2 |
 | mistralai/devstral-small-2-2512 | 293/415 | 70.6% | 145.9 |
 | gemma4:26b-mlx | 73/104 | 70.2% | 137.7 |
-| gpt-oss:20b | 191/275 | 69.5% | 109.7 |
 | microsoft/phi-4 | 33/48 | 68.8% | 82.5 |
 | devstral2-small | 4/6 | 66.7% | 94.7 |
+| gpt-oss:20b | 199/301 | 66.1% | 118.1 |
 | qwen/qwen2.5-coder-7b | 124/193 | 64.2% | 33.9 |
 | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-35B-A3B-MLX-4bit | 170/270 | 63.0% | 37.4 |
-| gemma4:12b-mlx | 104/168 | 61.9% | 123.5 |
+| gemma4:12b-mlx | 104/168 | 61.9% | 122.5 |
 | google/gemma-4-e2b | 97/161 | 60.2% | 24.3 |
 | google/gemma-4-12b-qat | 91/152 | 59.9% | 138.4 |
 | google/gemma-4-e2b-qat | 86/144 | 59.7% | 30.5 |
@@ -369,12 +373,13 @@
 | google/gemma-4-e4b | 126/216 | 58.3% | 51.0 |
 | google/gemma-4-e4b-qat | 78/137 | 56.9% | 52.0 |
 | gemma4-12b-mlx | 34/60 | 56.7% | 74.6 |
+| phi4 | 50/97 | 51.5% | 32.7 |
 | ibm/granite-4.1-30b | 89/175 | 50.9% | 310.6 |
 | qwen2.5-coder-7b | 117/252 | 46.4% | 44.3 |
 | zai-org/glm-4.7-flash | 159/390 | 40.8% | 177.5 |
 | qwen2.5-coder:7b | 21/56 | 37.5% | 14.3 |
 | qwen3.5-claude | 14/48 | 29.2% | 131.9 |
-| liquid/lfm2-24b-a2b | 22/78 | 28.2% | 34.3 |
+| liquid/lfm2-24b-a2b | 22/84 | 26.2% | 35.9 |
 | qwen3.5:9b | 1/5 | 20.0% | 190.5 |
 | microsoft/phi-4-mini | 34/180 | 18.9% | 120.7 |
 | mistralai/mistral-nemo-instruct-2407 | 7/48 | 14.6% | 20.9 |
@@ -393,24 +398,24 @@
 | gptme | 2/2 | 100.0% | 14.0 |
 | cn | 52/54 | 96.3% | 52.3 |
 | interpreter | 446/527 | 84.6% | 105.5 |
-| pi | 535/667 | 80.2% | 87.4 |
 | goose | 309/387 | 79.8% | 121.1 |
+| pi | 547/699 | 78.3% | 82.9 |
 | cline | 440/567 | 77.6% | 107.7 |
 | nanocoder | 244/315 | 77.5% | 75.0 |
-| aider | 747/998 | 74.8% | 78.8 |
+| aider | 773/1031 | 75.0% | 79.4 |
 | openhands | 264/390 | 67.7% | 105.2 |
-| hermes | 685/1047 | 65.4% | 110.1 |
+| hermes | 697/1079 | 64.6% | 106.7 |
 | opencode | 541/846 | 63.9% | 62.5 |
 | codex | 495/834 | 59.4% | 108.2 |
 | caveman | 397/795 | 49.9% | 54.9 |
-| copilot | 183/425 | 43.1% | 119.6 |
-| claude | 5/21 | 23.8% | 2.1 |
+| copilot | 191/451 | 42.4% | 124.4 |
+| claude | 5/27 | 18.5% | 18.5 |
 | mini-swe-agent | 0/2 | 0.0% | 181.0 |
 
 ## Leaderboard — by runtime
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| lms | 3743/5415 | 69.1% | 95.3 |
-| ollama | 1228/1808 | 67.9% | 90.7 |
+| lms | 3743/5421 | 69.0% | 95.2 |
+| ollama | 1286/1931 | 66.6% | 89.1 |
 | mlx | 374/654 | 57.2% | 61.4 |

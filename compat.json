@@ -1093,5 +1093,45 @@
     "run_id": "20260704-214124",
     "symptom": "We need to insert 'hello' between the two existing lines. The file currently \"start\\nend\". Need to modify that line 2 in",
     "status": "open"
+  },
+  "aider:phi4:lms": {
+    "adapter": "aider",
+    "model": "phi4",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-05",
+    "run_id": "20260705-112107",
+    "symptom": "echo \"Error: File '$FILE' not found.\"                                       ",
+    "status": "open"
+  },
+  "claude:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "claude",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-05",
+    "run_id": "20260705-112308",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "forge:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "forge",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "unknown",
+    "first_seen": "2026-07-05",
+    "run_id": "20260705-115601",
+    "symptom": "Error: Could not locate the bindings file. Tried:",
+    "status": "open"
+  },
+  "mini-swe-agent:liquid/lfm2-24b-a2b:lms": {
+    "adapter": "mini-swe-agent",
+    "model": "liquid/lfm2-24b-a2b",
+    "runtime": "lms",
+    "agent_version": "2.4.2",
+    "first_seen": "2026-07-05",
+    "run_id": "20260705-115419",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
   }
 }
