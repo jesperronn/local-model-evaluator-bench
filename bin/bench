@@ -799,7 +799,10 @@ for model_alias in "${MODEL_ARR[@]}"; do
     adapter_sh="$ADAPTERS_DIR/$adapter-$RUNTIME.sh"
     [ -f "$adapter_sh" ] || adapter_sh="$ADAPTERS_DIR/$adapter.sh"
     [ -f "$adapter_sh" ] || { warn "no adapter $adapter.sh — skipping"; continue; }
-    command -v "$adapter" >/dev/null 2>&1 || { warn "$adapter not installed — skipping"; continue; }
+    # Variant adapters (e.g. opencode-orch) share the underlying tool's binary —
+    # strip the variant suffix before checking what's actually installed.
+    adapter_bin="${adapter%-orch}"
+    command -v "$adapter_bin" >/dev/null 2>&1 || { warn "$adapter not installed — skipping"; continue; }
 
     # For lms, confirm the model is still loaded before each adapter — it can
     # crash or be evicted between adapters (e.g. OOM on a model that was
