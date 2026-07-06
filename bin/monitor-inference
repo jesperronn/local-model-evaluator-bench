@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Monitor LMS model inference in real-time
+# Streams: tokens/sec, VRAM, prompt/generation tokens, latencies
+#
+# Usage:
+#   bin/monitor-inference [--interval SECS] [--detect-stalls]
+#
+# Examples:
+#   bin/monitor-inference                    # Stream all metrics (1s updates)
+#   bin/monitor-inference --interval 5       # Update every 5s
+#   bin/monitor-inference --detect-stalls    # Kill benchmark on stall
+
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+
+interval=${1:-1}
+detect_stalls=${2:-}
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --interval) interval=$2; shift 2;;
+    --detect-stalls) detect_stalls=true; shift;;
+    *) shift;;
+  esac
+done
+
+stall_count=0
+max_stalls=$((180 / interval))  # 180s threshold
+
+echo "📊 LMS Inference Monitor (interval: ${interval}s)"
+echo "Columns: Time | Tokens/sec | VRAM | Prompt Toks | Gen Toks | Latency"
+echo "---"
+
+while true; do
+  stats=$(lms log stream --json --stats 2>/dev/null | tail -1 2>/dev/null || echo "{}")
+
+  if [ -n "$stats" ] && [ "$stats" != "{}" ]; then
+    tokens=$(echo "$stats" | jq -r '.stats.tokensPerSecond // 0' 2>/dev/null || echo "?")
+    vram=$(echo "$stats" | jq -r '.stats.vramUsed // "?"' 2>/dev/null || echo "?")
+    prompt=$(echo "$stats" | jq -r '.stats.promptTokens // 0' 2>/dev/null || echo "0")
+    gen=$(echo "$stats" | jq -r '.stats.generationTokens // 0' 2>/dev/null || echo "0")
+    latency=$(echo "$stats" | jq -r '.stats.latencyMs // 0' 2>/dev/null || echo "0")
+
+    printf "[%s] tokens/s: %6s | VRAM: %5s | prompt: %4s | gen: %4s | latency: %6s ms\n" \
+      "$(date '+%H:%M:%S')" "$tokens" "$vram" "$prompt" "$gen" "$latency"
+
+    stall_count=0
+  else
+    stall_count=$((stall_count + 1))
+    printf "[%s] ⚠️  Waiting for metrics (%ds)\n" "$(date '+%H:%M:%S')" "$((stall_count * interval))"
+
+    if [ "$detect_stalls" = true ] && [ $stall_count -ge $max_stalls ]; then
+      echo "❌ STALL DETECTED: No metrics for ${stall_count}s threshold"
+      pkill -f "bin/bench" || true
+      exit 1
+    fi
+  fi
+
+  sleep "$interval"
+done
