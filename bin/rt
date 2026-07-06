@@ -7,6 +7,7 @@
 #   bin/rt ram               RAM breakdown (total / used / free / wired / inactive)
 #   bin/rt log [N]           tail most recent bench log (default 40 lines)
 #   bin/rt watch [N]         live-tail bench log (follow mode)
+#   bin/rt watch --metrics   unified real-time metrics view with colors
 #   bin/rt stop bench        kill any running bench process tree
 #   bin/rt stop mlx          kill mlx_lm.server on port 8080
 #   bin/rt stop ollama       unload active Ollama models  (ollama stop <model>)
@@ -512,48 +513,153 @@ cmd_log() {
   tail -"$n" "$log" | _strip_ctrl
 }
 
+_metrics_display() {
+  # Unified metrics view: shows live results.csv with colors and formatting
+  # CSV fields: adapter,model,case,pass,total,score,seconds,status,trials,runtime
+  local csv="$1"
+  local run_json="$2"
+
+  # Extract run metadata
+  local runtime model_list adapter_list case_list
+  runtime=$(jq -r '.runtime' "$run_json" 2>/dev/null || echo "?")
+  model_list=$(jq -r '.axes.models | join(", ")' "$run_json" 2>/dev/null || echo "?")
+  adapter_list=$(jq -r '.axes.adapters | join(", ")' "$run_json" 2>/dev/null || echo "?")
+  case_list=$(jq -r '.axes.cases | length' "$run_json" 2>/dev/null || echo "?")
+
+  # Print header with metadata
+  printf '\n%s\n' "${C_BLU}╭─ UNIFIED METRICS VIEW ${C_DIM}(live)${C_RST}${C_BLU} ─${C_RST}"
+  printf '%s\n' "${C_BLU}├─ Runtime${C_RST} $runtime  ${C_DIM}| Models${C_RST} $model_list  ${C_DIM}| Adapters${C_RST} $adapter_list  ${C_DIM}| Cases${C_RST} $case_list"
+  printf '%s\n' "${C_BLU}├─${C_RST}"
+  printf '%s\n' "${C_BLU}├─ Adapter  Model              Case                          Pass  Score Status${C_RST}"
+  printf '%s\n' "${C_BLU}├${C_RST}─────────────────────────────────────────────────────────────────────────"
+
+  # Tail CSV and format rows with color coding (skip header, show only recent changes)
+  (
+    tail -f "$csv" 2>/dev/null | awk -F, '
+    NR > 1 {
+      adapter=$1; gsub(/^ +| +$/, "", adapter)
+      model=$2;   gsub(/^ +| +$/, "", model)
+      case=$3;    gsub(/^ +| +$/, "", case)
+      pass=$4;    gsub(/^ +| +$/, "", pass)
+      total=$5;   gsub(/^ +| +$/, "", total)
+      score=$6;   gsub(/^ +| +$/, "", score)
+      status=$8;  gsub(/^ +| +$/, "", status)
+
+      row_key = adapter ":" model ":" case
+      if (!(row_key in seen)) {
+        seen[row_key] = 1
+
+        # Format score as percentage
+        score_pct = int(score * 100) "%"
+
+        # Color codes
+        if (status == "pass")       color = "\033[32m"  # green
+        else if (status == "stall") color = "\033[33m"  # yellow
+        else if (status == "fail")  color = "\033[31m"  # red
+        else                        color = "\033[2m"   # dim
+
+        printf "  %-8s %-18s %-28s %3s/%-3s %4s %s%s\033[0m\n", \
+          adapter, model, case, pass, total, score_pct, color, status
+        fflush()
+      }
+    }
+    '
+  ) &
+  local tail_pid=$!
+
+  # Show live aggregates every 2 seconds
+  (
+    while true; do
+      sleep 2
+      if [ -f "$csv" ]; then
+        printf '\n%s\n' "${C_BLU}├─ AGGREGATES ${C_DIM}(updated every 2s)${C_RST}"
+
+        # Parse CSV and compute aggregates
+        awk -F, 'NR > 1 {
+          if ($8 == "pass") pass++
+          else if ($8 == "stall") stall++
+          else if ($8 == "fail") fail++
+          else other++
+          total++
+          score_sum += $6
+        }
+        END {
+          if (total > 0) avg = score_sum / total
+          else avg = 0
+          printf "  \033[36m├─\033[0m ✓ Passed: \033[32m%3d\033[0m  \033[36m├─\033[0m ⏸ Stalled: \033[33m%3d\033[0m  \033[36m├─\033[0m ✗ Failed: \033[31m%3d\033[0m\n", pass+0, stall+0, fail+0
+          if (other > 0) printf "  \033[36m├─\033[0m ⋯ Other: \033[2m%3d\033[0m\n", other
+          printf "  \033[36m├─\033[0m Avg Score: \033[36m%.2f\033[0m\n", avg
+          printf "  \033[36m╰─\033[0m Total: \033[2m%d/%d\033[0m\n", pass+0, total
+        }' "$csv"
+      fi
+    done
+  ) &
+  local agg_pid=$!
+
+  # Wait for user interrupt
+  wait $tail_pid 2>/dev/null
+  kill $agg_pid 2>/dev/null || true
+}
+
 cmd_watch() {
   local n="${1:-40}"
+  local show_metrics=0
+
+  # Check for --metrics flag
+  [ "$n" = "--metrics" ] && { show_metrics=1; n=40; }
 
   # Find the latest run directory
   local run; run=$(ls -1dt "$HERE"/results/*/ 2>/dev/null | grep -v "_bad_runs" | head -1)
   [ -z "$run" ] && die "no bench logs found (run a bench first)"
 
-  # Find all .bench.log files in this run that were recently modified (active benches)
-  # First try logs modified in last 5 minutes, then fall back to all logs
-  local logs; logs=$(find "$run/sandbox" -name ".bench.log" -type f -mmin -5 -print0 2>/dev/null \
-    | xargs -0 ls -1t 2>/dev/null)
+  if [ "$show_metrics" = 1 ]; then
+    # Watch metrics mode
+    local csv; csv="$run/results.csv"
+    local run_json; run_json="$run/run.json"
 
-  if [ -z "$logs" ]; then
-    # Fallback: use the most recent log if nothing modified in last 5 minutes
-    logs=$(_latest_bench_log)
-  fi
+    [ ! -f "$csv" ] && die "no results.csv found in $run"
+    [ ! -f "$run_json" ] && die "no run.json found in $run"
 
-  if [ -z "$logs" ]; then
-    die "no bench logs found in $run"
-  fi
-
-  local log_count; log_count=$(echo "$logs" | wc -l)
-
-  if [ "$log_count" -eq 1 ]; then
-    # Single log: watch normally
-    local log="$logs"
-    local rel="${log#$HERE/}"
-    local case_label; case_label=$(echo "$rel" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
-    info "watching: $case_label  (Ctrl-C exits watch; test continues)"
-    tail -"$n" -f "$log" | _strip_ctrl
+    info "unified metrics view  (Ctrl-C exits watch; tests continue)"
+    _metrics_display "$csv" "$run_json"
   else
-    # Multiple logs: watch all with labels
-    info "watching: $log_count concurrent tests  (Ctrl-C exits watch; tests continue)"
-    # Use tail -f with label prefix for each log
-    # We need a process for each log that prefixes output
-    (
-      echo "$logs" | while read -r log; do
-        local label; label=$(echo "$log" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
-        tail -"$n" -f "$log" 2>/dev/null | sed "s/^/${C_DIM}[$label]${C_RST} /" &
-      done
-      wait
-    ) | _strip_ctrl
+    # Original log tail mode
+    # Find all .bench.log files in this run that were recently modified (active benches)
+    # First try logs modified in last 5 minutes, then fall back to all logs
+    local logs; logs=$(find "$run/sandbox" -name ".bench.log" -type f -mmin -5 -print0 2>/dev/null \
+      | xargs -0 ls -1t 2>/dev/null)
+
+    if [ -z "$logs" ]; then
+      # Fallback: use the most recent log if nothing modified in last 5 minutes
+      logs=$(_latest_bench_log)
+    fi
+
+    if [ -z "$logs" ]; then
+      die "no bench logs found in $run"
+    fi
+
+    local log_count; log_count=$(echo "$logs" | wc -l)
+
+    if [ "$log_count" -eq 1 ]; then
+      # Single log: watch normally
+      local log="$logs"
+      local rel="${log#$HERE/}"
+      local case_label; case_label=$(echo "$rel" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
+      info "watching: $case_label  (Ctrl-C exits watch; test continues)"
+      tail -"$n" -f "$log" | _strip_ctrl
+    else
+      # Multiple logs: watch all with labels
+      info "watching: $log_count concurrent tests  (Ctrl-C exits watch; tests continue)"
+      # Use tail -f with label prefix for each log
+      # We need a process for each log that prefixes output
+      (
+        echo "$logs" | while read -r log; do
+          local label; label=$(echo "$log" | sed -E 's|.*/sandbox/||' | awk -F/ '{print $1" | "$2" | "$3}')
+          tail -"$n" -f "$log" 2>/dev/null | sed "s/^/${C_DIM}[$label]${C_RST} /" &
+        done
+        wait
+      ) | _strip_ctrl
+    fi
   fi
 }
 
