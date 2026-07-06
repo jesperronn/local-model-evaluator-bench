@@ -1,7 +1,7 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-07-06 12:41
+**Generated:** 2026-07-06 12:47
 
 ## Models to Avoid
 

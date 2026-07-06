@@ -1148,7 +1148,7 @@ cat << 'VIZ_END'
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Compare Agents by Runtime</title>
+<title>Compare Agents</title>
 <style>
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f8fa;color:#1f2328}
@@ -1159,6 +1159,23 @@ h1{margin:0 0 4px;font-size:24px}
 .page-link{padding:6px 12px;border-radius:999px;border:1px solid #d0d7de;background:#fff;color:#1f2328;text-decoration:none;font-size:12px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .page-link:hover{background:#f0f2f4}
 .note{background:#fff8c5;border:1px solid #d4a72c;border-radius:8px;padding:10px 12px;margin-bottom:18px;font-size:12px}
+.bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:16px}
+.bar-group{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.bar-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#636c76}
+.chip{padding:4px 12px;border-radius:999px;border:1px solid #d0d7de;background:#fff;cursor:pointer;font-size:12px;font-weight:600;user-select:none;white-space:nowrap;transition:all .12s}
+.chip:hover{background:#f0f2f4}
+.chip.on{background:#0969da;border-color:#0969da;color:#fff}
+.tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid #d0d7de}
+.tab{padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#636c76;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#0969da;border-bottom-color:#0969da}
+.tab:hover:not(.on){color:#1f2328}
+.picks{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:20px}
+.pick{background:#fff;border:1px solid #d0d7de;border-radius:10px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pick.empty{color:#9ca3af;font-size:12px}
+.pick-tier{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#9a6700;margin-bottom:6px}
+.pick-combo{font-size:15px;font-weight:700;margin-bottom:2px}
+.pick-sub{font-size:12px;color:#636c76;margin-bottom:8px}
+.pick-stats{display:flex;gap:12px;font-size:12px}
 .rt{margin-bottom:26px;background:#fff;border:1px solid #d0d7de;border-radius:10px;padding:14px 14px 10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .rt h2{margin:0 0 10px;font-size:18px}
 .grid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}
@@ -1173,6 +1190,8 @@ th{background:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.35px;
 .mid{color:#9a6700;font-weight:700}
 .bad{color:#cf222e;font-weight:700}
 .pill{display:inline-block;padding:2px 7px;border:1px solid #d0d7de;border-radius:999px;background:#f6f8fa;font-size:11px;margin:0 4px 4px 0;white-space:nowrap}
+.rank{display:inline-block;width:22px;color:#9ca3af;font-weight:700;font-size:11px}
+.rank.r0{color:#b45309}.rank.r1{color:#6b7280}.rank.r2{color:#92400e}
 .tight{line-height:1.35}
 .entity{transition:background-color .12s,color .12s,box-shadow .12s,opacity .12s;border-radius:4px}
 .entity-match{background:#fff8c5;box-shadow:0 0 0 2px #d4a72c inset}
@@ -1182,18 +1201,18 @@ th{background:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.35px;
 </head>
 <body>
 <div class="app">
-  <h1>Compare Agents by Runtime</h1>
-  <div class="sub">Prototype view focused on tool choice first, with models pushed into secondary detail.</div>
+  <h1>Compare Agents</h1>
+  <div class="sub">Best combos of runtime, model &amp; coding agent — faceted by how much RAM you have.</div>
   <nav class="page-nav">
     <a class="page-link" href="./index.html">Main Dashboard</a>
     <a class="page-link" href="./compare-agents.html">Compare Agents</a>
   </nav>
-  <div class="note">This page uses runtime-aware latest-combo dedupe: latest row per <code>adapter + model + runtime + case</code>. It is intentionally split into one section per runtime.</div>
+  <div class="note">Latest-combo dedupe: one row per <code>adapter + model + runtime + case</code>. RAM tier is inferred from model parameter count (heuristic — see legend below), not measured memory.</div>
   <div id="app"></div>
 </div>
 <script>
 VIZ_END
-printf 'const DATA = %s;\n' "$data_json"
+printf 'const DATA = %s;\nconst CASE_TOTALS = %s;\n' "$data_json" "$case_totals_json"
 cat << 'VIZ_END'
 function shortModel(m){return m.split('/').pop();}
 function fmtFrac(p,t){return t?`${p}/${t}`:'—';}
@@ -1202,6 +1221,29 @@ function fmtTime(s){return s>=60?(s/60).toFixed(1)+'m':s+'s';}
 function scoreCls(v){return v>=0.75?'good':v>=0.5?'mid':'bad';}
 function esc(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');}
 function ent(kind,name,label,extra=''){return `<span class="entity" data-entity-kind="${kind}" data-entity-name="${esc(name)}"${extra}>${label}</span>`;}
+
+// Fallback sizes for models whose names don't encode a parameter count.
+const MODEL_SIZES={'qwen/qwen3-coder-next':80};
+function parseSize(m){
+  if(MODEL_SIZES[m]!=null)return MODEL_SIZES[m];
+  const n=m.split('/').pop().toLowerCase();
+  const e=n.match(/-e(\d+)b/); if(e)return parseInt(e[1]);
+  const r=n.match(/-(\d+)b/);  if(r)return parseInt(r[1]);
+  return null;
+}
+// Heuristic bucket by parameter count → the smallest RAM tier a Q4-ish
+// quantization comfortably fits in. Not a substitute for bin/hwprofile.
+const TIERS=[
+  {key:'32gb', label:'32GB', max:14},
+  {key:'64gb', label:'64GB', max:35},
+  {key:'128gb',label:'128GB',max:Infinity},
+];
+function tierOf(m){
+  const sz=parseSize(m);
+  if(sz==null)return 'other';
+  return (TIERS.find(t=>sz<=t.max)||TIERS[TIERS.length-1]).key;
+}
+function tierLabel(k){return k==='other'?'Unsized models':(TIERS.find(t=>t.key===k)||{}).label||k;}
 
 function latestComboRuntime(rows){
   const map=new Map();
@@ -1212,99 +1254,199 @@ function latestComboRuntime(rows){
   return [...map.values()];
 }
 
-function aggregate(rows){
-  const agents=new Map(), modelRows=[];
+// ─── Aggregators ─────────────────────────────────────────
+// All aggregates are normalized against the FULL check pool (sum of
+// CASE_TOTALS), not just the cases a combo happened to run — otherwise a
+// combo that ran 2 checks and passed both looks "better" than one that ran
+// 38 and passed 37. Untested cases count as 0, exactly like the main
+// dashboard's aggregated(). Within a group, if more than one row could
+// cover the same case (e.g. a model tried on two runtimes), we keep only
+// the single best result per case so nothing gets double-counted.
+const ALL_CASES=Object.keys(CASE_TOTALS).sort();
+function normalizeGroups(rows, keyFn, metaFn){
+  const map=new Map();
   for(const r of rows){
-    const ak=r.adapter;
-    if(!agents.has(ak)) agents.set(ak,{adapter:r.adapter,pass:0,total:0,secs:0,models:new Map(),ok:0,timeout:0,error:0});
-    const a=agents.get(ak);
-    a.pass+=r.pass; a.total+=r.total; a.secs+=r.seconds;
-    if(r.status==='ok') a.ok++; else if((r.status||'').includes('timeout')) a.timeout++; else a.error++;
-    const mk=r.model;
-    if(!a.models.has(mk)) a.models.set(mk,{model:r.model,pass:0,total:0,secs:0,cases:0});
-    const m=a.models.get(mk);
-    m.pass+=r.pass; m.total+=r.total; m.secs+=r.seconds; m.cases++;
+    const k=keyFn(r);
+    if(!map.has(k))map.set(k,{...metaFn(r),byCase:{},models:new Set(),runtimes:new Set()});
+    const g=map.get(k);
+    g.models.add(r.model); g.runtimes.add(r.runtime);
+    const cur=g.byCase[r.case];
+    const curScore=cur?(cur.total?cur.pass/cur.total:0):-1;
+    const newScore=r.total?r.pass/r.total:0;
+    if(!cur||newScore>curScore||(newScore===curScore&&r.seconds<cur.seconds))g.byCase[r.case]=r;
   }
-  return [...agents.values()].map(a=>{
-    const top=[...a.models.values()]
-      .map(m=>({...m,score:m.total?m.pass/m.total:0}))
-      .sort((x,y)=>y.score-x.score||x.secs-y.secs)
-      .slice(0,5);
-    return {...a,score:a.total?a.pass/a.total:0,modelCount:a.models.size,top};
-  }).sort((x,y)=>y.score-x.score||x.secs-y.secs);
+  return [...map.values()].map(g=>{
+    let pass=0,total=0,secs=0,attempted=0;
+    for(const c of ALL_CASES){
+      const r=g.byCase[c];
+      if(r){pass+=r.pass;total+=r.total;secs+=r.seconds;attempted++;}
+      else total+=(CASE_TOTALS[c]||0);
+    }
+    return {...g,pass,total,secs,attempted,caseCount:ALL_CASES.length,score:total?pass/total:0};
+  }).sort((a,b)=>b.score-a.score||a.secs-b.secs);
+}
+function aggByAdapter(rows){
+  return normalizeGroups(rows, r=>r.adapter, r=>({adapter:r.adapter}));
+}
+function aggByAdapterModel(rows){
+  return normalizeGroups(rows, r=>r.adapter+'|'+r.model, r=>({adapter:r.adapter,model:r.model}));
+}
+function aggByCombo(rows){ // adapter+model+runtime — the actual thing you'd install
+  return normalizeGroups(rows, r=>r.adapter+'|'+r.model+'|'+r.runtime, r=>({adapter:r.adapter,model:r.model,runtime:r.runtime}));
+}
+function rankCls(i){return i<3?' r'+i:'';}
+function coverage(g){return `<span class="muted" style="font-size:11px">${g.attempted}/${g.caseCount} cases</span>`;}
+
+// ─── State & data ────────────────────────────────────────
+const ALL_ROWS=latestComboRuntime(DATA).filter(r=>r.runtime&&r.model&&r.adapter);
+const RUNTIMES=[...new Set(ALL_ROWS.map(r=>r.runtime))].sort();
+const S={tier:'all',runtime:'all',view:'overview'};
+
+function filteredRows(){
+  return ALL_ROWS.filter(r=>
+    (S.tier==='all'||tierOf(r.model)===S.tier)&&
+    (S.runtime==='all'||r.runtime===S.runtime));
 }
 
-function buildPivot(rows){
-  const adapterSet=new Set(rows.map(r=>r.adapter));
-  const adapters=[...adapterSet].sort();
-  const modelMap=new Map();
-  for(const r of rows){
-    if(!modelMap.has(r.model)) modelMap.set(r.model,new Map());
-    const adMap=modelMap.get(r.model);
-    if(!adMap.has(r.adapter)) adMap.set(r.adapter,{pass:0,total:0,secs:0,cases:0});
-    const c=adMap.get(r.adapter);
-    c.pass+=r.pass; c.total+=r.total; c.secs+=r.seconds; c.cases++;
+// ─── Best-combo-per-tier cards (ignore tier filter, respect runtime filter) ──
+function renderPicks(){
+  const rtRows=ALL_ROWS.filter(r=>S.runtime==='all'||r.runtime===S.runtime);
+  const present=[...new Set(rtRows.map(r=>tierOf(r.model)))];
+  const order=[...TIERS.map(t=>t.key),'other'].filter(k=>present.includes(k));
+  return `<div class="picks">${order.map(key=>{
+    const rows=rtRows.filter(r=>tierOf(r.model)===key);
+    const best=aggByCombo(rows)[0];
+    if(!best)return `<div class="pick empty"><div class="pick-tier">${tierLabel(key)}</div>No data yet</div>`;
+    return `<div class="pick">
+      <div class="pick-tier">Best pick · ${tierLabel(key)}</div>
+      <div class="pick-combo">${ent('agent',best.adapter,esc(best.adapter))} + ${ent('model',best.model,esc(shortModel(best.model)))}</div>
+      <div class="pick-sub">${ent('runtime',best.runtime,esc(best.runtime))} runtime</div>
+      <div class="pick-stats">
+        <span class="${scoreCls(best.score)}">${fmtFrac(best.pass,best.total)}</span>
+        <span class="muted">${fmtTime(best.secs)}</span>
+        ${coverage(best)}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ─── Tab: Overview — top agents overall ─────────────────
+function renderOverview(rows){
+  const agg=aggByAdapter(rows);
+  if(!agg.length)return '<p class="muted">No rows match the current filters.</p>';
+  return `<div class="card">
+    <h3>Top agents overall</h3>
+    <table>
+      <thead><tr><th></th><th>Agent</th><th>Score</th><th>Coverage</th><th>Time</th><th>Models tried</th><th>Runtimes</th></tr></thead>
+      <tbody>
+        ${agg.map((a,i)=>`<tr>
+          <td><span class="rank${rankCls(i)}">#${i+1}</span></td>
+          <td><strong>${ent('agent',a.adapter,esc(a.adapter))}</strong></td>
+          <td class="mono ${scoreCls(a.score)}">${fmtFrac(a.pass,a.total)}</td>
+          <td>${coverage(a)}</td>
+          <td class="mono muted">${fmtTime(a.secs)}</td>
+          <td class="muted">${a.models.size}</td>
+          <td>${[...a.runtimes].map(rt=>`<span class="pill">${ent('runtime',rt,esc(rt))}</span>`).join('')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+// ─── Tab: By Agent — top models per agent ───────────────
+function renderByAgent(rows){
+  const byAdapter=new Map();
+  for(const g of aggByAdapterModel(rows)){
+    if(!byAdapter.has(g.adapter))byAdapter.set(g.adapter,[]);
+    byAdapter.get(g.adapter).push(g);
   }
-  const models=[...modelMap.entries()]
-    .filter(([,adMap])=>adMap.size>=2)
-    .map(([model,adMap])=>{
-      const vals=[...adMap.values()];
-      const best=Math.max(...vals.map(c=>c.total?c.pass/c.total:0));
-      const totalCases=vals.reduce((s,c)=>s+c.cases,0);
-      return {model,adMap,best,totalCases};
-    })
-    .sort((a,b)=>b.best-a.best||b.totalCases-a.totalCases||a.model.localeCompare(b.model));
-  return {adapters,models};
+  const adapters=[...byAdapter.keys()].sort((a,b)=>{
+    const sa=byAdapter.get(a)[0]?.score||0, sb=byAdapter.get(b)[0]?.score||0;
+    return sb-sa;
+  });
+  if(!adapters.length)return '<p class="muted">No rows match the current filters.</p>';
+  return adapters.map(a=>{
+    const models=byAdapter.get(a).slice(0,8);
+    return `<div class="card" style="margin-bottom:14px">
+      <h3>${ent('agent',a,esc(a))} · top models</h3>
+      <table>
+        <thead><tr><th></th><th>Model</th><th>Score</th><th>Coverage</th><th>Time</th><th>Runtimes</th></tr></thead>
+        <tbody>
+          ${models.map((m,i)=>`<tr>
+            <td><span class="rank${rankCls(i)}">#${i+1}</span></td>
+            <td>${ent('model',m.model,esc(shortModel(m.model)))}</td>
+            <td class="mono ${scoreCls(m.score)}">${fmtFrac(m.pass,m.total)}</td>
+            <td>${coverage(m)}</td>
+            <td class="mono muted">${fmtTime(m.secs)}</td>
+            <td>${[...m.runtimes].map(rt=>`<span class="pill">${ent('runtime',rt,esc(rt))}</span>`).join('')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }).join('');
 }
 
-function pivotCell(c){
-  if(!c) return '<td class="mono muted" style="text-align:center">—</td>';
-  const score=c.total?c.pass/c.total:0;
-  const avg=c.cases?Math.round(c.secs/c.cases):0;
-  return `<td class="mono" style="text-align:center"><span class="${scoreCls(score)}">${fmtFrac(c.pass,c.total)}</span><br><span class="muted" style="font-size:10px;font-weight:400">${fmtTime(avg)}</span></td>`;
+// ─── Tab: By Model — top agents per model ───────────────
+function renderByModel(rows){
+  const byModel=new Map();
+  for(const g of aggByAdapterModel(rows)){
+    if(!byModel.has(g.model))byModel.set(g.model,[]);
+    byModel.get(g.model).push(g);
+  }
+  const models=[...byModel.keys()].sort((a,b)=>{
+    const sa=byModel.get(a)[0]?.score||0, sb=byModel.get(b)[0]?.score||0;
+    return sb-sa;
+  });
+  if(!models.length)return '<p class="muted">No rows match the current filters.</p>';
+  return `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">${models.map(m=>{
+    const agents=byModel.get(m);
+    const multi=agents.length>1;
+    return `<div class="card">
+      <h3>${ent('model',m,esc(shortModel(m)))} <span style="font-weight:400;text-transform:none">${parseSize(m)?parseSize(m)+'B':''}</span></h3>
+      <table>
+        <thead><tr><th></th><th>Agent</th><th>Score</th><th>Coverage</th><th>Time</th><th>Runtimes</th></tr></thead>
+        <tbody>
+          ${agents.map((a,i)=>`<tr>
+            <td><span class="rank${rankCls(i)}">#${i+1}</span></td>
+            <td>${ent('agent',a.adapter,esc(a.adapter))}</td>
+            <td class="mono ${scoreCls(a.score)}">${fmtFrac(a.pass,a.total)}</td>
+            <td>${coverage(a)}</td>
+            <td class="mono muted">${fmtTime(a.secs)}</td>
+            <td>${[...a.runtimes].map(rt=>`<span class="pill">${ent('runtime',rt,esc(rt))}</span>`).join('')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${multi?'':'<div class="muted" style="padding:6px 12px 10px;font-size:11px">Only tested with one agent — no comparison yet.</div>'}
+    </div>`;
+  }).join('')}</div>`;
 }
 
-function renderRuntime(rt, rows){
-  const agg=aggregate(rows);
-  const pv=buildPivot(rows);
-  const modelSet=new Set(rows.map(r=>r.model));
-  const cases=new Set(rows.map(r=>r.case));
-  return `<section class="rt">
-    <h2>${ent('runtime',rt||'—',rt||'—')} <span class="muted" style="font-size:13px;font-weight:400">· ${rows.length} rows · ${modelSet.size} models · ${cases.size} cases</span></h2>
-    <div class="grid">
-      <div class="card">
-        <h3>Model × Adapter (avg per case)</h3>
-        ${pv.models.length===0
-          ? '<p class="muted" style="padding:12px">No models tested by 2+ adapters.</p>'
-          : `<div style="overflow-x:auto"><table style="min-width:max-content">
-          <thead><tr><th>Model</th>${pv.adapters.map(a=>`<th style="text-align:center">${ent('agent',a,a)}</th>`).join('')}</tr></thead>
-          <tbody>
-            ${pv.models.map(({model,adMap})=>`<tr>
-              <td style="white-space:nowrap">${ent('model',model,shortModel(model))}</td>
-              ${pv.adapters.map(a=>pivotCell(adMap.get(a)||null)).join('')}
-            </tr>`).join('')}
-          </tbody>
-        </table></div>`}
-      </div>
-      <div class="card">
-        <h3>Top 5 Models Per Agent</h3>
-        <table>
-          <thead><tr><th>Agent</th><th>Best models</th></tr></thead>
-          <tbody>
-            ${agg.map(a=>`<tr>
-              <td><strong>${ent('agent',a.adapter,a.adapter)}</strong></td>
-              <td>${a.top.map(m=>`<span class="pill">${ent('model',m.model,`<strong>${esc(shortModel(m.model))}</strong>`)} <span class="${scoreCls(m.score)}">${fmtFrac(m.pass,m.total)}</span> <span class="muted">${fmtTime(m.secs)}</span></span>`).join('')}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
+// ─── Render shell ────────────────────────────────────────
+function chip(label,on,onclick){return `<span class="chip${on?' on':''}" onclick="${onclick}">${esc(label)}</span>`;}
+function render(){
+  const rows=filteredRows();
+  const tierChips=['all',...TIERS.map(t=>t.key)]
+    .filter(k=>k==='all'||ALL_ROWS.some(r=>tierOf(r.model)===k))
+    .map(k=>chip(k==='all'?'All sizes':tierLabel(k),S.tier===k,`S.tier='${k}';render()`)).join('');
+  const rtChips=['all',...RUNTIMES].map(rt=>chip(rt==='all'?'All runtimes':rt,S.runtime===rt,`S.runtime='${rt}';render()`)).join('');
+  const tabs=[
+    ['overview','Overview'],['by-agent','Top models per agent'],['by-model','Top agents per model'],
+  ].map(([k,label])=>`<button class="tab${S.view===k?' on':''}" onclick="S.view='${k}';render()">${label}</button>`).join('');
+  let body='';
+  if(S.view==='overview')body=renderOverview(rows);
+  else if(S.view==='by-agent')body=renderByAgent(rows);
+  else body=renderByModel(rows);
+  document.getElementById('app').innerHTML=`
+    <div class="bar">
+      <div class="bar-group"><span class="bar-label">RAM tier</span>${tierChips}</div>
+      <div class="bar-group"><span class="bar-label">Runtime</span>${rtChips}</div>
+      <span class="muted mono" style="margin-left:auto">${rows.length} rows</span>
     </div>
-  </section>`;
+    ${renderPicks()}
+    <div class="tabs">${tabs}</div>
+    ${body}`;
 }
-
-const rows=latestComboRuntime(DATA).filter(r=>r.runtime);
-const runtimes=[...new Set(rows.map(r=>r.runtime))].sort();
-document.getElementById('app').innerHTML=runtimes.map(rt=>renderRuntime(rt, rows.filter(r=>r.runtime===rt))).join('');
+render();
 
 let hoverKey='';
 function setHover(kind,name){
