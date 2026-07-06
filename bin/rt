@@ -596,9 +596,24 @@ _metrics_display() {
   ) &
   local agg_pid=$!
 
+  # Background jobs ignore SIGINT by default in non-interactive scripts, so
+  # Ctrl-C would otherwise leave the tail/awk pipeline and the aggregates
+  # loop running after this function returns. Explicitly tear them (and
+  # their children, e.g. the `tail -f` under $tail_pid) down on interrupt.
+  local _cleanup_done=0
+  _metrics_cleanup() {
+    [ "$_cleanup_done" = 1 ] && return
+    _cleanup_done=1
+    pkill -P "$tail_pid" 2>/dev/null || true
+    pkill -P "$agg_pid" 2>/dev/null || true
+    kill "$tail_pid" "$agg_pid" 2>/dev/null || true
+  }
+  trap '_metrics_cleanup; exit 130' INT TERM
+  trap '_metrics_cleanup' RETURN EXIT
+
   # Wait for user interrupt
   wait $tail_pid 2>/dev/null
-  kill $agg_pid 2>/dev/null || true
+  _metrics_cleanup
 }
 
 cmd_watch() {
