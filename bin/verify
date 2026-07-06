@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# bin/verify — Workshop A step-by-step: server up? models listed? model loaded? model callable?
+#             — or, with --agent, is a terminal coding agent (pi, opencode) wired up?
+#
+# Unlike bin/doctor (full environment audit for this repo), this is a minimal,
+# narrated walkthrough for workshop participants: each step prints the exact
+# command before running it, then reports [PASS]/[FAIL]. Meant to be read
+# along with the terminal output, not just run silently.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+RUNTIME="lms"
+VERBOSE=0
+MODEL=""
+AGENT=""
+
+show_help() {
+  help_header "verify" "step-by-step check: server, models, load, call — for workshop participants"
+  help_section "USAGE"
+  help_line "  verify [--lms|--ollama] [--model ID] [--verbose]"
+  help_line "  verify --agent pi|opencode [--lms|--ollama] [--model ID] [--verbose]"
+  help_section "OPTIONS"
+  help_flag "--lms" "" "verify against LM Studio (default)"
+  help_flag "--ollama" "" "verify against Ollama instead"
+  help_flag "--agent NAME" "" "instead of the raw engine, verify an agent CLI: pi | opencode"
+  help_flag "--model ID" "" "model to load/call (default: small qwen3.5-9b for lms, qwen2.5-coder:7b for ollama)"
+  help_flag "--verbose" "" "print each command before running it"
+  help_flag "-h, --help" "" "show this help and exit"
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --lms) RUNTIME="lms"; shift;;
+    --ollama) RUNTIME="ollama"; shift;;
+    --agent) AGENT="$2"; shift 2;;
+    --model) MODEL="$2"; shift 2;;
+    --verbose) VERBOSE=1; shift;;
+    -h|--help) show_help; exit 0;;
+    *) die "unknown option: $1";;
+  esac
+done
+
+if [ "$RUNTIME" = "lms" ]; then
+  BASE_URL="$LMS_BASE_URL"
+  MODEL="${MODEL:-qwen/qwen3.5-9b}"
+else
+  BASE_URL="$OLLAMA_BASE_URL"
+  MODEL="${MODEL:-qwen2.5-coder:7b}"
+fi
+
+# Print the command (if --verbose), then run it. Keeps the narration and the
+# execution in lockstep so participants can follow along in the terminal.
+run() {
+  [ "$VERBOSE" -eq 1 ] && printf '%s $ %s\n' "${C_DIM}»${C_RST}" "$*" >&2
+  "$@"
+}
+
+step() { echo; info "Step $1: $2"; }
+
+if [ -n "$AGENT" ]; then
+
+  case "$AGENT" in
+    pi|opencode) ;;
+    *) die "unknown --agent: $AGENT (expected: pi | opencode)";;
+  esac
+
+  ADAPTER="$HERE/adapters/${AGENT}-${RUNTIME}.sh"
+  [ -f "$ADAPTER" ] || die "no adapter for $AGENT + $RUNTIME: $ADAPTER"
+
+  # ── Step 1: CLI installed ──────────────────────────────────────────────────
+  step 1 "check $AGENT is installed"
+  if run command -v "$AGENT" >/dev/null 2>&1; then
+    ok "$AGENT found: $(command -v "$AGENT")"
+  else
+    err "$AGENT not found on PATH"
+    case "$AGENT" in
+      pi) err "install with: npm install -g @earendil-works/pi-coding-agent";;
+      opencode) err "install with: npm install -g opencode-ai";;
+    esac
+    exit 1
+  fi
+
+  # ── Step 2: try it interactively ───────────────────────────────────────────
+  step 2 "try $AGENT interactively (do this yourself in another terminal)"
+  case "$AGENT" in
+    pi) INTERACTIVE_CMD="pi --provider lmstudio --model $MODEL";;
+    opencode) INTERACTIVE_CMD="opencode --model lmstudio/$MODEL";;
+  esac
+  printf '%s $ %s\n' "${C_DIM}»${C_RST}" "$INTERACTIVE_CMD"
+  info "opens the $AGENT TUI against your loaded model — poke around, ask it to explain a file, Ctrl-C to quit"
+  ok "example printed — run it yourself, then continue"
+
+  # ── Step 3: automated smoketest (simplified project case) ─────────────────
+  step 3 "run smoketest: $AGENT writes hello.txt from a one-line task"
+  SANDBOX="$(mktemp -d)"
+  trap 'rm -rf "$SANDBOX"' EXIT
+  TASK_FILE="$HERE/cases/smoke-00-hello/task.md"
+  [ -f "$TASK_FILE" ] || die "missing case: $TASK_FILE"
+  info "task (from cases/smoke-00-hello/task.md):"
+  sed 's/^/    /' "$TASK_FILE"
+  printf '%s $ %s\n' "${C_DIM}»${C_RST}" "cat cases/smoke-00-hello/task.md | MODEL_ID=$MODEL $(basename "$ADAPTER")"
+  ( cd "$SANDBOX" && MODEL_ID="$MODEL" run_timeout 120 "$ADAPTER" <"$TASK_FILE" >/tmp/.verify-agent.log 2>&1 )
+  if [ -f "$SANDBOX/hello.txt" ] && grep -qx "OK" "$SANDBOX/hello.txt"; then
+    ok "$AGENT created hello.txt with the right content"
+  else
+    err "$AGENT did not produce the expected hello.txt — see /tmp/.verify-agent.log"
+    exit 1
+  fi
+
+  echo
+  ok "$AGENT verified against $RUNTIME + $MODEL — try it on your own project next"
+  exit 0
+fi
+
+# ── Step 1: server responds ──────────────────────────────────────────────────
+step 1 "verify $RUNTIME server responds"
+if run curl -fsS --max-time 5 "$BASE_URL/models" >/tmp/.verify-models.json 2>&1; then
+  ok "server reachable at $BASE_URL"
+else
+  err "server not reachable at $BASE_URL"
+  if [ "$RUNTIME" = "lms" ]; then err "start it with: lms server start"
+  else err "start it with: ollama serve"
+  fi
+  exit 1
+fi
+
+# ── Step 2: list models ──────────────────────────────────────────────────────
+step 2 "list available models"
+if [ "$RUNTIME" = "lms" ]; then
+  run lms ls
+else
+  run curl -fsS "$BASE_URL/models" | jq -r '.data[].id'
+fi
+ok "models listed"
+
+# ── Step 3: load a model ─────────────────────────────────────────────────────
+step 3 "load model: $MODEL"
+if [ "$RUNTIME" = "lms" ]; then
+  [ "$VERBOSE" -eq 1 ] && printf '%s $ %s\n' "${C_DIM}»${C_RST}" "lms load $MODEL --yes" >&2
+  lms load "$MODEL" --yes 2>&1 | tr '\r' '\n' | grep -v '^Loading' >&2
+  if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+    ok "$MODEL loaded"
+  else
+    err "failed to load $MODEL"; exit 1
+  fi
+else
+  # Ollama loads a model into memory on first use; a tiny generate call warms it.
+  if run curl -fsS "$BASE_URL/../api/generate" -d "{\"model\":\"$MODEL\",\"prompt\":\"hi\",\"stream\":false}" >/dev/null; then
+    ok "$MODEL loaded"
+  else
+    err "failed to load $MODEL — try: ollama pull $MODEL"; exit 1
+  fi
+fi
+
+# ── Step 4: call the model ───────────────────────────────────────────────────
+step 4 "call the model (simple HTTP request)"
+RESPONSE=$(run curl -fsS "$BASE_URL/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d "{\"model\": \"$MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"Skriv en funktion der vender en streng om\"}]}")
+
+if [ -n "$RESPONSE" ]; then
+  ok "model responded"
+  echo "$RESPONSE" | jq -r '.choices[0].message.content'
+else
+  err "no response from model"; exit 1
+fi
+
+echo
+ok "all steps passed — $RUNTIME + $MODEL ready for agentic clients"

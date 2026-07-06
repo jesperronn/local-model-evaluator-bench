@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Item list with filters</title>
+  </head>
+  <body>
+    <h1>Items</h1>
+
+    <!-- Single-select controls. Convert these to multi-select checkboxes
+         (A / B / C) wired to filterByTypes — see task.md. -->
+    <fieldset id="filters">
+      <label><input type="radio" name="type" value="" checked /> All</label>
+      <label><input type="radio" name="type" value="A" /> Type A</label>
+      <label><input type="radio" name="type" value="B" /> Type B</label>
+      <label><input type="radio" name="type" value="C" /> Type C</label>
+    </fieldset>
+
+    <ul id="list"></ul>
+
+    <script type="module">
+      import { filterByType } from './src/filter.js';
+
+      const items = [
+        { name: 'apple', type: 'A' },
+        { name: 'banana', type: 'B' },
+        { name: 'cherry', type: 'C' },
+        { name: 'avocado', type: 'A' },
+      ];
+
+      const list = document.getElementById('list');
+      function render(active) {
+        const shown = filterByType(items, active);
+        list.innerHTML = shown.map((i) => `<li>${i.name} (${i.type})</li>`).join('');
+      }
+
+      document.getElementById('filters').addEventListener('change', (e) => {
+        render(e.target.value);
+      });
+      render('');
+    </script>
+  </body>
+</html>
