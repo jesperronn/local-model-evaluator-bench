@@ -146,13 +146,18 @@ _rec="$DEST/RECOMMENDATIONS.md"
   echo "Run \`bin/hwprofile\` to detect your tier, then \`bin/setup --model <tier>\`."
   echo "See [docs/HARDWARE-RECOMMENDATIONS.md](docs/HARDWARE-RECOMMENDATIONS.md)."
   echo
-  if [ -f "$HERE/LEADERBOARD.md" ]; then
-    echo "## Leaderboard summary (top rows)"
+  if [ -f "$HERE/LEADERBOARD-DATA.csv" ]; then
+    echo "## Top combos (by pass rate)"
     echo
-    echo '```'
-    # First markdown table in the leaderboard: header + up to 15 rows.
-    awk '/^\|/{n++; print; if(n>=17) exit}' "$HERE/LEADERBOARD.md"
-    echo '```'
+    echo "| Runtime | Adapter | Model | Pass | Pass% | Avg s |"
+    echo "|---------|---------|-------|------|-------|-------|"
+    # Sort the stable data file by score at READ time — this is where ranking
+    # belongs; LEADERBOARD-DATA.csv itself stays sorted by identity so it's
+    # diff-friendly. Decouples this summary from LEADERBOARD.md's table order/
+    # position, which used to be scraped positionally and broke silently
+    # whenever the leaderboard's table set or order changed upstream.
+    tail -n +2 "$HERE/LEADERBOARD-DATA.csv" | sort -t, -k6 -rn | head -15 \
+      | awk -F, '{printf "| %s | %s | %s | %d/%d | %.1f%% | %.1f |\n", $1, $2, $3, $4, $5, $6, $7}'
     echo
     echo "_Full rankings live in the source repo's LEADERBOARD.md._"
   else

@@ -22,7 +22,7 @@ usage() {
   help_flag "-i, --interactive" "" "use fzf to select tool(s) and model(s)"
   help_flag "-a, --all" "" "merge all runs (latest result wins per combo)"
   help_flag "--speed" "" "show speed comparison (avg seconds), fastest first"
-  help_flag "--save" "[FILE]" "write leaderboards as markdown (default: LEADERBOARD.md)"
+  help_flag "--save" "[FILE]" "write leaderboards as markdown (default: LEADERBOARD.md); unfiltered runs also refresh LEADERBOARD-DATA.csv (stable-sorted, diff-friendly)"
   help_flag "--prune" "" "delete runs fully superseded by newer runs (confirm first)"
   help_flag "--yes" "" "skip confirmation with --prune"
   help_flag "-h, --help" "" "show this help and exit"
@@ -307,9 +307,38 @@ if [ "$SPEED" -eq 1 ]; then
   }' "$WORK_CSV" | sort -t$'\t' -k1 -n | cut -f2-
 fi
 
+# Aggregation shared by the saved markdown's "by adapter × model" table, the
+# stable diff-friendly data file, and the "Models to Avoid" section — computed
+# ONCE here so all three views agree on the numbers (fixes a prior bug where
+# bin/report and bin/viz each recomputed this independently with a different
+# dedup key and disagreed on LEADERBOARD.md's contents).
+# Fields: runtime,adapter,model,pass,total,pct,avg_s,trials
+AGG_BY_ADAPTER_MODEL="$(awk -F, 'NR>1 {
+    rt = ($10 != "" ? $10 : "lms")
+    k=$1 SUBSEP $2 SUBSEP rt; ad[k]=$1; mo[k]=$2; ru[k]=rt
+    p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
+  }
+  END {
+    for (k in p) {
+      pct = t[k]>0 ? 100*p[k]/t[k] : 0
+      printf "%s,%s,%s,%d,%d,%.4f,%.1f,%d\n", \
+        ru[k], ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
+    }
+  }' "$WORK_CSV")"
+
 if [ -n "$SAVE_MD" ]; then
   src_label="$CSV"
   [ "$ALL_RUNS" -eq 1 ] && src_label="all runs (latest per adapter+model+case)"
+
+  # ── Models to Avoid: models with ≤20% pass rate across ≥28 trials. This
+  # section is fully derived (not hand-maintained) so a fresh --save can never
+  # silently drop it the way a manually-edited section would.
+  AVOID_THRESHOLD=20
+  AVOID_MIN_TESTS=28
+  AVOID_ROWS="$(echo "$AGG_BY_ADAPTER_MODEL" | awk -F, -v thr="$AVOID_THRESHOLD" -v mint="$AVOID_MIN_TESTS" '
+    $6+0 <= thr && $5+0 >= mint { printf "%09.4f\t| %s | `%s` | %d/%d | %.1f%% |\n", $6+0, $1, $3, $4, $5, $6 }
+  ' | sort -t$'\t' -k1 -n | cut -f2-)"
+
   {
     echo "# Benchmark Report"
     echo
@@ -318,6 +347,16 @@ if [ -n "$SAVE_MD" ]; then
     [ -n "$TOOL_FILTER"  ] && printf '**Tool filter:** `%s`\n'  "$TOOL_FILTER"
     [ -n "$MODEL_FILTER" ] && printf '**Model filter:** `%s`\n' "$MODEL_FILTER"
     echo
+    if [ -n "$AVOID_ROWS" ]; then
+      echo "## Models to Avoid"
+      echo
+      printf 'Models scoring ≤%s%% across ≥%s trials — broken or unusable tool calling. Auto-generated; regenerates on every `--save`.\n' "$AVOID_THRESHOLD" "$AVOID_MIN_TESTS"
+      echo
+      echo "| Runtime | Model | Pass | Pass% |"
+      echo "|---------|-------|------|-------|"
+      echo "$AVOID_ROWS"
+      echo
+    fi
     echo "## Leaderboard — by runtime"
     echo
     echo "| Runtime | Pass | Pass% | Avg s |"
@@ -338,18 +377,8 @@ if [ -n "$SAVE_MD" ]; then
     echo
     echo "| Runtime | Adapter | Model | Pass | Pass% | Avg s | Trials |"
     echo "|---------|---------|-------|------|-------|-------|--------|"
-    awk -F, 'NR>1 {
-      rt = ($10 != "" ? $10 : "lms")
-      k=$1 SUBSEP $2 SUBSEP rt; ad[k]=$1; mo[k]=$2; ru[k]=rt
-      p[k]+=$4; t[k]+=$5; n[k]++; sec[k]+=$7; if($9+0>tr[k]) tr[k]=$9+0
-    }
-    END {
-      for (k in p) {
-        pct = t[k]>0 ? 100*p[k]/t[k] : 0
-        printf "%09.4f\t| %s | %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", \
-          pct, ru[k], ad[k], mo[k], p[k], t[k], pct, sec[k]/n[k], (tr[k]<1?1:tr[k])
-      }
-    }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
+    echo "$AGG_BY_ADAPTER_MODEL" | awk -F, '{printf "%09.4f\t| %s | %s | %s | %d/%d | %.1f%% | %.1f | %d |\n", $6+0, $1, $2, $3, $4, $5, $6, $7, $8}' \
+      | sort -t$'\t' -k1 -rn | cut -f2-
     echo
     echo "## Leaderboard — by model"
     echo
@@ -384,6 +413,23 @@ if [ -n "$SAVE_MD" ]; then
     }' "$WORK_CSV" | sort -t$'\t' -k1 -rn | cut -f2-
   } > "$SAVE_MD"
   ok "Markdown saved → $SAVE_MD"
+
+  # Stable, diff-friendly companion file: one row per (runtime,adapter,model),
+  # sorted by that IDENTITY (not by score) so a run only touches the rows whose
+  # own numbers actually changed — unlike LEADERBOARD.md, which is rank-sorted
+  # and reorders whenever relative scores shift. Only written for the canonical
+  # unfiltered leaderboard so a filtered/single-model --save can't clobber it.
+  # This is what bin/build-onboarding reads instead of scraping table position.
+  if [ -z "$TOOL_FILTER" ] && [ -z "$MODEL_FILTER" ] && [ -z "$RUNTIME_FILTER" ]; then
+    # Tracked alongside LEADERBOARD.md (NOT under results/, which is gitignored
+    # run output) — this is a committed companion artifact, not throwaway data.
+    LB_DATA="$HERE/LEADERBOARD-DATA.csv"
+    {
+      echo "runtime,adapter,model,pass,total,pct,avg_s,trials"
+      echo "$AGG_BY_ADAPTER_MODEL" | sort -t, -k1,1 -k2,2 -k3,3
+    } > "$LB_DATA"
+    ok "Stable data file saved → $LB_DATA"
+  fi
 fi
 
 # ── Next steps hint ──────────────────────────────────────────────────────────
