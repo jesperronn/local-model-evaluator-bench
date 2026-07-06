@@ -21,6 +21,7 @@
 | **Version** | 1.38.0 |
 | **Adapter script** | [`adapters/goose-lms.sh`](../../adapters/goose-lms.sh) |
 | **How it connects** | `GOOSE_PROVIDER=openai` with `OPENAI_BASE_URL` pointing at `LMS_BASE_URL`. Model via `GOOSE_MODEL`. No config file needed — fully env-var driven. |
+| **Runtime model discovery** | **yes**, for standalone/interactive use — `goose configure` queries Ollama's model list (and other providers' `/v1/models`-equivalent endpoint when `dynamic_models` is set) and auto-populates the model picker. Doesn't change anything for the bench: `adapters/goose-lms.sh` still sets `GOOSE_MODEL` explicitly per trial so runs stay deterministic and reproducible. |
 | **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism

@@ -43,6 +43,7 @@ Verified against **LM Studio** only in this repo (see [SETUP.md §4](../SETUP.md
 | **IDE** | VS Code |
 | **Version** | <!-- TODO: fill from VS Code Extensions pane --> |
 | **How it connects** | API Provider = **OpenAI Compatible**, Base URL `http://localhost:1234/v1`, any API key, Model ID = the id from `bin/doctor` |
+| **Runtime model discovery** | **yes**, for standalone/interactive use — picking Cline's built-in "LM Studio" preset (or "Ollama") live-fetches the installed model list into the Model ID dropdown, so a first-time user doesn't have to copy an id from `bin/doctor` by hand. The bench doesn't rely on this: it drives Cline via `bin/doctor`-sourced ids in its own automation. |
 | **Edit style** | Multi-turn agentic loop; XML-tagged tool calls (`write_to_file`, `replace_in_file`, `execute_command`, `read_file`, …). `replace_in_file` uses SEARCH/REPLACE diff blocks. |
 | **Last reviewed** | 2026-06-10 |
 

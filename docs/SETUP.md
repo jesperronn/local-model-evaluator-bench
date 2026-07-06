@@ -91,6 +91,18 @@ hf --version    # verify
 2. Add its id as a new line in `models.txt`.
 3. `bin/doctor` to confirm the id resolves; `bin/bench --models <id>` to test it.
 
+> **Why `models.txt` still exists even though some CLIs auto-discover
+> models.** A few adapters (goose, cn, cline — see the table above) can list
+> whatever's installed on a backend. That doesn't replace `models.txt`:
+> discovery answers "what's installed," while `models.txt` is this repo's
+> curated **rotation** — which of the installed models the nightly bench
+> actually runs, in what order, with commentary on why others were dropped
+> (see the comments in the file itself). The bench also always pins one
+> explicit model id per trial for reproducible scoring, so no adapter's
+> discovery UI enters the loop during a run. On a fresh machine, `models.txt`
+> is also the fastest way to know *what to download* before anything is
+> installed — discovery has nothing to show until then.
+
 ### Which model — modern-efficiency features
 
 The harness rewards *smallest/fastest that still passes*, so prefer
@@ -143,11 +155,15 @@ How each is pointed at LM Studio:
 
 | CLI       | Model discovery / how it finds LM Studio                                            | Status |
 |-----------|--------------------------------------------------------------------------------------|--------|
-| `aider`   | Generic OpenAI provider: `--openai-api-base $LMS_BASE_URL` + `openai/<id>` model.    | ✅ works |
+| `aider`   | Generic OpenAI provider: `--openai-api-base $LMS_BASE_URL` + `openai/<id>` model. **No runtime discovery** — user runs `ollama list`/`curl .../v1/models` and types the id by hand. | ✅ works |
 | `opencode`| Built-in `lmstudio` provider (auto-discovers from `localhost:1234`); `lmstudio/<id>`.| ✅ works |
 | `codex`   | Custom provider inline via `-c` (`lmstudio` is a RESERVED id → use `lmstudio_local`).| ✅ works |
-| `caveman` | `pi`-based; LM Studio provider defined in `~/.pi/agent/models.json`; `--provider lmstudio`.| ✅ works |
+| `caveman` / `pi` | `pi`-based (`@earendil-works/pi-coding-agent`); LM Studio provider defined in `~/.pi/agent/models.json`; `--provider lmstudio`. **No runtime discovery** — do not confuse with the unrelated [`oh-my-pi`](https://github.com/can1357/oh-my-pi), which does discover. `bin/agents-config` keeps this repo's `models.json` in sync with `lms ls`/`ollama list`. | ✅ works |
 | `hermes`  | Built-in `lmstudio` provider (`~/.hermes/config.yaml`) + `-t file,terminal`.         | ⚠️ container-isolated |
+| `goose`   | `GOOSE_MODEL` env var, pinned per bench trial. **Has runtime discovery** for standalone use — `goose configure` queries Ollama/`/v1/models` and populates a picker; not used by the bench adapter, which always sets `GOOSE_MODEL` explicitly. | ✅ works |
+| `cn` (Continue CLI) | Per-run generated `config.yaml` with explicit `model: $MODEL_ID`. **Has runtime discovery** for standalone use — Continue's `model: AUTODETECT` scans the local Ollama install; the bench doesn't use `AUTODETECT` since it needs a specific model pinned. | ✅ works |
+| `cline`   | VS Code extension settings, Model ID = id from `bin/doctor`. **Has runtime discovery** for standalone use — its built-in "LM Studio"/"Ollama" presets live-fetch the model list into the settings dropdown. | ✅ works |
+| `nanocoder`| `NANOCODER_PROVIDERS` env var with an explicit `models` array. **No confirmed runtime discovery** — schema requires listing model ids up front; leans manual. | ✅ works |
 
 > **`caveman` provider config** lives in `~/.pi/agent/models.json` (machine
 > config — consider moving to dotfiles). A ready-to-copy template is committed

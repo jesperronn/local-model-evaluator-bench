@@ -10,6 +10,7 @@
 | **Version** | latest |
 | **Adapter script** | [`adapters/pi-lms.sh`](../../adapters/pi-lms.sh) |
 | **How it connects** | `--provider lmstudio` selects the built-in LM Studio provider (localhost:1234/v1). Model passed via `--model`. |
+| **Runtime model discovery** | **no** — this is `@earendil-works/pi-coding-agent`, not [`oh-my-pi`](https://github.com/can1357/oh-my-pi) (a different, similarly-named tool that *does* have native Ollama/llama.cpp/LM Studio discovery). This repo's `pi` needs its model list pre-populated in `~/.pi/agent/models.json`, which `bin/agents-config` keeps in sync with `lms ls`/`ollama list`. The bench always pins an explicit `--model` per trial anyway, so discovery wouldn't remove that step even if this `pi` had it. |
 | **Workarounds needed** | model-dependent — **shim** for qwen3-coder (edit-tool XML recovery, see Known issues); **none** for qwen3.6-35b-a3b. |
 | **Last reviewed** | 2026-07-05 |
 | **Recommended for** | Large models (30B+) AND small models (3.8B–9B) — only validated agent for small models |

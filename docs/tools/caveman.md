@@ -21,6 +21,7 @@
 | **Version** | measured pending |
 | **Adapter script** | [`adapters/caveman-lms.sh`](../../adapters/caveman-lms.sh) |
 | **How it connects** | Uses a `pi`-based agent runtime with a custom `lmstudio` provider definition in `~/.pi/agent/models.json` (baseUrl `http://localhost:1234/v1`, api `openai-completions`). |
+| **Runtime model discovery** | **no** — shares [`pi`](pi.md)'s manual model list in `~/.pi/agent/models.json`, kept in sync by `bin/agents-config`. Not to be confused with `oh-my-pi` (can1357), a different tool that does auto-discover. |
 | **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism

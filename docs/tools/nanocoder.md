@@ -9,6 +9,7 @@
 | **Version** | 1.28.1 |
 | **Adapter script** | [`adapters/nanocoder-lms.sh`](../../adapters/nanocoder-lms.sh) |
 | **How it connects** | LM Studio via `NANOCODER_PROVIDERS` env var (JSON array); no config file needed |
+| **Runtime model discovery** | **unconfirmed, leans no** — the `NANOCODER_PROVIDERS` schema (see below) requires an explicit `models` array; no documented API call to enumerate installed models on a backend was found. Treat as manual until proven otherwise. |
 | **Last reviewed** | 2026-06-30 |
 | **Smoke test** | 2026-06-30 — **3/3 PASS** on gemma-4-e4b |
 

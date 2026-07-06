@@ -22,6 +22,7 @@
 | **Version** | 1.5.47 |
 | **Adapter script** | [`adapters/cn-lms.sh`](../../adapters/cn-lms.sh) |
 | **How it connects** | Generates a per-run `~/.continue-lms-adapter/config.yaml` (`provider: openai`, `apiBase: $LMS_BASE_URL`, `model: $MODEL_ID`), then runs `cn --config <file> -p --auto --silent "<prompt>"` |
+| **Runtime model discovery** | **yes**, for standalone/interactive use — Continue's `model: AUTODETECT` config value scans the local Ollama install and lists installed models dynamically. Not used here: the bench generates a config with an explicit `model: $MODEL_ID` per trial so a specific model is always under test. |
 | **Last reviewed** | 2026-07-01 |
 
 > **Not the Continue.dev VS Code/JetBrains GUI extension.** `cn` is a separate headless CLI product from the same team. See [docs/extensions/continue.md](../extensions/continue.md) for why the GUI extension is currently ranked "avoid" (approval-memory failure) while this CLI is fully usable for automated benchmarking — the GUI's approval-prompt UI doesn't exist in headless mode.
