@@ -13,12 +13,11 @@ Score = fraction of a case's hidden tests that pass after the tool edits the
 code. Each cell below is `passed-tests / total-tests` summed over the 4 cases
 (max **15** sub-tests: slugify 4 + debounce 4 + groupBy 3 + topwords 4).
 
-> **Updated 2026-06-12:** The analysis below is the original 4-case / 4-adapter
-> narrative. The benchmark has since expanded to **9 cases**, **5 adapters**
-> (hermes now works), and **3 runtimes** (lms, ollama, mlx). Jump to
-> [Current results (2026-06-12)](#current-results-2026-06-12) for the latest
-> summary, or see [LEADERBOARD.md](LEADERBOARD.md) for the live automated
-> scoreboard.
+> **Updated 2026-07-06:** The analysis below is the original 4-case / 4-adapter
+> narrative from June 2026. The benchmark has since expanded to **11 cases**, **10+ adapters**,
+> and **3 runtimes** (lms, ollama, mlx) with comprehensive coverage of 1,576+ Ollama tests.
+> **Jump to [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md)** for the latest 2026-07-06 overnight findings,
+> or see [LEADERBOARD.md](LEADERBOARD.md) for the complete live automated scoreboard.
 
 Models tested in ascending memory order:
 

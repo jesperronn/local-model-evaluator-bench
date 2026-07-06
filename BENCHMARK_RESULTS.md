@@ -1,12 +1,52 @@
-# 🧪 Agent Benchmark Results - Smaller Models Focus
+# 🧪 Agent Benchmark Results - Comprehensive Coverage
 
-**Date:** 2026-07-05  
-**Agents Tested:** omp, qwen, vibe, shai  
-**Focus:** Lightweight models (3.8B - 9B parameters)
+**Date:** 2026-07-06  
+**Latest Run:** Overnight gap-fill (qwen3.6:35b-a3b, gemma4:26b-mlx, gemma4-claude)  
+**Coverage:** 1,576/2,427 Ollama tests (64.9%)
 
 ---
 
-## Executive Summary
+## Latest Results (2026-07-06 Overnight)
+
+### Overnight Gap-Fill Summary
+
+| Model | Best Adapter | Score | Speed | Key Finding |
+|-------|--------------|-------|-------|-------------|
+| **qwen3.6:35b-a3b-coding-mxfp8** | openhands/opencode/interpreter | **100%** | 55-112s | 🔥 High accuracy + fast inference |
+| **gemma4:26b-mlx** | hermes | **97.4%** | 205s | 🔥 Highest reliability, slow but worth it |
+| **gemma4-claude** | pi | **86.8%** | 129s | ✅ Good balance |
+
+### Key Discoveries
+
+**Critical Slowness Findings:**
+- ❌ **cline + qwen3.6:35b-a3b** → 301-302s timeouts (SKIPPED)
+- ❌ **aider + qwen3.6:35b-a3b** → 126-128s stalls on multifile tasks (SKIPPED)
+- ✅ **openhands/opencode/interpreter** → 55-112s, 100% accuracy (RECOMMENDED)
+
+**Adapter Performance Breakdown (qwen3.6:35b-a3b):**
+- openhands: 38/38 (100%) @ 112s
+- opencode: 38/38 (100%) @ 82s  
+- interpreter: 38/38 (100%) @ 55s ⭐
+- codex: 20/34 (58.8%) @ 172s
+- hermes: 12/32 (37.5%) @ 181s
+- copilot: 12/32 (37.5%) @ 123s
+
+**Adapter Performance (gemma4:26b-mlx):**
+- hermes: 37/38 (97.4%) @ 205s ⭐
+- pi: 28/34 (82.4%) @ 138s
+- aider: 24/34 (70.6%) @ 99s
+- codex: 12/32 (37.5%) @ 181s
+- caveman: 12/32 (37.5%) @ 2s
+
+**Strategy Validation:**
+1. Dense/MoE models benefit from tool-use adapters (openhands, interpreter) → 100% accuracy
+2. Hermes on MoE models is slower but highly reliable (97.4%)
+3. Skip slow combos (cline on qwen, aider on multifile) → saves 4+ hours per run
+4. Fast wins: openhands/opencode/interpreter on qwen3.6 (all 100%)
+
+---
+
+## Executive Summary (Previous)
 
 All 4 agents work with Ollama and smaller models. **omp and qwen** are the most reliable for automation. Smaller models achieve good results with acceptable latency (1-2 seconds).
 

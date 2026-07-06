@@ -10,11 +10,11 @@ context: "65536 loaded (256k max)"
 status: "keep"
 recommended_for: ["64gb", "64gb-specialist", "128gb"]
 tier: "64gb"
-best_adapter: "aider"
+best_adapter: "openhands, opencode, interpreter (Ollama)"
 accuracy: "100%"
-speed_avg: "~24-64s per case"
+speed_avg: "55-112s (Ollama), ~48s (LMS)"
 added: "2026-06-08"
-last_run: "2026-06-29"
+last_run: "2026-07-06"
 ---
 
 # qwen/qwen3.6-35b-a3b
@@ -43,16 +43,34 @@ last_run: "2026-06-29"
 | **Context window** | 65536 loaded for bench (`BENCH_CONTEXT`); 256K max |
 | **Fits** | NOT COMPATIBLE with 32GB M2 Max (fails to load). Fits comfortably at 64GB+ |
 | **Added** | 2026-06-08 |
-| **Last run** | 2026-06-29 (run `20260629-005401`) |
+| **Last run (LMS)** | 2026-06-29 (run `20260629-005401`) |
+| **Last run (Ollama)** | 2026-07-06 (overnight gap-fill, 6 fast adapters) |
 | **LMS entry removed** | 2026-06-10 |
 | **LMS entry re-added** | 2026-06-18 (qwen3.6-27b removed; 35b-a3b returned) |
-| **Doc updated** | 2026-06-30 |
+| **Doc updated** | 2026-07-06 |
 
 ## Prompt template compatibility
 
 ✓ **Fully multi-role prompting support** — This model's Jinja2 prompt template in LM Studio properly handles `system`, `user`, and `assistant` roles. This is critical for agentic adapters that require system instructions for tool definitions and agent context. Verified to work reliably across all major adapters (aider, cline, hermes, pi, opencode, etc.) without template conflicts.
 
 ## Results summary
+
+### Ollama Results (2026-07-06 Overnight Gap-Fill)
+
+✨ **KEY FINDING:** openhands, opencode, and interpreter all achieve **100% accuracy** on Ollama variant.
+
+| Adapter | Tests | Pass % | Speed | Notes |
+|---------|-------|--------|-------|-------|
+| **openhands** | 38/38 | **100%** | 112.1s | 🌟 Perfect score |
+| **opencode** | 38/38 | **100%** | 81.9s | 🌟 Fastest 100% option |
+| **interpreter** | 38/38 | **100%** | 54.7s | 🌟 ⚡ Fastest overall |
+| codex | 20/34 | 58.8% | 172.2s | Slower on this variant |
+| hermes | 12/32 | 37.5% | 180.8s | Not optimized for dense model |
+| copilot | 12/32 | 37.5% | 122.5s | Tool-use not optimal here |
+| ❌ cline | — | — | 301-302s | **TIMEOUT** (skip this combo) |
+| ❌ aider | — | — | 126-128s | **STALL** on multifile tasks |
+
+### LMS Results (2026-06-29)
 
 The strongest general model in the suite. On the 2026-06-29 overnight run: aider, cline, codex, goose, hermes, interpreter, opencode, openhands, pi all scored **38/38 (100%)**. caveman and copilot are LMS-incompatible (not a model issue). Overall 366/406 (90%) including broken adapters; **100% across all working adapters**. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
