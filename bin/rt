@@ -608,6 +608,11 @@ cmd_watch() {
   # Check for --metrics flag
   [ "$n" = "--metrics" ] && { show_metrics=1; n=40; }
 
+  # Reject unknown flags
+  if [[ "$n" == --* ]] && [ "$n" != "--metrics" ]; then
+    die "unknown flag: $n  (use --metrics for unified view, or N for line count)"
+  fi
+
   # Find the latest run directory
   local run; run=$(ls -1dt "$HERE"/results/*/ 2>/dev/null | grep -v "_bad_runs" | head -1)
   [ -z "$run" ] && die "no bench logs found (run a bench first)"
