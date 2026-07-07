@@ -13,7 +13,10 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 RUNTIMES="lms,ollama"
-DEFAULT_SYNC_AGENTS="${DEFAULT_ADAPTERS:-pi}"
+# Recommended-for-local-models adapters (see docs/ADAPTER-SETUP.md) — a useful
+# default set to suggest, wider than $DEFAULT_ADAPTERS (which is tuned for
+# nightly bench runs, not "what should a new model be smoke-tested against").
+DEFAULT_SYNC_AGENTS="${SCOUT_SYNC_AGENTS:-aider,cline,hermes,opencode,pi}"
 
 usage() {
   help_header "scout" "flag models on disk that aren't registered in the bench yet"
