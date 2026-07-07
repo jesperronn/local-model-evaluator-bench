@@ -48,15 +48,15 @@ ORPHAN_COUNT=0
 note_new() {
   local runtime="$1" model="$2"
   ((NEW_COUNT++)) || true
-  printf '%sNOTE: new model not registered globally%s: %s (%s)\n' "$C_YEL" "$C_RST" "$model" "$runtime"
-  printf '  %s bin/sync --provider %s --model %s --agent %s%s\n\n' \
+  printf '%s# NOTE: new model not registered globally: %s (%s)%s\n' "$C_YEL" "$model" "$runtime" "$C_RST"
+  printf '%sbin/sync --provider %s --model %s --agent %s%s\n\n' \
     "$C_GRN" "$runtime" "$model" "$DEFAULT_SYNC_AGENTS" "$C_RST"
 }
 
 note_orphaned() {
   local runtime="$1" model="$2"
   ((ORPHAN_COUNT++)) || true
-  printf '%sNOTE: registered but not downloaded%s: %s (%s) — not touching models list\n' "$C_DIM" "$C_RST" "$model" "$runtime"
+  printf '%s# NOTE: registered but not downloaded: %s (%s) — not touching models list%s\n' "$C_DIM" "$model" "$runtime" "$C_RST"
 }
 
 check_lms() {
