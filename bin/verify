@@ -161,7 +161,7 @@ fi
 # ── Step 4: call the model ───────────────────────────────────────────────────
 step 4 "call the model (streaming HTTP request)"
 CHAT_BODY="{\"model\": \"$MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"Ping\"}], \"stream\": true}"
-[ "$VERBOSE" -eq 1 ] && printf '%s $ %s\n' "${C_DIM}»${C_RST}" "curl -fsS -N $BASE_URL/chat/completions -H 'Content-Type: application/json' -d '$CHAT_BODY'" >&2
+printf '%s $ %s\n' "${C_DIM}»${C_RST}" "curl -fsS -N $BASE_URL/chat/completions -H 'Content-Type: application/json' -d '$CHAT_BODY'" >&2
 
 GOT_CONTENT=0
 while IFS= read -r LINE; do
@@ -171,7 +171,7 @@ while IFS= read -r LINE; do
   CHUNK=$(printf '%s' "$LINE" | jq -r '.choices[0].delta.content // empty' 2>/dev/null) || continue
   if [ -n "$CHUNK" ]; then
     [ "$GOT_CONTENT" -eq 0 ] && { ok "model responding"; GOT_CONTENT=1; }
-    printf '%s' "$CHUNK"
+    printf '%s%s%s' "$C_DIM" "$CHUNK" "$C_RST"
   fi
 done < <(curl -fsS -N "$BASE_URL/chat/completions" \
   -H "Content-Type: application/json" \
