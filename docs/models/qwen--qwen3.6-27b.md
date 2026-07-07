@@ -39,11 +39,11 @@ Strong performance on LMS GGUF. On the 2026-06-29 overnight run: codex, goose, a
 | cline | 28/34 (82%) | Some timeouts on slower cases |
 | aider | 26/34 (76%) | Thinking token leakage on some cases |
 | nanocoder | 34/38 (89%) | bash-01 0/4 (execute_bash blocked); all JS cases PASS |
+| pi | 44/44 (100%) | 2026-07-07 run; med 95.1s — clean across all 12 cases |
 | caveman | not run | — |
 | copilot | not run | — |
 | opencode | not run | — |
 | openhands | not run | — |
-| pi | not run | — |
 
 ## Timing observations
 
@@ -68,3 +68,5 @@ Dense 27B GGUF is noticeably slower than MoE models (qwen3.6-35b-a3b with 3B act
 **2026-06-12 MLX removal:** The model was removed in its MLX-6bit variant after a catastrophic result: 35.7% pass rate at 253s average. Root causes were (1) thinking token leakage into aider edits and (2) extreme slowness vs the MoE alternative. Only aider was tested at removal time.
 
 **2026-06-28 LMS GGUF re-add:** Model re-added for a full sweep using GGUF backend on LMS. The LMS GGUF backend generates faster than MLX-6bit for this dense architecture; timeout failures from 2026-06-12 are reduced but not eliminated.
+
+**2026-07-07 pi stale-refresh:** first `pi` run for this model — clean 44/44 (100%), med 95.1s (results/20260707-*). Joins codex/goose/interpreter as a 100%-on-LMS adapter for this model; no thinking-token leakage or timeout issues observed under pi.

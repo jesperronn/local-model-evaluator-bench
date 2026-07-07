@@ -58,6 +58,16 @@ Notably, caveman achieves strong self-verify results on larger models: qwen3.6-3
 
 ## Failure modes
 
+**⚠️ Local-provider support appears to have regressed entirely (found 2026-07-07).** A one-off re-run against `qwen/qwen3-coder-next` failed all 9 real cases immediately (2s, `error(1)`), with every `.bench.log` reporting:
+
+```
+Error: caveman adapter for LM Studio is not supported.
+The installed caveman-code (npm) does not support local providers.
+It only works with cloud providers (Anthropic, OpenAI, etc.) via environment variables.
+```
+
+This is **not model-specific** — it fails identically regardless of which model is targeted, since the error fires before any model call. It contradicts every prior result in this card (which show caveman working against LM Studio models), so something changed in the installed `caveman-code` npm package between the last successful caveman run and 2026-07-07 (global npm install — see the "Reproducibility" note on [pi.md](pi.md), the same upgrade-wipes-patches risk applies here). **Before trusting any caveman score going forward, check `.bench.log` for this exact message** — a 0% score with all cases at ~2s and `error(1)` means the adapter itself is broken, not the model. Needs investigation: pin/reinstall `caveman-code` at a version known to support local providers, or find the flag/env-var that re-enables it.
+
 **Infrastructure errors on partial-run models:** caveman exits with error(1) on models that weren't properly loaded (gemma-4-12b, gemma-4-31b, gemma-4-31b-qat). These are infrastructure failures.
 
 **Compact prompt under-specification:** the caveman encoding is token-efficient but occasionally under-specifies the task for smaller models. Examples:
@@ -73,7 +83,7 @@ This pattern is more common on sub-8B models, suggesting the compact encoding re
 
 ## Status
 
-**stable** — second-best adapter overall (87.1% across all models), trades blows with opencode. Faster than opencod on most models. The compact encoding occasionally under-specifies tasks for sub-8B models, but on capable models it is highly reliable.
+**needs-tuning (was stable)** — historically second-best adapter overall (87.1% across all models), trades blows with opencode, faster than opencode on most models. **Downgraded 2026-07-07** pending investigation of the local-provider regression above — until that's confirmed fixed or was a one-off environment glitch, treat any fresh caveman + LM Studio score as suspect and check the bench log for the `error(1)` local-provider message before trusting it.
 
 ## Comparison with other adapters
 

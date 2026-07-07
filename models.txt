@@ -56,8 +56,11 @@ zai-org/glm-4.7-flash
 # 30B (MoE, 3B active) — Qwen Coder
 qwen/qwen3-coder-30b
 
-# 80B (sparse MoE, 10B active — 60 GB at MLX-6bit) removed 2026-06-30: too large
-# for routine nightly runs. See docs/models/qwen--qwen3-coder-next.md if re-added.
+# 80B (sparse MoE, 10B active — 45 GB at MLX-4bit) removed 2026-06-30: too large
+# for routine nightly runs. One-off re-eval 2026-07-07: pi 100% (44/44, med 33s) —
+# fast and accurate, but still 45GB to keep resident; caveman errored (adapter
+# has no local-provider support, not model-specific). See
+# docs/models/qwen--qwen3-coder-next.md and results/20260707-024419/.
 # qwen/qwen3-coder-next
 
 # devstral-2-2512 removed 2026-06-29: performed poorly across all adapters,

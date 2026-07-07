@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-07 stale-refresh + one-off big-model eval
+
+Ran `bin/stale` against `pi` × current `models.txt` (7 models), found 84 missing/failed/stale combos, and re-benched all of them (downloading `google/gemma-4-26b-a4b-qat` and `zai-org/glm-4.7-flash` fresh where they'd fallen off disk). Also re-downloaded `qwen/qwen3-coder-next` (80B MoE, 4-bit MLX, 44.86GB) — excluded from nightly rotation since 2026-06-30 for being too large — for a one-off `pi`+`caveman` re-check.
+
+| Model | Adapter | Score | Med speed | Note |
+|-------|---------|-------|-----------|------|
+| qwen/qwen3.6-27b | pi | **100%** (44/44) | 95.1s | clean |
+| qwen/qwen3-coder-30b | pi | **100%** (44/44) | 51.0s | clean |
+| google/gemma-4-26b-a4b-qat | pi | **100%** (44/44) | 71.5s | clean |
+| **qwen/qwen3-coder-next** (80B MoE, one-off) | pi | **100%** (44/44) | **33.4s** | fastest full-clean `pi` run recorded to date |
+| qwen/qwen3-coder-next (one-off) | caveman | 0% (0/38, +errors) | 2.1s | **not model-specific** — installed `caveman-code` has no local-provider support at all (`adapters/caveman-lms.sh`), fails identically for every LM Studio model |
+| zai-org/glm-4.7-flash | pi | 23.7% (9/38) | 136.5s | frequent stalls (bash-01, deleg-01 both 0-score with `stall` status) — regression vs. this model's scores on other adapters (see [zai-org--glm-4.7-flash.md](docs/models/zai-org--glm-4.7-flash.md)) |
+
+**Takeaway:** `qwen3-coder-next` is genuinely excellent on `pi` (100% at the fastest median speed seen in this harness) but its 45GB footprint is still the reason it stays out of the default nightly rotation — see [docs/models/qwen--qwen3-coder-next.md](docs/models/qwen--qwen3-coder-next.md) for the full note and re-run command. `glm-4.7-flash` looks notably weaker under `pi` specifically than under other adapters — worth a closer look at whether `pi`'s prompt/tool-call format is a poor fit for this model, independent of raw capability.
+
+Full merged leaderboard: [LEADERBOARD.md](LEADERBOARD.md) (regenerated via `bin/report --all --save` + `bin/viz`). Raw runs: `results/20260707-*`.
+
+---
+
 ## Latest Results (2026-07-06 Overnight)
 
 ### Overnight Gap-Fill Summary

@@ -65,6 +65,7 @@ The 12/32 floor represents adapters that pass only the 3 smoke tests plus the si
 - 2026-06-28 (initial): smoke test passed (model wired and responding)
 - 2026-06-28 (aider trial): STALLED — js-02-debounce-feature, 593s total, watchdog abort during generation
 - 2026-06-29 (overnight full sweep): Confirmed at scale — 10 of 11 adapters at timeout floor; codex best at 65%
+- 2026-07-07 (stale-refresh re-download + pi re-run): the model had fallen off disk and was re-pulled via `lms get zai-org/glm-4.7-flash --mlx -y`, which resolved to a **different variant than previously tested** — `GLM-4.7-Flash-MLX-6bit` (~23 GB) instead of the GGUF build this card's numbers above are based on. `pi` scored 9/38 (23.7%), with `bash-01-topwords` and `deleg-01-validate-format-pipeline` both 0-score and status `stall` (not `timeout` — the watchdog fired on no-progress, not the hard ceiling) at ~120–180s each; `js-02-debounce-feature` did pass 4/4. This is *worse* than the GGUF build's pi score of 37% in the table above, which is notable because MLX is normally faster than GGUF on Apple Silicon for this hardware — worth a follow-up run to confirm whether the MLX-6bit build is genuinely weaker on `pi`, or whether the stalls are adapter/prompt-format-specific (see [pi.md](../tools/pi.md)). Full row data: `results/20260707-021626/results.csv`.
 
 ## Status
 

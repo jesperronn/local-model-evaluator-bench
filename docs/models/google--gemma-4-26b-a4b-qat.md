@@ -103,6 +103,10 @@ No strictly-better model identified for this specific workload on tested runtime
 
 Full 11-adapter LMS sweep. goose/hermes/pi: 100%. interpreter/opencode: 97%. Significant improvement vs 2026-06-13 Ollama results on aider (81% LMS vs 53.6% Ollama) — the LMS runtime and/or adapter updates appear to have fixed the multifile cases that previously failed. caveman remains LMS-incompatible (12/32). copilot scored 18/32 (56%) — slightly above the 37% baseline, suggesting a few cases partially succeed. codex remains skipped per compat.json.
 
+### 2026-07-07 — stale-refresh re-run (run `20260707-020140`)
+
+Model had fallen off disk and was re-downloaded (`lms get google/gemma-4-26b-a4b-qat --mlx -y`, 15.64 GB MLX 4-bit). `pi` confirmed clean at **44/44 (100%)**, med 71.5s, across the now-expanded 12-case set (bash-01, deleg-01, js-01–06, smoke-00–02, ts-01) — consistent with the 100% pi result from 2026-06-29, no regression after re-download.
+
 ## Status
 
 **keep** — top-tier performance across all tested LMS adapters. goose/hermes/pi at 100% on LMS, interpreter/opencode at 97%. The aider multifile issue that plagued the Ollama run appears resolved on LMS. codex excluded by compat.json.

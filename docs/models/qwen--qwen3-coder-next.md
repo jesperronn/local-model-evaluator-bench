@@ -47,6 +47,8 @@ last_run: "2026-06-29"
 
 Excellent coding model. All 5 adapters work at high scores: codex, hermes, and opencode all at 100%, caveman 96.7%, aider 71.9%. Overall 154/164 (93.9%). On par with qwen3-coder-30b except aider trails slightly. hermes and opencode were both broken in the initial run (2026-06-09) but were fixed when hermes switched to `backend: local`. See [BENCHMARK-RESULTS.md](../../BENCHMARK-RESULTS.md).
 
+**One-off re-eval (2026-07-07), 4-bit MLX (44.86 GiB):** model was re-downloaded specifically to check whether it's still worth the RAM/disk cost despite being excluded from nightly rotation. `pi` scored a clean 44/44 (100%), med 33.4s — the fastest full-clean run of any model on `pi` to date (results/20260707-024419/). `caveman` failed all 9 cases immediately (error(1)): this is **not model-specific** — the installed `caveman-code` npm package has no local-provider support at all (`adapters/caveman-lms.sh`), so it fails identically for every LM Studio model. Net: coder-next remains a strong candidate on `pi`/`codex`/`hermes`/`opencode`, but its 45GB footprint is still the reason it's kept out of the default nightly `models.txt` rotation — re-run manually via `bin/bench-overnight --models "qwen/qwen3-coder-next" --agent <adapters>` when needed.
+
 ## Failure patterns
 
 **Adapter-specific — aider, bash-01-topwords (0/4):** aider fails the bash CLI case across all runs while codex, hermes, and caveman score 4/4. The model produces a valid solution but aider's diff format isn't applied correctly.

@@ -135,6 +135,20 @@ Run concurrently with a hermes bench on the same model; timeouts reflect slot co
 | zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor |
 | qwen/qwen3-coder-30b | 37/38 (97%) | bash-01 3/4 |
 
+### Stale-refresh sweep (2026-07-07, lms, 12-case set, runs `20260707-*`)
+
+Re-ran the full 7-model rotation plus a one-off big-model check to clear stale/missing/failed `pi` combos.
+
+| Model | Score | Med speed | Notes |
+|-------|-------|-----------|-------|
+| qwen/qwen3.6-27b | 44/44 (100%) | 95.1s | first pi run for this model — clean |
+| qwen/qwen3-coder-30b | 44/44 (100%) | 51.0s | up from 97% on 2026-06-29 (bash-01 3/4 that run) |
+| google/gemma-4-26b-a4b-qat | 44/44 (100%) | 71.5s | confirms 2026-06-29 100% after model re-download |
+| **qwen/qwen3-coder-next** (one-off, 80B MoE) | 44/44 (100%) | **33.4s** | fastest full-clean pi run recorded in this harness; see [qwen--qwen3-coder-next.md](../models/qwen--qwen3-coder-next.md) |
+| zai-org/glm-4.7-flash | 9/38 (23.7%) | 136.5s | re-download resolved to a different variant (MLX-6bit, not the GGUF this model's card was based on); most failures are `stall` status, not `timeout` — see [zai-org--glm-4.7-flash.md](../models/zai-org--glm-4.7-flash.md) |
+
+Notably, `qwen3-coder-next` (an 80B MoE excluded from the default nightly rotation for its 45GB footprint) beat every other model on speed under pi while matching everyone else's 100% accuracy — the exclusion is a resource-budget call, not an accuracy or reliability one.
+
 ### Smoke results (2026-06-18, lms)
 
 | Model | smoke-00-hello | smoke-01-edit-file |

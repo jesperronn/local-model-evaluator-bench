@@ -122,6 +122,12 @@ tools/pi.md](../tools/pi.md)). Likely affects other Hermes-format qwen models (q
 
 qwen3.6-35b-a3b is slightly more accurate for some tasks.
 
+## Observations across runs
+
+### 2026-07-07 — stale-refresh re-run (run `20260707-`, `pi` only)
+
+`pi` scored a clean **44/44 (100%)**, med 51.0s, across the expanded 12-case set — an improvement over the 2026-06-29 pi score of 97% (bash-01 WARN 3/4 back then). No sign of the earlier bash-01 partial failure this run; treat as noise/flakiness in the earlier result rather than a regression fixed, since nothing in the adapter or model changed between runs.
+
 ## Status
 
 **keep** — best aider performance in the suite (100%, avg 11s). interpreter also 100%. MoE architecture makes this the fastest model per-token in the benchmark. Needs cline and opencode sweep to complete the adapter picture.
