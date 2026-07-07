@@ -45,3 +45,5 @@ qwen2.5-coder-7b
 
 # 7B — Qwen 2.5 Coder raw (no custom context/template). Only use for aider.
 qwen2.5-coder:7b
+gemma4:26b
+qwen3.5:9b

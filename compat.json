@@ -330,9 +330,12 @@
     "first_seen": "2026-06-28",
     "run_id": "20260628-234727",
     "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
-    "status": "open",
+    "status": "resolved",
     "last_seen": "2026-06-28",
-    "last_run_id": "20260628-234727"
+    "last_run_id": "20260628-234727",
+    "resolved_date": "2026-07-07",
+    "resolved_run_id": "20260707-120530",
+    "resolved_agent_version": "0.80.3"
   },
   "codex:google/gemma-4-26b-a4b-qat:lms": {
     "adapter": "codex",
