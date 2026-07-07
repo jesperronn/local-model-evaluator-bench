@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# bin/sync — register one downloaded model with the bench and prove it works.
+# bin/sync — register one downloaded model with the bench.
 #
 # The one-liner bin/scout prints for every "not registered globally" model.
-# Meant for workshop participants and benchmarkers alike: run it, watch it
-# pass, start using the model.
+# Meant for workshop participants and benchmarkers alike. Registration only —
+# no model load, no smoke test (that's a deliberate separate step, since it's
+# slow and not everyone wants it right away). See the "Next step" it prints.
 #
-# Usage: bin/sync --provider lms --model <id> --agent opencode,pi [--dry-run]
+# Usage: bin/sync --provider lms --model <id> [--agent opencode,pi] [--dry-run]
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
@@ -13,20 +14,21 @@ source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/he
 PROVIDER=""; MODEL=""; AGENTS="${DEFAULT_ADAPTERS:-pi}"; DRY_RUN=0
 
 usage() {
-  help_header "sync" "register a downloaded model with the bench + smoke-test it"
+  help_header "sync" "register a downloaded model with the bench"
   help_section "USAGE"
   help_line "  bin/sync --provider lms --model <id> [--agent a,b] [--dry-run]" ""
   help_section "OPTIONS"
   help_flag "--provider" "NAME" "lms | ollama (required)"
   help_flag "--model" "ID" "exact model id, as shown by 'lms ls' / 'ollama list' (required)"
-  help_flag "--agent" "a,b" "adapters to smoke-test against (default: \$DEFAULT_ADAPTERS = $DEFAULT_ADAPTERS)"
+  help_flag "--agent" "a,b" "adapters to suggest for the next-step smoke test (default: \$DEFAULT_ADAPTERS = $DEFAULT_ADAPTERS)"
   help_flag "--dry-run" "" "print what would happen, change nothing"
   help_flag "-h, --help" "" "show this help and exit"
   help_section "WHAT IT DOES"
   help_line "  1. Appends the model to models.txt / models-ollama.txt (skipped if already there)" ""
   help_line "  2. Seeds ~/.config/llmrun/agents.json with recommended settings for this model" ""
   help_line "     (via bin/suggest-tuning | llmrun agents config apply --write)" ""
-  help_line "  3. Runs bin/smoke to prove each --agent can drive the model end-to-end" ""
+  help_line "  Does NOT load the model or run a smoke test — that's slow, so it's a" ""
+  help_line "  separate next step this command prints for you." ""
   help_section "EXAMPLES"
   help_line "  bin/sync --provider lms --model qwen/qwen3.5-9b --agent opencode,pi" ""
 }
@@ -82,19 +84,9 @@ else
   warn "llmrun not on PATH — skipping agents.json seeding (run bin/build-llmrun first)"
 fi
 
-# ── 3. smoke-test each agent ─────────────────────────────────────────────────
-if [ "$DRY_RUN" = "1" ]; then
-  info "[dry-run] would run: bin/smoke --runtime $PROVIDER --model $MODEL --agent $AGENTS"
-  exit 0
-fi
+[ "$DRY_RUN" = "1" ] && exit 0
 
-info "running bin/smoke --runtime $PROVIDER --model $MODEL --agent $AGENTS"
-"$HERE/bin/smoke" --runtime "$PROVIDER" --model "$MODEL" --agent "$AGENTS"
-SMOKE_STATUS=$?
-
-if [ "$SMOKE_STATUS" -eq 0 ]; then
-  ok "$MODEL is synced and working with: $AGENTS"
-else
-  warn "smoke test reported issues — model is registered, but check the output above before relying on it"
-fi
-exit "$SMOKE_STATUS"
+ok "$MODEL is registered"
+echo
+info "Next step — prove it actually works (loads the model, takes a bit):"
+echo "  bin/smoke --runtime $PROVIDER --model $MODEL --agent $AGENTS"

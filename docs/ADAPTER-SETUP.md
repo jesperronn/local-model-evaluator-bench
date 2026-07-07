@@ -91,10 +91,11 @@ bin/scout
 bin/sync --provider lms --model qwen/qwen3.5-9b --agent opencode,pi
 ```
 
-`bin/sync` appends the model to the right models list, seeds
-`~/.config/llmrun/agents.json` via `bin/suggest-tuning`, and runs `bin/smoke`
-against every `--agent` given to prove the model actually works before you
-rely on it.
+`bin/sync` appends the model to the right models list and seeds
+`~/.config/llmrun/agents.json` via `bin/suggest-tuning` — registration only,
+no model load. It prints a `bin/smoke` command as the next step for whoever
+wants to actually prove the model works before relying on it (that step is
+slow, so it's opt-in rather than automatic).
 
 `bin/scout` is read-only and never deletes: if a model is registered in
 `models.txt`/`models-ollama.txt` but no longer downloaded, it's flagged

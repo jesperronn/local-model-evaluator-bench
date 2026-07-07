@@ -100,10 +100,11 @@ NOTE: new model not registered globally: qwen/qwen3.5-9b (lms)
    bin/sync --provider lms --model qwen/qwen3.5-9b --agent pi
 ```
 
-`bin/sync` does steps 2–3 for you (plus seeding `~/.config/llmrun/agents.json`
-with recommended settings) and runs `bin/smoke` to prove the model actually
-works with the adapter(s) you list. It's read-only for the *other* direction
-too: a model that's registered but no longer downloaded is flagged, never
+`bin/sync` does step 2 for you (plus seeding `~/.config/llmrun/agents.json`
+with recommended settings) — registration only, no model load. It prints a
+`bin/smoke` command as the next step for proving the model actually works
+with the adapter(s) you list. It's read-only for the *other* direction too:
+a model that's registered but no longer downloaded is flagged, never
 auto-removed — use [`bin/prune`](#bin-prune-model-disk-cleanup) for that.
 
 > **Why `models.txt` still exists even though some CLIs auto-discover
