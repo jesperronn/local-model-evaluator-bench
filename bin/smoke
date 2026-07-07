@@ -312,7 +312,9 @@ esac
 if [ "$RETRYING_BROKEN" = 1 ]; then
   bench_args+=("--skip-compat-filter")
 fi
-"$HERE/bin/bench" "${bench_args[@]}" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}"
+_bench_rc=0
+"$HERE/bin/bench" "${bench_args[@]}" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}" || _bench_rc=$?
+[ "$_bench_rc" -eq 0 ] || exit "$_bench_rc"
 
 # ── Verdict ───────────────────────────────────────────────────────────────────
 CSV="$(ls -dt "$RESULTS_DIR"/*/results.csv 2>/dev/null | head -1)"
