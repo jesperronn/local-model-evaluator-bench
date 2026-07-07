@@ -56,7 +56,8 @@ run() {
   "$@"
 }
 
-step() { echo; info "Step $1: $2"; }
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then C_ORG=$'\033[38;5;208m'; else C_ORG=; fi
+step() { echo; printf '%s\n' "${C_BLU}==>${C_RST} ${C_BLD}${C_ORG}Step $1/$STEP_TOTAL: $2${C_RST}"; }
 
 if [ -n "$AGENT" ]; then
 
@@ -67,6 +68,8 @@ if [ -n "$AGENT" ]; then
 
   ADAPTER="$HERE/adapters/${AGENT}-${RUNTIME}.sh"
   [ -f "$ADAPTER" ] || die "no adapter for $AGENT + $RUNTIME: $ADAPTER"
+
+  STEP_TOTAL=3
 
   # ── Step 1: CLI installed ──────────────────────────────────────────────────
   step 1 "check $AGENT is installed"
@@ -113,6 +116,8 @@ if [ -n "$AGENT" ]; then
   exit 0
 fi
 
+STEP_TOTAL=4
+
 # ── Step 1: server responds ──────────────────────────────────────────────────
 step 1 "verify $RUNTIME server responds"
 if run curl -fsS --max-time 5 "$BASE_URL/models" >/tmp/.verify-models.json 2>&1; then
@@ -154,15 +159,27 @@ else
 fi
 
 # ── Step 4: call the model ───────────────────────────────────────────────────
-step 4 "call the model (simple HTTP request)"
-RESPONSE=$(run curl -fsS "$BASE_URL/chat/completions" \
-  -H "Content-Type: application/json" \
-  -d "{\"model\": \"$MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"Skriv en funktion der vender en streng om\"}]}")
+step 4 "call the model (streaming HTTP request)"
+CHAT_BODY="{\"model\": \"$MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"Ping\"}], \"stream\": true}"
+[ "$VERBOSE" -eq 1 ] && printf '%s $ %s\n' "${C_DIM}»${C_RST}" "curl -fsS -N $BASE_URL/chat/completions -H 'Content-Type: application/json' -d '$CHAT_BODY'" >&2
 
-if [ -n "$RESPONSE" ]; then
-  ok "model responded"
-  echo "$RESPONSE" | jq -r '.choices[0].message.content'
-else
+GOT_CONTENT=0
+while IFS= read -r LINE; do
+  LINE="${LINE#data: }"
+  [ "$LINE" = "[DONE]" ] && break
+  [ -z "$LINE" ] && continue
+  CHUNK=$(printf '%s' "$LINE" | jq -r '.choices[0].delta.content // empty' 2>/dev/null) || continue
+  if [ -n "$CHUNK" ]; then
+    [ "$GOT_CONTENT" -eq 0 ] && { ok "model responding"; GOT_CONTENT=1; }
+    printf '%s' "$CHUNK"
+  fi
+done < <(curl -fsS -N "$BASE_URL/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d "$CHAT_BODY")
+
+echo
+
+if [ "$GOT_CONTENT" -eq 0 ]; then
   err "no response from model"; exit 1
 fi
 
