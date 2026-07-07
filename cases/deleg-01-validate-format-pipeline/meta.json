@@ -1,0 +1,13 @@
+{
+  "id": "deleg-01-validate-format-pipeline",
+  "lang": "js",
+  "title": "Validate/format/pipeline spanning three files",
+  "points": 6,
+  "category": "delegation",
+  "difficulty": "hard",
+  "edit_files": [
+    "src/validate.js",
+    "src/format.js",
+    "src/pipeline.js"
+  ]
+}
