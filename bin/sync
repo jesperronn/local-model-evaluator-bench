@@ -44,7 +44,7 @@ while [ $# -gt 0 ]; do
     --agent)    AGENTS="$2"; shift 2;;
     --dry-run)  DRY_RUN=1; shift;;
     -h|--help)  usage; exit 0;;
-    *) die "unknown option: $1 (try --help)";;
+    *) err "unknown option: $1"; echo; usage; exit 1;;
   esac
 done
 
