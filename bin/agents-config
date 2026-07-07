@@ -2,8 +2,9 @@
 # bin/agents-config — reconcile each coding agent's NATIVE config to project truth.
 #
 # Two concerns, both idempotent:
-#   1. model lists   — re-derive opencode + pi model lists from what's actually
-#                      installed (lms ls / ollama list), minus known-broken combos.
+#   1. model lists   — re-derive opencode + pi + caveman model lists from what's
+#                      actually installed (lms ls / ollama list), minus known-
+#                      broken combos.
 #   2. settings      — push config.sh's endpoint + api key (and aider's default
 #                      model) into each agent's own config file so the agent works
 #                      when run directly, not just via the bench adapters.
@@ -18,17 +19,19 @@
 #   bin/agents-config --verify        read settings back, compare to config.sh
 #   bin/agents-config --settings-only apply only endpoint/model settings
 #   bin/agents-config --no-settings   only model-list sync (legacy behavior)
-#   bin/agents-config --agent pi      restrict to one agent (aider,opencode,pi,hermes)
+#   bin/agents-config --agent pi      restrict to one agent (aider,opencode,pi,caveman,hermes)
 #   bin/agents-config --opencode-only / --pi-only   (aliases for --agent)
 #
-# Agents: aider (settings), opencode (models+settings), pi (models+settings) are
-# on by default. hermes is SETTINGS-only and OPT-IN (--agent hermes) because its
-# config is machine-serialized and its LMS endpoint key is `api`, not base_url.
-# Default model is written only for aider (its id form is unambiguous); pi/opencode
-# keep whatever default model you chose.
+# Agents: aider (settings), opencode (models+settings), pi (models+settings),
+# caveman (models+settings, ~/.cave/agent/models.json — same schema as pi's,
+# see docs/tools/caveman.md) are on by default. hermes is SETTINGS-only and
+# OPT-IN (--agent hermes) because its config is machine-serialized and its LMS
+# endpoint key is `api`, not base_url. Default model is written only for aider
+# (its id form is unambiguous); pi/opencode/caveman keep whatever default model
+# you chose.
 #
-# What it does NOT touch: mlx / ollama_proxy providers in opencode, and pi/opencode
-# top-level default model.
+# What it does NOT touch: mlx / ollama_proxy providers in opencode, and
+# pi/opencode/caveman top-level default model.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh" 2>/dev/null || true
@@ -40,6 +43,8 @@ OPENCODE_CFG="${OPENCODE_CFG:-$HOME/.config/opencode/opencode.jsonc}"
 [ -f "$OPENCODE_CFG" ] || [ ! -f "${OPENCODE_CFG%.jsonc}.json" ] || OPENCODE_CFG="${OPENCODE_CFG%.jsonc}.json"
 PI_LIVE_CFG="${PI_LIVE_CFG:-$HOME/.pi/agent/models.json}"
 PI_TEMPLATE="$HERE/config-templates/pi-agent-models.json"
+CAVEMAN_LIVE_CFG="${CAVEMAN_LIVE_CFG:-$HOME/.cave/agent/models.json}"
+CAVEMAN_TEMPLATE="$HERE/config-templates/caveman-agent-models.json"
 AIDER_CFG="${AIDER_CFG:-$HOME/.aider.conf.yaml}"
 AIDER_TEMPLATE="$HERE/config-templates/aider.conf.yaml"
 HERMES_CFG="${HERMES_CFG:-$HOME/.hermes/config.yaml}"
@@ -70,7 +75,7 @@ command -v node >/dev/null 2>&1 || die "node required"
 
 # Effective agent set: explicit filter wins (and may include hermes); otherwise
 # the safe default set (hermes excluded).
-if [ -n "$AGENT_FILTER" ]; then AGENTS="${AGENT_FILTER//,/ }"; else AGENTS="aider opencode pi"; fi
+if [ -n "$AGENT_FILTER" ]; then AGENTS="${AGENT_FILTER//,/ }"; else AGENTS="aider opencode pi caveman"; fi
 
 # ── Discover installed models (for the model-list concern) ────────────────────
 LMS_JSON="[]"
@@ -88,10 +93,12 @@ broken_keys_for() {
 }
 
 # ── Concern 1: model lists ───────────────────────────────────────────────────
-sync_one_pi_file() {
-  local target="$1" label="$2"
+# Shared by pi and caveman: both use the same models.json schema
+# ({providers: {lmstudio: {baseUrl, api, apiKey, models:[{id}]}}}).
+sync_one_models_json_file() {
+  local target="$1" label="$2" adapter="$3"
   [ -f "$target" ] || { echo "$label: not found, skipping (run bin/setup --caveman-cli first)"; return; }
-  local broken_json; broken_json="$(broken_keys_for pi | jq -R . | jq -s .)"
+  local broken_json; broken_json="$(broken_keys_for "$adapter" | jq -R . | jq -s .)"
   local lms_models ollama_models
   lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_json" '
     [.[] | .modelKey as $k | select($broken | index($k) | not) | {id: $k}] | sort_by(.id)')"
@@ -104,8 +111,13 @@ sync_one_pi_file() {
 }
 
 sync_pi_models() {
-  sync_one_pi_file "$PI_LIVE_CFG" "$PI_LIVE_CFG"
-  sync_one_pi_file "$PI_TEMPLATE" "config-templates/pi-agent-models.json"
+  sync_one_models_json_file "$PI_LIVE_CFG" "$PI_LIVE_CFG" pi
+  sync_one_models_json_file "$PI_TEMPLATE" "config-templates/pi-agent-models.json" pi
+}
+
+sync_caveman_models() {
+  sync_one_models_json_file "$CAVEMAN_LIVE_CFG" "$CAVEMAN_LIVE_CFG" caveman
+  sync_one_models_json_file "$CAVEMAN_TEMPLATE" "config-templates/caveman-agent-models.json" caveman
 }
 
 sync_opencode_models() {
@@ -150,6 +162,21 @@ settings_pi() {
     | commit_if_changed "$PI_LIVE_CFG" "pi settings ($PI_LIVE_CFG)" "$WRITE"
 }
 
+settings_caveman() {
+  if [ ! -f "$CAVEMAN_LIVE_CFG" ]; then
+    echo "caveman settings: $CAVEMAN_LIVE_CFG not found, seeding from $CAVEMAN_TEMPLATE"
+    mkdir -p "$(dirname "$CAVEMAN_LIVE_CFG")"
+    [ "$WRITE" = 1 ] && cp "$CAVEMAN_TEMPLATE" "$CAVEMAN_LIVE_CFG"
+    [ -f "$CAVEMAN_LIVE_CFG" ] || return
+  fi
+  json_set "$CAVEMAN_LIVE_CFG" '
+    .providers.lmstudio.baseUrl = $url
+    | .providers.lmstudio.apiKey = $key
+    | (if .providers.ollama then .providers.ollama.baseUrl = $ourl else . end)
+  ' --arg url "$LMS_BASE_URL" --arg key "$LMS_API_KEY" --arg ourl "$OLLAMA_BASE_URL" \
+    | commit_if_changed "$CAVEMAN_LIVE_CFG" "caveman settings ($CAVEMAN_LIVE_CFG)" "$WRITE"
+}
+
 settings_opencode() {
   [ -f "$OPENCODE_CFG" ] || { echo "opencode settings: $OPENCODE_CFG not found (skipping)"; return; }
   local -a paths=(
@@ -190,6 +217,11 @@ verify_pi() {
   _vchk "pi baseUrl" "$LMS_BASE_URL" "$(jq -r '.providers.lmstudio.baseUrl // ""' "$PI_LIVE_CFG")"
   _vchk "pi apiKey"  "$LMS_API_KEY"  "$(jq -r '.providers.lmstudio.apiKey // ""' "$PI_LIVE_CFG")"
 }
+verify_caveman() {
+  [ -f "$CAVEMAN_LIVE_CFG" ] || { warn "caveman: $CAVEMAN_LIVE_CFG missing"; VERIFY_FAIL=1; return; }
+  _vchk "caveman baseUrl" "$LMS_BASE_URL" "$(jq -r '.providers.lmstudio.baseUrl // ""' "$CAVEMAN_LIVE_CFG")"
+  _vchk "caveman apiKey"  "$LMS_API_KEY"  "$(jq -r '.providers.lmstudio.apiKey // ""' "$CAVEMAN_LIVE_CFG")"
+}
 verify_opencode() {
   [ -f "$OPENCODE_CFG" ] || { warn "opencode: $OPENCODE_CFG missing"; VERIFY_FAIL=1; return; }
   _vchk "opencode baseURL" "$LMS_BASE_URL" "$(jsonc_get "$OPENCODE_CFG" provider.lmstudio.options.baseURL 2>/dev/null || echo "")"
@@ -204,13 +236,14 @@ run_agent() {
   local a="$1"
   if [ "$VERIFY" = "1" ]; then
     case "$a" in
-      aider) verify_aider;; pi) verify_pi;; opencode) verify_opencode;; hermes) verify_hermes;;
+      aider) verify_aider;; pi) verify_pi;; caveman) verify_caveman;; opencode) verify_opencode;; hermes) verify_hermes;;
       *) warn "unknown agent: $a";;
     esac
     return 0
   fi
   case "$a" in
     pi)       [ "$DO_MODELS" = 1 ] && sync_pi_models;       [ "$DO_SETTINGS" = 1 ] && settings_pi;;
+    caveman)  [ "$DO_MODELS" = 1 ] && sync_caveman_models;  [ "$DO_SETTINGS" = 1 ] && settings_caveman;;
     opencode) [ "$DO_MODELS" = 1 ] && sync_opencode_models; [ "$DO_SETTINGS" = 1 ] && settings_opencode;;
     aider)    [ "$DO_SETTINGS" = 1 ] && settings_aider;;
     hermes)   [ "$DO_SETTINGS" = 1 ] && settings_hermes;;

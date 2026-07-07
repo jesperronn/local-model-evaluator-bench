@@ -16,10 +16,12 @@ Ran `bin/stale` against `pi` × current `models.txt` (7 models), found 84 missin
 | qwen/qwen3-coder-30b | pi | **100%** (44/44) | 51.0s | clean |
 | google/gemma-4-26b-a4b-qat | pi | **100%** (44/44) | 71.5s | clean |
 | **qwen/qwen3-coder-next** (80B MoE, one-off) | pi | **100%** (44/44) | **33.4s** | fastest full-clean `pi` run recorded to date |
-| qwen/qwen3-coder-next (one-off) | caveman | 0% (0/38, +errors) | 2.1s | **not model-specific** — installed `caveman-code` has no local-provider support at all (`adapters/caveman-lms.sh`), fails identically for every LM Studio model |
+| qwen/qwen3-coder-next (one-off) | caveman | 0% (0/38, +errors) at the time | 2.1s | **fixed same day, see below** — was an adapter config gap, not a model or capability issue |
 | zai-org/glm-4.7-flash | pi | 23.7% (9/38) | 136.5s | frequent stalls (bash-01, deleg-01 both 0-score with `stall` status) — regression vs. this model's scores on other adapters (see [zai-org--glm-4.7-flash.md](docs/models/zai-org--glm-4.7-flash.md)) |
 
 **Takeaway:** `qwen3-coder-next` is genuinely excellent on `pi` (100% at the fastest median speed seen in this harness) but its 45GB footprint is still the reason it stays out of the default nightly rotation — see [docs/models/qwen--qwen3-coder-next.md](docs/models/qwen--qwen3-coder-next.md) for the full note and re-run command. `glm-4.7-flash` looks notably weaker under `pi` specifically than under other adapters — worth a closer look at whether `pi`'s prompt/tool-call format is a poor fit for this model, independent of raw capability.
+
+**caveman fix (same day, follow-up):** the caveman failure above was initially written up as "the installed `caveman-code` package doesn't support local providers at all" — that framing was wrong. `caveman-code` split off from the shared `pi` runtime around 2026-06-28 into its own package (`@juliusbrussee/caveman-code`) with its own config directory (`~/.cave/agent/`, not `~/.pi/agent/`), and nobody had created a `models.json` for it yet — so `--provider lmstudio` had no provider to resolve, and the adapter had been patched to fail fast with a since-misleading error message. Fixed by adding `config-templates/caveman-agent-models.json`, creating the live `~/.cave/agent/models.json`, wiring `bin/agents-config --agent caveman` to keep it in sync (same as pi's), and restoring `adapters/caveman-lms.sh` to actually invoke caveman. Verified via `bin/bench --agent caveman` on `qwen/qwen3.5-9b` (6/6) and `qwen/qwen3-coder-30b`. Full history in [docs/tools/caveman.md](docs/tools/caveman.md#version-history-last-working--broken--fixed).
 
 Full merged leaderboard: [LEADERBOARD.md](LEADERBOARD.md) (regenerated via `bin/report --all --save` + `bin/viz`). Raw runs: `results/20260707-*`.
 

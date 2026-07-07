@@ -35,7 +35,7 @@ pi is an autonomous agent loop. For self-verify cases (js-05, js-06), pi can run
 
 ## Known issues
 
-**Caveman shares the pi runtime:** `caveman` is also built on the pi agent runtime. If both are run concurrently in `bin/bench`, they share the same `~/.pi/agent/models.json` config. Verify they use separate config paths or run them in separate slots.
+**Caveman is a separate package (corrected 2026-07-07):** `caveman` (`@juliusbrussee/caveman-code`) used to share pi's runtime and `~/.pi/agent/models.json` config, but split into its own package with its own config dir (`~/.cave/agent/models.json`) around 2026-06-28. They no longer share config, so no conflict risk running both concurrently in `bin/bench` — but this also means caveman's own config can silently drift out of sync unless `bin/agents-config --agent caveman` is run alongside pi's sync. See [caveman.md](caveman.md#version-history-last-working--broken--fixed) for the outage this caused and the fix.
 
 **`edit` tool can fail with qwen3-coder (nested-schema × flat XML tool calls) — observed 2026-06-25; scope corrected 2026-06-25.** pi's `edit` tool requires a nested param `edits: [{oldText, newText}]`. On a **flat-XML tool-call path**, a model emits `<parameter=NAME>` Hermes/Qwen XML that cannot encode a nested array-of-objects; the parser mangles the call: `oldText` content (with a literal `<parameter=oldText>` prefix) lands in the `edits` *string*, `newText` becomes a stray sibling key → schema validation fails (`edits.0 must be object` + additional-property `newText`). The model then self-recovers by falling back to the `write` tool (full-file rewrite), so simple cases still pass but waste round-trips and rewrite whole files.
 
