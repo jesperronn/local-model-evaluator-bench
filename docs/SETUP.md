@@ -92,12 +92,17 @@ hf --version    # verify
 3. `bin/doctor` to confirm the id resolves; `bin/bench --models <id>` to test it.
 
 **Shortcut:** run `bin/scout` any time after downloading — it diffs `lms
-ls`/`ollama list` against `models.txt`/`models-ollama.txt` and prints a
-ready-to-run command for anything new:
+ls`/`ollama list` against `models.txt`/`models-ollama.txt`, and also checks
+`~/.config/llmrun/agents.json` for models that are registered but never got
+global config (context/temperature) seeded — either case prints a
+ready-to-run command:
 
 ```
 NOTE: new model not registered globally: qwen/qwen3.5-9b (lms)
-   bin/sync --provider lms --model qwen/qwen3.5-9b --agent pi
+bin/sync --provider lms --model qwen/qwen3.5-9b --agent aider,cline,hermes,opencode,pi
+
+NOTE: no global config for qwen/qwen3-coder-30b (lms) — adapters will use unset context/temperature
+bin/sync --provider lms --model qwen/qwen3-coder-30b --agent aider,cline,hermes,opencode,pi
 ```
 
 `bin/sync` does step 2 for you (plus seeding `~/.config/llmrun/agents.json`

@@ -76,18 +76,25 @@ Before a user ever runs an adapter, this project generates a plan of recommended
 ## Detecting and registering new models: bin/scout + bin/sync
 
 Downloading a model (`lms get ...` / `ollama pull ...`) does not make it usable
-here — it still needs an entry in `models.txt` / `models-ollama.txt` before any
-adapter or `bin/bench` run picks it up. Two commands close that gap, and are
-meant to be simple enough for workshop participants (not just benchmark
-maintainers) to run on their own:
+here — it needs an entry in `models.txt` / `models-ollama.txt`, **and** an
+entry in `~/.config/llmrun/agents.json` (section 2 above), before any adapter
+runs it configured correctly. Being listed in `models.txt` without global
+config is exactly the "adapter starts but is misconfigured" trap this doc
+opened with — a model can be "registered" and still run every adapter with
+unset context/temperature. `bin/scout` checks both; two commands close the
+gap, and are meant to be simple enough for workshop participants (not just
+benchmark maintainers) to run on their own:
 
 ```bash
-# See what's downloaded but not wired up yet
+# See what's missing — new downloads AND registered-but-unconfigured models
 bin/scout
 # NOTE: new model not registered globally: qwen/qwen3.5-9b (lms)
-#    bin/sync --provider lms --model qwen/qwen3.5-9b --agent pi
+# bin/sync --provider lms --model qwen/qwen3.5-9b --agent aider,cline,hermes,opencode,pi
+#
+# NOTE: no global config for qwen/qwen3-coder-30b (lms) — adapters will use unset context/temperature
+# bin/sync --provider lms --model qwen/qwen3-coder-30b --agent aider,cline,hermes,opencode,pi
 
-# Copy-paste the suggested command (or add more agents)
+# Copy-paste the suggested command (or edit the --agent list to whatever you want to test)
 bin/sync --provider lms --model qwen/qwen3.5-9b --agent opencode,pi
 ```
 
