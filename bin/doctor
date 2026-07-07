@@ -41,12 +41,15 @@ show_help() {
   help_line "  model availability, test cases, and reports missing coverage gaps."
   help_section "OPTIONS"
   help_flag "-h, --help" "" "show this help and exit"
+  help_flag "--gaps" "" "print the full list of missing adapter x model x case combos"
 }
 
 # Parse args
+show_gaps=0
 for arg in "$@"; do
   case "$arg" in
     -h|--help) show_help; exit 0;;
+    --gaps) show_gaps=1;;
     *) die "unknown option: $arg";;
   esac
 done
@@ -243,7 +246,7 @@ fi
 
 echo
 info "Coverage gaps (missing adapter × model × case combos):"
-RESULTS_DIR="$RESULTS_DIR" python3 - << 'PYEOF'
+RESULTS_DIR="$RESULTS_DIR" SHOW_GAPS="$show_gaps" python3 - << 'PYEOF'
 import glob, csv, os, sys
 from collections import defaultdict
 
@@ -284,8 +287,12 @@ for adapter in adapters:
                 missing[adapter][model].append(case)
 
 total = sum(len(cs) for m in missing.values() for cs in m.values())
+show_gaps = os.environ.get('SHOW_GAPS') == '1'
 if total == 0:
     print('  all combinations complete!')
+elif not show_gaps:
+    combo_count = sum(len(m) for m in missing.values())
+    print(f'  {total} missing across {combo_count} adapter/model combos. Run `bin/doctor --gaps` for fill commands.')
 else:
     print(f'  {total} missing. Commands to fill the gaps:\n')
     for adapter in sorted(missing):
