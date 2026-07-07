@@ -10,6 +10,16 @@ hvor godkendelserne har det med at "glemmes" mellem sessions).
 Kan du ikke få Continue til at virke, er **Roo Code** (VS Code-only) et godt
 alternativ — se afsnittet nederst.
 
+## Modeller vi bruger i dag
+
+Samme tre som resten af workshoppen — copy-paste den der matcher din maskine:
+
+```
+qwen/qwen2.5-coder-7b
+qwen/qwen3.5-9b
+qwen/qwen3.6-35b-a3b
+```
+
 ---
 
 ## 1. Installer Continue.dev
@@ -31,13 +41,13 @@ Genstart IDE'en efter installation, hvis den beder om det.
 Åbn Continue-panelet i IDE'en (ikon i sidebaren) → tandhjul/settings → **Open
 config file** (åbner `config.yaml`, typisk i `~/.continue/config.yaml`).
 
-Tilføj din lokale model, fx:
+Tilføj din lokale model — brug en af de tre fra listen ovenfor:
 
 ```yaml
 models:
   - name: Lokal Qwen
     provider: lmstudio
-    model: qwen/qwen3.6-35b-a3b
+    model: qwen/qwen3.6-35b-a3b   # eller qwen/qwen3.5-9b, qwen/qwen2.5-coder-7b
     apiBase: http://localhost:1234/v1
     roles:
       - chat
@@ -85,7 +95,7 @@ Hvis Continue driller, eller I vil sammenligne:
 1. Extensions → søg "Roo Code" → Install
    (https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline)
 2. Åbn Roo Code-panelet → Settings → **Providers** → tilføj "OpenAI Compatible"
-   → Base URL: `http://localhost:1234/v1` → Model: `qwen/qwen3.6-35b-a3b`
+   → Base URL: `http://localhost:1234/v1` → Model: en af de tre fra listen ovenfor
 3. Settings → **Auto-Approve** → slå de kategorier til I stoler på (Read,
    Write, Execute osv.) — disse gemmes pr. workspace og er langt mere
    granulære end Clines tilsvarende skærm.

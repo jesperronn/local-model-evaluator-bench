@@ -1,26 +1,36 @@
 # Workshop A · 002 · Øvelser
 
-📋 [Agenda](~/src/obsidian-work-notes/projects/2026-06-nine-ai-local-workshops/agenda-workshop-a.md) · ← [001 · Onboarding](WORKSHOP-A-001-ONBOARDING.md)
+📋 [Agenda](~/src/obsidian-work-notes/projects/2026-06-nine-ai-local-workshops/agenda-workshop-a.md) · ← [001 · Motor-opsætning](WORKSHOP-A-001-ENGINE-SETUP.md)
 
 Praktisk øvelseshæfte til dagen. Følg det i rækkefølge — hvert afsnit bygger
 på det forrige. Afkryds efterhånden.
+
+## Modeller vi bruger i dag
+
+Copy-paste én af disse, alt efter din maskine — samme tre bruges i alle
+øvelser nedenfor:
+
+```
+qwen/qwen2.5-coder-7b
+qwen/qwen3.5-9b
+qwen/qwen3.6-35b-a3b
+```
+
+- `qwen/qwen3.6-35b-a3b` — primær, bedst alt-om-alt (kræver 32 GB+ RAM)
+- `qwen/qwen3.5-9b` — fallback, under 32 GB RAM
+- `qwen/qwen2.5-coder-7b` — lille/hurtig, god til at mærke forskellen i tempo
 
 ---
 
 ## Øvelse 1: Verificér motoren
 
-```bash
-lms server start                    # eller: ollama serve
-bin/verify --lms --verbose          # eller: --ollama
-```
+Dækket i [001 · Motor-opsætning](WORKSHOP-A-001-ENGINE-SETUP.md) — installation,
+`bin/verify --lms --verbose`, og fejlfinding hvis noget går galt.
 
 - [ ] Server svarer (trin 1)
 - [ ] Modeller listet — genkend `qwen/qwen3.5-9b` i output (trin 2)
 - [ ] Model loadet uden fejl (trin 3)
 - [ ] Modellen svarer på et rigtigt spørgsmål (trin 4) — læs svaret, giver det mening?
-
-**Hvis noget fejler:** scriptet fortæller dig præcis hvilket trin og hvorfor —
-læs `[FAIL]`-linjen højt for gruppen, det er ofte en fælles fejl.
 
 ---
 
@@ -104,8 +114,9 @@ Se [003 · IDE-agent](WORKSHOP-A-003-IDE-AGENT.md) for fuld installationsvejledn
 
 ## Hvis du bliver hurtigt færdig
 
-- Prøv den samme opgave med en **anden model** (fx den lille `qwen/qwen3.5-9b`
-  vs. `qwen/qwen3.6-35b-a3b`) — mærk forskellen i hastighed og kvalitet
+- Prøv den samme opgave med en **anden model** fra listen ovenfor — mærk
+  forskellen i hastighed og kvalitet mellem `qwen2.5-coder-7b`, `qwen3.5-9b`
+  og `qwen3.6-35b-a3b`
 - Hentet en model på egen hånd (`lms get ...`)? Kør `bin/scout` for at se om den
   er registreret — er den ikke, foreslår den en `bin/sync`-kommando du kan
   copy-paste for at tilføje og teste den med det samme

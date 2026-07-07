@@ -1,4 +1,4 @@
-# Workshop A · 001 · Onboarding: Forbered dig inden vi mødes
+# Workshop A · 000 · Onboarding: Forbered dig inden vi mødes
 
 📋 [Agenda](~/src/obsidian-work-notes/projects/2026-06-nine-ai-local-workshops/agenda-workshop-a.md)
 
@@ -60,4 +60,4 @@ Vi ses!
 
 ---
 
-→ Næste: [002 · Øvelser](WORKSHOP-A-002-EXERCISES.md)
+→ Næste: [001 · Motor-opsætning](WORKSHOP-A-001-ENGINE-SETUP.md)
