@@ -18,11 +18,12 @@ AGENT=""
 show_help() {
   help_header "verify" "step-by-step check: server, models, load, call — for workshop participants"
   help_section "USAGE"
-  help_line "  verify [--lms|--ollama] [--model ID] [--verbose]"
-  help_line "  verify --agent pi|opencode [--lms|--ollama] [--model ID] [--verbose]"
+  help_line "  verify [--runtime lms|ollama] [--model ID] [--verbose]"
+  help_line "  verify --agent pi|opencode [--runtime lms|ollama] [--model ID] [--verbose]"
   help_section "OPTIONS"
-  help_flag "--lms" "" "verify against LM Studio (default)"
-  help_flag "--ollama" "" "verify against Ollama instead"
+  help_flag "--runtime" "lms|ollama" "engine to verify against (default: lms)"
+  help_flag "--lms" "" "shorthand for --runtime lms (default)"
+  help_flag "--ollama" "" "shorthand for --runtime ollama"
   help_flag "--agent NAME" "" "instead of the raw engine, verify an agent CLI: pi | opencode"
   help_flag "--model ID" "" "model to load/call (default: small qwen3.5-9b for lms, qwen2.5-coder:7b for ollama)"
   help_flag "--verbose" "" "print each command before running it"
@@ -31,15 +32,18 @@ show_help() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --runtime) RUNTIME="$2"; shift 2;;
     --lms) RUNTIME="lms"; shift;;
     --ollama) RUNTIME="ollama"; shift;;
     --agent) AGENT="$2"; shift 2;;
     --model) MODEL="$2"; shift 2;;
     --verbose) VERBOSE=1; shift;;
     -h|--help) show_help; exit 0;;
-    *) die "unknown option: $1";;
+    *) err "unknown option: $1"; echo; show_help; exit 1;;
   esac
 done
+
+case "$RUNTIME" in lms|ollama) ;; *) die "unknown --runtime: $RUNTIME (valid: lms, ollama)";; esac
 
 if [ "$RUNTIME" = "lms" ]; then
   BASE_URL="$LMS_BASE_URL"
