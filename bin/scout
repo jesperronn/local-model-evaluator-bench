@@ -98,7 +98,7 @@ check_models_json_agent() {
     return
   fi
   if jq -e --arg k "$rt_key" --arg m "$model" \
-      '.providers[$k].models[]?.id == $m' "$cfg" >/dev/null 2>&1; then
+      '[.providers[$k].models[]?.id] | index($m) != null' "$cfg" >/dev/null 2>&1; then
     verbose_line "PASS" "$model" "$agent" "exists in $cfg"
   else
     verbose_line "FAIL" "$model" "$agent" "missing from $cfg (run: bin/sync ... --agent $agent)"

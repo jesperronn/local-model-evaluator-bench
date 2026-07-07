@@ -26,7 +26,11 @@ usage() {
   help_section "WHAT IT DOES"
   help_line "  1. Appends the model to models.txt / models-ollama.txt (skipped if already there)" ""
   help_line "  2. Seeds ~/.config/llmrun/agents.json with recommended settings for this model" ""
-  help_line "     (via bin/suggest-tuning | llmrun agents config apply --write)" ""
+  help_line "     (via bin/suggest-tuning | llmrun agents config apply --write; needs a model" ""
+  help_line "     card under docs/models/ to have anything to suggest — best-effort)" ""
+  help_line "  3. Runs bin/agents-config --write --agent <agents> so pi/opencode/caveman" ""
+  help_line "     actually list this model in their own config (the file each agent reads" ""
+  help_line "     at launch — this is the step bin/scout's per-agent check verifies)" ""
   help_line "  Does NOT load the model or run a smoke test — that's slow, so it's a" ""
   help_line "  separate next step this command prints for you." ""
   help_section "EXAMPLES"
@@ -84,7 +88,19 @@ else
   warn "llmrun not on PATH — skipping agents.json seeding (run bin/build-llmrun first)"
 fi
 
-[ "$DRY_RUN" = "1" ] && exit 0
+# ── 3. write per-agent config (pi/opencode/caveman model lists) ─────────────
+# This is the actual registration step bin/scout's per-agent check verifies —
+# without it, models.txt/agents.json can be up to date while pi/opencode still
+# have no idea the model exists.
+if [ "$DRY_RUN" = "1" ]; then
+  info "[dry-run] would run: bin/agents-config --write --agent $AGENTS"
+  exit 0
+fi
+
+info "running bin/agents-config --write --agent $AGENTS"
+"$HERE/bin/agents-config" --write --agent "$AGENTS" >/dev/null 2>&1 \
+  && ok "synced pi/opencode/caveman config for installed models" \
+  || warn "bin/agents-config reported an issue — run it directly to see details"
 
 ok "$MODEL is registered"
 echo
