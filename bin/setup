@@ -959,8 +959,7 @@ echo
 if [ "$DRY_RUN" != 1 ]; then
   echo ""
   echo "Next:"
-  echo "  Verify setup:          bin/doctor"
-  echo "  Test adapters (L0):    bin/smoke"
-  echo "  Validate code quality: bin/lint-adapters"
-  echo "  Run full benchmark:    bin/bench --list  (to preview what will run)"
+  echo "  Verify setup:             bin/doctor"
+  echo "  Find unregistered models: bin/scout"
+  echo "  Test adapters (L0):       bin/smoke"
 fi
