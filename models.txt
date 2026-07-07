@@ -19,6 +19,9 @@
 # (87% at 81s) which is smaller and faster. GGUF backend also likely a factor.
 # See docs/models/google--gemma-4-12b-qat.md
 
+# 7B — Qwen 2.5 Coder. Workshop A default small/fast model.
+qwen/qwen2.5-coder-7b
+
 # 35B MoE (3.6B active) — GGUF; re-added 2026-06-11 for cross-runtime comparison
 # (lms alias: qwen3.6-35b-a3b → maps to qwen3.6:35b-a3b-coding-mxfp8 in ollama)
 qwen/qwen3.6-35b-a3b
@@ -65,3 +68,6 @@ qwen/qwen3-coder-30b
 
 # devstral-2-2512 removed 2026-06-29: performed poorly across all adapters,
 # removed from rotation.
+google/gemma-4-e4b
+qwen/qwen3-coder-next
+microsoft/phi-4
