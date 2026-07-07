@@ -24,6 +24,10 @@ RUNTIMES="lms,ollama"
 # default set to suggest, wider than $DEFAULT_ADAPTERS (which is tuned for
 # nightly bench runs, not "what should a new model be smoke-tested against").
 DEFAULT_SYNC_AGENTS="${SCOUT_SYNC_AGENTS:-aider,cline,hermes,opencode,pi}"
+# Per-agent PASS/FAIL/SKIP lines default to a small, fast subset (pi + opencode
+# have real per-model config files worth checking on every run). Pass --agent
+# to check a wider or different set, e.g. --agent aider,cline,hermes,opencode,pi.
+SHOW_AGENTS="${SCOUT_SHOW_AGENTS:-pi,opencode}"
 
 usage() {
   help_header "scout" "flag models on disk that aren't registered in the bench yet"
@@ -31,6 +35,7 @@ usage() {
   help_line "  bin/scout [OPTIONS]" ""
   help_section "OPTIONS"
   help_flag "--runtime" "LIST" "comma-separated: lms,ollama (default: lms,ollama)"
+  help_flag "--agent" "LIST" "comma-separated agents to show per-agent checks for (default: pi,opencode)"
   help_flag "-h, --help" "" "show this help and exit"
   help_section "WHAT IT CHECKS"
   help_line "  new         model downloaded (lms ls / ollama list) but missing from" ""
@@ -45,11 +50,13 @@ usage() {
   help_section "EXAMPLES"
   help_line "  bin/scout" ""
   help_line "  bin/scout --runtime lms" ""
+  help_line "  bin/scout --agent aider,cline,hermes,opencode,pi" ""
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --runtime)       RUNTIMES="$2"; shift 2;;
+    --agent)         SHOW_AGENTS="$2"; shift 2;;
     -h|--help)       usage; exit 0;;
     *) err "unknown option: $1"; echo; usage; exit 1;;
   esac
@@ -124,7 +131,7 @@ check_opencode_agent() {
 check_agent_registration() {
   local runtime="$1" model="$2"
   local agent
-  IFS=',' read -ra _agents <<< "$DEFAULT_SYNC_AGENTS"
+  IFS=',' read -ra _agents <<< "$SHOW_AGENTS"
   for agent in "${_agents[@]}"; do
     case "$agent" in
       pi)       check_models_json_agent pi "$PI_LIVE_CFG" "$runtime" "$model";;
@@ -206,6 +213,7 @@ runtime_enabled lms    && check_lms
 runtime_enabled ollama && check_ollama
 
 echo
+info "per-agent checks shown for: $SHOW_AGENTS (rerun with: bin/scout --agent aider,cline,hermes,opencode,pi)"
 info "$NEW_COUNT new, $NOCONFIG_COUNT missing global config, $ORPHAN_COUNT registered-but-not-downloaded"
 [ "$NEW_COUNT" -eq 0 ] && [ "$NOCONFIG_COUNT" -eq 0 ] || exit 1
 exit 0
