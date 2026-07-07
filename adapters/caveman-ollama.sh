@@ -1,21 +1,37 @@
 #!/usr/bin/env bash
 # Adapter: caveman -> Ollama.
-# Status: UNSUPPORTED — caveman-code (npm) does not support local Ollama provider.
+# Tool: caveman-code (npm, @juliusbrussee/caveman-code 0.65.2), fixed 2026-07-07.
 #
-# The npm caveman-code binary does not recognize "ollama" as a valid provider.
-# It only works with cloud providers (Anthropic, OpenAI, etc.) via environment variables.
+# Requires ~/.cave/agent/models.json to have an "ollama" provider entry with
+# the target models listed (caveman-code builds its provider registry from
+# that file — same schema as pi's ~/.pi/agent/models.json). This was missing
+# entirely until 2026-07-07 (see docs/tools/caveman.md, Version history), which
+# made every provider name — including "ollama" — resolve to nothing.
 #
-# To enable this adapter, either:
-#   (a) npm caveman-code adds ollama-provider support (check caveman-code issues)
-#   (b) use pi-ollama instead (pi has full ollama support via ~/.pi/agent/models.json)
+# Install: npm install -g @juliusbrussee/caveman-code
+# Config template: config-templates/caveman-agent-models.json (kept in sync by
+# bin/agents-config --agent caveman, same as pi's).
+# Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-cat >&2 <<'EOF'
-Error: Unknown provider "ollama". Use --list-models to see available providers/models.
-The installed caveman-code (npm) does not support local providers.
-It only works with cloud providers (Anthropic, OpenAI, etc.) via environment variables.
+command -v caveman >/dev/null 2>&1 || {
+  echo "caveman not found; install: npm install -g @juliusbrussee/caveman-code" >&2
+  exit 1
+}
 
-See adapters/caveman-ollama.sh for details.
-EOF
+CAVE_LIVE_CFG="$HOME/.cave/agent/models.json"
+if [ ! -f "$CAVE_LIVE_CFG" ] || ! jq -e '.providers.ollama' "$CAVE_LIVE_CFG" >/dev/null 2>&1; then
+  echo "warn: $CAVE_LIVE_CFG missing an ollama provider — copying config-templates/caveman-agent-models.json" >&2
+  mkdir -p "$(dirname "$CAVE_LIVE_CFG")"
+  cp "$REPO_ROOT/config-templates/caveman-agent-models.json" "$CAVE_LIVE_CFG"
+fi
 
-exit 1
+CAVEMAN_ARGS=(--provider ollama --model "$MODEL_ID")
+
+if [ ! -t 0 ]; then
+  exec caveman "${CAVEMAN_ARGS[@]}" --print "$(cat)"
+else
+  exec caveman "${CAVEMAN_ARGS[@]}" "$@"
+fi
