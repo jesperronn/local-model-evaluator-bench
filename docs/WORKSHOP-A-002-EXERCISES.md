@@ -106,6 +106,9 @@ Se [003 · IDE-agent](WORKSHOP-A-003-IDE-AGENT.md) for fuld installationsvejledn
 
 - Prøv den samme opgave med en **anden model** (fx den lille `qwen/qwen3.5-9b`
   vs. `qwen/qwen3.6-35b-a3b`) — mærk forskellen i hastighed og kvalitet
+- Hentet en model på egen hånd (`lms get ...`)? Kør `bin/scout` for at se om den
+  er registreret — er den ikke, foreslår den en `bin/sync`-kommando du kan
+  copy-paste for at tilføje og teste den med det samme
 - Prøv en opgave i **dit eget projekt** i stedet for demo-repoet
 - Sammenlign `pi`, `opencode` og Continue på **samme opgave** — hvilken føltes bedst?
 

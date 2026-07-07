@@ -73,8 +73,37 @@ Before a user ever runs an adapter, this project generates a plan of recommended
 - **Application** (`llmrun agents config apply`) is machine-aware. It reads the plan and writes to the machine's actual config files (which may differ by OS, installation path, user preference).
 - **Separation of concerns**: The project judges *what*, the machine applies *how*. A user can override a suggested setting without breaking the repo.
 
+## Detecting and registering new models: bin/scout + bin/sync
+
+Downloading a model (`lms get ...` / `ollama pull ...`) does not make it usable
+here — it still needs an entry in `models.txt` / `models-ollama.txt` before any
+adapter or `bin/bench` run picks it up. Two commands close that gap, and are
+meant to be simple enough for workshop participants (not just benchmark
+maintainers) to run on their own:
+
+```bash
+# See what's downloaded but not wired up yet
+bin/scout
+# NOTE: new model not registered globally: qwen/qwen3.5-9b (lms)
+#    bin/sync --provider lms --model qwen/qwen3.5-9b --agent pi
+
+# Copy-paste the suggested command (or add more agents)
+bin/sync --provider lms --model qwen/qwen3.5-9b --agent opencode,pi
+```
+
+`bin/sync` appends the model to the right models list, seeds
+`~/.config/llmrun/agents.json` via `bin/suggest-tuning`, and runs `bin/smoke`
+against every `--agent` given to prove the model actually works before you
+rely on it.
+
+`bin/scout` is read-only and never deletes: if a model is registered in
+`models.txt`/`models-ollama.txt` but no longer downloaded, it's flagged
+("registered but not downloaded") and left alone — that's a job for
+[`bin/prune`](../bin/prune), not `bin/scout`.
+
 ## Integration points
 
+- `bin/scout` / `bin/sync` — detect + register models missing from the bench's model lists (see above)
 - `bin/build-llmrun` — calls `llmrun agents config list --opencode-only` to seed the opencode config during build (if opencode is present)
 - `bin/doctor` — shows which adapters are installed + which global configs exist (as a readiness check)
 - Setup workflows (TBD) — e.g., `bin/setup` or `bin/init` could run `bin/suggest-tuning | llmrun agents config apply --write` to auto-seed new machines

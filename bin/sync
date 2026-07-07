@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# bin/sync — register one downloaded model with the bench and prove it works.
+#
+# The one-liner bin/scout prints for every "not registered globally" model.
+# Meant for workshop participants and benchmarkers alike: run it, watch it
+# pass, start using the model.
+#
+# Usage: bin/sync --provider lms --model <id> --agent opencode,pi [--dry-run]
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+PROVIDER=""; MODEL=""; AGENTS="${DEFAULT_ADAPTERS:-pi}"; DRY_RUN=0
+
+usage() {
+  help_header "sync" "register a downloaded model with the bench + smoke-test it"
+  help_section "USAGE"
+  help_line "  bin/sync --provider lms --model <id> [--agent a,b] [--dry-run]" ""
+  help_section "OPTIONS"
+  help_flag "--provider" "NAME" "lms | ollama (required)"
+  help_flag "--model" "ID" "exact model id, as shown by 'lms ls' / 'ollama list' (required)"
+  help_flag "--agent" "a,b" "adapters to smoke-test against (default: \$DEFAULT_ADAPTERS = $DEFAULT_ADAPTERS)"
+  help_flag "--dry-run" "" "print what would happen, change nothing"
+  help_flag "-h, --help" "" "show this help and exit"
+  help_section "WHAT IT DOES"
+  help_line "  1. Appends the model to models.txt / models-ollama.txt (skipped if already there)" ""
+  help_line "  2. Seeds ~/.config/llmrun/agents.json with recommended settings for this model" ""
+  help_line "     (via bin/suggest-tuning | llmrun agents config apply --write)" ""
+  help_line "  3. Runs bin/smoke to prove each --agent can drive the model end-to-end" ""
+  help_section "EXAMPLES"
+  help_line "  bin/sync --provider lms --model qwen/qwen3.5-9b --agent opencode,pi" ""
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --provider) PROVIDER="$2"; shift 2;;
+    --model)    MODEL="$2"; shift 2;;
+    --agent)    AGENTS="$2"; shift 2;;
+    --dry-run)  DRY_RUN=1; shift;;
+    -h|--help)  usage; exit 0;;
+    *) die "unknown option: $1 (try --help)";;
+  esac
+done
+
+[ -n "$PROVIDER" ] || die "--provider is required (lms or ollama)"
+[ -n "$MODEL" ]    || die "--model is required"
+case "$PROVIDER" in
+  lms)    MODELS_LIST_FILE="$MODELS_FILE";;
+  ollama) MODELS_LIST_FILE="$HERE/models-ollama.txt";;
+  *)      die "unknown --provider: $PROVIDER (valid: lms, ollama)";;
+esac
+
+info "provider=$PROVIDER model=$MODEL agent(s)=$AGENTS"
+
+# ── 1. register in the models list (skip if already present) ────────────────
+if grep -qxF "$MODEL" "$MODELS_LIST_FILE" 2>/dev/null; then
+  ok "already registered in $(basename "$MODELS_LIST_FILE")"
+else
+  if [ "$DRY_RUN" = "1" ]; then
+    info "[dry-run] would append '$MODEL' to $(basename "$MODELS_LIST_FILE")"
+  else
+    printf '%s\n' "$MODEL" >> "$MODELS_LIST_FILE"
+    ok "appended '$MODEL' to $(basename "$MODELS_LIST_FILE")"
+  fi
+fi
+
+# ── 2. seed global agent config (context/temperature/etc, best-effort) ──────
+if command -v llmrun >/dev/null 2>&1; then
+  if [ "$DRY_RUN" = "1" ]; then
+    info "[dry-run] would run: bin/suggest-tuning '$MODEL' | llmrun agents config apply <plan> --write"
+  else
+    _plan="$(mktemp)"
+    "$HERE/bin/suggest-tuning" "$MODEL" > "$_plan" 2>/dev/null
+    if [ -s "$_plan" ] && llmrun agents config apply "$_plan" --write >/dev/null 2>&1; then
+      ok "seeded ~/.config/llmrun/agents.json for $MODEL"
+    else
+      warn "could not seed agents.json (non-fatal, continuing)"
+    fi
+    rm -f "$_plan"
+  fi
+else
+  warn "llmrun not on PATH — skipping agents.json seeding (run bin/build-llmrun first)"
+fi
+
+# ── 3. smoke-test each agent ─────────────────────────────────────────────────
+if [ "$DRY_RUN" = "1" ]; then
+  info "[dry-run] would run: bin/smoke --runtime $PROVIDER --model $MODEL --agent $AGENTS"
+  exit 0
+fi
+
+info "running bin/smoke --runtime $PROVIDER --model $MODEL --agent $AGENTS"
+"$HERE/bin/smoke" --runtime "$PROVIDER" --model "$MODEL" --agent "$AGENTS"
+SMOKE_STATUS=$?
+
+if [ "$SMOKE_STATUS" -eq 0 ]; then
+  ok "$MODEL is synced and working with: $AGENTS"
+else
+  warn "smoke test reported issues — model is registered, but check the output above before relying on it"
+fi
+exit "$SMOKE_STATUS"

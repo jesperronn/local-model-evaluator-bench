@@ -91,6 +91,21 @@ hf --version    # verify
 2. Add its id as a new line in `models.txt`.
 3. `bin/doctor` to confirm the id resolves; `bin/bench --models <id>` to test it.
 
+**Shortcut:** run `bin/scout` any time after downloading — it diffs `lms
+ls`/`ollama list` against `models.txt`/`models-ollama.txt` and prints a
+ready-to-run command for anything new:
+
+```
+NOTE: new model not registered globally: qwen/qwen3.5-9b (lms)
+   bin/sync --provider lms --model qwen/qwen3.5-9b --agent pi
+```
+
+`bin/sync` does steps 2–3 for you (plus seeding `~/.config/llmrun/agents.json`
+with recommended settings) and runs `bin/smoke` to prove the model actually
+works with the adapter(s) you list. It's read-only for the *other* direction
+too: a model that's registered but no longer downloaded is flagged, never
+auto-removed — use [`bin/prune`](#bin-prune-model-disk-cleanup) for that.
+
 > **Why `models.txt` still exists even though some CLIs auto-discover
 > models.** A few adapters (goose, cn, cline — see the table above) can list
 > whatever's installed on a backend. That doesn't replace `models.txt`:

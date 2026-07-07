@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# bin/scout — flag models present on disk but not registered in the bench's
+# model lists, and models registered but not downloaded. Read-only: never
+# edits models.txt/models-ollama.txt/models-mlx.txt or deletes anything.
+#
+# Aimed at workshop participants and benchmarkers alike: `lms get` / `ollama
+# pull` a model, then run `bin/scout` to see it's not wired up yet, and get a
+# ready-to-run `bin/sync` command to fix that.
+#
+# Usage: bin/scout [--runtime lms,ollama] [--help]
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+RUNTIMES="lms,ollama"
+DEFAULT_SYNC_AGENTS="${DEFAULT_ADAPTERS:-pi}"
+
+usage() {
+  help_header "scout" "flag models on disk that aren't registered in the bench yet"
+  help_section "USAGE"
+  help_line "  bin/scout [OPTIONS]" ""
+  help_section "OPTIONS"
+  help_flag "--runtime" "LIST" "comma-separated: lms,ollama (default: lms,ollama)"
+  help_flag "-h, --help" "" "show this help and exit"
+  help_section "WHAT IT CHECKS"
+  help_line "  new       model downloaded (lms ls / ollama list) but missing from" ""
+  help_line "            models.txt / models-ollama.txt -> prints a bin/sync command" ""
+  help_line "  orphaned  model registered in the list but not downloaded locally" ""
+  help_line "            -> flagged only, nothing is removed (see bin/prune for cleanup)" ""
+  help_section "EXAMPLES"
+  help_line "  bin/scout" ""
+  help_line "  bin/scout --runtime lms" ""
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --runtime) RUNTIMES="$2"; shift 2;;
+    -h|--help) usage; exit 0;;
+    *) die "unknown option: $1 (try --help)";;
+  esac
+done
+
+runtime_enabled() { [[ ",$RUNTIMES," == *",$1,"* ]]; }
+
+NEW_COUNT=0
+ORPHAN_COUNT=0
+
+note_new() {
+  local runtime="$1" model="$2"
+  ((NEW_COUNT++)) || true
+  printf '%sNOTE: new model not registered globally%s: %s (%s)\n' "$C_YEL" "$C_RST" "$model" "$runtime"
+  printf '  %s bin/sync --provider %s --model %s --agent %s%s\n\n' \
+    "$C_GRN" "$runtime" "$model" "$DEFAULT_SYNC_AGENTS" "$C_RST"
+}
+
+note_orphaned() {
+  local runtime="$1" model="$2"
+  ((ORPHAN_COUNT++)) || true
+  printf '%sNOTE: registered but not downloaded%s: %s (%s) — not touching models list\n' "$C_DIM" "$C_RST" "$model" "$runtime"
+}
+
+check_lms() {
+  command -v lms >/dev/null 2>&1 || { warn "lms: not found, skipping"; return; }
+  mapfile -t registered < <(read_list "$MODELS_FILE")
+  mapfile -t downloaded < <(lms ls --json 2>/dev/null | jq -r '.[].modelKey' 2>/dev/null)
+  [ "${#downloaded[@]}" -gt 0 ] || { warn "lms: no models reported by 'lms ls --json' — is LM Studio running?"; }
+
+  for m in "${downloaded[@]}"; do
+    [ -n "$m" ] || continue
+    printf '%s\n' "${registered[@]}" | grep -qxF "$m" || note_new "lms" "$m"
+  done
+  for m in "${registered[@]}"; do
+    printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "lms" "$m"
+  done
+}
+
+check_ollama() {
+  command -v ollama >/dev/null 2>&1 || { warn "ollama: not found, skipping"; return; }
+  local ollama_models_file="$HERE/models-ollama.txt"
+  mapfile -t registered < <(read_list "$ollama_models_file")
+  mapfile -t downloaded < <(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+  [ "${#downloaded[@]}" -gt 0 ] || { warn "ollama: no models reported by 'ollama list' — is the daemon running?"; }
+
+  for m in "${downloaded[@]}"; do
+    [ -n "$m" ] || continue
+    printf '%s\n' "${registered[@]}" | grep -qxF "$m" || note_new "ollama" "$m"
+  done
+  for m in "${registered[@]}"; do
+    printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "ollama" "$m"
+  done
+}
+
+runtime_enabled lms    && check_lms
+runtime_enabled ollama && check_ollama
+
+echo
+info "$NEW_COUNT new, $ORPHAN_COUNT registered-but-not-downloaded"
+[ "$NEW_COUNT" -eq 0 ] || exit 1
+exit 0
