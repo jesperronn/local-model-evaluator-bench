@@ -20,6 +20,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 RUNTIMES="lms,ollama"
+VERBOSE=0
 # Recommended-for-local-models adapters (see docs/ADAPTER-SETUP.md) — a useful
 # default set to suggest, wider than $DEFAULT_ADAPTERS (which is tuned for
 # nightly bench runs, not "what should a new model be smoke-tested against").
@@ -31,6 +32,7 @@ usage() {
   help_line "  bin/scout [OPTIONS]" ""
   help_section "OPTIONS"
   help_flag "--runtime" "LIST" "comma-separated: lms,ollama (default: lms,ollama)"
+  help_flag "--verbose, -v" "" "also print one PASS/FAIL line per (model, agent) config file"
   help_flag "-h, --help" "" "show this help and exit"
   help_section "WHAT IT CHECKS"
   help_line "  new         model downloaded (lms ls / ollama list) but missing from" ""
@@ -42,13 +44,14 @@ usage() {
   help_line "              -> flagged only, nothing is removed (see bin/prune for cleanup)" ""
   help_section "EXAMPLES"
   help_line "  bin/scout" ""
-  help_line "  bin/scout --runtime lms" ""
+  help_line "  bin/scout --runtime lms --verbose" ""
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --runtime) RUNTIMES="$2"; shift 2;;
-    -h|--help) usage; exit 0;;
+    --runtime)       RUNTIMES="$2"; shift 2;;
+    --verbose|-v)    VERBOSE=1; shift;;
+    -h|--help)       usage; exit 0;;
     *) die "unknown option: $1 (try --help)";;
   esac
 done
@@ -66,6 +69,71 @@ mapfile -t CONFIGURED_MODELS < <(
 has_config() {
   local model="$1"
   printf '%s\n' "${CONFIGURED_MODELS[@]}" | grep -qxF "$model"
+}
+
+# ── per-agent model registration (--verbose only) ────────────────────────────
+# Same config files bin/agents-config writes to. pi/caveman share a schema
+# (providers.<runtime-key>.models[].id); opencode.jsonc is JSONC, read via the
+# same node helper agents-config uses. aider/hermes/cline take --model
+# directly at launch — no per-model list to check, so they're reported n/a.
+OPENCODE_CFG="${OPENCODE_CFG:-$HOME/.config/opencode/opencode.jsonc}"
+[ -f "$OPENCODE_CFG" ] || [ ! -f "${OPENCODE_CFG%.jsonc}.json" ] || OPENCODE_CFG="${OPENCODE_CFG%.jsonc}.json"
+PI_LIVE_CFG="${PI_LIVE_CFG:-$HOME/.pi/agent/models.json}"
+CAVEMAN_LIVE_CFG="${CAVEMAN_LIVE_CFG:-$HOME/.cave/agent/models.json}"
+
+runtime_key() { [ "$1" = "ollama" ] && echo "ollama" || echo "lmstudio"; }
+
+verbose_line() {
+  local status="$1" model="$2" agent="$3" detail="$4"
+  local color="$C_GRN"
+  [ "$status" = "FAIL" ] && color="$C_RED"
+  [ "$status" = "SKIP" ] && color="$C_DIM"
+  printf '%s[%s]%s model: %-40s agent: %-10s %s\n' "$color" "$status" "$C_RST" "$model" "$agent" "$detail"
+}
+
+check_models_json_agent() {
+  local agent="$1" cfg="$2" runtime="$3" model="$4"
+  local rt_key; rt_key="$(runtime_key "$runtime")"
+  if [ ! -f "$cfg" ]; then
+    verbose_line "FAIL" "$model" "$agent" "config file missing: $cfg"
+    return
+  fi
+  if jq -e --arg k "$rt_key" --arg m "$model" \
+      '.providers[$k].models[]?.id == $m' "$cfg" >/dev/null 2>&1; then
+    verbose_line "PASS" "$model" "$agent" "exists in $cfg"
+  else
+    verbose_line "FAIL" "$model" "$agent" "missing from $cfg (run: bin/sync ... --agent $agent)"
+  fi
+}
+
+check_opencode_agent() {
+  local runtime="$1" model="$2"
+  local rt_key; rt_key="$(runtime_key "$runtime")"
+  if [ ! -f "$OPENCODE_CFG" ]; then
+    verbose_line "FAIL" "$model" "opencode" "config file missing: $OPENCODE_CFG"
+    return
+  fi
+  local existing
+  existing="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" lmstudio ollama 2>/dev/null)"
+  if printf '%s' "$existing" | jq -e --arg k "$rt_key" --arg m "$model" 'has($k) and (.[$k] | has($m))' >/dev/null 2>&1; then
+    verbose_line "PASS" "$model" "opencode" "exists in $OPENCODE_CFG"
+  else
+    verbose_line "FAIL" "$model" "opencode" "missing from $OPENCODE_CFG (run: bin/sync ... --agent opencode)"
+  fi
+}
+
+check_agent_registration() {
+  local runtime="$1" model="$2"
+  local agent
+  IFS=',' read -ra _agents <<< "$DEFAULT_SYNC_AGENTS"
+  for agent in "${_agents[@]}"; do
+    case "$agent" in
+      pi)       check_models_json_agent pi "$PI_LIVE_CFG" "$runtime" "$model";;
+      caveman)  check_models_json_agent caveman "$CAVEMAN_LIVE_CFG" "$runtime" "$model";;
+      opencode) check_opencode_agent "$runtime" "$model";;
+      *)        verbose_line "SKIP" "$model" "$agent" "no per-model list — launched with --model directly";;
+    esac
+  done
 }
 
 NEW_COUNT=0
@@ -107,6 +175,7 @@ check_lms() {
     else
       note_new "lms" "$m"
     fi
+    [ "$VERBOSE" = "1" ] && check_agent_registration "lms" "$m"
   done
   for m in "${registered[@]}"; do
     printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "lms" "$m"
@@ -127,6 +196,7 @@ check_ollama() {
     else
       note_new "ollama" "$m"
     fi
+    [ "$VERBOSE" = "1" ] && check_agent_registration "ollama" "$m"
   done
   for m in "${registered[@]}"; do
     printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "ollama" "$m"

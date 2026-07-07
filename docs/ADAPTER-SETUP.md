@@ -109,6 +109,20 @@ slow, so it's opt-in rather than automatic).
 ("registered but not downloaded") and left alone — that's a job for
 [`bin/prune`](../bin/prune), not `bin/scout`.
 
+Add `--verbose` for a per-(model, agent) breakdown, checking the actual config
+file each agent reads at launch (`~/.pi/agent/models.json`,
+`~/.config/opencode/opencode.jsonc`) rather than just the shared
+`~/.config/llmrun/agents.json` store:
+
+```
+[PASS] model: qwen/qwen3.6-35b-a3b   agent: pi         exists in /Users/you/.pi/agent/models.json
+[FAIL] model: google/gemma-4-e4b     agent: opencode   missing from /Users/you/.config/opencode/opencode.jsonc (run: bin/sync ... --agent opencode)
+[SKIP] model: qwen/qwen3.6-35b-a3b   agent: aider      no per-model list — launched with --model directly
+```
+
+`aider`/`hermes`/`cline` take `--model` directly at launch (no per-model
+registration file), so they're reported `SKIP`, not `FAIL`.
+
 ## Integration points
 
 - `bin/scout` / `bin/sync` — detect + register models missing from the bench's model lists (see above)
