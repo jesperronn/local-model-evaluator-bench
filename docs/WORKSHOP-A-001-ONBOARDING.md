@@ -45,6 +45,11 @@ lms get qwen/qwen3.5-9b
 lms get qwen/qwen3.6-35b-a3b
 ```
 
+**Har du allerede klonet dette repo?** Kør `bin/scout` bagefter — den tjekker om
+de modeller du lige hentede er registreret i benchmarken, og foreslår en
+`bin/sync`-kommando du kan copy-paste hvis ikke. Har du ikke klonet repoet
+endnu, er det helt fint — det gør vi sammen i morgen.
+
 ## 3. Resten tager vi sammen
 
 Resten af opsætningen tager vi i morgen på workshoppen.
