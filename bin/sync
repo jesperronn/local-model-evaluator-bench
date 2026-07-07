@@ -42,8 +42,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -n "$PROVIDER" ] || die "--provider is required (lms or ollama)"
-[ -n "$MODEL" ]    || die "--model is required"
+[ -n "$PROVIDER" ] || die "--provider is required (lms or ollama)  (tip: run bin/scout to discover unregistered models)"
+[ -n "$MODEL" ]    || die "--model is required  (tip: run bin/scout to discover unregistered models)"
 case "$PROVIDER" in
   lms)    MODELS_LIST_FILE="$MODELS_FILE";;
   ollama) MODELS_LIST_FILE="$HERE/models-ollama.txt";;
