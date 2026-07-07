@@ -20,7 +20,6 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 RUNTIMES="lms,ollama"
-VERBOSE=0
 # Recommended-for-local-models adapters (see docs/ADAPTER-SETUP.md) — a useful
 # default set to suggest, wider than $DEFAULT_ADAPTERS (which is tuned for
 # nightly bench runs, not "what should a new model be smoke-tested against").
@@ -32,7 +31,6 @@ usage() {
   help_line "  bin/scout [OPTIONS]" ""
   help_section "OPTIONS"
   help_flag "--runtime" "LIST" "comma-separated: lms,ollama (default: lms,ollama)"
-  help_flag "--verbose, -v" "" "also print one PASS/FAIL line per (model, agent) config file"
   help_flag "-h, --help" "" "show this help and exit"
   help_section "WHAT IT CHECKS"
   help_line "  new         model downloaded (lms ls / ollama list) but missing from" ""
@@ -40,17 +38,18 @@ usage() {
   help_line "  no config   model registered + downloaded but has no entry in" ""
   help_line "              ~/.config/llmrun/agents.json -> prints a bin/sync command" ""
   help_line "              (adapters would run it with unset context/temperature)" ""
+  help_line "  per-agent   for every downloaded model, one PASS/FAIL/SKIP line per agent" ""
+  help_line "              checking the actual config file it reads at launch" ""
   help_line "  orphaned    model registered in the list but not downloaded locally" ""
   help_line "              -> flagged only, nothing is removed (see bin/prune for cleanup)" ""
   help_section "EXAMPLES"
   help_line "  bin/scout" ""
-  help_line "  bin/scout --runtime lms --verbose" ""
+  help_line "  bin/scout --runtime lms" ""
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --runtime)       RUNTIMES="$2"; shift 2;;
-    --verbose|-v)    VERBOSE=1; shift;;
     -h|--help)       usage; exit 0;;
     *) die "unknown option: $1 (try --help)";;
   esac
@@ -71,7 +70,7 @@ has_config() {
   printf '%s\n' "${CONFIGURED_MODELS[@]}" | grep -qxF "$model"
 }
 
-# ── per-agent model registration (--verbose only) ────────────────────────────
+# ── per-agent model registration ─────────────────────────────────────────────
 # Same config files bin/agents-config writes to. pi/caveman share a schema
 # (providers.<runtime-key>.models[].id); opencode.jsonc is JSONC, read via the
 # same node helper agents-config uses. aider/hermes/cline take --model
@@ -175,7 +174,7 @@ check_lms() {
     else
       note_new "lms" "$m"
     fi
-    [ "$VERBOSE" = "1" ] && check_agent_registration "lms" "$m"
+    check_agent_registration "lms" "$m"
   done
   for m in "${registered[@]}"; do
     printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "lms" "$m"
@@ -196,7 +195,7 @@ check_ollama() {
     else
       note_new "ollama" "$m"
     fi
-    [ "$VERBOSE" = "1" ] && check_agent_registration "ollama" "$m"
+    check_agent_registration "ollama" "$m"
   done
   for m in "${registered[@]}"; do
     printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "ollama" "$m"

@@ -109,10 +109,10 @@ slow, so it's opt-in rather than automatic).
 ("registered but not downloaded") and left alone — that's a job for
 [`bin/prune`](../bin/prune), not `bin/scout`.
 
-Add `--verbose` for a per-(model, agent) breakdown, checking the actual config
-file each agent reads at launch (`~/.pi/agent/models.json`,
-`~/.config/opencode/opencode.jsonc`) rather than just the shared
-`~/.config/llmrun/agents.json` store:
+For every downloaded model it also prints a per-(model, agent) breakdown,
+checking the actual config file each agent reads at launch
+(`~/.pi/agent/models.json`, `~/.config/opencode/opencode.jsonc`) rather than
+just the shared `~/.config/llmrun/agents.json` store:
 
 ```
 [PASS] model: qwen/qwen3.6-35b-a3b   agent: pi         exists in /Users/you/.pi/agent/models.json
