@@ -74,9 +74,12 @@ if [ -n "$AGENT" ]; then
   [ -f "$ADAPTER" ] || die "no adapter for $AGENT + $RUNTIME: $ADAPTER"
 
   STEP_TOTAL=3
+  [ "$AGENT" = "opencode" ] && STEP_TOTAL=4
+  N=0
+  next_step() { N=$((N + 1)); step "$N" "$1"; }
 
-  # ── Step 1: CLI installed ──────────────────────────────────────────────────
-  step 1 "check $AGENT is installed"
+  # ── Step: CLI installed ─────────────────────────────────────────────────────
+  next_step "check $AGENT is installed"
   if run command -v "$AGENT" >/dev/null 2>&1; then
     ok "$AGENT found: $(command -v "$AGENT")"
   else
@@ -88,8 +91,32 @@ if [ -n "$AGENT" ]; then
     exit 1
   fi
 
-  # ── Step 2: try it interactively ───────────────────────────────────────────
-  step 2 "try $AGENT interactively (do this yourself in another terminal)"
+  # ── Step: config on disk (opencode only) ────────────────────────────────────
+  # opencode reads its LM Studio/Ollama endpoint from
+  # ~/.config/opencode/opencode.json(c) — it does nothing on its own to create
+  # or point this at your local server. Without it, opencode fails with a
+  # cryptic UnknownError instead of a clear connection error. Write/patch it
+  # via bin/agents-config before ever invoking the adapter.
+  if [ "$AGENT" = "opencode" ]; then
+    next_step "ensure opencode config points at $RUNTIME"
+    OPENCODE_CFG_JSON="$HOME/.config/opencode/opencode.json"
+    OPENCODE_CFG_JSONC="$HOME/.config/opencode/opencode.jsonc"
+    if [ ! -f "$OPENCODE_CFG_JSON" ] && [ ! -f "$OPENCODE_CFG_JSONC" ]; then
+      info "no opencode config found — seeding one at $OPENCODE_CFG_JSON"
+      mkdir -p "$HOME/.config/opencode"
+      cp "$HERE/config-templates/opencode.json" "$OPENCODE_CFG_JSON"
+    fi
+    printf '%s $ %s\n' "${C_DIM}»${C_RST}" "bin/agents-config --write --agent opencode" >&2
+    if "$HERE/bin/agents-config" --write --agent opencode >/tmp/.verify-opencode-config.log 2>&1; then
+      ok "opencode config written to disk"
+    else
+      err "failed to write opencode config — see /tmp/.verify-opencode-config.log"
+      exit 1
+    fi
+  fi
+
+  # ── Step: try it interactively ──────────────────────────────────────────────
+  next_step "try $AGENT interactively (do this yourself in another terminal)"
   case "$AGENT" in
     pi) INTERACTIVE_CMD="pi --provider lmstudio --model $MODEL";;
     opencode) INTERACTIVE_CMD="opencode --model lmstudio/$MODEL";;
@@ -98,8 +125,8 @@ if [ -n "$AGENT" ]; then
   info "opens the $AGENT TUI against your loaded model — poke around, ask it to explain a file, Ctrl-C to quit"
   ok "example printed — run it yourself, then continue"
 
-  # ── Step 3: automated smoketest (simplified project case) ─────────────────
-  step 3 "run smoketest: $AGENT writes hello.txt from a one-line task"
+  # ── Step: automated smoketest (simplified project case) ────────────────────
+  next_step "run smoketest: $AGENT writes hello.txt from a one-line task"
   SANDBOX="$(mktemp -d)"
   trap 'rm -rf "$SANDBOX"' EXIT
   TASK_FILE="$HERE/cases/smoke-00-hello/task.md"

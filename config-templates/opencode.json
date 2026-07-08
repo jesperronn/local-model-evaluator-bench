@@ -1,0 +1,17 @@
+{
+  "provider": {
+    "lmstudio": {
+      "options": {
+        "baseURL": "http://localhost:1234/v1",
+        "apiKey": "lm-studio"
+      },
+      "models": {}
+    },
+    "ollama": {
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {}
+    }
+  }
+}
