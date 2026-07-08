@@ -73,8 +73,7 @@ if [ -n "$AGENT" ]; then
   ADAPTER="$HERE/adapters/${AGENT}-${RUNTIME}.sh"
   [ -f "$ADAPTER" ] || die "no adapter for $AGENT + $RUNTIME: $ADAPTER"
 
-  STEP_TOTAL=3
-  [ "$AGENT" = "opencode" ] && STEP_TOTAL=4
+  STEP_TOTAL=4
   N=0
   next_step() { N=$((N + 1)); step "$N" "$1"; }
 
@@ -91,28 +90,44 @@ if [ -n "$AGENT" ]; then
     exit 1
   fi
 
-  # ── Step: config on disk (opencode only) ────────────────────────────────────
-  # opencode reads its LM Studio/Ollama endpoint from
-  # ~/.config/opencode/opencode.json(c) — it does nothing on its own to create
-  # or point this at your local server. Without it, opencode fails with a
-  # cryptic UnknownError instead of a clear connection error. Write/patch it
-  # via bin/agents-config before ever invoking the adapter.
-  if [ "$AGENT" = "opencode" ]; then
-    next_step "ensure opencode config points at $RUNTIME"
-    OPENCODE_CFG_JSON="$HOME/.config/opencode/opencode.json"
-    OPENCODE_CFG_JSONC="$HOME/.config/opencode/opencode.jsonc"
-    if [ ! -f "$OPENCODE_CFG_JSON" ] && [ ! -f "$OPENCODE_CFG_JSONC" ]; then
-      info "no opencode config found — seeding one at $OPENCODE_CFG_JSON"
-      mkdir -p "$HOME/.config/opencode"
-      cp "$HERE/config-templates/opencode.json" "$OPENCODE_CFG_JSON"
-    fi
-    printf '%s $ %s\n' "${C_DIM}»${C_RST}" "bin/agents-config --write --agent opencode" >&2
-    if "$HERE/bin/agents-config" --write --agent opencode >/tmp/.verify-opencode-config.log 2>&1; then
-      ok "opencode config written to disk"
-    else
-      err "failed to write opencode config — see /tmp/.verify-opencode-config.log"
-      exit 1
-    fi
+  # ── Step: config on disk ─────────────────────────────────────────────────────
+  # Neither pi (~/.pi/agent/models.json) nor opencode
+  # (~/.config/opencode/opencode.json(c)) create or point their own config at
+  # your local server — without it they fail with an opaque "unknown provider"
+  # or UnknownError instead of a clear connection error. Seed/patch it via
+  # bin/agents-config before ever invoking the adapter. Matters most in a
+  # fresh environment (e.g. the Docker container) with no prior agent config.
+  next_step "ensure $AGENT config points at $RUNTIME"
+  case "$AGENT" in
+    opencode)
+      OPENCODE_CFG_JSON="$HOME/.config/opencode/opencode.json"
+      OPENCODE_CFG_JSONC="$HOME/.config/opencode/opencode.jsonc"
+      if [ ! -f "$OPENCODE_CFG_JSON" ] && [ ! -f "$OPENCODE_CFG_JSONC" ]; then
+        info "no opencode config found — seeding one at $OPENCODE_CFG_JSON"
+        mkdir -p "$HOME/.config/opencode"
+        cp "$HERE/config-templates/opencode.json" "$OPENCODE_CFG_JSON"
+      fi
+      ;;
+    pi)
+      PI_LIVE_CFG="$HOME/.pi/agent/models.json"
+      if [ ! -f "$PI_LIVE_CFG" ]; then
+        info "no pi config found — seeding one at $PI_LIVE_CFG"
+        mkdir -p "$(dirname "$PI_LIVE_CFG")"
+        cp "$HERE/config-templates/pi-agent-models.json" "$PI_LIVE_CFG"
+      fi
+      ;;
+  esac
+  # --settings-only: only patch the endpoint/API-key, don't re-sync the model
+  # list from `lms ls`/`ollama list` — those native CLIs aren't available in
+  # every environment (e.g. inside the Docker container), and re-syncing with
+  # no CLI to query wipes the model list to empty, which pi then reports as
+  # an unknown provider instead of a clear error.
+  printf '%s $ %s\n' "${C_DIM}»${C_RST}" "bin/agents-config --write --settings-only --agent $AGENT" >&2
+  if "$HERE/bin/agents-config" --write --settings-only --agent "$AGENT" >/tmp/.verify-agent-config.log 2>&1; then
+    ok "$AGENT config written to disk"
+  else
+    err "failed to write $AGENT config — see /tmp/.verify-agent-config.log"
+    exit 1
   fi
 
   # ── Step: try it interactively ──────────────────────────────────────────────

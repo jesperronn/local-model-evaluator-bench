@@ -1,0 +1,26 @@
+# Before using this container, the model runtime on the HOST must be bound to
+# 0.0.0.0 (not just 127.0.0.1, the default) — otherwise host.docker.internal
+# can reach the host machine but not the runtime's loopback-only socket.
+# This exposes the runtime to your local network for the duration; it's a
+# deliberate tradeoff, not something to flip without knowing that.
+#
+#   LM Studio: lms server stop && lms server start --bind 0.0.0.0
+#   Ollama:    OLLAMA_HOST=0.0.0.0 ollama serve
+#              (or: launchctl setenv OLLAMA_HOST 0.0.0.0 && brew services restart ollama)
+services:
+  agent:
+    build: .
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      # host.docker.internal resolves to the Mac/Windows host from inside the
+      # container (Docker Desktop). LM Studio/Ollama run natively on the host.
+      LMS_BASE_URL: http://host.docker.internal:1234/v1
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+    extra_hosts:
+      # Needed for host.docker.internal to resolve on native Linux; harmless
+      # no-op on Docker Desktop (Mac/Windows), which already provides it.
+      - "host.docker.internal:host-gateway"
+    stdin_open: true
+    tty: true

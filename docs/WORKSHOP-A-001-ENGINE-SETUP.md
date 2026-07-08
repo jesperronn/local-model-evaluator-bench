@@ -102,4 +102,38 @@ port, glemt `server start`, tomt RAM-budget).
 
 ---
 
+## Alternativ: Docker-container med agent-værktøjerne
+
+Vil du undgå npm/Node-installationsbøvl, kan du køre `pi`/`opencode` fra en
+container i stedet — se `Dockerfile`/`docker-compose.yml` i repoet. **LM
+Studio/Ollama selv skal stadig køre nativt** (Docker på Mac har ikke adgang
+til GPU/Metal, så modelkørsel i containeren ville være ubrugeligt langsom) —
+containeren giver kun de færdiginstallerede agent-CLI'er, peget på din
+værtsmaskines motor.
+
+**Forudsætning:** motoren skal lytte på `0.0.0.0`, ikke kun `127.0.0.1`
+(standard), ellers kan containeren slet ikke nå den. Det betyder motoren er
+tilgængelig for resten af dit lokale netværk, så længe workshoppen varer —
+gør det bevidst, ikke bare fordi containeren beder om det:
+
+```bash
+# LM Studio:
+lms server stop
+lms server start --bind 0.0.0.0
+
+# Ollama:
+OLLAMA_HOST=0.0.0.0 ollama serve
+```
+
+Derefter:
+
+```bash
+docker compose build
+docker compose run --rm agent bash
+# inde i containeren:
+bin/verify --agent pi --lms --verbose
+```
+
+---
+
 → Næste: [002 · Øvelser](WORKSHOP-A-002-EXERCISES.md)
