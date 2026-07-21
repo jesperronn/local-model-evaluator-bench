@@ -69,18 +69,22 @@ model.
 |---------|---------------------------|-------|---------|-------|
 | aider | 40/44 (90.9%), full suite | ~16s median | lms | Recommended; recovers every pi failure |
 | pi | 19/34 (55.9%), full suite | ~53s avg | lms | Fine single-file; fails multifile/bash/ts |
-| hermes | not run | — | — | CLI not installed on this machine (2026-07-21) |
+| hermes | 4/7 (57.1%), 4-case subset | ~120s median | lms | Poor pairing — slow, stalls/timeouts on multifile |
 
-- **Working-adapters total:** aider 90.9%; pi 55.9% (both full 12-case suites).
-- **Overall incl. broken:** no adapters were broken/unreachable; hermes skipped
-  (CLI not installed).
+- **Working-adapters total:** aider 90.9% (full); pi 55.9% (full); hermes 57.1%
+  (subset).
+- **Overall incl. broken:** no adapters broken/unreachable. hermes reaches the
+  model but is not recommended for it.
+- hermes subset (`js-01/03/04/ts-01`): only `js-01` passed (4/4, 143s);
+  `js-03` stalled (135s), `ts-01` timed out (152s), `js-04` failed (50s).
 
 ## Timing observations
 
 - **Fastest adapter:** aider — 8–21s for most cases (smoke 8–10s, ts-01 13s);
   median 16s. Slowest aider case `js-05-multiselect-filter` at 44s.
-- **Slowest adapter:** pi — ~53s average; worst case `js-05` hit the 302s hard
-  timeout before aider bounds were applied.
+- **Slowest adapter:** hermes — ~120s median, with a 135s stall and a 152s
+  timeout on the subset. pi is next at ~53s average (worst case `js-05` hit the
+  302s hard timeout before aider bounds were applied).
 - **Slow cases (pi):** multifile JS (`js-03/04/05`) and `js-02-debounce` (78s).
 - **Runtime note:** LM Studio (lms), MLX 4-bit; model load ~9s, ~7.75 GiB
   resident. No stalls or timeouts under aider (full suite, tight bounds).
@@ -98,6 +102,9 @@ model.
   partial, repeatable — the only cases aider does not fully pass. `bash-01` is
   the model's weakest task across both adapters (shell script logic). No hard
   failures or timeouts under aider.
+- **hermes**: poor pairing — 3/4 subset cases failed with slow responses,
+  including a stall (`js-03`, 135s) and a timeout (`ts-01`, 152s). The adapter
+  reaches the model but its orchestration is too heavy for this model here.
 
 ## Better alternatives
 
