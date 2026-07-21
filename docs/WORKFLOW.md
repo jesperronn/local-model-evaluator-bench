@@ -53,6 +53,19 @@ These policies apply across all adapters and benchmark runs:
   filters, gets documented, and is version-tracked. Ad-hoc scripts are hard to
   find, can't be composed with other filters, and never get committed.
 
+- **Inspect results via the result commands, not raw logs.** To check a run's
+  outcome use `bin/bench-status` (`--cases` for the full per-case
+  PASS/WARN/FAIL table, `--run <id>`, `--history N`, `--compare`, `--watch`),
+  `bin/report` (leaderboards + `--agent`/`--model`/`--speed`/`--all` filters),
+  and `bin/investigate --failures <run-id>` (triage). Don't grep the raw
+  `results/*/…` output or a background task log — if a command lacks the view
+  you need, add a flag to it (this is how `bench-status --cases` was added).
+
+- **Commit directly on `main`.** Make commits on `main`; don't create
+  feature/topic branches for changes in this repo. Keep separate commits when
+  asked, but keep them on `main`. (Pushing/PRs remain a separate explicit
+  action — see AGENTS.md.)
+
 ---
 
 ## 1. Adding a New Adapter
