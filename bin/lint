@@ -1,167 +1,118 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-# SonarQube lint script
+# bin/lint — static checks for this repo's shell scripts.
+#
+# Runs `bash -n` (syntax) on every target and, when available, `shellcheck -x`.
+# No external services required — this is a local shell linter, not a
+# SonarQube client.
+#
 # Usage:
-#   bin/lint                        (default: --dirty)
-#   bin/lint --all                  validate all files
-#   bin/lint --dirty                validate dirty files
-#   bin/lint -1 / -2 / -3 etc       validate files changed in last N commits
-#   bin/lint --sha abcdef           validate files changed in commit abcdef
-#   bin/lint path/to/dir            validate files in path(s)
+#   bin/lint                 lint all shell scripts under bin/ and lib/ + config.sh
+#   bin/lint <file> [...]    lint only the given files
+#   bin/lint --verbose       show the shellcheck invocation
+#
+# Exit 0 = clean, non-zero = lint errors.
+set -uo pipefail
 
-SONAR_PROJECT="PUT_YOUR_PROJECT_KEY_HERE"
+pushd "$(dirname "$0")/.." > /dev/null || exit 1
 
-if [[ -z "${SONAR_URL:-}" ]]; then
-  echo "ERROR: SONAR_URL is not set" >&2
-  exit 1
-fi
-
-if [[ -z "${SONAR_TOKEN:-}" ]]; then
-  echo "ERROR: SONAR_TOKEN is not set" >&2
-  exit 1
-fi
-
-MODE="dirty"
-DRY_RUN=false
-TARGET_FILES=()
-
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --all)
-      MODE="all"
-      shift
-      ;;
-    --dirty)
-      MODE="dirty"
-      shift
-      ;;
-    --sha)
-      MODE="sha"
-      if [[ -z "${2:-}" ]]; then
-        echo "ERROR: --sha requires an argument" >&2
-        exit 1
-      fi
-      SHA="$2"
-      shift 2
-      ;;
-    -[0-9]*)
-      MODE="num"
-      NUM="${1#-}"
-      shift
-      ;;
-    --dry-run)
-      DRY_RUN=true
-      shift
-      ;;
-    -*)
-      echo "ERROR: Unknown option: $1" >&2
-      echo "Usage: $0 [--all|--dirty|-N|--sha <sha> [paths...]]" >&2
-      exit 1
-      ;;
-    *)
-      MODE="path"
-      TARGET_FILES+=("$1")
-      shift
-      ;;
-  esac
-done
-
-# Default to --dirty
-if [[ "$MODE" == "dirty" ]] && [[ ${#TARGET_FILES[@]} -eq 0 ]]; then
-  MODE="dirty"
-fi
-
-# Resolve files based on mode
-case "$MODE" in
-  all)
-    echo "Running SonarQube analysis on all files..."
-    SONAR_ARGS=(
-      "-Dsonar.projectKey=${SONAR_PROJECT}"
-      "-Dsonar.sources=."
-    )
-    ;;
-  dirty)
-    echo "Running SonarQube analysis on dirty files..."
-    # Modified, added, copied, renamed files + untracked
-    DIRTY_FILES=$(git diff --name-only --diff-filter=ACMRT 2>/dev/null || true)
-    UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null || true)
-    ALL_FILES=$(printf '%s\n%s' "$DIRTY_FILES" "$UNTRACKED" | grep -v '^$' || true)
-
-    if [[ -z "$ALL_FILES" ]]; then
-      echo "No dirty files to scan."
-      exit 0
-    fi
-
-    # Convert to relative paths for sonar
-    REL_PATHS=()
-    while IFS= read -r f; do
-      REL_PATHS+=("-Dsonar.sources=$f")
-    done <<< "$ALL_FILES"
-    SONAR_ARGS=("${REL_PATHS[@]}")
-    ;;
-  num)
-    echo "Running SonarQube analysis on files changed in last ${NUM} commits..."
-    CHANGED_FILES=$(git diff --name-only HEAD~${NUM}..HEAD 2>/dev/null || true)
-
-    if [[ -z "$CHANGED_FILES" ]]; then
-      echo "No files changed in last ${NUM} commits."
-      exit 0
-    fi
-
-    REL_PATHS=()
-    while IFS= read -r f; do
-      REL_PATHS+=("-Dsonar.sources=$f")
-    done <<< "$CHANGED_FILES"
-    SONAR_ARGS=("${REL_PATHS[@]}")
-    ;;
-  sha)
-    echo "Running SonarQube analysis on files changed in commit ${SHA}..."
-    CHANGED_FILES=$(git show --name-only --format="" "$SHA" 2>/dev/null | grep -v '^$' || true)
-
-    if [[ -z "$CHANGED_FILES" ]]; then
-      echo "No files changed in commit ${SHA}."
-      exit 0
-    fi
-
-    REL_PATHS=()
-    while IFS= read -r f; do
-      REL_PATHS+=("-Dsonar.sources=$f")
-    done <<< "$CHANGED_FILES"
-    SONAR_ARGS=("${REL_PATHS[@]}")
-    ;;
-  path)
-    if [[ ${#TARGET_FILES[@]} -eq 0 ]]; then
-      echo "ERROR: No paths provided" >&2
-      exit 1
-    fi
-    echo "Running SonarQube analysis on specified paths..."
-    REL_PATHS=()
-    for p in "${TARGET_FILES[@]}"; do
-      REL_PATHS+=("-Dsonar.sources=$p")
-    done
-    SONAR_ARGS=("${REL_PATHS[@]}")
-    ;;
-esac
-
-# Run SonarQube scanner
-if [[ "$DRY_RUN" == "true" ]]; then
-  echo "DRY RUN — would run:"
-  echo "  sonar-scanner"
-  echo "    -Dsonar.host.url=\"${SONAR_URL}\""
-  echo "    -Dsonar.login=\"${SONAR_TOKEN}\""
-  for arg in "${SONAR_ARGS[@]}"; do
-    echo "    $arg"
-  done
+# Colors (disabled if NO_COLOR is set).
+if [ -z "${NO_COLOR:-}" ]; then
+  C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_YEL=$'\033[33m'
+  C_BLD=$'\033[1m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
 else
-  sonar-scanner \
-    -Dsonar.host.url="${SONAR_URL}" \
-    -Dsonar.login="${SONAR_TOKEN}" \
-    "${SONAR_ARGS[@]}"
+  C_GRN=; C_RED=; C_YEL=; C_BLD=; C_DIM=; C_RST=
+fi
 
-  echo ""
-  echo "Lint complete. Next:"
-  echo "  View results: ${SONAR_URL}/projects/${SONAR_PROJECT}"
-  echo "  Fix issues and commit changes"
+LINT_VERBOSE=0
+
+usage() {
+  cat <<'EOF'
+Usage: bin/lint [--verbose] [file ...]
+
+Run shell static checks (bash -n, then shellcheck -x when installed).
+With no files, lint all shell scripts under bin/ and lib/ plus config.sh.
+EOF
+}
+
+# Emit the list of shell scripts to lint (explicit args, or discovered).
+collect_shell_files() {
+  if [ "$#" -gt 0 ]; then
+    printf '%s\n' "$@"
+    return 0
+  fi
+  # bin/* executables (no extension) + any *.sh under bin/ lib/ + config.sh.
+  {
+    find bin -type f -not -name '*.test.sh'
+    find lib -type f -name '*.sh'
+    [ -f config.sh ] && printf '%s\n' config.sh
+  } | sort -u
+}
+
+# Keep only files that are actually shell scripts (bash/sh shebang or *.sh).
+is_shell_file() {
+  local f="$1"
+  case "$f" in
+    *.sh) return 0;;
+  esac
+  [ -f "$f" ] && head -1 "$f" 2>/dev/null | grep -qE '^#!.*\b(ba)?sh\b'
+}
+
+main() {
+  local -a requested=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h|--help) usage; return 0;;
+      --verbose|-v) LINT_VERBOSE=1; shift;;
+      -*) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; return 2;;
+      *) requested+=("$1"); shift;;
+    esac
+  done
+
+  local -a candidates=() files=()
+  mapfile -t candidates < <(collect_shell_files "${requested[@]}")
+  local f
+  for f in "${candidates[@]}"; do
+    is_shell_file "$f" && files+=("$f")
+  done
+
+  if [ "${#files[@]}" -eq 0 ]; then
+    printf 'No shell files to lint.\n' >&2
+    return 1
+  fi
+
+  local fail=0
+
+  # 1. Syntax check every file.
+  for f in "${files[@]}"; do
+    if bash -n "$f" 2>/tmp/lint_syntax.$$; then
+      :
+    else
+      printf '%s %s\n' "${C_RED}[FAIL]${C_RST}" "syntax: $f"
+      sed 's/^/    /' /tmp/lint_syntax.$$
+      fail=1
+    fi
+  done
+  rm -f /tmp/lint_syntax.$$
+
+  # 2. shellcheck (informational SC1091 source-follow notes are not errors).
+  if command -v shellcheck >/dev/null 2>&1; then
+    [ "$LINT_VERBOSE" -eq 1 ] && printf '%s shellcheck -x -e SC1091 %d files\n' \
+      "${C_DIM}==>${C_RST}" "${#files[@]}"
+    if ! shellcheck -x -e SC1091 "${files[@]}"; then
+      fail=1
+    fi
+  else
+    printf '%s shellcheck not installed; ran syntax checks only.\n' "${C_YEL}[WARN]${C_RST}" >&2
+  fi
+
+  if [ "$fail" -eq 0 ]; then
+    printf '%s %s%d files clean%s\n' "${C_GRN}[PASS]${C_RST}" "${C_BLD}" "${#files[@]}" "${C_RST}"
+  else
+    printf '%s lint errors found\n' "${C_RED}[FAIL]${C_RST}" >&2
+  fi
+  return "$fail"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
