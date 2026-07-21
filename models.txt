@@ -24,9 +24,9 @@ qwen/qwen2.5-coder-7b
 
 # 14B — Qwen 2.5 Coder (MLX 4-bit, 8.33 GB). Fits comfortably on 32GB with
 # room for context; ~14-16GB sizing sweet spot on M2 Max 32GB.
-# 2026-07-21: adapter-bound. pi full suite 19/34 (55.9%); but aider 4/4 (100%,
-# 12-21s) on a subset incl. the 3 multifile/ts cases pi failed — pi shortfall
-# was adapter overhead, not model ceiling. Use with aider. See
+# 2026-07-21: adapter-bound. Full 12-case suite: aider 40/44 (90.9%, ~16s med,
+# no timeouts) vs pi 19/34 (55.9%) — pi shortfall was adapter overhead, not
+# model ceiling. Only partials on aider: bash-01, js-06. Use with aider. See
 # docs/models/qwen--qwen2.5-coder-14b.md
 qwen/qwen2.5-coder-14b
 
