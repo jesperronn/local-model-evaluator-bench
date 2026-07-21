@@ -74,12 +74,14 @@ Pick next unblocked `todo` → `wip` → do it (worktree if it touches tracked f
 | T10 | P1 | todo | T1,T9 | `profile.json` — machine-readable per-tier winners (model/adapters/context/parallel), emitted by `bin/qualify --emit-profile`. Bridges bench (this machine) → port (other machines). |
 | T11 | P2 | todo | T10 | `bin/bootstrap-machine` — reads `profile.json` + `bin/hwprofile`, proposes `models.txt`/`config.sh` edits for the detected tier (dry-run by default, `--write` to commit). |
 | T12 | P2 | todo | T10 | Benchmark on 64 GB / 48 GB / 24 GB hardware and extend `HARDWARE-RECOMMENDATIONS.md` + `profile.json` — currently only 128 GB and 32 GB are covered; do not extrapolate. |
+| T13 | P2 | todo | — | **[128 GB machine only]** Download + set up a test of **DeepSeek V4 Flash 2-bit DQ** (~91 GB, ~56 tok/s on Mac Studio; 128 GB is tight → keep KV/context modest). Needs a non-standard runtime — mainline `mlx-lm` can't load V4 (new CSA/HCA attention, [issue #1281](https://github.com/ml-explore/mlx-lm/issues/1281)). Install **antirez's `ds4` / DwarfStar 4** engine (pure-C, Metal, purpose-built for V4 Flash — [github.com/antirez/ds4](https://github.com/antirez/ds4)); `rapid-mlx` 0.6.4 is a generic-MLX fallback. Model: [mlx-community/DeepSeek-V4-Flash-2bit-DQ](https://huggingface.co/mlx-community/DeepSeek-V4-Flash-2bit-DQ). Smoke-test one case, then decide whether to add it as an experimental entry on the `128gb` profile (behind a new `ds4` runtime, not the standard `mlx` runtime — touches `models-aliases.conf` + runtime handling + `bin/verify-model-availability`). |
 
 ---
 
 ## Worklog
 
 <!-- newest first: `- YYYY-MM-DD  <id>  what landed` -->
+- 2026-07-21  T13  Filed backlog task: on the 128 GB machine, download DeepSeek V4 Flash 2-bit DQ and install antirez's `ds4`/DwarfStar 4 runtime (mainline mlx-lm lacks V4 CSA/HCA support), smoke-test, then decide on an experimental `128gb`-profile entry behind a new `ds4` runtime.
 - 2026-07-04  doc  32GB tier nightly run (20260704-113219): qwen3.5-9b model card updated with results. **aider 100% (21/21, ~24s avg) — winner for 32GB tier.** cline 80% (hits 300s timeout on 3 cases), openhands 67%, codex incomplete (dropped from recommendation). [docs/models/qwen--qwen3.5-9b.md](docs/models/qwen--qwen3.5-9b.md) updated with results summary, timing, failure patterns, and 32GB tier recommendation.
 - 2026-07-04  T9  Added `bin/hwprofile` (RAM detection + tier bucketing, `--json`/`--tier` flags) and [docs/PLAN-MULTI-MACHINE-PORTABILITY.md](docs/PLAN-MULTI-MACHINE-PORTABILITY.md) naming the bench→run→port gaps (profile.json, bin/qualify, bootstrap-machine, missing 64/48/24GB tiers).
 - 2026-06-25  decomp  Per-check decomposition + difficulty tiers: `lib/grader.sh` (CHECK contract), graders emit `CHECK pass|fail <id>`, `bin/bench` records `checks.csv`, `difficulty` added to all case metas, `--difficulty` filter on `bin/bench`/`bin/stale`. Docs in [CASES.md](docs/CASES.md).
