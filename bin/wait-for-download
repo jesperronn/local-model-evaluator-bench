@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# bin/wait-for-download — block until one or more LM Studio models finish
+# downloading, then exit. Useful when a download is running in another terminal
+# (e.g. `lms get ...`) and you want to chain a smoke test or bench after it.
+#
+# A model counts as "downloaded" once it appears in `lms ls` — partial
+# downloads are not listed, so presence means the download completed.
+#
+# Usage:
+#   bin/wait-for-download <model-id> [<model-id> ...]
+#   bin/wait-for-download --timeout 3600 qwen/qwen2.5-coder-14b
+#
+# Exits 0 when all requested models are present, 1 on timeout.
+
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh" 2>/dev/null || true
+source "$HERE/lib/common.sh" 2>/dev/null || true
+source "$HERE/bin/lib/help.sh" 2>/dev/null || true
+
+INTERVAL=20        # seconds between polls
+TIMEOUT=3600       # give up after this many seconds (default 1h)
+
+show_help() {
+  if declare -F help_header >/dev/null; then
+    help_header "wait-for-download" "block until LM Studio models finish downloading"
+    help_section "USAGE"
+    help_line "  bin/wait-for-download [OPTIONS] <model-id> [<model-id> ...]"
+    help_section "OPTIONS"
+    help_flag "--timeout,-t" "SEC" "give up after SEC seconds (default: $TIMEOUT)"
+    help_flag "--interval,-i" "SEC" "seconds between polls (default: $INTERVAL)"
+    help_flag "--help,-h" "" "show this message"
+    help_section "EXAMPLES"
+    help_line "  bin/wait-for-download qwen/qwen2.5-coder-14b && bin/smoke -m qwen/qwen2.5-coder-14b"
+  else
+    cat <<HELP
+wait-for-download — block until LM Studio models finish downloading
+
+Usage: bin/wait-for-download [--timeout SEC] [--interval SEC] <model-id> ...
+HELP
+  fi
+}
+
+models=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) show_help; exit 0;;
+    -t|--timeout) TIMEOUT="$2"; shift 2;;
+    -i|--interval) INTERVAL="$2"; shift 2;;
+    -*) echo "Unknown option: $1" >&2; exit 2;;
+    *) models+=("$1"); shift;;
+  esac
+done
+
+if [ ${#models[@]} -eq 0 ]; then
+  show_help
+  exit 2
+fi
+
+# Is a given model present in `lms ls`?
+_present() {
+  lms ls --json 2>/dev/null | jq -e --arg m "$1" 'any(.[]; .modelKey == $m)' >/dev/null 2>&1
+}
+
+deadline=$(( SECONDS + TIMEOUT ))
+echo "Waiting for ${#models[@]} model(s) (timeout ${TIMEOUT}s, poll every ${INTERVAL}s):"
+printf '  - %s\n' "${models[@]}"
+
+while :; do
+  remaining=()
+  for m in "${models[@]}"; do
+    _present "$m" || remaining+=("$m")
+  done
+
+  if [ ${#remaining[@]} -eq 0 ]; then
+    echo "✓ All models downloaded."
+    exit 0
+  fi
+
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    echo "✗ TIMEOUT after ${TIMEOUT}s. Still missing: ${remaining[*]}" >&2
+    exit 1
+  fi
+
+  sleep "$INTERVAL"
+done

@@ -71,6 +71,15 @@ BENCH_TTL_MINUTES=30    # keep model warm longer between tasks
 
 32 GB limits which models fit comfortably. Key constraint: with BENCH_CONTEXT=65536 and BENCH_PARALLEL=3, a dense 27B model may use 20–25 GB for KV cache alone.
 
+**Sizing rule of thumb (32 GB):** keep the model file under ~14–16 GB so you
+have room for a long context (KV cache) and the OS. macOS + apps eat ~8–10 GB,
+and the KV cache grows with context length. A model that "fits on paper" (e.g.
+~20 GB) leaves almost no headroom — you start swapping the moment you open a
+decent context window, which kills the fast, offline editing loop. "Won't Fit"
+labels in `lms get` reflect this: prefer the **MLX 4-bit** variant (smaller +
+Metal-optimized) over GGUF Q6/Q8 on Apple Silicon. Don't judge fit by whether
+the file loads — judge by file size + planned context.
+
 | Model | Disk (GGUF) | Fits? | Speed | Accuracy | Verdict |
 |-------|------------|-------|-------|----------|---------|
 | **qwen3.5-9b** | ~6 GB | Easily | Fast | 93% excl broken adapters | **Primary recommendation** |
