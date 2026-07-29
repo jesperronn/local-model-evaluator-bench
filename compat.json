@@ -1143,5 +1143,17 @@
     "status": "open",
     "verdict": "deprecated",
     "reason": "v2 non-interactive stdin incompatible — always prompts for setup regardless of config"
+  },
+  "pi:ornith-1.0-9b:lms": {
+    "adapter": "pi",
+    "model": "ornith-1.0-9b",
+    "runtime": "lms",
+    "agent_version": "0.80.3",
+    "first_seen": "2026-07-29",
+    "run_id": "20260729-111301",
+    "symptom": "",
+    "status": "open",
+    "last_seen": "2026-07-29",
+    "last_run_id": "20260729-111346"
   }
 }

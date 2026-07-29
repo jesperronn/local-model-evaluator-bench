@@ -1,7 +1,7 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-07-07 03:03
+**Generated:** 2026-07-29 16:54
 
 ## Models to Avoid
 
@@ -29,8 +29,8 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| lms | 3967/5754 | 68.9% | 92.9 |
-| ollama | 1890/2991 | 63.2% | 98.1 |
+| lms | 4291/6102 | 70.3% | 94.4 |
+| ollama | 1896/2997 | 63.3% | 97.9 |
 | mlx | 374/654 | 57.2% | 61.4 |
 
 ## Leaderboard — by adapter × model
@@ -46,7 +46,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | ollama | interpreter | qwen3.6:35b-a3b-coding-mxfp8 | 38/38 | 100.0% | 54.7 | 1 |
 | ollama | interpreter | gemma4-12b-mlx | 6/6 | 100.0% | 69.0 | 1 |
 | ollama | hermes | gemma4-12b-mlx | 6/6 | 100.0% | 64.0 | 1 |
-| ollama | caveman | qwen3.6:35b-a3b-coding-mxfp8 | 2/2 | 100.0% | 38.0 | 1 |
+| ollama | caveman | qwen3.6:35b-a3b-coding-mxfp8 | 8/8 | 100.0% | 33.3 | 1 |
 | ollama | caveman | qwen3.6-35b-mlx | 38/38 | 100.0% | 102.5 | 1 |
 | ollama | aider | gemma4-12b-mlx | 6/6 | 100.0% | 19.3 | 1 |
 | mlx | pi | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-35B-A3B-MLX-4bit | 38/38 | 100.0% | 52.4 | 1 |
@@ -55,10 +55,12 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | mlx | copilot | /Users/jesper/src/dotfiles/link-dir/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 2/2 | 100.0% | 362.0 | 1 |
 | lms | pi | qwen/qwen3.6-35b-a3b | 44/44 | 100.0% | 20.7 | 1 |
 | lms | pi | qwen/qwen3.6-27b | 44/44 | 100.0% | 95.1 | 1 |
-| lms | pi | qwen/qwen3-coder-next | 44/44 | 100.0% | 33.4 | 1 |
+| lms | pi | qwen/qwen3-coder-next | 44/44 | 100.0% | 35.2 | 1 |
 | lms | pi | qwen/qwen3-coder-30b | 44/44 | 100.0% | 51.0 | 1 |
+| lms | pi | ornith-1.0-35b | 44/44 | 100.0% | 24.2 | 1 |
 | lms | pi | nvidia/nemotron-3-nano-omni | 6/6 | 100.0% | 34.3 | 1 |
 | lms | pi | microsoft/phi-4 | 6/6 | 100.0% | 55.3 | 1 |
+| lms | pi | google/gemma-4-e4b | 6/6 | 100.0% | 20.7 | 1 |
 | lms | pi | google/gemma-4-e2b | 4/4 | 100.0% | 5.5 | 1 |
 | lms | pi | google/gemma-4-26b-a4b-qat | 44/44 | 100.0% | 71.5 | 1 |
 | lms | openhands | nvidia/nemotron-3-nano-omni | 6/6 | 100.0% | 81.7 | 1 |
@@ -99,12 +101,15 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | cline | nvidia/nemotron-3-nano-omni | 6/6 | 100.0% | 33.0 | 1 |
 | lms | cline | microsoft/phi-4 | 6/6 | 100.0% | 203.7 | 1 |
 | lms | cline | google/gemma-4-e2b | 4/4 | 100.0% | 14.5 | 1 |
+| lms | caveman | ornith-1.0-9b | 44/44 | 100.0% | 66.7 | 1 |
+| lms | caveman | ornith-1.0-35b | 44/44 | 100.0% | 38.5 | 1 |
 | lms | aider | qwen/qwen3.6-35b-a3b | 44/44 | 100.0% | 68.0 | 1 |
 | lms | aider | qwen/qwen3.5-9b | 38/38 | 100.0% | 47.8 | 1 |
 | lms | aider | qwen/qwen3-coder-30b | 38/38 | 100.0% | 11.6 | 1 |
 | lms | aider | nvidia/nemotron-3-nano-omni | 6/6 | 100.0% | 10.3 | 1 |
 | lms | aider | mistralai/devstral-2-2512 | 6/6 | 100.0% | 38.3 | 1 |
 | lms | aider | google/gemma-4-26b-a4b | 38/38 | 100.0% | 110.9 | 1 |
+| lms | goose | ornith-1.0-35b | 43/44 | 97.7% | 45.3 | 1 |
 | lms | openhands | qwen/qwen3.6-35b-a3b | 41/42 | 97.6% | 77.2 | 1 |
 | lms | nanocoder | qwen/qwen3.6-35b-a3b | 39/40 | 97.5% | 24.8 | 1 |
 | ollama | hermes | qwen3.6-35b-mlx | 37/38 | 97.4% | 149.3 | 1 |
@@ -116,6 +121,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | mlx | aider | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 33/34 | 97.1% | 64.4 | 1 |
 | lms | hermes | qwen/qwen3.6-27b | 33/34 | 97.1% | 131.1 | 1 |
 | lms | caveman | google/gemma-4-12b-qat | 29/30 | 96.7% | 164.2 | 1 |
+| lms | pi | ornith-1.0-9b | 42/44 | 95.5% | 66.0 | 1 |
 | ollama | opencode | qwen3.6:35b-mlx | 36/38 | 94.7% | 129.2 | 1 |
 | ollama | cline | qwen3.6:35b-mlx | 36/38 | 94.7% | 170.8 | 1 |
 | lms | nanocoder | qwen/qwen3-coder-30b | 36/38 | 94.7% | 23.6 | 1 |
@@ -135,7 +141,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | cline | google/gemma-4-26b-a4b | 35/38 | 92.1% | 181.9 | 1 |
 | ollama | omp | gemma4-claude | 31/34 | 91.2% | 241.1 | 1 |
 | ollama | aider | qwen3.6:35b-mlx | 31/34 | 91.2% | 72.5 | 1 |
-| lms | pi | qwen/qwen3.5-9b | 40/44 | 90.9% | 110.0 | 1 |
+| lms | pi | qwen/qwen3.5-9b | 40/44 | 90.9% | 111.4 | 1 |
 | lms | codex | qwen/qwen3.6-35b-a3b | 40/44 | 90.9% | 59.8 | 1 |
 | lms | opencode | google/gemma-4-e2b | 29/32 | 90.6% | 34.3 | 1 |
 | lms | aider | qwen2.5-coder-7b | 19/21 | 90.5% | 24.4 | 1 |
@@ -157,6 +163,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | nanocoder | mistralai/devstral-small-2-2512 | 33/38 | 86.8% | 116.3 | 1 |
 | lms | hermes | qwen/qwen3.5-9b | 33/38 | 86.8% | 156.6 | 1 |
 | lms | cline | mistralai/devstral-small-2-2512 | 33/38 | 86.8% | 259.5 | 1 |
+| lms | goose | ornith-1.0-9b | 38/44 | 86.4% | 198.3 | 1 |
 | ollama | openhands | qwen3.6:35b-mlx | 29/34 | 85.3% | 126.5 | 1 |
 | lms | aider | qwen/qwen3-coder-next | 29/34 | 85.3% | 57.6 | 1 |
 | lms | aider | qwen/qwen2.5-coder-7b | 29/34 | 85.3% | 13.3 | 1 |
@@ -193,6 +200,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | aider | qwen/qwen3.6-27b | 26/34 | 76.5% | 224.5 | 1 |
 | ollama | opencode | gemma4:26b-mlx | 29/38 | 76.3% | 139.7 | 1 |
 | ollama | interpreter | gemma4:12b-mlx | 29/38 | 76.3% | 209.2 | 1 |
+| lms | claude | ornith-1.0-9b | 32/42 | 76.2% | 222.6 | 1 |
 | lms | opencode | google/gemma-4-e4b-qat | 22/29 | 75.9% | 60.2 | 1 |
 | lms | caveman | ibm/granite-4.1-30b | 22/30 | 73.3% | 661.6 | 1 |
 | lms | opencode | qwen/qwen3.5-9b | 32/44 | 72.7% | 58.6 | 1 |
@@ -205,7 +213,6 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | ollama | cline | gemma4:12b-mlx | 4/6 | 66.7% | 82.3 | 1 |
 | ollama | cline | gemma4-12b-mlx | 4/6 | 66.7% | 103.3 | 1 |
 | mlx | cline | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 4/6 | 66.7% | 87.3 | 1 |
-| lms | pi | google/gemma-4-e4b | 4/6 | 66.7% | 58.7 | 1 |
 | lms | pi | devstral2-small | 4/6 | 66.7% | 94.7 | 1 |
 | lms | opencode | qwen/qwen3.6-27b | 4/6 | 66.7% | 150.7 | 1 |
 | lms | nanocoder | qwen2.5-coder-7b | 4/6 | 66.7% | 22.0 | 1 |
@@ -226,6 +233,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | aider | google/gemma-4-e4b-qat | 18/28 | 64.3% | 21.4 | 1 |
 | lms | pi | qwen2.5-coder-7b | 13/21 | 61.9% | 38.0 | 1 |
 | lms | hermes | qwen/qwen2.5-coder-7b | 22/36 | 61.1% | 50.3 | 1 |
+| lms | caveman | qwen/qwen3-coder-30b | 22/36 | 61.1% | 22.6 | 1 |
 | ollama | omp | gemma4:12b-mlx | 19/32 | 59.4% | 206.4 | 1 |
 | lms | codex | ibm/granite-4.1-30b | 16/27 | 59.3% | 342.6 | 1 |
 | ollama | codex | qwen3.6:35b-a3b-coding-mxfp8 | 20/34 | 58.8% | 172.2 | 1 |
@@ -238,6 +246,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | mlx | aider | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.6-35B-A3B-MLX-4bit | 18/32 | 56.2% | 17.6 | 1 |
 | lms | copilot | google/gemma-4-26b-a4b-qat | 18/32 | 56.2% | 79.9 | 1 |
 | lms | codex | google/gemma-4-12b-qat | 19/34 | 55.9% | 216.1 | 1 |
+| lms | claude | ornith-1.0-35b | 21/38 | 55.3% | 303.1 | 1 |
 | ollama | aider | gemma4-26b-qat | 15/28 | 53.6% | 166.4 | 1 |
 | lms | caveman | google/gemma-4-e2b-qat | 15/28 | 53.6% | 21.9 | 1 |
 | ollama | openhands | gemma4:26b-mlx | 17/32 | 53.1% | 152.6 | 1 |
@@ -255,6 +264,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | hermes | microsoft/phi-4 | 3/6 | 50.0% | 58.3 | 1 |
 | lms | goose | mistralai/mistral-nemo-instruct-2407 | 3/6 | 50.0% | 17.7 | 1 |
 | lms | cline | google/gemma-4-e4b | 3/6 | 50.0% | 56.0 | 1 |
+| lms | caveman | qwen/qwen3.5-9b | 16/32 | 50.0% | 6.4 | 1 |
 | lms | aider | microsoft/phi-4 | 3/6 | 50.0% | 32.3 | 1 |
 | lms | goose | qwen/qwen2.5-coder-7b | 15/32 | 46.9% | 13.0 | 1 |
 | lms | opencode | ibm/granite-4.1-30b | 13/28 | 46.4% | 279.8 | 1 |
@@ -309,8 +319,6 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | codex | google/gemma-4-26b-a4b | 12/32 | 37.5% | 2.1 | 1 |
 | lms | cline | zai-org/glm-4.7-flash | 12/32 | 37.5% | 18.3 | 1 |
 | lms | caveman | zai-org/glm-4.7-flash | 12/32 | 37.5% | 2.0 | 1 |
-| lms | caveman | qwen/qwen3.5-9b | 12/32 | 37.5% | 2.0 | 1 |
-| lms | caveman | qwen/qwen3-coder-30b | 12/32 | 37.5% | 2.0 | 1 |
 | lms | caveman | mistralai/devstral-small-2-2512 | 12/32 | 37.5% | 2.1 | 1 |
 | lms | caveman | google/gemma-4-26b-a4b-qat | 12/32 | 37.5% | 2.1 | 1 |
 | lms | caveman | google/gemma-4-26b-a4b | 12/32 | 37.5% | 2.0 | 1 |
@@ -422,18 +430,20 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 34/34 | 100.0% | 153.3 |
 | lms | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 34/34 | 100.0% | 106.0 |
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-Next-MLX-6bit | 32/34 | 94.1% | 106.8 |
-| lms | qwen/qwen3-coder-next | 309/344 | 89.8% | 50.8 |
-| lms | qwen/qwen3-coder-30b | 405/456 | 88.8% | 67.3 |
+| lms | qwen/qwen3-coder-30b | 415/460 | 90.2% | 69.0 |
+| lms | qwen/qwen3-coder-next | 309/344 | 89.8% | 51.0 |
+| lms | ornith-1.0-9b | 156/174 | 89.7% | 138.4 |
+| lms | ornith-1.0-35b | 152/170 | 89.4% | 102.8 |
 | lms | qwen/qwen3.6-27b | 283/322 | 87.9% | 170.9 |
 | ollama | qwen3.6:35b-mlx | 320/372 | 86.0% | 98.5 |
 | lms | google/gemma-4-26b-a4b-qat | 378/445 | 84.9% | 101.4 |
 | ollama | gemma4-26b-qat | 75/90 | 83.3% | 132.7 |
 | lms | qwen/qwen3.6-35b-a3b | 548/661 | 82.9% | 46.0 |
 | lms | google/gemma-4-26b-a4b | 270/330 | 81.8% | 111.0 |
+| lms | qwen/qwen3.5-9b | 362/450 | 80.4% | 100.1 |
 | ollama | gpt-oss-20b | 64/80 | 80.0% | 58.9 |
-| lms | qwen/qwen3.5-9b | 358/450 | 79.6% | 99.6 |
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 124/160 | 77.5% | 106.2 |
-| ollama | qwen3.6:35b-a3b-coding-mxfp8 | 215/294 | 73.1% | 133.1 |
+| ollama | qwen3.6:35b-a3b-coding-mxfp8 | 221/300 | 73.7% | 131.0 |
 | ollama | qwen3.6-35b-mlx | 175/246 | 71.1% | 67.2 |
 | lms | mistralai/devstral-small-2-2512 | 296/421 | 70.3% | 144.4 |
 | lms | microsoft/phi-4 | 33/48 | 68.8% | 82.5 |
@@ -447,8 +457,8 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | google/gemma-4-e2b | 97/161 | 60.2% | 24.3 |
 | lms | google/gemma-4-12b-qat | 91/152 | 59.9% | 138.4 |
 | lms | google/gemma-4-e2b-qat | 86/144 | 59.7% | 30.5 |
+| lms | google/gemma-4-e4b | 128/216 | 59.3% | 49.5 |
 | lms | nvidia/nemotron-3-nano-omni | 39/66 | 59.1% | 30.7 |
-| lms | google/gemma-4-e4b | 126/216 | 58.3% | 51.0 |
 | lms | google/gemma-4-e4b-qat | 78/137 | 56.9% | 52.0 |
 | ollama | gemma4-12b-mlx | 34/60 | 56.7% | 74.6 |
 | ollama | phi4 | 50/97 | 51.5% | 32.7 |
@@ -476,9 +486,9 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 |---------|------|-------|-------|
 | opencode-orch | 12/12 | 100.0% | 133.5 |
 | cn | 58/60 | 96.7% | 24.7 |
-| goose | 315/393 | 80.2% | 119.2 |
+| goose | 396/481 | 82.3% | 119.6 |
+| pi | 730/911 | 80.1% | 69.1 |
 | interpreter | 526/673 | 78.2% | 99.1 |
-| pi | 642/823 | 78.0% | 71.6 |
 | nanocoder | 248/319 | 77.7% | 74.8 |
 | aider | 841/1102 | 76.3% | 79.5 |
 | cline | 479/651 | 73.6% | 111.9 |
@@ -488,8 +498,8 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | omp | 172/266 | 64.7% | 176.3 |
 | hermes | 770/1191 | 64.7% | 107.5 |
 | codex | 532/912 | 58.3% | 113.1 |
-| caveman | 397/875 | 45.4% | 49.2 |
+| claude | 58/107 | 54.2% | 191.0 |
+| caveman | 505/973 | 51.9% | 50.2 |
 | copilot | 213/521 | 40.9% | 119.2 |
 | forge | 12/44 | 27.3% | 8.8 |
-| claude | 5/27 | 18.5% | 18.5 |
 | mini-swe-agent | 0/8 | 0.0% | 137.2 |
