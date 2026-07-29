@@ -79,3 +79,5 @@ qwen/qwen3-coder-30b
 google/gemma-4-e4b
 qwen/qwen3-coder-next
 microsoft/phi-4
+ornith-1.0-35b
+ornith-1.0-9b
