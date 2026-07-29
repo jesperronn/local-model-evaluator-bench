@@ -380,7 +380,7 @@ preflight_check_models() {
 
   case "$runtime" in
     lms)
-      available="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
+      available="$(lms ls 2>/dev/null | awk 'NR>1 && $1!="" && $1!="EMBEDDING" {print $1}')"
       for m in "${models[@]}"; do
         printf '%s\n' "$available" | grep -qx "$m" || missing+=("$m")
       done
