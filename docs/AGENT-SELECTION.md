@@ -4,21 +4,21 @@ This benchmark includes 12 agents. **All are available for testing**, but perfor
 
 ## Quick Recommendation Matrix
 
-Based on 2026-06-29 overnight sweep across 7 models on LMS runtime.
+LMS sweep: 7 models × 12 adapters.
 
 |  | **Speed** | **Accuracy** | **Use When** |
 |---|-----------|-------------|--------------|
-| 🏆 **aider** | 11–96s/case | 94–100% | Production use; fastest on MoE models; very reliable |
-| 🏆 **interpreter** | 23–160s/case | 97–100% | When aider isn't available; clean tool-use protocol |
-| 🏆 **cline** | 20–300s/case | 82–100% | When you need maximum accuracy on complex tasks |
-| ✅ **hermes** | 14–140s/case | 89–100% | Good all-rounder; needs special config |
-| ✅ **goose** | 57–110s/case | 89–100% | Reliable; good on self-verify cases |
-| ✅ **pi** | 12–300s/case | 89–97% | Generally reliable; use if others aren't available |
-| ✅ **opencode** | 8–300s/case | 37–97% | Generally reliable but model-dependent |
-| ✅ **openhands** | 28–254s/case | 37–92% | Good on most models; collapses on devstral |
-| ✅ **nanocoder** | 8–250s/case | 35–97% | 97% on 35b-a3b, 95% on gemma/coder-30b. Bash tasks blocked (execute_bash). XML tool-call issue on 9b (71%). GLM too slow (35%) |
+| 🏆 **aider** | 11–96s/case | 94–100% | Production; fastest on MoE models |
+| 🏆 **interpreter** | 23–160s/case | 97–100% | Fallback to aider; clean tool-use protocol |
+| 🏆 **cline** | 20–300s/case | 82–100% | Maximum accuracy on complex tasks |
+| ✅ **hermes** | 14–140s/case | 89–100% | Good all-rounder; needs `backend: local` config |
+| ✅ **goose** | 57–110s/case | 89–100% | Reliable on self-verify cases |
+| ✅ **pi** | 12–300s/case | 89–97% | Fallback; generally reliable |
+| ✅ **opencode** | 8–300s/case | 37–97% | Reliable but model-dependent |
+| ✅ **openhands** | 28–254s/case | 37–92% | Most models; collapses on devstral |
+| ✅ **nanocoder** | 8–250s/case | 35–97% | Bash blocked (execute_bash), XML issue on 9b (71%), GLM too slow |
 | ❌ **codex** | 12–301s/case | 65–100% | ts-01 error(1) on some models; mixed reliability |
-| ❌ **caveman** | 2s (error) | 37% | LMS incompatible — works on Ollama only |
+| ❌ **caveman** | 2s (error) | 37% | LMS incompatible — Ollama only |
 | ❌ **copilot** | variable | 37–56% | LMS incompatible — patch format issues |
 
 ## Per-Model Results (2026-06-29 overnight, LMS)
@@ -35,25 +35,12 @@ Based on 2026-06-29 overnight sweep across 7 models on LMS runtime.
 
 ## Use Cases
 
-### Production / Agentic Coding
-**Pick: aider or interpreter**
-- aider: fastest per-case (11s on MoE models), 100% on best models
-- interpreter: clean tool-call protocol, 100% on multiple models
-- Both are reliable across all model families tested
-
-### Accuracy-Critical Tasks
-**Pick: cline, hermes, or goose**
-- cline: 100% on qwen3.6-35b-a3b and qwen3.5-9b; slower on complex cases
-- hermes: 100% on gemma-4-26b-a4b-qat and qwen3.6-35b-a3b; needs `backend: local` config
-- goose: 100% on gemma/qwen3.6-27b; reliable but slower
-
-### Speed-Critical (< 30s/case)
-**Pick: aider only**
-- aider with qwen3-coder-30b: avg 11s
-- aider with qwen3.6-35b-a3b: avg ~40s
-
-### Research / Exploration
-**Run nanocoder, codex, opencode** — gather data, expect variable accuracy
+| Goal | Pick |
+|------|------|
+| Production coding | aider or interpreter |
+| Accuracy-critical | cline, hermes, or goose |
+| Speed-critical (< 30s) | aider only |
+| Research / data gathering | nanocoder, codex, opencode (expect variable accuracy) |
 
 ## Adapter Setup Notes
 
