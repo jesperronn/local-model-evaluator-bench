@@ -720,7 +720,13 @@ if [ -z "$TOOL" ]; then
 fi
 
 if [ -z "$RUNTIME" ]; then
-  runtimes="$(all_adapters | grep -E "^${TOOL}-" | grep -oE '(lms|ollama|mlx)$' | sort -u)"
+  # A unified adapter (<tool>.sh, no runtime suffix) speaks to whichever runtime
+  # it is handed, so offer all three. Suffixed variants only offer what exists.
+  if [ -f "$_ADAPTERS/${TOOL}.sh" ]; then
+    runtimes="$(printf 'lms\nmlx\nollama\n')"
+  else
+    runtimes="$(all_adapters | grep -E "^${TOOL}-" | grep -oE '(lms|ollama|mlx)$' | sort -u)"
+  fi
   [ -z "$runtimes" ] && die "no adapters found for tool '$TOOL' in $_ADAPTERS"
   rt_count="$(printf '%s\n' "$runtimes" | wc -l | tr -d ' ')"
   if [ "$rt_count" = 1 ]; then
@@ -755,9 +761,12 @@ if [ -z "$MODEL" ]; then
 fi
 
 # ── Phase 2: Validate ─────────────────────────────────────────────────────────
+# Prefer a runtime-specific adapter, fall back to the unified one — same
+# resolution order bin/bench uses.
 ADAPTER_FILE="$_ADAPTERS/${TOOL}-${RUNTIME}.sh"
+[ -f "$ADAPTER_FILE" ] || ADAPTER_FILE="$_ADAPTERS/${TOOL}.sh"
 if [ ! -f "$ADAPTER_FILE" ]; then
-  err "no adapter for ${TOOL}-${RUNTIME}"
+  err "no adapter for ${TOOL}-${RUNTIME} (and no unified ${TOOL}.sh)"
   printf '\nAvailable combos:\n'
   all_adapters | sed 's/^/  /'
   printf '\nTry a different --agent or --runtime.\n'
@@ -781,6 +790,17 @@ fi
 echo "${C_DIM}Rerun: llmrun --agent $TOOL --runtime $RUNTIME --model $MODEL${C_RST}"
 info "launching ${C_BLD}${TOOL}${C_RST} via ${C_BLD}${RUNTIME}${C_RST} with model ${C_BLD}${MODEL}${C_RST}"
 export MODEL_ID="$MODEL"
+
+# Point LMS_BASE_URL/LMS_API_KEY at the *selected* runtime and export RUNTIME,
+# matching what bin/bench does. Unified adapters source config.sh, whose
+# LMS_BASE_URL default is LM Studio — without this a `--runtime ollama` run
+# would silently talk to LM Studio and mislabel which backend answered.
+case "$RUNTIME" in
+  lms)    export LMS_BASE_URL="$_LMS_URL"                 LMS_API_KEY="$_LMS_KEY";;
+  ollama) export LMS_BASE_URL="http://localhost:11434/v1" LMS_API_KEY="ollama";;
+  mlx)    export LMS_BASE_URL="http://localhost:8080/v1"  LMS_API_KEY="not-needed";;
+esac
+export RUNTIME
 if [ "${#PROMPT_ARGS[@]}" -gt 0 ]; then
   printf '%s' "${PROMPT_ARGS[*]}" | exec "$ADAPTER_FILE"
 else
