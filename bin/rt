@@ -12,7 +12,8 @@
 #   bin/rt stop mlx          kill mlx_lm.server on port 8080
 #   bin/rt stop ollama       unload active Ollama models  (ollama stop <model>)
 #   bin/rt stop lms          unload LM Studio model
-#   bin/rt stop all          stop bench + mlx + ollama + lms
+#   bin/rt stop litellm      stop the optional LiteLLM proxy
+#   bin/rt stop all          stop bench + mlx + ollama + lms + litellm
 #   bin/rt who [lms|ollama|all]  show which processes are connected to a runtime
 #
 set -uo pipefail
@@ -178,6 +179,14 @@ cmd_status() {
     printf '%s  %sloaded:%s %s\n' "${C_GRN}up (port 8080)${C_RST}" "${C_DIM}" "${C_RST}" "$mlx_model"
   else
     printf '%s\n' "${C_DIM}down${C_RST}"
+  fi
+
+  # Optional layer — only surface it when running, so the default (adapters
+  # talking to runtimes directly) stays uncluttered.
+  if curl -fsS --max-time 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
+    printf '%s ' "${C_BLU}LiteLLM${C_RST}"
+    printf '%s  %sport %s, routes:%s lms/ ollama/ mlx/\n' \
+      "${C_GRN}up${C_RST}" "${C_DIM}" "$LITELLM_PORT" "${C_RST}"
   fi
 
   # ── next steps ───────────────────────────────────────────────────────────────
@@ -685,7 +694,7 @@ cmd_watch() {
 
 cmd_stop() {
   local target="${1:-}"
-  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|ollama|lms|all]"; exit 1; }
+  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|ollama|lms|litellm|all]"; exit 1; }
 
   case "$target" in
     bench)
@@ -714,6 +723,16 @@ cmd_stop() {
         info "stopping MLX server (PID $pid)"
         kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
         ok "MLX stopped"
+      fi
+      ;;
+    litellm)
+      local pid; pid=$(lsof -ti ":$LITELLM_PORT" 2>/dev/null | head -1)
+      if [ -z "$pid" ]; then
+        info "litellm: nothing on port $LITELLM_PORT"
+      else
+        info "stopping LiteLLM proxy (PID $pid)"
+        kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+        ok "LiteLLM stopped"
       fi
       ;;
     ollama)
@@ -765,9 +784,10 @@ cmd_stop() {
       cmd_stop mlx
       cmd_stop ollama
       cmd_stop lms
+      cmd_stop litellm
       ;;
     *)
-      die "unknown stop target: $target (valid: bench mlx ollama lms all)"
+      die "unknown stop target: $target (valid: bench mlx ollama lms litellm all)"
       ;;
   esac
 }

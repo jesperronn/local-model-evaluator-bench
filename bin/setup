@@ -23,6 +23,7 @@
 #   --ollama           Ollama runtime
 #   --fzf              fzf (required for --interactive pickers)
 #   --hf               HuggingFace CLI (required for bin/lms_update)
+#   --litellm          uv, prerequisite for the optional bin/litellm-proxy
 #
 # Model flags:
 #   --model            show model status across runtimes
@@ -97,6 +98,7 @@ show_help() {
   help_flag "--mlx-server" "" "mlx-lm Python package (mlx_lm.server)"
   help_flag "--ollama" "" "Ollama runtime"
   help_flag "--fzf" "" "fzf (required for --interactive pickers)"
+  help_flag "--litellm" "" "uv, prerequisite for the optional bin/litellm-proxy"
   help_flag "--hf" "" "HuggingFace CLI (required for bin/lms_update)"
 
   help_section "MODEL FLAGS"
@@ -126,7 +128,7 @@ DRY_RUN=0; VERBOSE=0; INTERACTIVE=0; FORCE=0
 NEEDS_FORCE=0; STATUS_ONLY=0
 DO_ALL=0
 DO_LMS=0; DO_HERMES=0; DO_CODEX=0; DO_OPENCODE=0; DO_AIDER=0
-DO_CAVEMAN=0; DO_MLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0
+DO_CAVEMAN=0; DO_MLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0; DO_LITELLM=0
 DO_MODEL=0; MODEL_PROFILE=""; RUNTIME=""
 DO_SYNC=0
 AGENT_FILTER=""; DO_AGENT=0
@@ -147,6 +149,7 @@ while [ $# -gt 0 ]; do
     --mlx-server)     DO_MLX=1; shift;;
     --ollama)         DO_OLLAMA=1; shift;;
     --fzf)            DO_FZF=1; shift;;
+    --litellm)        DO_LITELLM=1; shift;;
     --hf)             DO_HF=1; shift;;
     --agent)          DO_AGENT=1; AGENT_FILTER="$2"; shift 2;;
     --model)          DO_MODEL=1; MODEL_PROFILE="${2:-}"; shift; [ -n "$MODEL_PROFILE" ] && shift || true;;
@@ -159,7 +162,7 @@ done
 
 if [ "$DO_ALL" = 1 ]; then
   DO_LMS=1; DO_HERMES=1; DO_CODEX=1; DO_OPENCODE=1; DO_AIDER=1
-  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1
+  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1; DO_LITELLM=1
 fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -427,6 +430,14 @@ setup_hf() {
   step "HuggingFace CLI (hf)"
   check_cmd "hf" hf "brew install hf  # required for bin/lms_update" || \
     { [ "$DO_HF" = 1 ] && do_install "hf" hf "hf"; }
+}
+
+setup_litellm() {
+  # Optional: bin/litellm-proxy runs litellm via uvx, so uv is the only real
+  # prerequisite — nothing to install up front.
+  step "LiteLLM proxy (optional, via uvx)"
+  check_cmd "uv" uv "brew install uv  # required by bin/litellm-proxy" || \
+    { [ "$DO_LITELLM" = 1 ] && do_install "uv" uv "uv"; }
 }
 
 # ── Agent configuration ───────────────────────────────────────────────────────
@@ -863,6 +874,7 @@ if [ "$STATUS_ONLY" = 1 ]; then
   setup_ollama
   setup_fzf
   setup_hf
+  setup_litellm
   echo
   show_models
   echo
@@ -921,7 +933,7 @@ fi
 
 if [ "$DO_ALL" = 1 ]; then
   DO_LMS=1; DO_HERMES=1; DO_CODEX=1; DO_OPENCODE=1; DO_AIDER=1
-  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1
+  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1; DO_LITELLM=1
 fi
 
 [ "$DO_LMS" = 1 ]     && setup_lms
@@ -934,6 +946,7 @@ fi
 [ "$DO_OLLAMA" = 1 ]  && setup_ollama
 [ "$DO_FZF" = 1 ]     && setup_fzf
 [ "$DO_HF" = 1 ]      && setup_hf
+[ "$DO_LITELLM" = 1 ] && setup_litellm
 [ "$DO_MODEL" = 1 ]   && show_models
 
 # ── Wire agent native configs to config.sh (endpoint / api key / aider model) ─

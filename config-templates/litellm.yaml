@@ -33,6 +33,12 @@ model_list:
       api_key: not-needed
 
 litellm_settings:
+  # REQUIRED, not a nicety. Without it a wildcard route makes /v1/models return
+  # litellm's built-in OpenAI registry with our prefix pasted on — 642 entries,
+  # zero of them real, 549 cloud names like `lms/o3-deep-research`. That both
+  # breaks discovery and dangles hosted model names in a local-only setup. With
+  # it, litellm queries each backend and returns what is actually installed.
+  check_provider_endpoint: true
   # No cross-backend fallbacks: fail closed rather than grading the wrong model.
   num_retries: 0
   request_timeout: 600
