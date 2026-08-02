@@ -1155,5 +1155,25 @@
     "status": "open",
     "last_seen": "2026-07-29",
     "last_run_id": "20260729-111346"
+  },
+  "opencode:ornith-1.0-9b:lms": {
+    "adapter": "opencode",
+    "model": "ornith-1.0-9b",
+    "runtime": "lms",
+    "agent_version": "1.18.9",
+    "first_seen": "2026-07-30",
+    "run_id": "20260730-075909",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "open"
+  },
+  "opencode:ornith-1.0-35b:lms": {
+    "adapter": "opencode",
+    "model": "ornith-1.0-35b",
+    "runtime": "lms",
+    "agent_version": "1.18.9",
+    "first_seen": "2026-07-30",
+    "run_id": "20260730-075909",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "open"
   }
 }

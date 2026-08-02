@@ -72,6 +72,18 @@ else
   problems_found+=("lms_not_reachable")
 fi
 
+_lms_settings="$HOME/.lmstudio/settings.json"
+if [ -f "$_lms_settings" ]; then
+  _ctx_type="$(jq -r '.defaultContextLength.type // empty' "$_lms_settings" 2>/dev/null)"
+  if [ "$_ctx_type" = "max" ]; then
+    ok "default context length: Model maximum"
+  else
+    warn "default context length: ${_ctx_type:-not set} (expected: max) — models opened from the" \
+      "LM Studio UI get capped at a fixed context instead of their real maximum"
+    problems_found+=("lms_context_not_max")
+  fi
+fi
+
 echo
 info "LM Studio runtime engines:"
 if command -v lms >/dev/null 2>&1; then
@@ -340,6 +352,15 @@ if [ ${#problems_found[@]} -gt 0 ]; then
     help_line "     ${C_DIM}Or browse available models:${C_RST} ${C_GRN}\$ lms ps${C_RST}"
     help_line "     ${C_DIM}Note: if model fails to load, check runtime compatibility:${C_RST}"
     help_line "     ${C_GRN}\$ lms runtime ls${C_RST}  ${C_DIM}(shows supported formats per engine)${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: LM Studio default context length not set to Model maximum
+  if [ -n "${unique_problems[lms_context_not_max]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Set LM Studio's default context length to Model maximum${C_RST}"
+    help_line "     ${C_GRN}\$ bin/lmstudio-context fix${C_RST}"
+    help_line "     ${C_DIM}bin/smoke/bin/bench always pass an explicit -c and are unaffected;${C_RST}"
+    help_line "     ${C_DIM}this only matters for models loaded via the LM Studio UI.${C_RST}"
     ((step++))
   fi
 
