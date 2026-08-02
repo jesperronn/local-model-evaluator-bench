@@ -323,6 +323,9 @@ case "$RUNTIME" in
 esac
 export LMS_BASE_URL="$RUNTIME_BASE_URL"
 export LMS_API_KEY="$RUNTIME_API_KEY"
+# Unified adapters (one file per tool, no -lms/-ollama/-mlx variants) branch on
+# this for the flags that genuinely differ per runtime, e.g. aider's edit format.
+export RUNTIME
 
 # Resolve the three axes into arrays.
 IFS=',' read -ra ADAPTER_ARR <<< "$ADAPTERS"

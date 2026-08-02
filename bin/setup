@@ -65,7 +65,7 @@ get_available_agents() {
   # Extract unique agent names from adapters/ directory. Strips the trailing
   # -<runtime>.sh suffix rather than everything after the first hyphen, so
   # multi-word agent names (e.g. mini-swe-agent) survive intact.
-  (cd "$HERE/adapters" && ls -1 *.sh 2>/dev/null | sed -E 's/-(proxy-ollama|lms|mlx|ollama)\.sh$//' | sort -u)
+  (cd "$HERE/adapters" && ls -1 *.sh 2>/dev/null | sed -E 's/-(proxy-ollama|lms|mlx|ollama)\.sh$//; s/\.sh$//' | sort -u)
 }
 
 show_help() {

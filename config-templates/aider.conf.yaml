@@ -5,7 +5,7 @@
 # Edit config.sh and re-run `bin/agents-config --write` rather than hand-editing.
 #
 # The `openai/` prefix routes the model through aider's OpenAI-compatible client
-# (matches adapters/aider-lms.sh, which invokes `--model openai/<id>`).
+# (matches adapters/aider.sh, which invokes `--model openai/<id>`).
 
 openai-api-base: http://127.0.0.1:1234/v1
 openai-api-key: lm-studio

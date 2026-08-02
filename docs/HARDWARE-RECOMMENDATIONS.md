@@ -212,7 +212,7 @@ echo "qwen/qwen3.5-9b" >> models.txt
 bin/smoke --model qwen/qwen3.5-9b
 
 # Run aider directly
-MODEL_ID=qwen/qwen3.5-9b adapters/aider-lms.sh <<< "fix the off-by-one in utils.js"
+MODEL_ID=qwen/qwen3.5-9b adapters/aider.sh <<< "fix the off-by-one in utils.js"
 ```
 
 ---

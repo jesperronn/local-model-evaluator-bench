@@ -17,7 +17,7 @@ Today, running a coding task against a local model requires juggling multiple co
 
 ```
 lms load <id> --context-length 65536 --parallel 4 --ttl 3600 --yes
-adapters/aider-lms.sh          # or opencode-lms.sh, hermes-mlx.sh, etc.
+adapters/aider.sh          # or opencode-lms.sh, hermes-mlx.sh, etc.
 ```
 
 No single entry point. No validation. No auto-discovery. No actionable errors.
@@ -93,7 +93,7 @@ The `-` entries in `models-aliases.conf` are the "not available" signal.
 Adapter naming convention is already `adapters/<tool>-<runtime>.sh`:
 
 ```
-tool=aider, runtime=mlx → adapters/aider-mlx.sh (if it exists)
+tool=aider, runtime=mlx → adapters/aider.sh (unified; branches on $RUNTIME)
 tool=hermes, runtime=lms → adapters/hermes-lms.sh
 ```
 
@@ -207,7 +207,7 @@ lib/launch-common.sh  # shared: discovery, validation, resolution
 
 | Today | With `llmrun` |
 |-------|---------------|
-| `lms load <id>` + `adapters/aider-lms.sh` | `llmrun --agent aider --model qwen3.5-9b` |
+| `lms load <id>` + `adapters/aider.sh` | `llmrun --agent aider --model qwen3.5-9b` |
 | `lms load <id>` + `adapters/opencode-lms.sh` | `llmrun --agent opencode --model qwen3.5-9b` |
 | Manual adapter discovery | Auto-discovers all `<tool>-<runtime>.sh` on PATH |
 | Manual model lookup | Resolves aliases, checks loaded state, offers to load |
