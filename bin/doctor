@@ -84,6 +84,14 @@ if [ -f "$_lms_settings" ]; then
   fi
 fi
 
+# Optional component: only report on it when it's actually running, since the
+# default setup has adapters talking to the runtimes directly.
+if curl -fsS -m 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
+  echo
+  info "LiteLLM proxy: $LITELLM_BASE_URL (optional, running)"
+  ok "reachable — address models as lms/<id>, ollama/<id>, mlx/<id>"
+fi
+
 echo
 info "LM Studio runtime engines:"
 if command -v lms >/dev/null 2>&1; then

@@ -1,14 +1,14 @@
 # Decision: LiteLLM proxy layer
 
 **Date:** 2026-06-27
-**Status:** Deferred — revisit when pain increases
+**Updated:** 2026-08-02 — spiked and measured; status changed
+**Status:** Available but **not** on the default path (`bin/litellm-proxy`)
 
 ## Context
 
 We run strictly local, air-gapped open-weight models. Each runtime (LM Studio,
 Ollama, mlx_lm.server) has its own model list file (`models.txt`,
-`models-ollama.txt`, `models-mlx.txt`) and its own adapter code. Agents must be
-configured per-runtime with hardcoded API base URLs and model identifiers.
+`models-ollama.txt`, `models-mlx.txt`) and its own adapter code.
 
 LiteLLM is a Python proxy that presents a single OpenAI-compatible API in front
 of multiple backends. It runs locally and routes requests to whichever runtime
@@ -16,48 +16,73 @@ is serving the model.
 
 ## Decision
 
-Skip LiteLLM for now. The current setup works and adding a proxy is an extra
-moving part without enough payoff today.
+Ship it as an **optional** component, and do not route adapters through it by
+default. The 2026-08-02 spike showed the thing we most wanted from it —
+collapsing per-runtime adapters — did not actually require it.
 
-## Criteria for revisiting
+## What the spike measured
 
-We should revisit this decision if LiteLLM would help with any of these:
+Verified end-to-end: aider → LiteLLM (`:4444`) → LM Studio, real edit applied.
+Wildcard routes (`lms/*`, `ollama/*`, `mlx/*`) pass the model id through, so no
+model needs listing individually.
 
-### 1. Simplify model configuration
+**RAM: ~270 MB RSS.** Negligible next to the KV-cache budget, so it is not a
+concern even on a 32 GB machine — `BENCH_CONTEXT`/`BENCH_PARALLEL` dominate by
+orders of magnitude. RAM was never the reason to hesitate.
 
-Today we maintain three `models*.txt` files with runtime-specific model
-identifiers (LM Studio keys, Ollama tags, HuggingFace repo paths). A proxy
-layer could let us define models once with canonical names and map them to
-whatever runtime is available.
+**Packaging is fragile.** A plain `uvx litellm` dies at startup with
+`ModuleNotFoundError: proxy_server`; litellm under-constrains fastapi and the
+default resolution imports a symbol newer fastapi dropped. `bin/litellm-proxy`
+pins `--python 3.12 --with 'fastapi<0.116'` to work around this. Expect this pin
+to need revisiting on upgrade.
 
-**Revisit when:** maintaining three model lists becomes a source of drift or
-errors, or when we want to test the same logical model across runtimes without
-duplicating config.
+## Revisit criteria, re-evaluated
 
-### 2. Reduce adapter count
+### 1. Simplify model configuration — *still open, still the best reason*
 
-Each runtime needs its own adapter logic to handle API differences. If LiteLLM
-normalizes all backends behind one OpenAI-compatible endpoint, adapters could
-collapse into a single "talk to LiteLLM" adapter.
+Three `models*.txt` files with runtime-specific ids remain the real duplication.
+A canonical-name → runtime mapping is the strongest remaining argument for the
+proxy. Not attempted in the spike.
 
-**Revisit when:** we add more runtimes (vLLM, llama.cpp server, etc.) and
-adapter maintenance becomes a drag.
+### 2. Reduce adapter count — **resolved without LiteLLM**
 
-### 3. Model discovery without hardcoded config
+The original premise was wrong in two ways:
 
-Today, agents need a specific model identifier baked into their config. LiteLLM
-can list available models via its `/v1/models` endpoint, which aggregates across
-all connected backends. Agents could discover what's loaded at runtime instead
-of relying on static config files.
+- **The endpoint boilerplate was already solved.** `bin/bench` sets
+  `LMS_BASE_URL`/`LMS_API_KEY` to whichever runtime is active, so an adapter
+  reading those works under all three. The `-lms`/`-ollama`/`-mlx` variants were
+  duplicating a URL that `bin/bench` already supplied.
+- **LiteLLM does not normalize what actually differs.** It translates
+  `tool_calls` schemas between providers and can prompt-inject functions for
+  models with no native support — but it does *not* repair a model that emits
+  malformed/text tool-calls (that remains `bin/tool-call-proxy`'s job), and it
+  has no visibility into aider's `--edit-format` (`whole` vs `diff`), which is a
+  *prompting* choice inside aider, above the HTTP layer.
 
-**Revisit when:** we want agents to auto-select models, or when the
-model-loading workflow (download → add to txt file → run bench) feels too
-manual.
+The aider adapters were unified into one `adapters/aider.sh` branching on
+`$RUNTIME`, with no proxy involved. Any remaining per-runtime flags
+(`--edit-format`, `--model-metadata-file`) are tool-side config LiteLLM cannot
+touch, so they would survive a proxy migration unchanged.
 
-## Notes
+### 3. Model discovery — *still open*
 
-- LiteLLM does not need internet at runtime for local routing, but phones home
-  for telemetry by default (disable with `LITELLM_TELEMETRY=False`).
-- Install while online (`pip install litellm[proxy]`), then run offline.
-- Our `config.sh` already has `LMS_API_BASE` — this is the same abstraction
-  point where LiteLLM would slot in.
+Unchanged from the original assessment.
+
+## Local-only constraint
+
+`config-templates/litellm.yaml` lists **no** hosted providers and sets
+`num_retries: 0` with no fallbacks, so a request whose backend is down fails
+rather than rerouting (verified: a request to a dead mlx backend returns
+`Fallbacks=None`, not a substituted model). This is load-bearing — a remote
+fallback would leak sandbox prompts off-machine *and* silently grade a different
+model than the result label claims. Telemetry is disabled in-config.
+
+## Usage
+
+```bash
+bin/litellm-proxy          # foreground, port $LITELLM_PORT (default 4444)
+bin/litellm-proxy --check  # verify reachable
+```
+
+`bin/doctor` reports the proxy only when it is running, since the default path
+does not use it.

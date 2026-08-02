@@ -13,6 +13,12 @@ export LMS_API_KEY="${LMS_API_KEY:-lm-studio}"
 # Start the proxy first: bin/tool-call-proxy &
 export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
 
+# Optional LiteLLM proxy fronting all three local runtimes on one endpoint.
+# Not used by default — adapters reach the runtimes directly. Start it with
+# `bin/litellm-proxy` and address models as lms/<id>, ollama/<id>, mlx/<id>.
+export LITELLM_PORT="${LITELLM_PORT:-4444}"
+export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1}"
+
 # Default model used by adapters when MODEL_ID is not set externally.
 # Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh
 # Standard model for local evaluations: qwen2.5-coder-7b (balanced speed/quality for smaller models)

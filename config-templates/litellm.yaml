@@ -1,0 +1,43 @@
+# LiteLLM proxy config — LOCAL RUNTIMES ONLY.
+#
+# Deliberately contains no hosted/cloud providers and no fallbacks: a request
+# for a model whose local backend is down must fail, not silently reroute. A
+# cloud fallback would both leak sandbox prompts off-machine and quietly
+# invalidate benchmark results by grading a different model than the label says.
+#
+# Wildcard routes pass the model id through after the prefix, so no model needs
+# listing here individually:
+#   lms/<id>    -> LM Studio       (bin/litellm-proxy overrides via LMS_BASE_URL)
+#   ollama/<id> -> Ollama
+#   mlx/<id>    -> mlx_lm.server
+#
+# Start with: bin/litellm-proxy
+
+model_list:
+  - model_name: "lms/*"
+    litellm_params:
+      model: "openai/*"
+      api_base: os.environ/LITELLM_LMS_BASE
+      api_key: lm-studio
+
+  - model_name: "ollama/*"
+    litellm_params:
+      model: "openai/*"
+      api_base: os.environ/LITELLM_OLLAMA_BASE
+      api_key: ollama
+
+  - model_name: "mlx/*"
+    litellm_params:
+      model: "openai/*"
+      api_base: os.environ/LITELLM_MLX_BASE
+      api_key: not-needed
+
+litellm_settings:
+  # No cross-backend fallbacks: fail closed rather than grading the wrong model.
+  num_retries: 0
+  request_timeout: 600
+  drop_params: true
+
+general_settings:
+  # Local-only proxy; no auth layer, no telemetry, no spend DB.
+  telemetry: false
