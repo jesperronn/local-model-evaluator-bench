@@ -1175,5 +1175,33 @@
     "run_id": "20260730-075909",
     "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
     "status": "open"
+  },
+  "hermes:Ornith-1.0-35B-4bit:omlx": {
+    "adapter": "hermes",
+    "model": "Ornith-1.0-35B-4bit",
+    "runtime": "omlx",
+    "agent_version": "Hermes Agent v0.20.0 (2026.8.3)",
+    "first_seen": "2026-08-08",
+    "run_id": "20260808-113142",
+    "symptom": "Could you check which tools are available in your current Hermes configuration? The error suggests only `process` is ava",
+    "status": "resolved",
+    "last_seen": "2026-08-08",
+    "last_run_id": "20260808-113317",
+    "resolved_date": "2026-08-08",
+    "resolved_run_id": "20260808-113427",
+    "resolved_agent_version": "Hermes Agent v0.20.0 (2026.8.3)"
+  },
+  "copilot:Ornith-1.0-35B-4bit:omlx": {
+    "adapter": "copilot",
+    "model": "Ornith-1.0-35B-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-08",
+    "run_id": "20260808-113515",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "resolved",
+    "resolved_date": "2026-08-08",
+    "resolved_run_id": "20260808-113705",
+    "resolved_agent_version": "unknown"
   }
 }
