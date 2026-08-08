@@ -39,8 +39,11 @@ sed \
 # Regenerate: cd @@PROJECT@@ && bin/build-llmrun
 #
 # Usage:
-#   llmrun [--agent <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [prompt...]
+#   llmrun [--agent <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [--dry-run] [prompt...]
 #   llmrun runtime status|start|stop|logs [lms|ollama|mlx|all] ...
+#
+# --dry-run resolves tool/runtime/model/adapter as usual but prints the
+# resolved adapter path and env instead of exec'ing it — no model is loaded.
 #
 # All three flags fall back to fzf pickers when not given.
 # Adapters live in the source project — set LLMRUN_ADAPTERS to override.
@@ -665,12 +668,13 @@ fi
 
 trap 'echo; warn "Interrupted"; exit 130' INT TERM
 
-TOOL=""; RUNTIME=""; MODEL=""; PROMPT_ARGS=()
+TOOL=""; RUNTIME=""; MODEL=""; PROMPT_ARGS=(); LLMRUN_DRY_RUN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent|-t)    TOOL="$2";    shift 2;;
     --runtime|-r) RUNTIME="$2"; shift 2;;
     --model|-m)   MODEL="$2";   shift 2;;
+    --dry-run)    LLMRUN_DRY_RUN=1; shift;;
     -h|--help)
       awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
       printf '\n%s\n' "${C_BLD}Available agents:${C_RST}"
@@ -771,6 +775,25 @@ if [ ! -f "$ADAPTER_FILE" ]; then
   all_adapters | sed 's/^/  /'
   printf '\nTry a different --agent or --runtime.\n'
   exit 1
+fi
+
+# --dry-run stops here — it exists to let callers verify tool/runtime/model
+# resolution and the adapter env without a live runtime, a PATH-installed
+# tool binary, or a model load.
+if [ "$LLMRUN_DRY_RUN" = 1 ]; then
+  case "$RUNTIME" in
+    lms)    dr_url="$_LMS_URL"                 dr_key="$_LMS_KEY";;
+    ollama) dr_url="http://localhost:11434/v1" dr_key="ollama";;
+    mlx)    dr_url="http://localhost:8080/v1"  dr_key="not-needed";;
+  esac
+  printf 'agent=%s\n'   "$TOOL"
+  printf 'runtime=%s\n' "$RUNTIME"
+  printf 'model=%s\n'   "$MODEL"
+  printf 'adapter=%s\n' "$ADAPTER_FILE"
+  printf 'LMS_BASE_URL=%s\n' "$dr_url"
+  printf 'LMS_API_KEY=%s\n'  "$dr_key"
+  printf 'cmd=%s\n' "$ADAPTER_FILE"
+  exit 0
 fi
 
 case "$RUNTIME" in

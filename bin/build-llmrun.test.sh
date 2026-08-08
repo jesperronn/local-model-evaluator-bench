@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # bin/build-llmrun.test.sh — verify build-llmrun's output without loading models.
 # Tests that the generated llmrun script is syntactically valid, has no unsubstituted
-# template variables, contains all required config values, and the adapter directory exists.
+# template variables, contains all required config values, the adapter directory
+# exists, and --dry-run resolves the correct adapter file for both a
+# runtime-suffixed and a unified adapter (and fails for an unknown agent) —
+# all without exec'ing an adapter or loading a model.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -105,6 +108,41 @@ check "LMS_BASE_URL is non-empty" "pass" "$lms_url_status"
 lms_key_status="pass"
 [ -z "$LMS_API_KEY" ] && lms_key_status="fail"
 check "LMS_API_KEY is non-empty" "pass" "$lms_key_status"
+
+# ── Test 7: --dry-run resolves adapter/runtime/model without exec'ing ────────
+# Pick a real adapter pair straight from adapters/ so this stays correct as
+# adapters are added/removed (mirrors what lint-adapters does for tool lookup).
+runtime_suffixed="$(ls "$HERE/adapters"/*-lms.sh 2>/dev/null | head -1)"
+if [ -n "$runtime_suffixed" ]; then
+  suffixed_tool="$(basename "$runtime_suffixed" -lms.sh)"
+  dr_out="$("$GENERATED_SCRIPT" --agent "$suffixed_tool" --runtime lms --model test-model --dry-run 2>&1)"
+  check "dry-run resolves runtime-suffixed adapter ($suffixed_tool-lms.sh)" \
+    "$runtime_suffixed" "$(printf '%s\n' "$dr_out" | sed -n 's/^adapter=//p')"
+  check "dry-run reports agent=$suffixed_tool" "agent=$suffixed_tool" "$(printf '%s\n' "$dr_out" | grep '^agent=')"
+  check "dry-run reports runtime=lms" "runtime=lms" "$(printf '%s\n' "$dr_out" | grep '^runtime=')"
+  check "dry-run does not print launching (never execs)" "0" "$(printf '%s\n' "$dr_out" | grep -c 'launching')"
+else
+  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no *-lms.sh adapter found — skipping runtime-suffixed dry-run check"
+fi
+
+# Unified adapter (no runtime suffix): falls back to <tool>.sh per Phase 2's
+# resolution order — pick one that has no lms/ollama/mlx/omlx-suffixed sibling.
+unified_adapter="$(ls "$HERE/adapters"/*.sh 2>/dev/null | grep -vE '(-lms|-ollama|-mlx|-omlx)\.sh$' | head -1)"
+if [ -n "$unified_adapter" ]; then
+  unified_tool="$(basename "$unified_adapter" .sh)"
+  dr_out2="$("$GENERATED_SCRIPT" --agent "$unified_tool" --runtime ollama --model test-model --dry-run 2>&1)"
+  check "dry-run falls back to unified adapter ($unified_tool.sh)" \
+    "$unified_adapter" "$(printf '%s\n' "$dr_out2" | sed -n 's/^adapter=//p')"
+else
+  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no unified adapter found — skipping fallback dry-run check"
+fi
+
+# Unknown agent must fail (non-zero exit) without ever reaching exec — the
+# whole point of --dry-run is to catch a bad resolution before it costs a
+# model load, so this must not silently succeed.
+dr_bad_exit=0
+"$GENERATED_SCRIPT" --agent __nonexistent_agent__ --runtime lms --model test-model --dry-run >/dev/null 2>&1 || dr_bad_exit=$?
+check "dry-run exits non-zero for an unknown agent" "1" "$([ "$dr_bad_exit" -ne 0 ] && echo 1 || echo 0)"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 total=$((pass + fail))
