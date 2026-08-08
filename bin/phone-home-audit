@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# bin/phone-home-audit — prove every adapter run is fully local.
+#
+# This bench's premise is *local* model evaluation. An adapter can point
+# inference correctly at oMLX/LM Studio/Ollama (loopback) while the CLI it
+# wraps still quietly phones its own vendor's cloud for telemetry, update
+# checks, or "preconnect" latency pings — none of which show up in --help.
+# See docs/HANDOFF-phone-home-audit.md for the qwen-code case study that
+# motivated this (three unrelated Alibaba Cloud destinations).
+#
+# Detect mode (default): runs each adapter for a short window with network
+# capture active (bin/lib/netcapture.sh — lsof polling + a local
+# CONNECT-logging proxy) and reports any non-loopback destination found.
+# Exit 0 = all clean, exit 1 = findings (or unresolved skips), so this can
+# gate CI/bin/smoke the way bin/lint-adapters already gates syntax.
+#
+# --fix mode: applies known env-var suppressions (bin/lib/phone-home-suppressions.sh)
+# to the adapter script, then re-runs detect to confirm the fix actually
+# silenced the connection before leaving it applied. Never applies blind.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+source "$HERE/bin/lib/netcapture.sh"
+source "$HERE/bin/lib/phone-home-suppressions.sh"
+
+show_help() {
+  help_header "phone-home-audit" "prove adapter runs don't leak network calls outside the local runtime"
+  help_section "USAGE"
+  help_line "  phone-home-audit [OPTIONS]"
+  help_section "DESCRIPTION"
+  help_line "  For each adapters/*.sh, runs a trivial smoke prompt with network capture"
+  help_line "  active and flags any outbound connection that isn't the adapter's"
+  help_line "  configured local runtime (loopback). See docs/HANDOFF-phone-home-audit.md."
+  help_section "OPTIONS"
+  help_flag "-h, --help" "" "show this help and exit"
+  help_flag "--adapter,-a" "NAME" "only audit adapters whose filename contains NAME (comma-separated)"
+  help_flag "--fix" "" "apply known suppressions (bin/lib/phone-home-suppressions.sh) and re-verify"
+  help_flag "--duration" "N" "capture window per adapter, seconds (default: 15)"
+  help_flag "--list" "" "print the known-suppressions table and exit"
+  help_section "EXIT CODES"
+  help_line "  0  all audited adapters clean"
+  help_line "  1  at least one adapter has an unexplained outbound connection"
+}
+
+adapter_filter=""
+do_fix=0
+duration=15
+list_only=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) show_help; exit 0;;
+    --adapter|-a) adapter_filter="$2"; shift 2;;
+    --fix) do_fix=1; shift;;
+    --duration) duration="$2"; shift 2;;
+    --list) list_only=1; shift;;
+    *) die "unknown option: $1 (see --help)";;
+  esac
+done
+
+if [ "$list_only" -eq 1 ]; then
+  info "Known phone-home suppressions:"
+  for row in "${PHONE_HOME_SUPPRESSIONS[@]}"; do
+    tool="${row%%$'\t'*}"; rest="${row#*$'\t'}"
+    env_kv="${rest%%$'\t'*}"; rest2="${rest#*$'\t'}"
+    host="${rest2%%$'\t'*}"; desc="${rest2#*$'\t'}"
+    printf '  %-6s %-42s %-40s %s\n' "$tool" "$env_kv" "$host" "$desc"
+  done
+  exit 0
+fi
+
+# Derive the CLI binary/tool name from an adapter filename, e.g.
+# qwen-omlx.sh -> qwen, opencode-proxy-ollama.sh -> opencode.
+tool_name_for_adapter() {
+  local n="$1"
+  n="$(basename "$n" .sh)"
+  while [[ "$n" =~ -(lms|mlx|omlx|ollama|proxy)$ ]]; do n="${n%-*}"; done
+  echo "$n"
+}
+
+# Insert `export VAR=value` into an adapter script, right after the last
+# existing top-of-file `export` line (matching the style of pi-omlx.sh /
+# qwen-omlx.sh, which group their env overrides together before the exec).
+# Falls back to inserting after the `source .../config.sh` line if the
+# adapter has no export block yet.
+apply_suppression_line() {
+  local adapter_file="$1" export_line="$2"
+  local insert_after
+  insert_after="$(grep -n '^export ' "$adapter_file" | tail -1 | cut -d: -f1)"
+  if [ -z "$insert_after" ]; then
+    insert_after="$(grep -n '^source .*config\.sh' "$adapter_file" | tail -1 | cut -d: -f1)"
+  fi
+  [ -z "$insert_after" ] && { warn "  could not find an insertion point in $adapter_file"; return 1; }
+  local tmp; tmp="$(mktemp)"
+  awk -v n="$insert_after" -v line="export $export_line" \
+    'NR==n{print; print line; next} {print}' "$adapter_file" > "$tmp"
+  mv "$tmp" "$adapter_file"
+  chmod +x "$adapter_file"
+}
+
+# Run one capture pass for an adapter. Populates the global arrays
+# FOUND_IPS / FOUND_HOSTS (newline-separated strings) for the caller.
+capture_adapter() {
+  local adapter_file="$1" tool="$2" proxy_port="$3"
+  local workdir hits_file proxy_log
+  workdir="$(mktemp -d)"
+  hits_file="$(mktemp)"
+  proxy_log="$(mktemp)"
+
+  netcap_proxy_start "$proxy_port" "$proxy_log" "$((duration + 3))"
+
+  netcap_watch "$duration" "$tool" "$hits_file" -- bash -c '
+    cd "$1"
+    export HTTPS_PROXY="http://127.0.0.1:'"$proxy_port"'"
+    export HTTP_PROXY="http://127.0.0.1:'"$proxy_port"'"
+    export NO_PROXY="127.0.0.1,localhost"
+    printf "OK\n" | "$2" >/dev/null 2>&1
+  ' _ "$workdir" "$adapter_file"
+
+  netcap_proxy_stop
+
+  FOUND_IPS="$(netcap_remote_ips "$hits_file")"
+  FOUND_HOSTS="$(netcap_connect_hosts "$proxy_log")"
+  rm -rf "$workdir" "$hits_file" "$proxy_log"
+}
+
+adapters=()
+for a in "$HERE/adapters"/*.sh; do
+  name="$(basename "$a" .sh)"
+  if [ -n "$adapter_filter" ]; then
+    matched=0
+    IFS=',' read -ra filters <<< "$adapter_filter"
+    for f in "${filters[@]}"; do
+      [[ "$name" == *"$f"* ]] && matched=1 && break
+    done
+    [ "$matched" -eq 0 ] && continue
+  fi
+  adapters+=("$a")
+done
+
+[ "${#adapters[@]}" -eq 0 ] && die "no adapters matched filter: $adapter_filter"
+
+findings=0
+skipped=0
+port_base=18080
+i=0
+
+for adapter_file in "${adapters[@]}"; do
+  name="$(basename "$adapter_file" .sh)"
+  tool="$(tool_name_for_adapter "$name")"
+  i=$((i + 1))
+  port=$((port_base + i))
+
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    warn "$name  skipped ($tool not installed)"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  capture_adapter "$adapter_file" "$tool" "$port"
+  ips="$FOUND_IPS"
+  hosts="$FOUND_HOSTS"
+
+  if [ -z "$ips" ] && [ -z "$hosts" ]; then
+    ok "$name  clean — no non-loopback connections"
+    continue
+  fi
+
+  err "$name  outbound connection(s) found:"
+  if [ -n "$hosts" ]; then
+    while IFS= read -r h; do
+      [ -z "$h" ] && continue
+      printf '         host: %s\n' "$h"
+    done <<< "$hosts"
+  fi
+  if [ -n "$ips" ]; then
+    while IFS= read -r ip; do
+      [ -z "$ip" ] && continue
+      org="$(netcap_whois_org "$ip")"
+      printf '         ip:   %s  (%s)\n' "$ip" "$org"
+    done <<< "$ips"
+  fi
+  findings=$((findings + 1))
+
+  if [ "$do_fix" -eq 1 ]; then
+    if phone_home_has_suppressions "$tool"; then
+      applied_any=0
+      while IFS=$'\t' read -r env_kv host_frag desc; do
+        [ -z "$env_kv" ] && continue
+        var="${env_kv%%=*}"
+        if grep -q "^export ${var}=" "$adapter_file"; then
+          info "  $name  $var already set — skipping"
+          continue
+        fi
+        info "  $name  applying: export $env_kv  ($desc)"
+        apply_suppression_line "$adapter_file" "$env_kv" && applied_any=1
+      done < <(phone_home_suppressions_for "$tool")
+
+      if [ "$applied_any" -eq 1 ]; then
+        info "  $name  re-verifying after fix..."
+        capture_adapter "$adapter_file" "$tool" "$port"
+        if [ -z "$FOUND_IPS" ] && [ -z "$FOUND_HOSTS" ]; then
+          ok "  $name  fixed — clean on re-run"
+          findings=$((findings - 1))
+        else
+          err "  $name  still leaking after applying known suppressions:"
+          [ -n "$FOUND_HOSTS" ] && printf '           host: %s\n' "$FOUND_HOSTS"
+          [ -n "$FOUND_IPS" ] && printf '           ip:   %s\n' "$FOUND_IPS"
+        fi
+      fi
+    else
+      warn "  $name  no known suppression for '$tool' — needs manual investigation" \
+        "(grep the installed package for the hostname above; see docs/HANDOFF-phone-home-audit.md Method)"
+    fi
+  fi
+done
+
+echo
+if [ "$findings" -eq 0 ]; then
+  printf '%s\n' "${C_GRN}${C_BLD}All audited adapters clean.${C_RST}${skipped:+ ($skipped skipped, tool not installed)}"
+  exit 0
+else
+  printf '%s\n' "${C_RED}${C_BLD}$findings adapter(s) with unexplained outbound connections.${C_RST}"
+  exit 1
+fi
