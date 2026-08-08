@@ -1203,5 +1203,42 @@
     "resolved_date": "2026-08-08",
     "resolved_run_id": "20260808-113705",
     "resolved_agent_version": "unknown"
+  },
+  "forge:Ornith-1.0-35B-4bit:omlx": {
+    "adapter": "forge",
+    "model": "Ornith-1.0-35B-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-08",
+    "run_id": "20260808-114309",
+    "symptom": "Error: Could not locate the bindings file. Tried:",
+    "status": "open"
+  },
+  "claude:Ornith-1.0-35B-4bit:omlx": {
+    "adapter": "claude",
+    "model": "Ornith-1.0-35B-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-08",
+    "run_id": "20260808-114700",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open",
+    "last_seen": "2026-08-08",
+    "last_run_id": "20260808-114820"
+  },
+  "mini-swe-agent:Ornith-1.0-35B-4bit:omlx": {
+    "adapter": "mini-swe-agent",
+    "model": "Ornith-1.0-35B-4bit",
+    "runtime": "omlx",
+    "agent_version": "2.4.2",
+    "first_seen": "2026-08-08",
+    "run_id": "20260808-120335",
+    "symptom": "cannot continue working on this task.</important>",
+    "status": "resolved",
+    "last_seen": "2026-08-08",
+    "last_run_id": "20260808-120805",
+    "resolved_date": "2026-08-08",
+    "resolved_run_id": "20260808-121138",
+    "resolved_agent_version": "2.4.2"
   }
 }

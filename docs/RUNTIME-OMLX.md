@@ -52,9 +52,69 @@ Verified end to end 2026-08-06 on `Ornith-1.0-9B-4bit`, 3/3 smoke cases each:
 - `adapters/pi-omlx.sh`
 - `adapters/opencode-omlx.sh`
 
-pi and opencode both need an `omlx` provider block in their own config — neither
-queries `/v1/models`. `bin/agents-config` keeps the model lists inside those
-blocks in sync, but deliberately will not create the block itself.
+Verified end to end 2026-08-08 on `Ornith-1.0-35B-4bit`, 3/3 smoke cases each
+(see [docs/HANDOFF-omlx-adapters.md](HANDOFF-omlx-adapters.md) for the full
+sweep):
+
+- `adapters/cline-omlx.sh`, `adapters/hermes-omlx.sh`, `adapters/copilot-omlx.sh`,
+  `adapters/codex-omlx.sh`, `adapters/caveman-omlx.sh`
+- `adapters/openhands-omlx.sh`, `adapters/goose-omlx.sh`, `adapters/cn-omlx.sh`,
+  `adapters/gptme-omlx.sh`, `adapters/nanocoder-omlx.sh`,
+  `adapters/mini-swe-agent-omlx.sh`
+
+Notable fixes made along the way (all pre-existing environment/adapter issues
+that blocked these agents on *every* runtime, not just omlx):
+
+- **hermes**: `~/.hermes/config.yaml` had drifted to `terminal.backend: docker`;
+  reset to `local` per `config-templates/hermes-config.snippet.yaml`.
+- **codex**: unlike `codex-mlx.sh` (a stub — mlx_lm.server wasn't reachable via
+  codex's `--oss` path), oMLX gets the same custom-provider +
+  `wire_api=responses` treatment as `codex-lms.sh`, since that constraint
+  doesn't apply to a custom provider block.
+- **caveman**: added an `omlx` provider block to `~/.cave/agent/models.json`
+  and `config-templates/caveman-agent-models.json`, mirroring pi's — unlike
+  `caveman-mlx.sh` (a stub, since mlx_lm.server's raw HF-repo ids can't be
+  registered), oMLX's directory-basename ids work exactly like pi's.
+- **nanocoder**: named the injected provider `"oMLX"` instead of reusing
+  `nanocoder-lms.sh`'s `"LM Studio"` — a newer nanocoder rejects provider names
+  containing a space (see [MODEL-DISCOVERY.md](MODEL-DISCOVERY.md)).
+- **mini-swe-agent**: the global config at
+  `~/Library/Application Support/mini-swe-agent/.env` was missing
+  `MSWEA_CONFIGURED=true` and had a corrupted `MSWEA_MODEL_NAME` (an earlier
+  non-interactive run's prompt answer got the task text appended to it),
+  which made every invocation either hang on the first-run setup wizard or
+  read a garbage default model. Fixed the `.env` directly. The adapter also
+  needs `-c mini.yaml -c agent.mode=yolo` (default `agent.mode` is `confirm`,
+  which hangs forever with piped stdin — omitting `-c mini.yaml` when
+  overriding `agent.mode` drops the default config's required
+  `system_template`/`instance_template` fields) and
+  `MSWEA_COST_TRACKING=ignore_errors` (litellm has no cost table for local
+  model ids).
+
+Known non-omlx-specific limitations hit along the way:
+
+- **copilot**: patch-format incompatibility documented in
+  [AGENT-SELECTION.md](AGENT-SELECTION.md) shows up as an occasional flake
+  (1 failure, passed 3/3 on immediate retry) — consistent with the existing
+  lms/mlx notes, not an omlx regression.
+- **claude**: consistently fails smoke-01/02 — the model narrates that it
+  "doesn't have write permission" instead of calling the edit tool, even
+  though `--allow-dangerously-skip-permissions --print --bare` is passed.
+  Adapter wiring is confirmed correct (`all adapters reached the model`); this
+  reads as a small-model tool-calling compliance gap, not a routing bug.
+- **forge**: broken at the native-binding level
+  (`Error: Could not locate the bindings file`) regardless of runtime —
+  an npm/native-module install problem, unrelated to omlx.
+- **interpreter**: genuinely blocked — see
+  [docs/DECISION-interpreter-omlx.md](DECISION-interpreter-omlx.md).
+- **omp**: deferred — currently can't even run `--help` on this machine
+  (broken `bun` install); see
+  [docs/DECISION-omp-omlx.md](DECISION-omp-omlx.md).
+
+pi, opencode, and caveman all need an `omlx` provider block in their own
+config — none of the three query `/v1/models`. `bin/agents-config` keeps the
+model lists inside those blocks in sync, but deliberately will not create the
+block itself.
 
 Note for aider: do **not** force `--edit-format diff` here the way the ollama
 branch does. Measured on Ornith-1.0-9B-4bit, it broke create-from-scratch (the
