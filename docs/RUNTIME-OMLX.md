@@ -12,7 +12,7 @@ would make old results uncomparable:
 |---|---|---|
 | models per process | one | all of them, LRU-swapped |
 | switching model | restart the server | just ask for it |
-| port | 8080 | 4000 (oMLX's own default) |
+| port | 8080 | 8000 (oMLX's own default) |
 | model id | HF repo or filesystem path | directory basename, e.g. `Ornith-1.0-9B-4bit` |
 | `/v1/models` | the single loaded model | full inventory |
 

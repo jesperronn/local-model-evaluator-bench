@@ -17,9 +17,9 @@ export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
 # mlx_lm.server (one model per process on :8080), oMLX serves every model under
 # its model dir and swaps them LRU, so it behaves like LM Studio/Ollama: models
 # are addressed by directory basename and need no manual (re)start per model.
-# Port 4000 is oMLX's own configured default (~/.omlx/settings.json).
+# Port 8000 is oMLX's own configured default (~/.omlx/settings.json).
 # Start it with: bin/omlx start
-export OMLX_BASE_URL="${OMLX_BASE_URL:-http://127.0.0.1:4000/v1}"
+export OMLX_BASE_URL="${OMLX_BASE_URL:-http://127.0.0.1:8000/v1}"
 # oMLX runs unauthenticated by default; clients still require *some* value.
 export OMLX_API_KEY="${OMLX_API_KEY:-omlx}"
 # Directory oMLX discovers models from — used by bin/setup and bin/doctor to
