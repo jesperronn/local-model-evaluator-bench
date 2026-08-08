@@ -60,6 +60,17 @@ case "$RUNTIME" in
     # metadata has to be supplied explicitly or it refuses to run.
     AIDER_ARGS+=(--model-metadata-file "${SCRIPT_DIR}/aider-mlx-model-metadata.json")
     ;;
+  omlx)
+    # Same reason as mlx: the model id is a bare directory name aider's registry
+    # has never heard of. The metadata file is generated from what oMLX serves —
+    # regenerate after adding models with: bin/omlx aider-metadata
+    AIDER_ARGS+=(--model-metadata-file "${SCRIPT_DIR}/aider-omlx-model-metadata.json")
+    # No --edit-format override: aider's default (whole) is what works here.
+    # Measured 2026-08-06 on Ornith-1.0-9B-4bit — forcing `diff` (as the ollama
+    # branch does) made create-from-scratch fail: the model emitted a bare fenced
+    # block instead of a SEARCH/REPLACE pair with an empty SEARCH, so smoke-00
+    # never produced the file. Edits passed either way.
+    ;;
 esac
 
 AIDER_ARGS+=(--message "$MESSAGE")

@@ -13,9 +13,23 @@ export LMS_API_KEY="${LMS_API_KEY:-lm-studio}"
 # Start the proxy first: bin/tool-call-proxy &
 export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
 
-# Optional LiteLLM proxy fronting all three local runtimes on one endpoint.
+# oMLX (https://omlx.app) — multi-model MLX server for Apple Silicon. Unlike
+# mlx_lm.server (one model per process on :8080), oMLX serves every model under
+# its model dir and swaps them LRU, so it behaves like LM Studio/Ollama: models
+# are addressed by directory basename and need no manual (re)start per model.
+# Port 4000 is oMLX's own configured default (~/.omlx/settings.json).
+# Start it with: bin/omlx start
+export OMLX_BASE_URL="${OMLX_BASE_URL:-http://127.0.0.1:4000/v1}"
+# oMLX runs unauthenticated by default; clients still require *some* value.
+export OMLX_API_KEY="${OMLX_API_KEY:-omlx}"
+# Directory oMLX discovers models from — used by bin/setup and bin/doctor to
+# report what is installed without going through the HTTP API.
+export OMLX_MODELS_DIR="${OMLX_MODELS_DIR:-$HOME/.omlx/models}"
+
+# Optional LiteLLM proxy fronting all four local runtimes on one endpoint.
 # Not used by default — adapters reach the runtimes directly. Start it with
-# `bin/litellm-proxy` and address models as lms/<id>, ollama/<id>, mlx/<id>.
+# `bin/litellm-proxy` and address models as lms/<id>, ollama/<id>, mlx/<id>,
+# omlx/<id>.
 export LITELLM_PORT="${LITELLM_PORT:-4444}"
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1}"
 

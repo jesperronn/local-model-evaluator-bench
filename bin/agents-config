@@ -3,14 +3,14 @@
 #
 # Two concerns, both idempotent:
 #   1. model lists   — re-derive opencode + pi + caveman model lists from what's
-#                      actually installed (lms ls / ollama list), minus known-
-#                      broken combos.
+#                      actually installed (lms ls / ollama list / oMLX
+#                      /v1/models), minus known-broken combos.
 #   2. settings      — push config.sh's endpoint + api key (and aider's default
 #                      model) into each agent's own config file so the agent works
 #                      when run directly, not just via the bench adapters.
 #
 # config.sh is the single source of truth (LMS_BASE_URL, LMS_API_KEY,
-# OLLAMA_BASE_URL, PREFERRED_MODEL_ID). Re-run after any `lms get/rm`,
+# OLLAMA_BASE_URL, OMLX_BASE_URL, PREFERRED_MODEL_ID). Re-run after any `lms get/rm`,
 # `ollama pull/rm`, or after editing config.sh.
 #
 # Usage:
@@ -29,6 +29,11 @@
 # endpoint key is `api`, not base_url. Default model is written only for aider
 # (its id form is unambiguous); pi/opencode/caveman keep whatever default model
 # you chose.
+#
+# The omlx provider is synced only when the agent's config already declares it —
+# these agents can't discover models over HTTP, but silently inventing a provider
+# block in someone's hand-written config is worse than leaving it alone. Create
+# the block once (see docs/RUNTIME-OMLX.md), and it stays in sync from then on.
 #
 # What it does NOT touch: mlx / ollama_proxy providers in opencode, and
 # pi/opencode/caveman top-level default model.
@@ -86,6 +91,12 @@ OLLAMA_JSON="[]"
 if command -v ollama >/dev/null 2>&1; then
   OLLAMA_JSON="$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | jq -R . | jq -s .)"
 fi
+# oMLX has no CLI inventory command — the server IS the inventory. If it's down
+# we can't tell "no models" from "not running", so leave the lists alone.
+OMLX_JSON="[]"
+if omlx_up; then
+  OMLX_JSON="$(omlx_models | jq -R . | jq -s .)"
+fi
 
 broken_keys_for() {
   local adapter="$1"
@@ -99,14 +110,23 @@ sync_one_models_json_file() {
   local target="$1" label="$2" adapter="$3"
   [ -f "$target" ] || { echo "$label: not found, skipping (run bin/setup --caveman-cli first)"; return; }
   local broken_json; broken_json="$(broken_keys_for "$adapter" | jq -R . | jq -s .)"
-  local lms_models ollama_models
+  local lms_models ollama_models omlx_models_json
   lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_json" '
     [.[] | .modelKey as $k | select($broken | index($k) | not) | {id: $k}] | sort_by(.id)')"
   ollama_models="$(echo "$OLLAMA_JSON" | jq --argjson broken "$broken_json" '
     [.[] | select(test("embed") | not) | select(. as $k | $broken | index($k) | not) | {id: .}] | sort_by(.id)')"
-  jq --argjson lms "$lms_models" --argjson ollama "$ollama_models" '
-    .providers.lmstudio.models = $lms
-    | if .providers.ollama then .providers.ollama.models = $ollama else . end
+  omlx_models_json="$(echo "$OMLX_JSON" | jq --argjson broken "$broken_json" '
+    [.[] | select(. as $k | $broken | index($k) | not) | {id: .}] | sort_by(.id)')"
+  # Merge, don't overwrite: an existing entry can carry hand-tuned fields
+  # (contextWindow, maxTokens, reasoning) that a bare {id} would silently reset.
+  # Installed set decides membership; existing entries decide their own contents.
+  jq --argjson lms "$lms_models" --argjson ollama "$ollama_models" \
+     --argjson omlx "$omlx_models_json" --argjson omlx_up "$([ "$OMLX_JSON" = "[]" ] && echo false || echo true)" '
+    def merge_models(want): . as $have
+      | [ want[] | .id as $id | (($have // []) | map(select(.id == $id)) | first) // {id: $id} ];
+    .providers.lmstudio.models = (.providers.lmstudio.models | merge_models($lms))
+    | if .providers.ollama then .providers.ollama.models = (.providers.ollama.models | merge_models($ollama)) else . end
+    | if (.providers.omlx and $omlx_up) then .providers.omlx.models = (.providers.omlx.models | merge_models($omlx)) else . end
   ' "$target" | commit_if_changed "$target" "$label" "$WRITE"
 }
 
@@ -123,7 +143,7 @@ sync_caveman_models() {
 sync_opencode_models() {
   [ -f "$OPENCODE_CFG" ] || { echo "opencode config not found at $OPENCODE_CFG (skipping)" >&2; return; }
   local broken_lms; broken_lms="$(broken_keys_for opencode | jq -R . | jq -s .)"
-  local existing; existing="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" lmstudio ollama)"
+  local existing; existing="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" lmstudio ollama omlx)"
   local lms_models ollama_models
   lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
     [.[] | .modelKey as $k | select($broken | index($k) | not)
@@ -137,7 +157,19 @@ sync_opencode_models() {
          | select(. as $k | $broken | index($k) | not)
          | {(.): ($existing.ollama[.] // {name: (. | titlecase)})}]
     | sort_by(keys[0]) | add // {}')"
-  local out; out="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" write "$OPENCODE_CFG" lmstudio "$lms_models" ollama "$ollama_models")"
+  local _write_args=(write "$OPENCODE_CFG" lmstudio "$lms_models" ollama "$ollama_models")
+  # Only touch the omlx block if the config declares one AND oMLX answered —
+  # otherwise a stopped server would wipe the user's hand-written model list.
+  if [ "$OMLX_JSON" != "[]" ] && printf '%s' "$existing" | jq -e 'has("omlx")' >/dev/null 2>&1; then
+    local omlx_models_map
+    omlx_models_map="$(echo "$OMLX_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
+      def titlecase: gsub("[:_-]"; " ");
+      [.[] | select(. as $k | $broken | index($k) | not)
+           | {(.): ($existing.omlx[.] // {name: (. | titlecase)})}]
+      | sort_by(keys[0]) | add // {}')"
+    _write_args+=(omlx "$omlx_models_map")
+  fi
+  local out; out="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" "${_write_args[@]}")"
   printf '%s\n' "$out" | commit_if_changed "$OPENCODE_CFG" "$OPENCODE_CFG" "$WRITE"
 }
 

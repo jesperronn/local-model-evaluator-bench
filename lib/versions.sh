@@ -91,6 +91,14 @@ get_runtime_version() {
       source="mlx-lm"
       [ -n "$version" ] || version="unknown"
       ;;
+    omlx)
+      # Ask the running server rather than the app bundle: the bundle can be
+      # newer than the process that is actually serving the request.
+      version=$(curl -fsS --max-time 3 "${OMLX_BASE_URL%/v1}/api/status" 2>/dev/null | jq -r '.version // empty')
+      [ -n "$version" ] || version=$(/usr/bin/defaults read /Applications/oMLX.app/Contents/Info CFBundleShortVersionString 2>/dev/null)
+      source="omlx"
+      [ -n "$version" ] || version="unknown"
+      ;;
     *)
       version="unknown"
       source="unknown"

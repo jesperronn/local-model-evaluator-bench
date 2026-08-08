@@ -42,14 +42,19 @@
 #   --verbose/-v       on every non-pass trial, print the .bench.log path plus a
 #                      short error excerpt inline (so failures are diagnosable
 #                      without hunting through results/<ts>/sandbox/)
-#   --runtime RUNTIME  inference backend: lms (default), ollama, mlx
+#   --runtime RUNTIME  inference backend: lms (default), ollama, mlx, omlx
 #                      lms:    LM Studio at $LMS_BASE_URL; loads/unloads models
 #                      ollama: Ollama at localhost:11434/v1; models always ready
 #                      mlx:    mlx_lm.server at localhost:8080/v1; start manually
+#                      omlx:   oMLX at $OMLX_BASE_URL; multi-model, serves every
+#                              model under ~/.omlx/models; start with
+#                              `bin/omlx start`. Models are addressed by the
+#                              directory basename, e.g. Qwen3-Coder-Next-4bit.
 #                      Per-runtime models file used when --models not given:
 #                        lms    → models.txt
 #                        ollama → models-ollama.txt
 #                        mlx    → models-mlx.txt
+#                        omlx   → models-omlx.txt
 #                      Adapters: if adapters/<name>-<runtime>.sh exists it is
 #                      preferred over adapters/<name>.sh for that runtime.
 #   --skip-compat-filter  don't filter out adapters marked as broken in compat.json
@@ -85,16 +90,19 @@ trap 'echo; warn "Interrupted — exiting"; exit 130' INT TERM
 trap '' PIPE  # don't die when stdout pipe breaks (e.g. bin/bench | tee)
 
 # ── Model aliases: cross-runtime short names ──────────────────────────────────
-# models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id
+# models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id  [omlx_id]
 # Pass --model <alias> and bench resolves to the right runtime id automatically.
+# The omlx column is optional — rows written before oMLX existed have four fields,
+# and a missing fifth reads as empty, which resolve_model treats as unmapped.
 declare -A _ALIAS_MAP
 _ALIASES_FILE="$HERE/models-aliases.conf"
 if [ -f "$_ALIASES_FILE" ]; then
-  while IFS=$'\t' read -r _al _lms _mlx _oll; do
+  while IFS=$'\t' read -r _al _lms _mlx _oll _omlx; do
     [[ "$_al" =~ ^[[:space:]]*# || -z "${_al// /}" ]] && continue
     _ALIAS_MAP["${_al}:lms"]="$_lms"
     _ALIAS_MAP["${_al}:mlx"]="$_mlx"
     _ALIAS_MAP["${_al}:ollama"]="$_oll"
+    _ALIAS_MAP["${_al}:omlx"]="${_omlx:--}"
   done < "$_ALIASES_FILE"
 fi
 # Returns the runtime-specific id for a name, or the name itself if not an alias.
@@ -135,6 +143,7 @@ show_help() {
     lms)    mfile="$MODELS_FILE";;
     ollama) mfile="$HERE/models-ollama.txt";;
     mlx)    mfile="$HERE/models-mlx.txt";;
+    omlx)   mfile="$HERE/models-omlx.txt";;
     *)      mfile="$MODELS_FILE";;
   esac
   echo "Available models ($runtime → $(basename "$mfile")):"
@@ -212,6 +221,13 @@ if [ "$INTERACTIVE" = 1 ]; then
         all_models="$(read_list "$HERE/models-mlx.txt")"
         [ -z "$all_models" ] && die "no models found in models-mlx.txt"
         ;;
+      omlx)
+        # oMLX serves every model under its model dir, so ask the server rather
+        # than a checked-in list — the list is only a curation of what to bench.
+        all_models="$(omlx_models 2>/dev/null)"
+        [ -z "$all_models" ] && all_models="$(read_list "$HERE/models-omlx.txt")"
+        [ -z "$all_models" ] && die "no models found: oMLX not reachable at $OMLX_BASE_URL and models-omlx.txt is empty"
+        ;;
     esac
     sel_models="$(printf '%s\n' "$all_models" | fzf --multi --prompt='Models > ' --header='TAB = multi-select  ENTER = confirm')"
     [ -z "$sel_models" ] && die "no models selected"
@@ -219,7 +235,7 @@ if [ "$INTERACTIVE" = 1 ]; then
   fi
 
   if [ -z "$ADAPTERS" ]; then
-    all_tools="$(ls "$ADAPTERS_DIR"/*.sh 2>/dev/null | xargs -I{} basename {} .sh | sed -E 's/-(lms|ollama|mlx)$//' | sort -u)"
+    all_tools="$(ls "$ADAPTERS_DIR"/*.sh 2>/dev/null | xargs -I{} basename {} .sh | sed -E 's/-(lms|ollama|mlx|omlx)$//' | sort -u)"
     [ -z "$all_tools" ] && die "no adapters found in $ADAPTERS_DIR"
     sel_tools="$(printf '%s\n' "$all_tools" | fzf --multi --prompt='Tools  > ' --header='TAB = multi-select  ENTER = confirm')"
     [ -z "$sel_tools" ] && die "no tools selected"
@@ -244,7 +260,7 @@ for _ca in "${_check_adapters[@]}"; do
   else
     _unavailable_adapters+=("$_ca")
     # Check if this adapter exists for a different runtime
-    for _rt in lms ollama mlx; do
+    for _rt in lms ollama mlx omlx; do
       [ "$_rt" = "$RUNTIME" ] && continue
       if [ -f "$ADAPTERS_DIR/$_ca-$_rt.sh" ] || [ -f "$ADAPTERS_DIR/$_ca.sh" ]; then
         _unavailable_in_runtime+=("$_ca (exists for $RUNTIME, not $RUNTIME)")
@@ -271,7 +287,7 @@ elif [ ${#_unavailable_adapters[@]} -gt 0 ]; then
   echo
   echo "  2. Or specify a different runtime where these adapters exist:"
   for _ca in "${_unavailable_adapters[@]}"; do
-    for _rt in lms ollama mlx; do
+    for _rt in lms ollama mlx omlx; do
       [ "$_rt" = "$RUNTIME" ] && continue
       _ca_lms="$ADAPTERS_DIR/$_ca-$_rt.sh"
       [ -f "$_ca_lms" ] || _ca_lms="$ADAPTERS_DIR/$_ca.sh"
@@ -319,7 +335,10 @@ case "$RUNTIME" in
   mlx)    RUNTIME_MODELS_FILE="$HERE/models-mlx.txt"
           RUNTIME_BASE_URL="http://localhost:8080/v1"
           RUNTIME_API_KEY="not-needed";;
-  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx)";;
+  omlx)   RUNTIME_MODELS_FILE="$HERE/models-omlx.txt"
+          RUNTIME_BASE_URL="$OMLX_BASE_URL"
+          RUNTIME_API_KEY="$OMLX_API_KEY";;
+  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx, omlx)";;
 esac
 export LMS_BASE_URL="$RUNTIME_BASE_URL"
 export LMS_API_KEY="$RUNTIME_API_KEY"
@@ -412,6 +431,25 @@ preflight_check_models() {
       ;;
     mlx)
       return 0  # mlx_lm.server exposes only one model; can't enumerate
+      ;;
+    omlx)
+      # oMLX enumerates everything it serves, so a miss here is a real miss —
+      # either the directory isn't under $OMLX_MODELS_DIR or the server needs a
+      # rescan (it discovers at startup).
+      available="$(omlx_models)"
+      if [ -z "$available" ]; then
+        warn "oMLX not reachable at $OMLX_BASE_URL — skipping model preflight"
+        echo "  ${C_DIM}Start it: bin/omlx start${C_RST}"
+        return 0
+      fi
+      for m in "${models[@]}"; do
+        printf '%s\n' "$available" | grep -qx "$m" || missing+=("$m")
+      done
+      [ "${#missing[@]}" -eq 0 ] && return 0
+      warn "models not served by oMLX:"
+      for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
+      echo "  ${C_DIM}To fix: place the model under $OMLX_MODELS_DIR/<org>/<name>,${C_RST}"
+      echo "  ${C_DIM}then rescan: bin/omlx reload${C_RST}"
       ;;
   esac
 
@@ -945,6 +983,7 @@ for model_alias in "${MODEL_ARR[@]}"; do
     lms)    lms_unload_model "$model";;
     ollama) info "unloading model: $model_alias"; ollama stop "$model" 2>/dev/null || true;;
     mlx)    ;;  # mlx_lm.server serves one model for its lifetime; restart to change models
+    omlx)   info "unloading model: $model_alias"; omlx_unload_model "$model" || true;;
   esac
 done
 

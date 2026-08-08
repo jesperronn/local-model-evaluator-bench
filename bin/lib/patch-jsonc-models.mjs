@@ -66,15 +66,69 @@ function indentOf(text, idx) {
   return m ? m[0] : "";
 }
 
-function renderModels(modelsObj, baseIndent) {
+// Strip // and /* */ comments so a JSONC block can go through JSON.parse.
+// String-aware, so a "//" inside a URL survives.
+function stripComments(src) {
+  let out = "", inStr = false, strCh = "", inLine = false, inBlock = false, escape = false;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i], c2 = src[i + 1];
+    if (inLine) { if (c === "\n") { inLine = false; out += c; } continue; }
+    if (inBlock) { if (c === "*" && c2 === "/") { inBlock = false; i++; } continue; }
+    if (inStr) {
+      out += c;
+      if (escape) { escape = false; continue; }
+      if (c === "\\") { escape = true; continue; }
+      if (c === strCh) inStr = false;
+      continue;
+    }
+    if (c === "/" && c2 === "/") { inLine = true; i++; continue; }
+    if (c === "/" && c2 === "*") { inBlock = true; i++; continue; }
+    if (c === '"' || c === "'") { inStr = true; strCh = c; out += c; continue; }
+    out += c;
+  }
+  return out;
+}
+
+// Comment lines a human attached to each model entry, keyed by model id. These
+// are load-bearing notes ("this quant is broken in oMLX"), so a resync that
+// silently dropped them would destroy the reason a model is listed or excluded.
+// Line-based and depth-aware: only comments directly above a depth-1 key count.
+function harvestComments(blockText) {
+  const byKey = {};
+  let pending = [], depth = 0;
+  for (const line of blockText.split("\n")) {
+    const t = line.trim();
+    if (t.startsWith("//")) { if (depth === 1) pending.push(t); continue; }
+    const keyAtDepth1 = depth === 1 && /^"((?:[^"\\]|\\.)*)"\s*:/.exec(t);
+    if (keyAtDepth1) {
+      if (pending.length) byKey[JSON.parse(`"${keyAtDepth1[1]}"`)] = pending;
+      pending = [];
+    } else if (t && !t.startsWith("//")) {
+      pending = [];
+    }
+    for (const ch of line) { if (ch === "{") depth++; else if (ch === "}") depth--; }
+  }
+  return byKey;
+}
+
+function renderModels(modelsObj, baseIndent, comments = {}) {
   const inner = baseIndent + "  ";
   const entries = Object.entries(modelsObj);
   if (entries.length === 0) return "{}";
-  const lines = entries.map(([id, val]) => {
-    const name = val && val.name ? val.name : id;
-    return `${inner}${JSON.stringify(id)}: { "name": ${JSON.stringify(name)} }`;
+  const chunks = entries.map(([id, val]) => {
+    // Preserve the whole value object, not just .name — per-model overrides like
+    // {"options": {"maxTokens": 32000}} are the user's tuning and rewriting them
+    // to a bare name would silently reset it.
+    const obj = val && typeof val === "object" ? val : { name: id };
+    if (!obj.name) obj.name = id;
+    const lead = (comments[id] || []).map((c) => `${inner}${c}\n`).join("");
+    // Match the hand-written style already in these files: one line per model,
+    // spaces inside the braces — so a resync produces a reviewable diff rather
+    // than reformatting every untouched line.
+    const props = Object.entries(obj).map(([k, v]) => `"${k}": ${JSON.stringify(v)}`);
+    return lead + `${inner}${JSON.stringify(id)}: { ${props.join(", ")} }`;
   });
-  return "{\n" + lines.join(",\n") + "\n" + baseIndent + "}";
+  return "{\n" + chunks.join(",\n") + "\n" + baseIndent + "}";
 }
 
 function locateModelsBlock(providerKey) {
@@ -207,8 +261,9 @@ if (mode === "read") {
   const result = {};
   for (const providerKey of rest) {
     const { openIdx, closeIdx } = locateModelsBlock(providerKey);
-    // Strip comments naively (none expected inside model entries) then parse.
-    result[providerKey] = JSON.parse(text.slice(openIdx, closeIdx));
+    // Model blocks are JSONC in practice — users annotate why a model is listed
+    // (or why a quant is excluded) — so comments must be stripped before parsing.
+    result[providerKey] = JSON.parse(stripComments(text.slice(openIdx, closeIdx)));
   }
   process.stdout.write(JSON.stringify(result));
   process.exit(0);
@@ -220,7 +275,7 @@ for (let k = 0; k < rest.length; k += 2) {
   const modelsObj = JSON.parse(rest[k + 1]);
   const { openIdx: mOpen, closeIdx: mClose } = locateModelsBlock(providerKey);
   const indent = indentOf(text, mOpen);
-  const rendered = renderModels(modelsObj, indent);
+  const rendered = renderModels(modelsObj, indent, harvestComments(text.slice(mOpen, mClose)));
   text = text.slice(0, mOpen) + rendered + text.slice(mClose);
 }
 

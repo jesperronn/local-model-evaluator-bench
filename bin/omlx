@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# bin/omlx — control the oMLX server (the `omlx` runtime).
+#
+# oMLX is a multi-model MLX server for Apple Silicon. Unlike mlx_lm.server (the
+# `mlx` runtime: one model per process, restart to switch), oMLX serves every
+# model under $OMLX_MODELS_DIR and swaps them LRU — so it behaves like LM Studio
+# or Ollama and needs no per-model restart.
+#
+#   bin/omlx status      is it up, which models are served / resident
+#   bin/omlx start       start the managed background server
+#   bin/omlx stop        stop it
+#   bin/omlx models      list served model ids (what --runtime omlx accepts)
+#   bin/omlx reload      rescan $OMLX_MODELS_DIR for newly added models
+#   bin/omlx unload ID   evict one model from memory
+#   bin/omlx aider-metadata  regenerate adapters/aider-omlx-model-metadata.json
+#
+# This wraps the CLI inside oMLX.app rather than reimplementing it — the app and
+# the CLI share one managed server, so starting from either is the same server.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+
+OMLX_CLI="${OMLX_CLI:-/Applications/oMLX.app/Contents/MacOS/omlx-cli}"
+OMLX_HOST="${OMLX_BASE_URL%/v1}"
+
+_need_cli() {
+  [ -x "$OMLX_CLI" ] && return 0
+  echo "oMLX not found at $OMLX_CLI" >&2
+  echo "Install it from https://omlx.app, or set OMLX_CLI to the omlx-cli path." >&2
+  return 1
+}
+
+cmd_status() {
+  if ! omlx_up; then
+    printf '%s %s\n' "${C_BLU}oMLX${C_RST}" "${C_DIM}down${C_RST} (start: bin/omlx start)"
+    return 1
+  fi
+  local st served loaded
+  st="$(curl -fsS --max-time 5 "$OMLX_HOST/api/status" 2>/dev/null)"
+  served="$(omlx_models | wc -l | tr -d ' ')"
+  loaded="$(omlx_loaded_models | paste -sd', ' - )"
+  printf '%s %s  %sv%s, %s models served, %s\n' \
+    "${C_BLU}oMLX${C_RST}" "${C_GRN}up${C_RST}" "${C_DIM}" \
+    "$(printf '%s' "$st" | jq -r '.version // "?"')" "$served" \
+    "$(printf '%s' "$st" | jq -r '.model_memory_used_formatted // "0"') resident${C_RST}"
+  if [ -n "$loaded" ]; then
+    printf '  %sloaded:%s %s\n' "${C_DIM}" "${C_RST}" "$loaded"
+  else
+    printf '  %s(no model resident — oMLX loads on first request)%s\n' "${C_DIM}" "${C_RST}"
+  fi
+}
+
+cmd_models() { omlx_up || { echo "oMLX not reachable at $OMLX_BASE_URL" >&2; exit 1; }; omlx_models; }
+
+# aider refuses to run against a model its registry doesn't know, and every oMLX
+# id is a bare directory name. oMLX reports each model's real context window, so
+# generate the metadata from the server instead of hand-maintaining it.
+cmd_aider_metadata() {
+  omlx_up || { echo "oMLX not reachable at $OMLX_BASE_URL" >&2; exit 1; }
+  local out="$HERE/adapters/aider-omlx-model-metadata.json"
+  curl -fsS --max-time 10 "$OMLX_BASE_URL/models" \
+    | jq '[.data[] | {key: ("openai/" + .id), value: {
+            max_tokens: 32768,
+            max_input_tokens: (.max_model_len // 131072),
+            max_output_tokens: 32768,
+            input_cost_per_token: 0,
+            output_cost_per_token: 0
+          }}] | from_entries' > "$out"
+  echo "wrote $out ($(jq 'length' "$out") models)"
+}
+
+case "${1:-status}" in
+  aider-metadata) cmd_aider_metadata;;
+  status)  cmd_status;;
+  models)  cmd_models;;
+  start)   _need_cli || exit 1; "$OMLX_CLI" start "${@:2}";;
+  stop)    _need_cli || exit 1; "$OMLX_CLI" stop "${@:2}";;
+  restart) _need_cli || exit 1; "$OMLX_CLI" restart "${@:2}";;
+  reload)
+    omlx_up || { echo "oMLX not reachable at $OMLX_BASE_URL" >&2; exit 1; }
+    curl -fsS -X POST "$OMLX_HOST/admin/api/reload" >/dev/null &&
+      echo "rescanned $OMLX_MODELS_DIR — $(omlx_models | wc -l | tr -d ' ') models served"
+    ;;
+  unload)
+    [ -n "${2:-}" ] || { echo "usage: bin/omlx unload <model-id>" >&2; exit 2; }
+    omlx_unload_model "$2" && echo "unloaded: $2" || { echo "failed to unload: $2" >&2; exit 1; }
+    ;;
+  -h|--help|help) awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0";;
+  *) echo "unknown command: $1 (see bin/omlx --help)" >&2; exit 2;;
+esac

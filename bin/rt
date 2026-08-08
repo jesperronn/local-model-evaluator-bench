@@ -10,10 +10,11 @@
 #   bin/rt watch --metrics   unified real-time metrics view with colors
 #   bin/rt stop bench        kill any running bench process tree
 #   bin/rt stop mlx          kill mlx_lm.server on port 8080
+#   bin/rt stop omlx         stop the oMLX server
 #   bin/rt stop ollama       unload active Ollama models  (ollama stop <model>)
 #   bin/rt stop lms          unload LM Studio model
 #   bin/rt stop litellm      stop the optional LiteLLM proxy
-#   bin/rt stop all          stop bench + mlx + ollama + lms + litellm
+#   bin/rt stop all          stop bench + mlx + omlx + ollama + lms + litellm
 #   bin/rt who [lms|ollama|all]  show which processes are connected to a runtime
 #
 set -uo pipefail
@@ -138,6 +139,7 @@ cmd_status() {
   local lms_up_flag=0 lms_models=""
   local ollama_up_flag=0 ollama_loaded=""
   local mlx_up_flag=0 mlx_model=""
+  local omlx_up_flag=0
 
   printf '%s     ' "${C_BLU}LMS${C_RST}"
   if lms_up 2>/dev/null; then
@@ -181,17 +183,35 @@ cmd_status() {
     printf '%s\n' "${C_DIM}down${C_RST}"
   fi
 
+  printf '%s    ' "${C_BLU}oMLX${C_RST}"
+  if omlx_up; then
+    omlx_up_flag=1
+    # oMLX is multi-model: "served" is what it can answer for, "loaded" is what
+    # is resident right now (it loads on first request, evicts LRU).
+    local _served _loaded
+    _served=$(omlx_models | wc -l | tr -d ' ')
+    _loaded=$(omlx_loaded_models | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+    if [ -n "$_loaded" ]; then
+      printf '%s  %sloaded:%s %s  %s(%s served)%s\n' "${C_GRN}up${C_RST}" \
+        "${C_DIM}" "${C_RST}" "$_loaded" "${C_DIM}" "$_served" "${C_RST}"
+    else
+      printf '%s  %s(no model resident, %s served)%s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "$_served" "${C_RST}"
+    fi
+  else
+    printf '%s\n' "${C_DIM}down${C_RST}"
+  fi
+
   # Optional layer — only surface it when running, so the default (adapters
   # talking to runtimes directly) stays uncluttered.
   if curl -fsS --max-time 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
     printf '%s ' "${C_BLU}LiteLLM${C_RST}"
-    printf '%s  %sport %s, routes:%s lms/ ollama/ mlx/\n' \
+    printf '%s  %sport %s, routes:%s lms/ ollama/ mlx/ omlx/\n' \
       "${C_GRN}up${C_RST}" "${C_DIM}" "$LITELLM_PORT" "${C_RST}"
   fi
 
   # ── next steps ───────────────────────────────────────────────────────────────
   # Show whenever any runtime is up — these are the key operations users forget.
-  if [ "$lms_up_flag" = 1 ] || [ "$ollama_up_flag" = 1 ] || [ "$mlx_up_flag" = 1 ]; then
+  if [ "$lms_up_flag" = 1 ] || [ "$ollama_up_flag" = 1 ] || [ "$mlx_up_flag" = 1 ] || [ "$omlx_up_flag" = 1 ]; then
     # Fetch LMS sizes once for use in unload hints
     local lms_json_sizes="[]"
     [ "$lms_up_flag" = 1 ] && lms_json_sizes=$(lms ls --json 2>/dev/null || echo "[]")
@@ -236,12 +256,24 @@ cmd_status() {
     fi
     [ "$mlx_up_flag" = 1 ] && \
       printf '    bin/rt stop mlx       %s\n' "${C_DIM}${mlx_model:-MLX model}${C_RST}"
+    if [ "$omlx_up_flag" = 1 ]; then
+      local _ol; _ol="$(omlx_loaded_models)"
+      if [ -n "$_ol" ]; then
+        while IFS= read -r _m; do
+          # Per-model eviction; `bin/rt stop omlx` unloads all and stops the server.
+          printf '    bin/omlx unload       %s\n' "${C_DIM}${_m}${C_RST}"
+        done <<< "$_ol"
+      else
+        printf '    bin/omlx unload       %s\n' "${C_DIM}(nothing resident)${C_RST}"
+      fi
+    fi
 
     # Stop server entirely
     printf '  %s\n' "${C_DIM}stop server entirely:${C_RST}"
     [ "$lms_up_flag"    = 1 ] && printf '    lms server stop\n'
     [ "$ollama_up_flag" = 1 ] && printf '    bin/rt stop ollama\n'
     [ "$mlx_up_flag"    = 1 ] && printf '    bin/rt stop mlx\n'
+    [ "$omlx_up_flag"   = 1 ] && printf '    bin/rt stop omlx\n'
 
     # Delete from disk — verbose only
     if [ "$verbose" = 1 ]; then
@@ -694,7 +726,7 @@ cmd_watch() {
 
 cmd_stop() {
   local target="${1:-}"
-  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|ollama|lms|litellm|all]"; exit 1; }
+  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|omlx|ollama|lms|litellm|all]"; exit 1; }
 
   case "$target" in
     bench)
@@ -723,6 +755,24 @@ cmd_stop() {
         info "stopping MLX server (PID $pid)"
         kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
         ok "MLX stopped"
+      fi
+      ;;
+    omlx)
+      # Unload resident models first so the shutdown doesn't have to reclaim
+      # tens of GB under pressure, then stop via oMLX's own CLI (the app and the
+      # CLI share one managed server, so killing the port would fight the app).
+      if omlx_up; then
+        local _m
+        while IFS= read -r _m; do
+          [ -z "$_m" ] && continue
+          info "unloading oMLX model: $_m"
+          omlx_unload_model "$_m" || warn "unload failed: $_m"
+        done <<< "$(omlx_loaded_models)"
+      fi
+      if [ -x "${OMLX_CLI:-/Applications/oMLX.app/Contents/MacOS/omlx-cli}" ]; then
+        if "$HERE/bin/omlx" stop >/dev/null 2>&1; then ok "oMLX stopped"; else info "oMLX: not running"; fi
+      else
+        info "oMLX: CLI not found — nothing to stop"
       fi
       ;;
     litellm)
@@ -782,12 +832,13 @@ cmd_stop() {
     all)
       cmd_stop bench
       cmd_stop mlx
+      cmd_stop omlx
       cmd_stop ollama
       cmd_stop lms
       cmd_stop litellm
       ;;
     *)
-      die "unknown stop target: $target (valid: bench mlx ollama lms litellm all)"
+      die "unknown stop target: $target (valid: bench mlx omlx ollama lms litellm all)"
       ;;
   esac
 }

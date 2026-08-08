@@ -27,6 +27,39 @@ lms_up() {
   curl -fsS --max-time 5 "$LMS_BASE_URL/models" >/dev/null 2>&1
 }
 
+# Reachability check against the oMLX server. Returns 0 if up.
+omlx_up() {
+  curl -fsS --max-time 5 "$OMLX_BASE_URL/models" >/dev/null 2>&1
+}
+
+# Model ids oMLX is currently serving, one per line. oMLX discovers every model
+# directory under its model dir at startup, so this IS the authoritative list —
+# there is no separate "downloaded but not registered" state as in LM Studio.
+omlx_models() {
+  curl -fsS --max-time 5 "$OMLX_BASE_URL/models" 2>/dev/null \
+    | jq -r '.data[].id' 2>/dev/null || true
+}
+
+# Model ids oMLX currently holds in memory. oMLX loads on first request and
+# evicts LRU, so "loaded" is a subset of omlx_models and changes without us
+# asking — /v1/models can't tell us this, same as with LM Studio. Uses oMLX's
+# own /api/status (outside /v1; not part of the OpenAI API).
+omlx_loaded_models() {
+  curl -fsS --max-time 5 "${OMLX_BASE_URL%/v1}/api/status" 2>/dev/null \
+    | jq -r '.loaded_models[]? // empty' 2>/dev/null || true
+}
+
+# Evict a model from oMLX's memory. oMLX would do this itself under LRU
+# pressure, but bench unloads explicitly between models so the next model's
+# timings aren't measured against a machine still holding the previous weights.
+# Returns non-zero if the server is unreachable or rejects the request.
+omlx_unload_model() {
+  local m="$1" code
+  code=$(curl -fsS --max-time 30 -o /dev/null -w '%{http_code}' \
+    -X POST "${OMLX_BASE_URL%/v1}/admin/api/models/${m}/unload" 2>/dev/null) || return 1
+  [ "$code" = "200" ]
+}
+
 # Portable timeout: run_timeout <seconds> <cmd...>. Uses GNU timeout if present,
 # else falls back to perl's alarm (ships with macOS). Exit 124 on timeout.
 # --kill-after=15: send SIGKILL 15s after SIGTERM so tools waiting on a slow

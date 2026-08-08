@@ -10,6 +10,7 @@
 #   lms/<id>    -> LM Studio       (bin/litellm-proxy overrides via LMS_BASE_URL)
 #   ollama/<id> -> Ollama
 #   mlx/<id>    -> mlx_lm.server
+#   omlx/<id>   -> oMLX
 #
 # Start with: bin/litellm-proxy
 
@@ -31,6 +32,14 @@ model_list:
       model: "openai/*"
       api_base: os.environ/LITELLM_MLX_BASE
       api_key: not-needed
+
+  # oMLX is multi-model, so unlike the mlx route this one actually enumerates:
+  # /v1/models returns every model oMLX serves, prefixed omlx/.
+  - model_name: "omlx/*"
+    litellm_params:
+      model: "openai/*"
+      api_base: os.environ/LITELLM_OMLX_BASE
+      api_key: os.environ/LITELLM_OMLX_KEY
 
 litellm_settings:
   # REQUIRED, not a nicety. Without it a wildcard route makes /v1/models return

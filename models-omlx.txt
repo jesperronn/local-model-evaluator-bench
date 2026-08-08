@@ -1,0 +1,39 @@
+# Models for the oMLX runtime — bench these with: bin/bench --runtime omlx
+#
+# Ids are the model directory basename under $OMLX_MODELS_DIR (~/.omlx/models),
+# which is exactly what oMLX returns from /v1/models. List them with:
+#   bin/omlx models
+#
+# Unlike models.txt (lms) this file is a *curation*, not an inventory: oMLX
+# serves everything under its model dir whether or not it is listed here. This
+# file only decides what a bare `bin/bench --runtime omlx` runs. To add a model,
+# drop it under $OMLX_MODELS_DIR/<org>/<name>, run `bin/omlx reload`, then add
+# the basename here.
+#
+# oMLX loads on first request and evicts LRU, so no manual start/stop per model
+# (contrast models-mlx.txt, where mlx_lm.server serves one model per process).
+
+# 35B MoE (3.6B active) — Qwen3.6, MLX-4bit. Same weights as the lmstudio-community
+# copy in models-mlx.txt, so lms/mlx/omlx are directly comparable (alias: qwen3.6-35b-a3b)
+Qwen3.6-35B-A3B-MLX-4bit
+
+# 30B coder MoE (3B active) — Qwen3 Coder, MLX-4bit. Same weights as the mlx entry
+# (alias: qwen3-coder-30b)
+Qwen3-Coder-30B-A3B-Instruct-MLX-4bit
+
+# Qwen3-Coder-Next, MLX-4bit. Note: the lms/mlx copies are 6-bit, so this is NOT
+# an apples-to-apples runtime comparison — it is deliberately unaliased.
+Qwen3-Coder-Next-4bit
+
+# 9B dense — Ornith 1.0, MLX-4bit (alias: ornith-1.0-9b; lms copy is GGUF)
+Ornith-1.0-9B-4bit
+
+# 20.9B MoE — GPT-OSS, MXFP4/Q8 (alias: gpt-oss-20b; ollama copy is gpt-oss:20b)
+gpt-oss-20b-MXFP4-Q8
+
+# Served but not in the default sweep — pass explicitly with --model:
+#   KAT-Coder-V2.5-Dev                     67.8 GB, oMLX's default model
+#   Ornith-1.0-35B-4bit                    (alias: ornith-1.0-35b)
+#   Qwen3.6-35B-A3B-4bit                   mlx-community twin of the lmstudio copy above
+#   Qwen3-Coder-30B-A3B-Instruct-4bit      mlx-community twin of the lmstudio copy above
+#   Qwen3.6-27B-MLX-8bit                   27B dense was dropped from models.txt 2026-06-12

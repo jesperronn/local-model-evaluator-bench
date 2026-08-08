@@ -71,7 +71,7 @@ known_agents="$(awk '
   in_fn { print }
 ' "$HERE/bin/setup" | grep -oE '^[[:space:]]*[a-z0-9_-]+\)' | tr -d ') ')"
 
-for agent in $(cd "$HERE/adapters" && ls -1 *.sh | sed -E 's/-(proxy-ollama|lms|mlx|ollama)\.sh$//; s/\.sh$//' | sort -u); do
+for agent in $(cd "$HERE/adapters" && ls -1 *.sh | sed -E 's/-(proxy-ollama|lms|mlx|omlx|ollama)\.sh$//; s/\.sh$//' | sort -u); do
   if ! echo "$known_agents" | grep -qxF "$agent"; then
     fail "agent '$agent' has an adapter but is missing from bin/setup's get_agent_cli_cmd/get_agent_install_cmd/get_agent_config_guidance"
     failures=$((failures + 1))

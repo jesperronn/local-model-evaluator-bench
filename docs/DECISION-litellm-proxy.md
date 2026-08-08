@@ -1,6 +1,7 @@
 # Decision: LiteLLM proxy layer
 
 **Date:** 2026-06-27
+**Updated:** 2026-08-06 — oMLX route added; discovery criterion re-evaluated
 **Updated:** 2026-08-02 — spiked and measured; status changed
 **Status:** Available but **not** on the default path (`bin/litellm-proxy`)
 
@@ -23,8 +24,9 @@ collapsing per-runtime adapters — did not actually require it.
 ## What the spike measured
 
 Verified end-to-end: aider → LiteLLM (`:4444`) → LM Studio, real edit applied.
-Wildcard routes (`lms/*`, `ollama/*`, `mlx/*`) pass the model id through, so no
-model needs listing individually.
+Wildcard routes (`lms/*`, `ollama/*`, `mlx/*`, `omlx/*`) pass the model id
+through, so no model needs listing individually. Re-verified 2026-08-06 through
+the `omlx/` route: a completion and a native tool-call both round-tripped.
 
 **RAM: ~270 MB RSS.** Negligible next to the KV-cache budget, so it is not a
 concern even on a 32 GB machine — `BENCH_CONTEXT`/`BENCH_PARALLEL` dominate by
@@ -64,9 +66,22 @@ The aider adapters were unified into one `adapters/aider.sh` branching on
 (`--edit-format`, `--model-metadata-file`) are tool-side config LiteLLM cannot
 touch, so they would survive a proxy migration unchanged.
 
-### 3. Model discovery — *still open*
+### 3. Model discovery — **resolved for the proxy, not for the agents**
 
-Unchanged from the original assessment.
+The proxy side works. With `check_provider_endpoint: true` the proxy queries each
+backend live, so `bin/litellm-proxy --models` is a true union of what the local
+runtimes serve — measured 2026-08-06: 12 lms + 11 ollama + 11 omlx, and `mlx/`
+correctly empty while mlx_lm.server was down. `bin/doctor` reports the per-route
+counts for the same reason.
+
+That does not help the agents, and the proxy cannot make it help them. Most
+coding CLIs never call `/v1/models` at all — they read a hand-maintained list
+from their own config (see [MODEL-DISCOVERY.md](MODEL-DISCOVERY.md), measured the
+same day). Routing them through LiteLLM would change *where* they send the
+request, not *whether* they ask what exists. Discovery for those agents stays
+`bin/agents-config`'s job.
+
+So the remaining argument for the proxy is criterion 1 alone.
 
 ## Local-only constraint
 
@@ -82,6 +97,7 @@ model than the result label claims. Telemetry is disabled in-config.
 ```bash
 bin/litellm-proxy          # foreground, port $LITELLM_PORT (default 4444)
 bin/litellm-proxy --check  # verify reachable
+bin/litellm-proxy --models # what each route currently resolves
 ```
 
 `bin/doctor` reports the proxy only when it is running, since the default path

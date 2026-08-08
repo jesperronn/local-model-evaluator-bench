@@ -14,7 +14,7 @@
 # FAIL (couldn't reach the model — a wiring problem).
 #
 # Flags:
-#   --runtime NAME  lms | ollama | mlx  (default: lms)
+#   --runtime NAME  lms | ollama | mlx | omlx  (default: lms)
 #   --model/-m ID   model to test       (default: $SMOKE_MODEL for lms,
 #                                        first line of models-ollama.txt for ollama)
 #   --agent/-t NAME  only test this adapter (default: all)
@@ -35,16 +35,17 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 # ── Model aliases: cross-runtime short names (mirrors bin/bench) ───────────────
-# models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id
+# models-aliases.conf: tab-separated  alias  lms_id  mlx_id  ollama_id  [omlx_id]
 # Pass --model <alias>; the local lms load/ps calls below need the resolved id.
 declare -A _ALIAS_MAP
 _ALIASES_FILE="$HERE/models-aliases.conf"
 if [ -f "$_ALIASES_FILE" ]; then
-  while IFS=$'\t' read -r _al _lms _mlx _oll; do
+  while IFS=$'\t' read -r _al _lms _mlx _oll _omlx; do
     [[ "$_al" =~ ^[[:space:]]*# || -z "${_al// /}" ]] && continue
     _ALIAS_MAP["${_al}:lms"]="$_lms"
     _ALIAS_MAP["${_al}:mlx"]="$_mlx"
     _ALIAS_MAP["${_al}:ollama"]="$_oll"
+    _ALIAS_MAP["${_al}:omlx"]="${_omlx:--}"
   done < "$_ALIASES_FILE"
 fi
 # Returns the runtime-specific id for a name, or the name itself if not an alias.
@@ -79,7 +80,7 @@ show_help() {
   help_line "  new model, adapter, or runtime."
 
   help_section "OPTIONS"
-  help_flag "--runtime" "NAME" "lms | ollama | mlx (default: lms)"
+  help_flag "--runtime" "NAME" "lms | ollama | mlx | omlx (default: lms)"
   help_flag "--model, -m" "ID" "model to test (default: \$SMOKE_MODEL for lms)"
   help_flag "--agent, -t" "NAME" "only test this adapter (default: all)"
   help_flag "--retry-broken[=ADAPTERS]" "" "retry adapters marked as broken in compat.json"
@@ -276,6 +277,20 @@ if [ "$RUNTIME" = "lms" ]; then
       fi
     fi
   fi
+
+elif [ "$RUNTIME" = "omlx" ]; then
+  # oMLX loads on demand, so there is nothing to pre-load — only check that the
+  # server is up and actually serving the requested model, since an unserved id
+  # fails per-trial and looks like an adapter bug.
+  omlx_up || die "oMLX not reachable at $OMLX_BASE_URL (start it: bin/omlx start)"
+  _omlx_id="$(resolve_model "${MODEL:-}" omlx)"
+  if [ -n "${MODEL:-}" ] && [ -z "$_omlx_id" ]; then
+    die "model '$MODEL' has no omlx id in models-aliases.conf"
+  fi
+  if [ -n "$_omlx_id" ] && ! omlx_models | grep -qx "$_omlx_id"; then
+    die "oMLX does not serve '$_omlx_id' (see: bin/omlx models)"
+  fi
+  ok "oMLX up — ${_omlx_id:-model from models-omlx.txt} (loads on first request)"
 
 elif [ "$RUNTIME" = "ollama" ]; then
   # Proxy liveness check: if OLLAMA_BASE_URL targets a non-default port, verify proxy.

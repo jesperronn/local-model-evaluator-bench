@@ -20,6 +20,7 @@
 #   --aider-cli        Aider CLI
 #   --caveman-cli      Caveman (pi-based coding agent)
 #   --mlx-server       mlx-lm Python package (mlx_lm.server)
+#   --omlx             oMLX multi-model MLX server (checks install, reports models)
 #   --ollama           Ollama runtime
 #   --fzf              fzf (required for --interactive pickers)
 #   --hf               HuggingFace CLI (required for bin/lms_update)
@@ -27,7 +28,7 @@
 #
 # Model flags:
 #   --model            show model status across runtimes
-#   --runtime lms|ollama|mlx  filter --model to one runtime
+#   --runtime lms|ollama|mlx|omlx  filter --model to one runtime
 #   --sync-models      regenerate opencode/pi model configs from installed
 #                      models (bin/agents-config --write); status-only
 #                      runs and --opencode-cli/--caveman-cli always show a
@@ -66,7 +67,7 @@ get_available_agents() {
   # Extract unique agent names from adapters/ directory. Strips the trailing
   # -<runtime>.sh suffix rather than everything after the first hyphen, so
   # multi-word agent names (e.g. mini-swe-agent) survive intact.
-  (cd "$HERE/adapters" && ls -1 *.sh 2>/dev/null | sed -E 's/-(proxy-ollama|lms|mlx|ollama)\.sh$//; s/\.sh$//' | sort -u)
+  (cd "$HERE/adapters" && ls -1 *.sh 2>/dev/null | sed -E 's/-(proxy-ollama|lms|mlx|omlx|ollama)\.sh$//; s/\.sh$//' | sort -u)
 }
 
 show_help() {
@@ -96,6 +97,7 @@ show_help() {
   help_flag "--aider-cli" "" "Aider CLI"
   help_flag "--caveman-cli" "" "Caveman (pi-based coding agent)"
   help_flag "--mlx-server" "" "mlx-lm Python package (mlx_lm.server)"
+  help_flag "--omlx" "" "oMLX multi-model MLX server"
   help_flag "--ollama" "" "Ollama runtime"
   help_flag "--fzf" "" "fzf (required for --interactive pickers)"
   help_flag "--litellm" "" "uv, prerequisite for the optional bin/litellm-proxy"
@@ -103,7 +105,7 @@ show_help() {
 
   help_section "MODEL FLAGS"
   help_flag "--model" "[PROFILE]" "show model status (or download PROFILE if specified)"
-  help_flag "--runtime" "lms|ollama|mlx" "filter --model to one runtime"
+  help_flag "--runtime" "lms|ollama|mlx|omlx" "filter --model to one runtime"
   help_flag "--sync-models" "" "regenerate opencode/pi model configs"
 
   help_section "AVAILABLE AGENTS"
@@ -128,7 +130,7 @@ DRY_RUN=0; VERBOSE=0; INTERACTIVE=0; FORCE=0
 NEEDS_FORCE=0; STATUS_ONLY=0
 DO_ALL=0
 DO_LMS=0; DO_HERMES=0; DO_CODEX=0; DO_OPENCODE=0; DO_AIDER=0
-DO_CAVEMAN=0; DO_MLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0; DO_LITELLM=0
+DO_CAVEMAN=0; DO_MLX=0; DO_OMLX=0; DO_OLLAMA=0; DO_FZF=0; DO_HF=0; DO_LITELLM=0
 DO_MODEL=0; MODEL_PROFILE=""; RUNTIME=""
 DO_SYNC=0
 AGENT_FILTER=""; DO_AGENT=0
@@ -147,6 +149,7 @@ while [ $# -gt 0 ]; do
     --aider-cli)      DO_AIDER=1; shift;;
     --caveman-cli)    DO_CAVEMAN=1; shift;;
     --mlx-server)     DO_MLX=1; shift;;
+    --omlx)           DO_OMLX=1; shift;;
     --ollama)         DO_OLLAMA=1; shift;;
     --fzf)            DO_FZF=1; shift;;
     --litellm)        DO_LITELLM=1; shift;;
@@ -162,7 +165,7 @@ done
 
 if [ "$DO_ALL" = 1 ]; then
   DO_LMS=1; DO_HERMES=1; DO_CODEX=1; DO_OPENCODE=1; DO_AIDER=1
-  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1; DO_LITELLM=1
+  DO_CAVEMAN=1; DO_MLX=1; DO_OMLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1; DO_LITELLM=1
 fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -392,6 +395,24 @@ setup_mlx() {
   else
     warn "models-mlx.txt not found — create it with HuggingFace model ids (mlx-community/...)"
   fi
+}
+
+setup_omlx() {
+  step "oMLX server (multi-model MLX)"
+  local cli="${OMLX_CLI:-/Applications/oMLX.app/Contents/MacOS/omlx-cli}"
+  if [ ! -x "$cli" ]; then
+    warn "oMLX not installed — download it from https://omlx.app (or set OMLX_CLI)"
+    return
+  fi
+  ok "installed: $(/usr/bin/defaults read /Applications/oMLX.app/Contents/Info CFBundleShortVersionString 2>/dev/null || echo present)"
+  if omlx_up; then
+    ok "running at $OMLX_BASE_URL — $(omlx_models | wc -l | tr -d ' ') models served"
+  else
+    warn "not running — start with: bin/omlx start"
+  fi
+  [ "$DO_OMLX" = 0 ] && return
+  ok "models directory: $OMLX_MODELS_DIR"
+  ok "bench with: bin/bench --runtime omlx --model <id>   (ids: bin/omlx models)"
 }
 
 setup_ollama() {
@@ -701,11 +722,12 @@ setup_model_profile() {
 show_models() {
   step "Model status"
 
-  local show_lms=1 show_ollama=1 show_mlx=1
+  local show_lms=1 show_ollama=1 show_mlx=1 show_omlx=1
   case "$RUNTIME" in
-    lms)    show_ollama=0; show_mlx=0;;
-    ollama) show_lms=0;    show_mlx=0;;
-    mlx)    show_lms=0;    show_ollama=0;;
+    lms)    show_ollama=0; show_mlx=0; show_omlx=0;;
+    ollama) show_lms=0;    show_mlx=0; show_omlx=0;;
+    mlx)    show_lms=0;    show_ollama=0; show_omlx=0;;
+    omlx)   show_lms=0;    show_ollama=0; show_mlx=0;;
   esac
 
   if [ "$show_lms" = 1 ]; then
@@ -753,6 +775,27 @@ show_models() {
       read_list "$mlx_file" | sed 's/^/  /'
     else
       warn "models-mlx.txt not found"
+    fi
+  fi
+
+  if [ "$show_omlx" = 1 ] && omlx_up; then
+    echo
+    info "oMLX models (models-omlx.txt → $OMLX_BASE_URL)"
+    # oMLX serves everything under its model dir, so anything in models-omlx.txt
+    # that it doesn't list is a real miss — a stale entry or a pending rescan.
+    local served; served="$(omlx_models)"
+    local omlx_file="$HERE/models-omlx.txt"
+    if [ -f "$omlx_file" ]; then
+      while IFS= read -r m; do
+        if printf '%s\n' "$served" | grep -qxF "$m"; then
+          ok "  $m  ${C_DIM}[served]${C_RST}"
+        else
+          warn "  $m  ${C_DIM}not served — add it under $OMLX_MODELS_DIR, then: bin/omlx reload${C_RST}"
+        fi
+      done < <(read_list "$omlx_file")
+    else
+      warn "models-omlx.txt not found"
+      printf '%s\n' "$served" | sed 's/^/    /'
     fi
   fi
 
@@ -871,6 +914,7 @@ if [ "$STATUS_ONLY" = 1 ]; then
   setup_aider
   setup_caveman
   setup_mlx
+  setup_omlx
   setup_ollama
   setup_fzf
   setup_hf
@@ -933,7 +977,7 @@ fi
 
 if [ "$DO_ALL" = 1 ]; then
   DO_LMS=1; DO_HERMES=1; DO_CODEX=1; DO_OPENCODE=1; DO_AIDER=1
-  DO_CAVEMAN=1; DO_MLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1; DO_LITELLM=1
+  DO_CAVEMAN=1; DO_MLX=1; DO_OMLX=1; DO_OLLAMA=1; DO_FZF=1; DO_HF=1; DO_LITELLM=1
 fi
 
 [ "$DO_LMS" = 1 ]     && setup_lms
@@ -943,6 +987,7 @@ fi
 [ "$DO_AIDER" = 1 ]   && setup_aider
 [ "$DO_CAVEMAN" = 1 ] && setup_caveman
 [ "$DO_MLX" = 1 ]     && setup_mlx
+[ "$DO_OMLX" = 1 ]    && setup_omlx
 [ "$DO_OLLAMA" = 1 ]  && setup_ollama
 [ "$DO_FZF" = 1 ]     && setup_fzf
 [ "$DO_HF" = 1 ]      && setup_hf
