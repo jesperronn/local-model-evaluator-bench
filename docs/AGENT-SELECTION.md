@@ -18,7 +18,7 @@ LMS sweep: 7 models × 12 adapters.
 | ✅ **openhands** | 28–254s/case | 37–92% | Most models; collapses on devstral |
 | ✅ **nanocoder** | 8–250s/case | 35–97% | Bash blocked (execute_bash), XML issue on 9b (71%), GLM too slow |
 | ❌ **codex** | 12–301s/case | 65–100% | ts-01 error(1) on some models; mixed reliability |
-| ❌ **caveman** | 2s (error) | 37% | LMS incompatible — Ollama only |
+| ✅ **caveman** | speed measured pending | 87.1% (pre-break data) | Fixed 2026-07-07 on both LMS and Ollama — see docs/tools/caveman.md |
 | ❌ **copilot** | variable | 37–56% | LMS incompatible — patch format issues |
 
 ## Per-Model Results (2026-06-29 overnight, LMS)
@@ -51,12 +51,12 @@ LMS sweep: 7 models × 12 adapters.
 | cline | `pnpm install -g cline` | Falls back to pnpm store if PATH broken |
 | hermes | hermes config.yaml: `backend: local`, `approvals.mode: smart` | `bin/doctor` verifies |
 | goose | `pipx install goose-ai` | Works out of box |
-| pi | `pip install pipecat` | Tool-call shim enabled for nested edits |
+| pi | `npm install -g @earendil-works/pi-coding-agent` | Tool-call shim enabled for nested edits |
 | opencode | `npm install -g opencode` | Glob issue on gemma-4-e4b |
 | openhands | Docker or pip | Collapses on devstral (model issue) |
 | nanocoder | `npm install -g nanocoder` | v1.28.1; LMS provider via env var |
 | codex | `npm install -g @openai/codex` | wire_api=chat incompatibility on some configs |
-| caveman | n/a on LMS | Use Ollama runtime only |
+| caveman | `npm install -g @juliusbrussee/caveman-code` | Works on LMS and Ollama (fixed 2026-07-07, see docs/tools/caveman.md) |
 | copilot | n/a on LMS | Patch format incompatible with most models |
 
 ## Why Keep Weak Agents?
