@@ -3,6 +3,18 @@
 **Date:** July 5, 2026  
 **Status:** ✅ All agents installed and configured for Ollama
 
+> **Stale as of 2026-08-08 re: Qwen Code.** This doc's `~/.config/qwen/settings.json`
+> setup and "FULLY WORKING" verdict predate the current qwen-code version and
+> contradict `APPROVED_AGENTS.md`'s same-day rejection of qwen (fixed
+> 442-char output) — the two were apparently never reconciled. The actual
+> current state (2026-08-08): qwen is a registered harness via
+> `adapters/qwen-omlx.sh` (oMLX, not Ollama), configured with
+> `OPENAI_API_KEY`/`OPENAI_BASE_URL`/`OPENAI_MODEL` env vars — no
+> `settings.json` needed, and the file path this doc names is not even the
+> right location. It also phones home to Alibaba on 3 paths unless
+> suppressed; see `docs/HANDOFF-phone-home-audit.md`. Treat the Qwen Code
+> section below as historical only.
+
 ---
 
 ## Overview

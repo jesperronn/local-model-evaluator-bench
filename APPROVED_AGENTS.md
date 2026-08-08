@@ -86,9 +86,21 @@ PATTERN: Same response for all different prompts = Not inference
 
 ---
 
-### ❌ qwen (Qwen Code)
+### ❌ qwen (Qwen Code) — superseded 2026-08-08, see below
 
-**Status:** ❌ REJECTED - Output truncation/error
+> **Update 2026-08-08:** re-tested against oMLX with `Ornith-1.0-35B-4bit`
+> via `adapters/qwen-omlx.sh`. Response length/content varied correctly by
+> prompt this time (haiku ~130 chars, fibonacci explanation ~700 chars) —
+> the original 442-char-fixed symptom below does not reproduce on the current
+> `qwen-code` version (0.21.7) against a local backend. `qwen` is now a
+> registered harness (`bin/setup`, `adapters/qwen-omlx.sh`); the 2026-07-05
+> rejection below is kept for history but no longer reflects current status.
+> Separately, this CLI phones home to Alibaba on 3 unrelated paths
+> (telemetry, startup preconnect, update check) unless explicitly suppressed
+> — see `docs/HANDOFF-phone-home-audit.md`. `adapters/qwen-omlx.sh` suppresses
+> all three; any other qwen invocation may not.
+
+**Original 2026-07-05 status:** ❌ REJECTED - Output truncation/error
 
 **Rejection Reason:**
 - Fixed 442-char output for all tests
@@ -185,7 +197,9 @@ Estimated time: 30-90 minutes
 
 ✅ **Use omp** - Only agent with proven actual model inference  
 ❌ **Remove shai** - Does not call models  
-❌ **Remove qwen** - Output truncation prevents evaluation  
+~~❌ **Remove qwen** - Output truncation prevents evaluation~~ — superseded
+2026-08-08, see the qwen entry above: re-verified working against oMLX, now
+a registered harness with its Alibaba phone-home paths suppressed.
 
 **Confidence level:** 100% - Proven via fair comparison test with irrefutable evidence (identical response lengths for different prompts)
 

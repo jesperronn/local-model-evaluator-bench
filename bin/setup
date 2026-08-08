@@ -484,6 +484,7 @@ get_agent_cli_cmd() {
     forge)     echo "forge";;
     mini-swe-agent) echo "mini-swe-agent";;
     nanocoder) echo "nanocoder";;
+    qwen)      echo "qwen";;
     *) return 1;;
   esac
 }
@@ -509,6 +510,7 @@ get_agent_install_cmd() {
     forge)     echo "npm install --global @hoangsonw/forge";;
     mini-swe-agent) echo "python3 -m pip install --break-system-packages mini-swe-agent";;
     nanocoder) echo "npm install --global @nanocollective/nanocoder";;
+    qwen)      echo "npm install --global @qwen-code/qwen-code";;
     *) return 1;;
   esac
 }
@@ -572,6 +574,13 @@ get_agent_config_guidance() {
       ;;
     nanocoder)
       printf "  No config file: provider JSON is passed via the NANOCODER_PROVIDERS env var.\n"
+      ;;
+    qwen)
+      printf "  No settings.json needed — Qwen Code's \"openai\" auth type is selected by\n"
+      printf "  OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL alone.\n"
+      printf "  Calls home to Alibaba by default on 3 separate paths (telemetry, a\n"
+      printf "  startup preconnect, an update check) unless suppressed — see\n"
+      printf "  adapters/qwen-omlx.sh and docs/HANDOFF-phone-home-audit.md.\n"
       ;;
     *)
       printf "  See adapter: adapters/%s-*.sh for configuration details.\n" "$agent"

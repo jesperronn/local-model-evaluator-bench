@@ -72,6 +72,13 @@ omp models list  # Shows Ollama and LM Studio models
 
 ### 3. Qwen Code (qwen)
 
+> **Stale as of 2026-08-08:** `QWEN_API_TYPE`/`QWEN_API_BASE` below are not
+> real env vars in the current qwen-code (0.21.7) — it reads
+> `OPENAI_API_KEY`/`OPENAI_BASE_URL`/`OPENAI_MODEL` (or `QWEN_MODEL` as an
+> alias for `OPENAI_MODEL`) instead. See `adapters/qwen-omlx.sh` for the
+> current, verified-working setup, and `docs/HANDOFF-phone-home-audit.md` —
+> this CLI phones home to Alibaba on 3 paths unless explicitly suppressed.
+
 **Install:** ✅ Already installed globally
 
 **Setup for Ollama:**
