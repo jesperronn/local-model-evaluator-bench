@@ -1240,5 +1240,35 @@
     "resolved_date": "2026-08-08",
     "resolved_run_id": "20260808-121138",
     "resolved_agent_version": "2.4.2"
+  },
+  "copilot:Ornith-1.0-9B-4bit:omlx": {
+    "adapter": "copilot",
+    "model": "Ornith-1.0-9B-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-09",
+    "run_id": "20260809-150203",
+    "symptom": "",
+    "status": "open"
+  },
+  "copilot:qwen2.5-coder:7b:ollama": {
+    "adapter": "copilot",
+    "model": "qwen2.5-coder:7b",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-09",
+    "run_id": "20260809-150831",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "copilot:Qwen3-Coder-30B-A3B-Instruct-4bit:omlx": {
+    "adapter": "copilot",
+    "model": "Qwen3-Coder-30B-A3B-Instruct-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-09",
+    "run_id": "20260809-150821",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
   }
 }

@@ -386,7 +386,7 @@ fi
 echo "${C_DIM}full details: $(dirname "$CSV")/results.csv${C_RST}"
 
 # Show next steps for full benchmarking
-if [ ${#passing_adapters[@]} -gt 0 ]; then
+if [ -n "${passing_adapters[*]+set}" ]; then
   echo
   help_section "NEXT STEPS"
   help_line "Run full benchmark with passing adapters:"
