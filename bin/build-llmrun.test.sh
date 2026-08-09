@@ -92,6 +92,23 @@ else
   check "LMS_API_KEY ($LMS_API_KEY) appears in output" "1" "$([ "$lms_key_in_output" -gt 0 ] && echo 1 || echo 0)"
 fi
 
+# OMLX_URL/OMLX_KEY: check that the oMLX URL/key appear (must not be empty)
+if [ -z "$OMLX_BASE_URL" ]; then
+  printf '%s\n' "${C_RED}[FAIL]${C_RST} OMLX_BASE_URL not set in config.sh"
+  fail=$((fail+1))
+else
+  omlx_url_in_output=$(grep -c "$OMLX_BASE_URL" "$GENERATED_SCRIPT" || echo 0)
+  check "OMLX_BASE_URL ($OMLX_BASE_URL) appears in output" "1" "$([ "$omlx_url_in_output" -gt 0 ] && echo 1 || echo 0)"
+fi
+
+if [ -z "$OMLX_API_KEY" ]; then
+  printf '%s\n' "${C_RED}[FAIL]${C_RST} OMLX_API_KEY not set in config.sh"
+  fail=$((fail+1))
+else
+  omlx_key_in_output=$(grep -c "$OMLX_API_KEY" "$GENERATED_SCRIPT" || echo 0)
+  check "OMLX_API_KEY ($OMLX_API_KEY) appears in output" "1" "$([ "$omlx_key_in_output" -gt 0 ] && echo 1 || echo 0)"
+fi
+
 # ── Test 5: ADAPTERS directory exists ─────────────────────────────────────────
 adapters_dir_exists="fail"
 if [ -d "$HERE/adapters" ]; then
@@ -109,6 +126,14 @@ lms_key_status="pass"
 [ -z "$LMS_API_KEY" ] && lms_key_status="fail"
 check "LMS_API_KEY is non-empty" "pass" "$lms_key_status"
 
+omlx_url_status="pass"
+[ -z "$OMLX_BASE_URL" ] && omlx_url_status="fail"
+check "OMLX_BASE_URL is non-empty" "pass" "$omlx_url_status"
+
+omlx_key_status="pass"
+[ -z "$OMLX_API_KEY" ] && omlx_key_status="fail"
+check "OMLX_API_KEY is non-empty" "pass" "$omlx_key_status"
+
 # ── Test 7: --dry-run resolves adapter/runtime/model without exec'ing ────────
 # Pick a real adapter pair straight from adapters/ so this stays correct as
 # adapters are added/removed (mirrors what lint-adapters does for tool lookup).
@@ -123,6 +148,20 @@ if [ -n "$runtime_suffixed" ]; then
   check "dry-run does not print launching (never execs)" "0" "$(printf '%s\n' "$dr_out" | grep -c 'launching')"
 else
   printf '%s\n' "${C_YEL}[SKIP]${C_RST} no *-lms.sh adapter found — skipping runtime-suffixed dry-run check"
+fi
+
+# omlx dry-run: verify the runtime resolves and OMLX_BASE_URL/KEY are reported
+# (not LMS_BASE_URL/KEY) — this is the load-bearing distinction from handoff
+# item 8: omlx adapters read OMLX_* directly, not the shared LMS_* names.
+omlx_suffixed="$(ls "$HERE/adapters"/*-omlx.sh 2>/dev/null | head -1)"
+if [ -n "$omlx_suffixed" ]; then
+  omlx_tool="$(basename "$omlx_suffixed" -omlx.sh)"
+  dr_out_omlx="$("$GENERATED_SCRIPT" --agent "$omlx_tool" --runtime omlx --model test-model --dry-run 2>&1)"
+  check "dry-run resolves omlx-suffixed adapter ($omlx_tool-omlx.sh)" \
+    "$omlx_suffixed" "$(printf '%s\n' "$dr_out_omlx" | sed -n 's/^adapter=//p')"
+  check "dry-run reports runtime=omlx" "runtime=omlx" "$(printf '%s\n' "$dr_out_omlx" | grep '^runtime=')"
+else
+  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no *-omlx.sh adapter found — skipping omlx dry-run check"
 fi
 
 # Unified adapter (no runtime suffix): falls back to <tool>.sh per Phase 2's
