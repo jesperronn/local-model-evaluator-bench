@@ -9,6 +9,7 @@
 | **Version** | unknown — not yet evaluated |
 | **Adapter script** | not yet written |
 | **How it connects** | TBD — Qwen models run locally via Ollama; investigate if the CLI accepts an OpenAI-compatible base URL |
+| **Runtime model discovery** | not applicable — no adapter exists yet, so nothing has been observed either way. |
 | **Last reviewed** | never |
 
 ## Status

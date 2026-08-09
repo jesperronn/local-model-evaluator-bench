@@ -9,6 +9,7 @@
 | **Version** | see `pip show openhands-ai` |
 | **Adapter script** | [`adapters/openhands-lms.sh`](../../adapters/openhands-lms.sh) |
 | **How it connects** | OpenAI-compatible endpoint; model addressed as `openai/<MODEL_ID>` |
+| **Runtime model discovery** | **no** — `LLM_MODEL="openai/${MODEL_ID}"` is set explicitly via env var every run (`adapters/openhands-lms.sh`/`openhands-omlx.sh`); no call to a `/v1/models`-equivalent endpoint is made by the adapter. |
 | **Last reviewed** | 2026-06-30 |
 
 ## How it connects

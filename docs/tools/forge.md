@@ -21,6 +21,7 @@
 | **Version** | not yet evaluated |
 | **Adapter script** | [`adapters/forge-lms.sh`](../../adapters/forge-lms.sh) |
 | **How it connects** | `OPENAI_API_BASE` + `OPENAI_API_KEY` env vars; backend-agnostic, any `/v1/chat/completions` endpoint. |
+| **Runtime model discovery** | **unconfirmed** — `adapters/forge-lms.sh`/`forge-omlx.sh` compute `FORGE_MODEL="${MODEL_ID##*/}"` but the `forge run` invocation in both scripts never passes `--model` or `$FORGE_MODEL`. Unclear from the adapter alone whether forge selects a model automatically (e.g. from the backend) or this is an adapter gap. Needs hands-on verification before claiming either way. |
 | **Last reviewed** | 2026-06-26 |
 
 ## Background

@@ -21,6 +21,7 @@
 | **Version** | measured pending |
 | **Adapter script** | likely not possible |
 | **How it connects** | IDE extension (VS Code + JetBrains); no headless CLI mode documented |
+| **Runtime model discovery** | not applicable — no headless CLI/adapter exists to observe this in. Note: the `cn` CLI (a separate Continue-family tool, see [`cn.md`](cn.md)) does support `model: AUTODETECT` against a local Ollama install, but that has not been confirmed for this "Continue" IDE-extension entry. |
 | **Last reviewed** | never |
 
 ## Edit mechanism

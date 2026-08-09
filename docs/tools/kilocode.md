@@ -10,6 +10,7 @@
 | **Version** | 7.3.46 |
 | **Adapter script** | not written — not feasible (see Status) |
 | **How it connects** | N/A |
+| **Runtime model discovery** | **yes, but against the wrong backend** — kilo validates every model ID against kilo.ai's cloud catalog, not the local `OPENAI_BASE_URL` endpoint. That's precisely why local models are rejected (see Status/Investigation notes below): `kilo run --model openai/<anything>` errors "Model not found" even with the base URL pointed locally, because the model list it checks against is fetched from kilo.ai. **Matches an upstream feature request that was closed as not planned:** [Kilo-Org/kilocode#6326 — "[FEATURE]: Add Ollama/Local Model Provider Support"](https://github.com/Kilo-Org/kilocode/issues/6326) (closed as not planned, despite the requester reporting a working implementation) — confirms local/Ollama provider support for the CLI is a known, deliberately-declined request, not an oversight. Re-check periodically in case that decision changes. |
 | **Last reviewed** | 2026-06-18 |
 
 ## Status

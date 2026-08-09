@@ -21,6 +21,7 @@
 | **Version** | 2.4.2 (installed 2026-06-27) |
 | **Adapter script** | [`adapters/mini-swe-agent-lms.sh`](../../adapters/mini-swe-agent-lms.sh) |
 | **How it connects** | Routes through LiteLLM; `OPENAI_API_BASE` + `OPENAI_API_KEY` env vars; model addressed as `openai/<MODEL_ID>` |
+| **Runtime model discovery** | **no** — `--model "openai/${MODEL_ID}"` is passed explicitly every run (`adapters/mini-swe-agent-lms.sh`/`mini-swe-agent-omlx.sh`); no call to a `/v1/models`-equivalent endpoint is made by the adapter. |
 | **Last reviewed** | 2026-06-27 |
 
 ## Background

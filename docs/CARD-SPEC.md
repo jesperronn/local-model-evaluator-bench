@@ -101,7 +101,7 @@
 | # | Section | Must answer | QUESTION-SUITE |
 |---|---------|-------------|----------------|
 | 1 | **Quick verdict** | accuracy (on which model), speed (avg), best model, recommended-for, status (stable/experimental/broken) — table + co-equal rule | Q55–59 |
-| 2 | **Metadata** | CLI command, version, adapter script (linked), how it connects, last reviewed | Q60–63 |
+| 2 | **Metadata** | CLI command, version, adapter script (linked), how it connects, **runtime model discovery** (does the tool query the backend's `/v1/models`-equivalent endpoint automatically, or must the model be defined manually in config/flags/env?), last reviewed | Q60–63 |
 | 3 | **Edit mechanism** | edit format, file targeting, multi-file support | Q64–66 |
 | 4 | **Iteration / self-verify behaviour** | does it loop on test failure, or single-pass? (standalone section) | Q67 |
 | 5 | **Results by model** | accuracy + speed + runtime table, sorted accuracy desc then speed asc | Q68 |
@@ -146,6 +146,7 @@
 | **Version** | <e.g. 0.86.2> |
 | **Adapter script** | [`adapters/<name>.sh`](../../adapters/<name>.sh) |
 | **How it connects** | <e.g. OpenAI-compat via `--openai-api-base`> |
+| **Runtime model discovery** | <**yes**/**no**/**unconfirmed**/**not applicable** — does the tool query the backend automatically, or is the model always passed explicitly? Cite the adapter line/flag as evidence.> |
 | **Last reviewed** | <YYYY-MM-DD> |
 
 ## Edit mechanism
@@ -203,6 +204,14 @@ skeleton matches the model/tool pattern.)
 
 ## Changelog
 
+- **2026-08-09** — Added **Runtime model discovery** as a required Metadata
+  field on tool cards: does the tool query the backend's `/v1/models`-
+  equivalent endpoint automatically, or must the model be defined manually
+  (config/flags/env)? Backfilled on every existing `docs/tools/*.md` card and
+  the new `claude.md` card, each sourced from the actual adapter script (or
+  marked `not applicable` where no adapter exists yet). Checked by
+  `bin/check-model-discovery`, which can also re-verify any cited GitHub issue
+  link's live state with `--check-upstream`.
 - **2026-06-30** — Created by merging `docs/templates/*.md` +
   `docs/{MODEL,TOOL}-EVAL-REQUIREMENTS.md`. Decisions: Quick verdict is
   **mandatory** on all cards (backfill via the smaller-model card-sweep, tooling

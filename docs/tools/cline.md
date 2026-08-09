@@ -21,6 +21,7 @@
 | **Version** | latest (pnpm store binary, cli-darwin-arm64) |
 | **Adapter script** | [`adapters/cline-lms.sh`](../../adapters/cline-lms.sh) |
 | **How it connects** | `cline auth openai-compatible` writes provider config to an isolated `--data-dir`; passes `--apikey`, `--modelid`, and `--baseurl` pointing at `LMS_BASE_URL`. Overwritten fresh each run. |
+| **Runtime model discovery** | **no** — `adapters/cline-lms.sh`/`cline-omlx.sh` always pass an explicit `--modelid`/`--model $MODEL_ID`; no call to a `/v1/models`-equivalent endpoint is made by the adapter. Whether cline's own `auth` flow can enumerate backend models outside this bench is unconfirmed. |
 | **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism

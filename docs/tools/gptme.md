@@ -39,6 +39,7 @@
 | **Version** | measured pending |
 | **Adapter script** | [`adapters/gptme-lms.sh`](../../adapters/gptme-lms.sh) |
 | **How it connects** | `OPENAI_BASE_URL` + `OPENAI_API_KEY` env vars; model addressed as `openai/<id>`. |
+| **Runtime model discovery** | **no** — `--model "openai/${MODEL_ID}"` is passed explicitly on every invocation (`adapters/gptme-lms.sh`/`gptme-omlx.sh`); no call to a `/v1/models`-equivalent endpoint is made by the adapter. |
 | **Last reviewed** | 2026-06-26 |
 
 ## Results by model

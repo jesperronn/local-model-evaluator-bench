@@ -20,6 +20,7 @@
 | **Version** | measured pending |
 | **Adapter script** | not yet written — may not need one if it wraps claude |
 | **How it connects** | TBD — ccs switches between Claude Code profiles; investigate if a profile can target a local endpoint |
+| **Runtime model discovery** | not applicable — no adapter exists yet, so nothing has been observed either way. |
 | **Last reviewed** | never |
 
 ## Edit mechanism

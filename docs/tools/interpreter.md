@@ -21,6 +21,7 @@
 | **Version** | latest |
 | **Adapter script** | [`adapters/interpreter-lms.sh`](../../adapters/interpreter-lms.sh) |
 | **How it connects** | Built-in `lmstudio` provider (hardwired to `localhost:1234/v1`). Model overridden at runtime via `-c 'model="..."'` without touching `config.toml`. |
+| **Runtime model discovery** | **no** — `-c "model=\"$MODEL_ID\""` is passed explicitly every run (`adapters/interpreter-lms.sh`); no call to a `/v1/models`-equivalent endpoint is made by the adapter. |
 | **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism

@@ -21,6 +21,7 @@
 | **Version** | codex-cli 0.138.0 |
 | **Adapter script** | [`adapters/codex-lms.sh`](../../adapters/codex-lms.sh) |
 | **How it connects** | Custom `model_provider` config passed inline via `-c` flags. Registers a `lmstudio_local` provider (not `lmstream` — that's a reserved built-in ID that can't be overridden). |
+| **Runtime model discovery** | **no** — `model=$MODEL_ID` is always passed explicitly via `-c`. codex does attempt its own refresh on startup, but per the adapter's "Known model incompatibilities" note it fails against LM Studio: `codex_models_manager` logs "failed to refresh available models: missing field \`models\`" because codex expects Ollama-shaped `{models:[...]}` while LM Studio returns OpenAI-shaped `{data:[...]}`. Harmless, but confirms discovery doesn't work here. Related upstream report (different symptom, same root cause — codex's model-refresh step assumes an OpenAI-owned endpoint shape/auth for custom `model_provider`s): [openai/codex#11213 — "Skip api.openai.com/v1/models refresh when using custom responses-api-endpoint"](https://github.com/openai/codex/issues/11213) (closed). |
 | **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism

@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# bin/check-model-discovery — validate the "Runtime model discovery" row on
+# every docs/tools/*.md card, and (optionally) re-check any GitHub issue links
+# cited as evidence in that row against the live issue state.
+#
+# Why this exists: cards record, per adapter, whether the tool auto-detects
+# models from the backend (e.g. a /v1/models-equivalent endpoint) or needs the
+# model defined manually. That fact can go stale two ways:
+#   1. a card gets added/edited without filling the row in (caught by --lint,
+#      the default — no network required)
+#   2. an upstream project ships the feature a card says is missing, e.g. an
+#      open feature-request issue gets closed as merged (caught by
+#      --check-upstream, which hits the GitHub API for any issue link found in
+#      a "Runtime model discovery" row and flags state mismatches for review)
+#
+# Usage:
+#   bin/check-model-discovery                  # lint only (no network)
+#   bin/check-model-discovery --check-upstream # also re-check linked issues
+#   bin/check-model-discovery --card PATH      # lint a single card
+#   bin/check-model-discovery --json           # machine-readable output
+# Exit: 0 if everything checked out, 1 if any card fails / any issue mismatches,
+#       2 on usage error.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+TOOLS_DIR="${CHECK_MODEL_DISCOVERY_TOOLS_DIR:-$HERE/docs/tools}"
+
+show_help() {
+  help_header "check-model-discovery" "validate the Runtime model discovery row on tool cards"
+
+  help_section "USAGE"
+  help_line "  check-model-discovery [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Every docs/tools/<name>.md card must have a non-empty, non-placeholder"
+  help_line "  'Runtime model discovery' metadata row (yes / no / unconfirmed / not"
+  help_line "  applicable), per docs/CARD-SPEC.md. With --check-upstream, also fetches"
+  help_line "  the live state of any github.com/.../issues/N links cited in that row"
+  help_line "  and flags a mismatch against the (open)/(closed) annotation recorded in"
+  help_line "  the card — a sign upstream may have shipped auto-discovery since the"
+  help_line "  card was last reviewed."
+
+  help_section "OPTIONS"
+  help_flag "--check-upstream" "" "also re-check cited GitHub issue links (needs network)"
+  help_flag "--card" "PATH" "check a single card instead of all of docs/tools/"
+  help_flag "--json" "" "machine-readable output"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXIT CODES"
+  help_line "  0: all checks passed"
+  help_line "  1: a card is missing/placeholder, or an issue-state mismatch was found"
+  help_line "  2: usage error"
+
+  exit 0
+}
+
+CHECK_UPSTREAM=0; CARD=""; JSON=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check-upstream) CHECK_UPSTREAM=1; shift ;;
+    --card) CARD="${2:-}"; shift 2 ;;
+    --json) JSON=1; shift ;;
+    -h|--help) show_help ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+if [ -n "$CARD" ]; then
+  FILES=("$CARD")
+else
+  [ -d "$TOOLS_DIR" ] || die "missing $TOOLS_DIR"
+  FILES=()
+  while IFS= read -r f; do FILES+=("$f"); done < <(find "$TOOLS_DIR" -maxdepth 1 -name '*.md' | sort)
+fi
+
+FAIL=0
+declare -a RESULTS=()  # one JSON-ish line per file, for --json
+
+for f in "${FILES[@]}"; do
+  [ -f "$f" ] || { err "file not found: $f"; FAIL=1; continue; }
+  name="$(basename "$f" .md)"
+
+  row="$(grep -m1 'Runtime model discovery' "$f" || true)"
+  if [ -z "$row" ]; then
+    # hwprofile.md and similar non-adapter utility docs legitimately have no
+    # such row; only flag cards that actually document an adapter/CLI tool.
+    if grep -q 'Adapter script' "$f"; then
+      err "$name: missing 'Runtime model discovery' row"
+      RESULTS+=("{\"card\":\"$name\",\"status\":\"missing\"}")
+      FAIL=1
+    fi
+    continue
+  fi
+
+  # Extract the value cell: | **Runtime model discovery** | <value> |
+  value="$(printf '%s\n' "$row" | awk -F'|' '{print $3}' | sed 's/^ *//; s/ *$//')"
+  if [ -z "$value" ] || printf '%s' "$value" | grep -qiE '^(todo|unknown|<|n/?a)$'; then
+    err "$name: 'Runtime model discovery' row is empty or a placeholder: '$value'"
+    RESULTS+=("{\"card\":\"$name\",\"status\":\"placeholder\",\"value\":$(printf '%s' "$value" | jq -Rs . 2>/dev/null || echo '""')}")
+    FAIL=1
+    continue
+  fi
+
+  ok "$name: $value" | head -c 200; echo
+  RESULTS+=("{\"card\":\"$name\",\"status\":\"ok\"}")
+
+  if [ "$CHECK_UPSTREAM" -eq 1 ]; then
+    # Pull every github.com/OWNER/REPO/issues/NUMBER link out of the row,
+    # along with the (open)/(closed) annotation the card recorded nearby.
+    while IFS= read -r url; do
+      [ -z "$url" ] && continue
+      issue_num="${url##*/issues/}"
+      repo_path="$(printf '%s' "$url" | sed -E 's#https://github.com/([^/]+/[^/]+)/issues/.*#\1#')"
+      recorded="unknown"
+      printf '%s' "$row" | grep -qi "$url).*(open)"   && recorded="open"
+      printf '%s' "$row" | grep -qi "$url).*(closed"  && recorded="closed"
+
+      api="https://api.github.com/repos/$repo_path/issues/$issue_num"
+      live_state="$(curl -fsS --max-time 10 -H 'Accept: application/vnd.github+json' "$api" 2>/dev/null \
+        | grep -m1 '"state"' | sed -E 's/.*"state": *"([a-z]+)".*/\1/')"
+
+      if [ -z "$live_state" ]; then
+        warn "$name: could not fetch live state for $url (network/rate-limit?) — skipping"
+        continue
+      fi
+      if [ "$recorded" != "unknown" ] && [ "$recorded" != "$live_state" ]; then
+        err "$name: $url is now '$live_state' but card says '$recorded' — re-review this card, upstream state may have changed"
+        FAIL=1
+      else
+        ok "$name: $url still $live_state, matches card"
+      fi
+    done < <(printf '%s\n' "$row" | grep -oE 'https://github\.com/[^/]+/[^/]+/issues/[0-9]+')
+  fi
+done
+
+if [ "$JSON" -eq 1 ]; then
+  printf '['; IFS=,; printf '%s' "${RESULTS[*]:-}"; printf ']\n'
+fi
+
+exit "$FAIL"
