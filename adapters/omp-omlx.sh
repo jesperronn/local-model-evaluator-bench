@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Adapter: oh-my-pi (omp) -> oMLX (OpenAI-compatible local server).
-# omp resolves an "omlx" provider the same way pi does: a named omlx entry in
-# omp's own catalog (typically ~/.omp/models.json) pointing at $OMLX_BASE_URL.
+# omp has no "omlx" provider; it does support pointing its "lm-studio"
+# provider at an arbitrary OpenAI-compatible server via LM_STUDIO_BASE_URL,
+# so we route through that to reach the oMLX server at $OMLX_BASE_URL.
 # Start the server first: bin/omlx start
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
@@ -13,7 +14,8 @@ command -v omp >/dev/null 2>&1 || {
   exit 1
 }
 
-OMP_ARGS=(--provider omlx --model "$MODEL_ID")
+export LM_STUDIO_BASE_URL="$OMLX_BASE_URL"
+OMP_ARGS=(--model "lm-studio/$MODEL_ID")
 
 if [ ! -t 0 ]; then
   exec omp "${OMP_ARGS[@]}" -p "$(cat)"
