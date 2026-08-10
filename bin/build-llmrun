@@ -86,9 +86,17 @@ for m in json.load(sys.stdin):
 " 2>/dev/null
 }
 _rt_ollama_loaded() { ollama ps 2>/dev/null | awk 'NR>1 && NF { print $1 }' || true; }
+_rt_ollama_models() {
+  curl -fsS --max-time 5 "http://localhost:11434/api/tags" 2>/dev/null \
+    | python3 -c "import sys,json; [print(m['name']) for m in json.load(sys.stdin).get('models',[])]" 2>/dev/null
+}
 _rt_mlx_model() {
   curl -fsS --max-time 2 http://localhost:8080/v1/models 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data'][0]['id'])" 2>/dev/null
+}
+_rt_mlx_models() {
+  curl -fsS --max-time 5 http://localhost:8080/v1/models 2>/dev/null \
+    | python3 -c "import sys,json; [print(m['id']) for m in json.load(sys.stdin).get('data',[])]" 2>/dev/null
 }
 _rt_omlx_models() {
   curl -fsS --max-time 2 "$_OMLX_URL/models" 2>/dev/null \
@@ -432,14 +440,13 @@ _model_list_lms() {
 _model_list_ollama() {
   if ollama_up 2>/dev/null; then
     printf '%s\n' "${C_BLU}[ollama]${C_RST}"
-    ollama list 2>/dev/null | awk 'NR>1 {print "  " $1}'
+    _rt_ollama_models | sed 's/^/  /'
   elif [ "${1:-}" = required ]; then die "ollama not reachable"; fi
 }
 _model_list_mlx() {
   if mlx_up 2>/dev/null; then
     printf '%s\n' "${C_BLU}[mlx]${C_RST}"
-    curl -fsS --max-time 5 http://localhost:8080/v1/models 2>/dev/null \
-      | python3 -c "import sys,json; [print('  '+m['id']) for m in json.load(sys.stdin).get('data',[])]" 2>/dev/null
+    _rt_mlx_models | sed 's/^/  /'
   elif [ "${1:-}" = required ]; then die "mlx not reachable"; fi
 }
 _model_list_omlx() {
@@ -728,15 +735,14 @@ while [ $# -gt 0 ]; do
       fi
       printf '\n  %s\n' "${C_YEL}Ollama:${C_RST}"
       if ollama_up 2>/dev/null; then
-        ollama list 2>/dev/null | awk 'NR>1 {printf "    %s\n", $1}'
+        _rt_ollama_models | sed 's/^/    /'
       else
         printf '    (Ollama not running — falling back to %s/models-ollama.txt)\n' "$_PROJECT"
         [ -f "$_PROJECT/models-ollama.txt" ] && sed 's/^/    /' "$_PROJECT/models-ollama.txt" || printf '    (file not found)\n'
       fi
       printf '\n  %s\n' "${C_YEL}MLX:${C_RST}"
       if mlx_up 2>/dev/null; then
-        curl -fsS --max-time 5 "http://localhost:8080/v1/models" 2>/dev/null \
-          | python3 -c "import sys,json; [print(f'    {m[\"id\"]}') for m in json.load(sys.stdin).get('data',[])]" 2>/dev/null || printf '    (could not list MLX models)\n'
+        _rt_mlx_models | sed 's/^/    /'
       else
         printf '    (mlx server not running — falling back to %s/models-mlx.txt)\n' "$_PROJECT"
         [ -f "$_PROJECT/models-mlx.txt" ] && sed 's/^/    /' "$_PROJECT/models-mlx.txt" || printf '    (file not found)\n'
@@ -796,12 +802,18 @@ if [ -z "$MODEL" ]; then
       [ -z "$model_list" ] && die "no models found via 'lms ls' — is LM Studio running?"
       ;;
     ollama)
-      model_list="$(read_list "$_PROJECT/models-ollama.txt")"
-      [ -z "$model_list" ] && die "no models in $_PROJECT/models-ollama.txt"
+      if ollama_up 2>/dev/null; then
+        model_list="$(_rt_ollama_models)"
+      fi
+      [ -z "$model_list" ] && model_list="$(read_list "$_PROJECT/models-ollama.txt")"
+      [ -z "$model_list" ] && die "no models found via ollama or $_PROJECT/models-ollama.txt"
       ;;
     mlx)
-      model_list="$(read_list "$_PROJECT/models-mlx.txt")"
-      [ -z "$model_list" ] && die "no models in $_PROJECT/models-mlx.txt"
+      if mlx_up 2>/dev/null; then
+        model_list="$(_rt_mlx_models)"
+      fi
+      [ -z "$model_list" ] && model_list="$(read_list "$_PROJECT/models-mlx.txt")"
+      [ -z "$model_list" ] && die "no models found via mlx or $_PROJECT/models-mlx.txt"
       ;;
     omlx)
       if omlx_up 2>/dev/null; then
