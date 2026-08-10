@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Adapter: aider -> any local runtime (lms | ollama | mlx), all OpenAI-compatible.
-# Contract: CWD is the sandbox to edit. Prompt arrives on stdin. $MODEL_ID set.
+# Contract: CWD is the sandbox to edit. $MODEL_ID set.
+# Non-interactive (piped stdin, e.g. bin/bench): prompt arrives on stdin, one-shot.
+# Interactive (stdin is a tty, e.g. `llmrun --agent aider`): drops into a real
+# aider REPL with the same runtime/model wiring.
 #
 # bin/bench exports LMS_BASE_URL/LMS_API_KEY already pointed at the *active*
 # runtime, so the endpoint needs no per-runtime branching here. Only the flags
 # that genuinely differ per runtime are switched on $RUNTIME below.
-# Note: This adapter is for testing aider as an agent tool. Use `aider` directly
-# for interactive work.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,24 +22,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-MESSAGE=$(timeout 0.1 cat 2>/dev/null || true)
-if [ -z "$MESSAGE" ]; then
-  cat >&2 <<EOF
+# Interactive callers (stdin is a tty, e.g. `llmrun --agent aider` with no
+# piped prompt) get a real aider REPL instead of an error — `timeout 0.1 cat`
+# would just read nothing off an idle terminal and force a bogus failure here.
+INTERACTIVE=0
+MESSAGE=""
+if [ -t 0 ]; then
+  INTERACTIVE=1
+else
+  MESSAGE=$(cat)
+  if [ -z "$MESSAGE" ]; then
+    cat >&2 <<EOF
 Error: aider adapter requires input text (prompt) on stdin.
-
-This adapter is for testing aider as an agent tool via bin/bench.
-It cannot be used interactively.
 
 Next steps:
   1. For testing: pipe a prompt via stdin:
      echo "your prompt" | adapters/aider.sh --model qwen/qwen3.5-9b
 
-  2. For interactive work, use aider directly:
+  2. For interactive work, run without piping input (or use aider directly):
      aider --model openai/qwen/qwen3.5-9b \\
        --openai-api-base "$LMS_BASE_URL" \\
        --openai-api-key "$LMS_API_KEY"
 EOF
-  exit 1
+    exit 1
+  fi
 fi
 
 AIDER_ARGS=(
@@ -73,7 +80,7 @@ case "$RUNTIME" in
     ;;
 esac
 
-AIDER_ARGS+=(--message "$MESSAGE")
+[ "$INTERACTIVE" = 1 ] || AIDER_ARGS+=(--message "$MESSAGE")
 
 # Pass the sandbox's source files so aider has context for edit cases. Empty for
 # create-from-scratch cases, which is fine.
