@@ -83,11 +83,18 @@ esac
 [ "$INTERACTIVE" = 1 ] || AIDER_ARGS+=(--message "$MESSAGE")
 
 # Pass the sandbox's source files so aider has context for edit cases. Empty for
-# create-from-scratch cases, which is fine.
-mapfile -t FILES < <(find . -type f \
-  -not -path './.git/*' \
-  -not -name '.*' \
-  -not -name '*.log' \
-  2>/dev/null | sort)
+# create-from-scratch cases, which is fine. Skipped in interactive mode: there
+# the CWD is whatever real project the user launched from, not a throwaway
+# sandbox, and dumping every file on the command line blows past ARG_MAX
+# (found running from this repo: "Argument list too long"). Interactive users
+# add files themselves via aider's own /add.
+declare -a FILES=()
+if [ "$INTERACTIVE" != 1 ]; then
+  mapfile -t FILES < <(find . -type f \
+    -not -path './.git/*' \
+    -not -name '.*' \
+    -not -name '*.log' \
+    2>/dev/null | sort)
+fi
 
 exec aider "${AIDER_ARGS[@]}" "${FILES[@]}" "${REMAINING_ARGS[@]}"
