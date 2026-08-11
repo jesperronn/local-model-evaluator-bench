@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# bin/smoke-tty — catch CLI-arg regressions in an adapter's *interactive*
+# branch (the `if [ -t 0 ]` / `else` side of `if [ ! -t 0 ]; ...`).
+#
+# bin/bench and bin/smoke always run adapters with stdin piped from a task
+# file, so they only ever exercise the non-interactive branch. The
+# interactive branch — what actually runs when a human launches an adapter
+# from a terminal with no prompt piped in (e.g. `llmrun --runtime omlx`) —
+# is never touched by automated testing. That's how the goose --no-session
+# regression (goose 1.45.0 dropped --no-session from `goose session`, kept
+# it on `goose run`) went unnoticed: bench never took that code path.
+#
+# This script allocates a real pty for each adapter (via `script`, so
+# `[ -t 0 ]` is true) and launches it with no input, no runtime required.
+# Since nobody types anything, a healthy adapter just sits at its prompt
+# until the timeout kills it — that's a PASS. A FAIL is an adapter that
+# exits on its own within the timeout, almost always because it choked on
+# its own argv before ever reaching the model.
+#
+# This is a wiring smoke test, not a capability test: it proves the adapter
+# *launches*, not that the model behaves. Run bin/smoke for that.
+#
+# Usage:
+#   bin/smoke-tty [--runtime NAME] [--agent NAME] [--timeout SECS]
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
+
+RUNTIME="lms"
+AGENT_OVERRIDE=""
+TTY_TIMEOUT=4
+
+show_help() {
+  help_header "smoke-tty" "catch CLI-arg regressions in an adapter's interactive branch"
+  help_section "USAGE"
+  help_line "  smoke-tty [OPTIONS]"
+  help_section "DESCRIPTION"
+  help_line "  Launches each adapter under a real pty with no piped stdin and no"
+  help_line "  input typed, so it takes the same code path a human hits running"
+  help_line "  it interactively. A healthy adapter idles at its prompt until the"
+  help_line "  timeout (PASS); one that exits on its own almost always died on"
+  help_line "  its own argv (FAIL) — the class of bug bin/bench never sees,"
+  help_line "  since bench always pipes a task file into stdin."
+  help_line "  No runtime server or model required — this only proves the"
+  help_line "  adapter launches, not that the model behaves."
+  help_section "OPTIONS"
+  help_flag "--runtime" "NAME" "lms | ollama | mlx | omlx (default: lms)"
+  help_flag "--agent" "NAME" "only test this adapter (default: all)"
+  help_flag "--timeout" "SECS" "how long to let each adapter idle (default: 4)"
+  help_flag "-h, --help" "" "show this help and exit"
+  help_footer
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --runtime) RUNTIME="$2"; shift 2 ;;
+    --agent) AGENT_OVERRIDE="$2"; shift 2 ;;
+    --timeout) TTY_TIMEOUT="$2"; shift 2 ;;
+    -h|--help) show_help; exit 0 ;;
+    *) die "unknown argument: $1 (see --help)" ;;
+  esac
+done
+
+# CLI/argv failures surface fast and look like this — not model or network
+# errors, which this test can't reach anyway (no input is ever sent).
+_ARG_ERR_RE='error: unexpected argument|error: unrecognized|error: invalid value|error: the following required arguments|Usage: |unknown option|unknown flag|not a valid|command not found|: not found|No such file or directory'
+
+if [ -n "$AGENT_OVERRIDE" ]; then
+  mapfile -t _files < <(ls "$ADAPTERS_DIR/${AGENT_OVERRIDE}-${RUNTIME}.sh" "$ADAPTERS_DIR/${AGENT_OVERRIDE}.sh" 2>/dev/null | sort -u)
+else
+  mapfile -t _files < <(ls "$ADAPTERS_DIR"/*-"${RUNTIME}".sh 2>/dev/null | sort)
+fi
+
+if [ "${#_files[@]}" -eq 0 ]; then
+  die "no adapter files found for runtime '$RUNTIME'"
+fi
+
+info "smoke-tty: ${#_files[@]} adapter(s) on runtime $RUNTIME (timeout ${TTY_TIMEOUT}s each, no model needed)"
+echo
+
+pass=0 fail=0
+for f in "${_files[@]}"; do
+  name="$(basename "$f" .sh)"
+  out="$(mktemp)"
+  # `script -q /dev/null` gives the adapter a real pty on stdin/stdout so its
+  # `[ -t 0 ]` check takes the interactive branch, exactly like a human
+  # running it in a terminal. We type nothing; timeout reaps it.
+  MODEL_ID="smoke-tty-probe" timeout "$TTY_TIMEOUT" script -q /dev/null bash "$f" >"$out" 2>&1
+  rc=$?
+  early_error="$(grep -aE "$_ARG_ERR_RE" "$out" | head -1 || true)"
+
+  if [ -n "$early_error" ]; then
+    err "$name — $early_error"
+    fail=$((fail + 1))
+  elif [ "$rc" -eq 124 ]; then
+    # Killed by our timeout while still running == it made it to an
+    # interactive prompt (or is blocked waiting on stdin). That's success.
+    ok "$name"
+    pass=$((pass + 1))
+  else
+    # Exited on its own, quickly, with no recognizable arg-parse error.
+    # Still suspicious — a healthy interactive session shouldn't exit
+    # unattended — so flag it but show the tail for a human to judge.
+    warn "$name — exited rc=$rc before timeout, no matched error pattern; tail:"
+    tail -5 "$out" | sed 's/^/      /'
+    fail=$((fail + 1))
+  fi
+  rm -f "$out"
+done
+
+echo
+info "smoke-tty: $pass passed, $fail failed"
+[ "$fail" -eq 0 ]
