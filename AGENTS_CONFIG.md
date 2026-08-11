@@ -43,6 +43,8 @@ vibe -p "What is 2+2?" --auto-approve
 
 ### 2. Pi Coding Agent (omp)
 
+See [docs/tools/omp.md](docs/tools/omp.md) for the full tool card (metadata, adapters, known issues).
+
 **Install:** ✅ Already installed globally
 
 **Setup for Ollama:**
