@@ -170,3 +170,17 @@ oMLX will happily serve a model whose config doesn't match its weights and only
 fail at load time. The `KAT-Coder-V2.5-Dev` note in the opencode config (VLM
 config over text-only weights, "Missing 333 parameters") no longer reproduces on
 oMLX 0.5.7 — it loads and answers — so treat such notes as version-stamped.
+
+## Gotcha: model id is the basename only, org is invisible
+
+The model id oMLX exposes is *only* the directory basename — the `<org>` path
+segment in `$OMLX_MODELS_DIR/<org>/<name>` is never part of the id. Two
+different repos re-uploading the same weights under the same folder name
+collide silently: whichever oMLX happens to index shadows the other, with no
+error. Hit this 2026-08-15 with `Qwen/Qwen3.8-27B-4bit` and
+`mlx-community/Qwen3.8-27B-4bit` both resolving to id `Qwen3.8-27B-4bit` —
+only one was ever reachable. Fixed by renaming the mlx-community copy's
+directory to `Qwen3.8-27B-4bit-mlxc` so both are addressable. When adding a
+model whose basename might already exist, check `bin/omlx models` first, and
+if it collides, give the new copy a disambiguating suffix before `bin/omlx
+reload`.

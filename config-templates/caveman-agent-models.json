@@ -98,13 +98,10 @@
           "id": "Qwen3.6-35B-A3B-UD-MLX-4bit"
         },
         {
-          "id": "Qwen3.8-27B"
-        },
-        {
           "id": "Qwen3.8-27B-4bit"
         },
         {
-          "id": "Qwen3.8-27B-NVFP4"
+          "id": "Qwen3.8-27B-4bit-mlxc"
         },
         {
           "id": "gemma-4-31B-it-MLX-4bit"

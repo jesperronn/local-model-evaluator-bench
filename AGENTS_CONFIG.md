@@ -6,9 +6,13 @@
 - Base URL: `http://localhost:11434/v1`
 - Available models: phi4:latest, gemma4-claude:latest, qwen2.5-coder-7b:latest, etc.
 
-### ⚠️ LM Studio Not Running
-- Expected URL: `http://localhost:8000/v1`
-- When started, all agents can be configured to use it
+### LM Studio
+- Base URL: `http://localhost:1234/v1` (see `LMS_BASE_URL` in `config.sh`)
+- Start with: `lms server start`
+
+### oMLX
+- Base URL: `http://localhost:8000/v1` (see `OMLX_BASE_URL` in `config.sh`)
+- Start with: `bin/omlx start`; multi-model, no need to switch models manually
 
 ---
 
@@ -34,7 +38,7 @@ vibe -p "What is 2+2?" --auto-approve
 **Setup for LM Studio:**
 ```bash
 export VIBE_ACTIVE_MODEL=lm_studio
-export VIBE_PROVIDERS_LM_STUDIO_BASE_URL=http://localhost:8000/v1
+export VIBE_PROVIDERS_LM_STUDIO_BASE_URL=http://localhost:1234/v1
 
 vibe -p "What is 2+2?" --auto-approve
 ```
@@ -109,7 +113,7 @@ qwen -p "What is 2+2?"
 **Setup for LM Studio:**
 ```bash
 export QWEN_API_TYPE=openai
-export QWEN_API_BASE=http://localhost:8000/v1
+export QWEN_API_BASE=http://localhost:1234/v1
 export QWEN_API_KEY=lm-studio
 
 qwen -p "What is 2+2?"
