@@ -141,6 +141,29 @@ bin/litellm-proxy --models | grep '^omlx/'
 Native tool-calling works over that path (verified with a function-calling
 request that came back with a structured `tool_calls` entry, not text).
 
+## Unsupported quant: NVFP4 (compressed-tensors)
+
+`Qwen3.8-27B-NVFP4` (`unsloth/Qwen3.8-27B-NVFP4`) fails to load on oMLX with a
+409 ("VLM load failed: Received 937 parameters not in model") listing
+`weight_scale`, `weight_packed`, `input_global_scale`, `weight_global_scale`
+tensors. This is not a version bug to retry later — the checkpoint's
+`quantization_config` (`quant_method: compressed-tensors`, mixed FP8/NVFP4
+`config_groups`, `weight_packed` + per-tensor-group scales) is the vLLM /
+llm-compressor NVFP4 export format, aimed at NVIDIA Blackwell hardware. MLX has
+no loader for that tensor layout: mlx-lm's own NVFP4 support
+([ml-explore/mlx-lm#717](https://github.com/ml-explore/mlx-lm/issues/717)) is
+still an open feature request as of 2026-08, and even MLX-native NVFP4 quants
+(e.g. `mlx-community/Qwen3.5-397B-A17B-nvfp4`) use MLX's own `mx.quantize`
+tensor names, not compressed-tensors' `weight_packed`/`*_scale` naming — so an
+mlx-lm/oMLX update alone will not fix this specific checkpoint.
+
+Practical implication: this quant format needs a runtime with NVFP4/blockwise
+FP4 kernels (e.g. vLLM on Blackwell), not oMLX. If an MLX-native NVFP4 (or
+just re-quantized 4-bit MLX) build of this model appears on `mlx-community`,
+that would load fine — but the `unsloth/Qwen3.8-27B-NVFP4` repo as published
+is out of scope for this runtime. Documented as unsupported rather than
+retested per release.
+
 ## Gotcha
 
 oMLX will happily serve a model whose config doesn't match its weights and only

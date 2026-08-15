@@ -284,7 +284,34 @@ run_agent() {
   return 0
 }
 
+# ── Concern 3: surface oMLX models no agent config has yet ───────────────────
+# omlx blocks are opt-in (see header comment) — sync_* only fills in a
+# providers.omlx that already exists. A model oMLX now serves can therefore sit
+# invisible to every agent forever if nobody notices. Report the gap instead.
+report_omlx_new() {
+  [ "$OMLX_JSON" = "[]" ] && { [ "$VERIFY" = 1 ] || warn "oMLX unreachable — skipping new-model check"; return; }
+  local known="[]"
+  if [ -f "$PI_LIVE_CFG" ]; then
+    known="$(jq -c --argjson k "$known" '$k + [(.providers.omlx.models // [])[].id]' "$PI_LIVE_CFG" 2>/dev/null || echo "$known")"
+  fi
+  if [ -f "$CAVEMAN_LIVE_CFG" ]; then
+    known="$(jq -c --argjson k "$known" '$k + [(.providers.omlx.models // [])[].id]' "$CAVEMAN_LIVE_CFG" 2>/dev/null || echo "$known")"
+  fi
+  if [ -f "$OPENCODE_CFG" ]; then
+    local oc_omlx; oc_omlx="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" omlx 2>/dev/null | jq -c '.omlx // {} | keys')"
+    [ -n "$oc_omlx" ] || oc_omlx="[]"
+    known="$(jq -c --argjson k "$known" --argjson oc "$oc_omlx" -n '$k + $oc')"
+  fi
+  local new_ids; new_ids="$(jq -r --argjson known "$known" '. - $known | .[]' <<<"$OMLX_JSON")"
+  if [ -n "$new_ids" ]; then
+    warn "oMLX is serving models not yet in any agent's omlx config:"
+    while IFS= read -r m; do warn "  - $m"; done <<<"$new_ids"
+    warn "omlx blocks are only synced where already declared (docs/RUNTIME-OMLX.md) — add one, then re-run bin/agents-config --write"
+  fi
+}
+
 for a in $AGENTS; do run_agent "$a"; done
+report_omlx_new
 
 if [ "$VERIFY" = "1" ]; then
   echo

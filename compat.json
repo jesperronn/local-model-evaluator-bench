@@ -1270,5 +1270,30 @@
     "run_id": "20260809-150821",
     "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
     "status": "open"
+  },
+  "omp:Qwen3.8-27B-4bit:omlx": {
+    "adapter": "omp",
+    "model": "Qwen3.8-27B-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-14",
+    "run_id": "20260814-224049",
+    "symptom": "Model \"lm-studio/Qwen3.8-27B-4bit\" not found",
+    "status": "resolved",
+    "last_seen": "2026-08-14",
+    "last_run_id": "20260814-224114",
+    "resolved_date": "2026-08-14",
+    "resolved_run_id": "20260814-224738",
+    "resolved_agent_version": "unknown"
+  },
+  "pi:Qwen3.8-27B-NVFP4:omlx": {
+    "adapter": "pi",
+    "model": "Qwen3.8-27B-NVFP4",
+    "runtime": "omlx",
+    "agent_version": "0.84.2",
+    "first_seen": "2026-08-15",
+    "run_id": "20260815-112910",
+    "symptom": "409: {\"message\":\"Model 'Qwen3.8-27B-NVFP4' failed to load: VLM load failed: Received 937 parameters not in model: \\nlang",
+    "status": "open"
   }
 }

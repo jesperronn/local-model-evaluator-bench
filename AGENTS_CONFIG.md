@@ -65,6 +65,18 @@ omp -p "What is 2+2?" --model lm-studio/default --auto-approve
 omp models list
 ```
 
+**Setup for oMLX:**
+```bash
+# omp has no built-in "omlx" provider; route through its "lm-studio"
+# provider pointed at the oMLX server instead. Start the server first:
+bin/omlx start
+
+LM_STUDIO_BASE_URL="$OMLX_BASE_URL" omp --model "lm-studio/$MODEL_ID" -p "What is 2+2?" --auto-approve
+```
+See `adapters/omp-omlx.sh` for the verified-working adapter, and
+[docs/DECISION-omp-omlx.md](docs/DECISION-omp-omlx.md) for why omp needs
+this workaround (no native `omlx` provider).
+
 **Detect Local Models:**
 ```bash
 omp models list  # Shows Ollama and LM Studio models

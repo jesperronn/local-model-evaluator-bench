@@ -8,6 +8,11 @@
 # and very slow inference. Scores well on lms (97%) but poorly here. Skip for serious work.
 # qwen3.5:9b
 
+# 27B — Qwen3.8 dense, MLX-quantized; smoketested 2026-08-15. pi/caveman 100%
+# (44/44), opencode 90.9%, aider 72.7% (aider's SEARCH/REPLACE diff format
+# struggles on this model — pi/caveman unaffected, so treat as adapter-specific).
+qwen3.8:27b-mlx
+
 # 35B MoE (3.6B active) — maps to qwen/qwen3.6-35b-a3b in LM Studio
 qwen3.6:35b-a3b-coding-mxfp8
 

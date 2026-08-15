@@ -37,3 +37,28 @@ clean reinstall) so `omp --help` succeeds — then check whether omp exposes a
 `--provider`/custom-endpoint flag before writing `adapters/omp-omlx.sh`.
 
 See also: [docs/HANDOFF-omlx-adapters.md](HANDOFF-omlx-adapters.md).
+
+## Update (2026-08-11): bun install fixed, adapter verified working
+
+The bun postinstall issue was hit and fixed independently (see
+[AGENTS_CONFIG.md](../AGENTS_CONFIG.md), omp section). Generic fix:
+
+```bash
+node "$(npm root -g)/@oh-my-pi/pi-coding-agent/node_modules/bun/install.js"
+```
+
+`omp --help` now works (v17.2.12). Confirmed by decompiling the installed
+`omp` binary (`dist/cli.js`): omp has **no built-in `omlx` provider** — it
+only auto-registers `ollama`, `llama.cpp`, and `lm-studio` as local
+providers. [adapters/omp-omlx.sh](../adapters/omp-omlx.sh) works around this
+by pointing the `lm-studio` provider at the oMLX server via
+`LM_STUDIO_BASE_URL`, then selecting `--model "lm-studio/$MODEL_ID"`. This
+has now been smoke-tested live against a running oMLX server
+(`Ornith-1.0-35B-4bit`) and produces real inference output — the adapter is
+verified working, not just theorized.
+
+One new lead, not yet investigated: `omp` now reports `~/.omp/agent/models.yml`
+(not `models.json`) as its custom-provider config file when a model lookup
+fails. That may be the correct place to register a first-class `omlx`
+provider instead of routing through `lm-studio` — worth a follow-up to check
+its schema and whether `/providers` then lists `omlx` natively.
