@@ -129,6 +129,10 @@ Full case set, `--trials 3` or more (median score/seconds), `BENCH_PARALLEL=3`
 | new runtime | **L0** (full sweep) | every combo's plumbing changes |
 | promoting a leaderboard number | **L3** | only tier trusted for scoring |
 
+## Automation Gaps
+
+See [L3-AUTOMATION-GAPS.md](L3-AUTOMATION-GAPS.md) for analysis of what's not automated in the L3 workflow and how to close those gaps.
+
 The funnel never spends L3 effort on a combo that failed L0, and never spends
 L2 effort on a combo that L1b proved is dominated.
 

@@ -281,3 +281,11 @@ bin/bench --agent aider --models bad_id
 ```
 
 This depends on richer error context, but the pattern is: **show the error + the way out**.
+
+## See also
+
+- [WORKFLOW.md](WORKFLOW.md) — the complete user workflow
+- [bin/doctor](../bin/doctor) — best-in-class example (model + CLI discovery)
+- [bin/bootstrap-machine](../bin/bootstrap-machine) — tier-based setup example
+- [bin/bench](../bin/bench) — full benchmark suite with next steps
+- [bin/smoke](../bin/smoke) — smoke test with dry-run and mutation modes

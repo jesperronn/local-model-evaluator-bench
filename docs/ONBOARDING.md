@@ -572,5 +572,6 @@ Once Phase 4 completes, you have data. Here's how to interpret it:
 - [CLI-DISCOVERY.md](CLI-DISCOVERY.md) — how every command shows "Next steps"
 - [SETUP.md](SETUP.md) — detailed LM Studio / Ollama / MLX setup
 - [WORKFLOW.md](WORKFLOW.md) — how to add new models, adapters, or test cases
+- [README.md](../README.md) — project overview and getting started
 - [PURPOSE.md](PURPOSE.md) — what this project measures and why
 - [HARDWARE-RECOMMENDATIONS.md](HARDWARE-RECOMMENDATIONS.md) — machine sizing by RAM tier

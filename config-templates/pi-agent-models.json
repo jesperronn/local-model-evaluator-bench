@@ -33,6 +33,89 @@
           "id": "qwen3-coder-30b-a3b-instruct"
         }
       ]
+    },
+    "ollama": {
+      "baseUrl": "http://127.0.0.1:11434/v1",
+      "api": "openai-completions",
+      "apiKey": "ollama",
+      "models": [
+        {
+          "id": "gemma4-claude:latest"
+        },
+        {
+          "id": "gemma4:12b-mlx"
+        },
+        {
+          "id": "gemma4:26b"
+        },
+        {
+          "id": "gemma4:26b-mlx"
+        },
+        {
+          "id": "gpt-oss:20b"
+        },
+        {
+          "id": "ornith:35b"
+        },
+        {
+          "id": "qwen2.5-coder-7b:latest"
+        },
+        {
+          "id": "qwen2.5-coder:7b"
+        },
+        {
+          "id": "qwen3.5:9b"
+        },
+        {
+          "id": "qwen3.6:35b-mlx"
+        },
+        {
+          "id": "qwen3.8:27b-mlx"
+        }
+      ]
+    },
+    "omlx": {
+      "baseUrl": "http://127.0.0.1:8000/v1",
+      "api": "openai-completions",
+      "apiKey": "omlx",
+      "models": [
+        {
+          "id": "KAT-Coder-V2.5-Dev"
+        },
+        {
+          "id": "Ornith-1.0-35B-4bit"
+        },
+        {
+          "id": "Ornith-1.0-9B-4bit"
+        },
+        {
+          "id": "Qwen3-Coder-30B-A3B-Instruct-4bit"
+        },
+        {
+          "id": "Qwen3-Coder-Next-4bit"
+        },
+        {
+          "id": "Qwen3.6-35B-A3B-MLX-4bit"
+        },
+        {
+          "id": "Qwen3.6-35B-A3B-UD-MLX-4bit"
+        },
+        {
+          "id": "Qwen3.8-27B-4bit"
+        },
+        {
+          "id": "Qwen3.8-27B-4bit-mlxc"
+        },
+        {
+          "id": "gemma-4-31B-it-MLX-4bit"
+        },
+        {
+          "id": "gemma-4-E4B-it-MLX-8bit"
+        },
+        {
+          "id": "gpt-oss-20b-MXFP4-Q8"
+        }
+      ]
     }
   }
 }
