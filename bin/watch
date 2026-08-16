@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# bin/watch — monitor running or completed benchmark runs
+#
+# Watch benchmark progress in real-time or view past run status.
+#
+# Subcommands:
+#   watch [current]      Monitor the latest running/completed benchmark
+#   watch --all          Show all runs with status summary
+#   watch --history [N]  Show last N runs (default 10)
+#   watch --latest       Tail the latest .bench.log file
+#
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
+
+show_help() {
+  help_header "watch" "monitor benchmark runs and progress"
+  help_section "USAGE"
+  help_line "  watch [OPTIONS]"
+
+  help_section "OPTIONS"
+  help_flag "--latest" "" "tail latest .bench.log file in follow mode"
+  help_flag "--all" "" "show all runs with status summary"
+  help_flag "--history" "[N]" "show last N runs (default 10)"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Watch current run progress:"
+  help_line "    \$ watch"
+  help_line ""
+  help_line "  See latest benchmark log:"
+  help_line "    \$ watch --latest"
+}
+
+MODE="current"
+
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --latest) MODE="latest"; shift ;;
+    --all) MODE="all"; shift ;;
+    --history) MODE="history"; LIMIT="${2:-10}"; shift 2 ;;
+    -h|--help) show_help; exit 0 ;;
+    *) die "unknown flag: $1" ;;
+  esac
+done
+
+case "$MODE" in
+  latest)
+    LOG=$(find "$RESULTS_DIR" -name ".bench.log" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | xargs -I{} find "$RESULTS_DIR" -name ".bench.log" -newer /proc/self -type f 2>/dev/null | head -1)
+    if [ -z "$LOG" ]; then
+      LOG=$(find "$RESULTS_DIR" -name ".bench.log" -type f -print0 2>/dev/null | xargs -0 ls -1t | head -1)
+    fi
+    [ -z "$LOG" ] && die "no benchmark logs found"
+    info "Following: $LOG"
+    tail -f "$LOG"
+    ;;
+  all)
+    info "All benchmark runs"
+    ls -dt "$RESULTS_DIR"/*/  2>/dev/null | while read -r dir; do
+      CSV="$dir/results.csv"
+      [ -f "$CSV" ] || continue
+      passed=$(awk -F, '$8=="ok" { count++ } END { print count+0 }' "$CSV")
+      total=$(($(wc -l < "$CSV") - 1))
+      pct=$((total > 0 ? 100 * passed / total : 0))
+      printf '  %s  %3d/%3d (%3d%%) %s\n' \
+        "$(basename "$dir")" "$passed" "$total" "$pct" \
+        "$(date -f "%Y-%m-%dT%H:%M:%S" "$(basename "$dir")" 2>/dev/null || echo "(time)")"
+    done
+    ;;
+  history)
+    info "Last $LIMIT runs"
+    ls -dt "$RESULTS_DIR"/*/  2>/dev/null | head -"$LIMIT" | while read -r dir; do
+      CSV="$dir/results.csv"
+      [ -f "$CSV" ] || continue
+      echo "  $(basename "$dir"): $(wc -l < "$CSV" | awk '{print $1-1}') cases"
+    done
+    ;;
+  current)
+    LOG=$(find "$RESULTS_DIR" -name ".bench.log" -type f -print0 2>/dev/null | xargs -0 ls -1t | head -1)
+    [ -z "$LOG" ] && { err "no active benchmark found"; exit 1; }
+    info "Monitoring: $(dirname "$LOG" | xargs dirname | xargs basename)"
+    tail -f "$LOG"
+    ;;
+esac

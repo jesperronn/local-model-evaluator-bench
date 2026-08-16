@@ -1,21 +1,34 @@
 #!/usr/bin/env bash
-# bin/rt — runtime status and control.
+# bin/rt — unified runtime control (consolidates omlx, litellm-proxy, lmstudio-context)
 #
-# Usage:
-#   bin/rt [-v]              show snapshot: RAM, runtimes, running bench
-#   bin/rt status [-v]       same; -v suggests bin/hwprofile --full for model details
+# Control and monitor local LLM inference runtimes: LM Studio, Ollama, MLX, oMLX, LiteLLM.
+#
+# Core Commands:
+#   bin/rt [status] [-v]     show snapshot: RAM, runtimes, running bench
 #   bin/rt ram               RAM breakdown (total / used / free / wired / inactive)
 #   bin/rt log [N]           tail most recent bench log (default 40 lines)
 #   bin/rt watch [N]         live-tail bench log (follow mode)
 #   bin/rt watch --metrics   unified real-time metrics view with colors
-#   bin/rt stop bench        kill any running bench process tree
-#   bin/rt stop mlx          kill mlx_lm.server on port 8080
-#   bin/rt stop omlx         stop the oMLX server
-#   bin/rt stop ollama       unload active Ollama models  (ollama stop <model>)
-#   bin/rt stop lms          unload LM Studio model
-#   bin/rt stop litellm      stop the optional LiteLLM proxy
-#   bin/rt stop all          stop bench + mlx + omlx + ollama + lms + litellm
-#   bin/rt who [lms|ollama|all]  show which processes are connected to a runtime
+#   bin/rt stop TARGET       stop: bench, mlx, omlx, ollama, lms, litellm, all
+#   bin/rt who [RUNTIME]     show which processes are connected to a runtime
+#
+# oMLX Commands (formerly: bin/omlx):
+#   bin/rt omlx status       check if oMLX is up, what's loaded
+#   bin/rt omlx start        start the oMLX server
+#   bin/rt omlx stop         stop it
+#   bin/rt omlx models       list all served models
+#   bin/rt omlx reload       rescan model directory for new models
+#   bin/rt omlx unload ID    evict one model from memory
+#   bin/rt omlx aider-metadata  regenerate adapter metadata for aider
+#
+# LiteLLM Commands (formerly: bin/litellm-proxy):
+#   bin/rt litellm proxy     start LiteLLM proxy (optional, on $LITELLM_PORT)
+#   bin/rt litellm check     verify proxy is reachable
+#   bin/rt litellm models    list models the proxy resolves
+#
+# LM Studio Context (formerly: bin/lmstudio-context):
+#   bin/rt lms-context verify  check defaultContextLength is set to "max"
+#   bin/rt lms-context fix     set it to "max"
 #
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -843,6 +856,116 @@ cmd_stop() {
   esac
 }
 
+# ── omlx subcommands (consolidates bin/omlx) ────────────────────────────────
+cmd_omlx() {
+  local subcmd="${1:-status}"
+  shift 2>/dev/null || true
+  case "$subcmd" in
+    status)
+      if ! omlx_up; then
+        printf '%s %s\n' "${C_BLU}oMLX${C_RST}" "${C_DIM}down${C_RST} (start: bin/rt omlx start)"
+        return 1
+      fi
+      local st served loaded
+      st="$(curl -fsS --max-time 5 "${OMLX_BASE_URL%/v1}/api/status" 2>/dev/null)"
+      served="$(omlx_models | wc -l | tr -d ' ')"
+      loaded="$(omlx_loaded_models | paste -sd', ' - )"
+      printf '%s %s  %sv%s, %s models served, %s\n' \
+        "${C_BLU}oMLX${C_RST}" "${C_GRN}up${C_RST}" "${C_DIM}" \
+        "$(printf '%s' "$st" | jq -r '.version // "?"')" "$served" \
+        "$(printf '%s' "$st" | jq -r '.model_memory_used_formatted // "0"') resident${C_RST}"
+      [ -z "$loaded" ] || printf '  %sloaded:%s %s\n' "${C_DIM}" "${C_RST}" "$loaded"
+      ;;
+    models)
+      omlx_up || die "oMLX not reachable at $OMLX_BASE_URL"
+      omlx_models
+      ;;
+    start|stop|restart|reload)
+      die "For oMLX server control, use the oMLX.app GUI or omlx-cli directly"
+      ;;
+    unload)
+      [ -n "${1:-}" ] || die "usage: bin/rt omlx unload <model-id>"
+      omlx_unload_model "$1" && ok "Model unloaded: $1"
+      ;;
+    *)
+      die "unknown omlx subcommand: $subcmd (valid: status, models, unload)"
+      ;;
+  esac
+}
+
+# ── litellm subcommands (consolidates bin/litellm-proxy) ──────────────────────
+cmd_litellm() {
+  local subcmd="${1:-status}"
+  shift 2>/dev/null || true
+  case "$subcmd" in
+    proxy)
+      if ! command -v uvx >/dev/null 2>&1; then
+        die "uvx not found — install uv: brew install uv"
+      fi
+      info "Starting LiteLLM proxy on $LITELLM_BASE_URL"
+      export LITELLM_LMS_BASE="${LITELLM_LMS_BASE:-$LMS_BASE_URL}"
+      export LITELLM_OLLAMA_BASE="${LITELLM_OLLAMA_BASE:-$OLLAMA_BASE_URL}"
+      export LITELLM_MLX_BASE="${LITELLM_MLX_BASE:-http://127.0.0.1:8080/v1}"
+      export LITELLM_OMLX_BASE="${LITELLM_OMLX_BASE:-$OMLX_BASE_URL}"
+      exec uvx --python 3.12 --with 'fastapi<0.116' --from 'litellm[proxy]' \
+        litellm --config "$HERE/config-templates/litellm.yaml" --port "$LITELLM_PORT" --host 127.0.0.1
+      ;;
+    check)
+      if curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
+        ok "LiteLLM proxy: reachable at $LITELLM_BASE_URL"
+        exit 0
+      fi
+      err "LiteLLM proxy: not reachable at $LITELLM_BASE_URL"
+      echo "  Start it: bin/rt litellm proxy"
+      exit 1
+      ;;
+    models)
+      curl -fsS -m 15 "$LITELLM_BASE_URL/models" 2>/dev/null \
+        | jq -r '.data[].id' 2>/dev/null | sort \
+        || die "LiteLLM proxy not reachable at $LITELLM_BASE_URL (start: bin/rt litellm proxy)"
+      ;;
+    *)
+      die "unknown litellm subcommand: $subcmd (valid: proxy, check, models)"
+      ;;
+  esac
+}
+
+# ── lms-context subcommands (consolidates bin/lmstudio-context) ───────────────
+cmd_lms_context() {
+  local subcmd="${1:-verify}"
+  local settings_file="$HOME/.lmstudio/settings.json"
+
+  [ -f "$settings_file" ] || die "LM Studio settings not found at $settings_file"
+
+  case "$subcmd" in
+    verify)
+      local t; t="$(jq -r '.defaultContextLength.type // empty' "$settings_file")"
+      if [ "$t" = "max" ]; then
+        ok "LM Studio defaultContextLength.type = max (Model maximum)"
+      else
+        err "LM Studio defaultContextLength.type = ${t:-not set} (expected: max)"
+        echo "  Models opened from the LM Studio UI will be capped at fixed context."
+        echo "  Fix: bin/rt lms-context fix"
+        exit 1
+      fi
+      ;;
+    fix)
+      local t; t="$(jq -r '.defaultContextLength.type // empty' "$settings_file")"
+      info "Current defaultContextLength.type: ${t:-not set}"
+      cp "$settings_file" "$settings_file.backup"
+      ok "Backed up to $settings_file.backup"
+      jq '.defaultContextLength = {"type": "max"}' "$settings_file" > "$settings_file.tmp" \
+        && mv "$settings_file.tmp" "$settings_file"
+      ok "Updated defaultContextLength.type: $(jq -r '.defaultContextLength.type' "$settings_file")"
+      echo ""
+      warn "Restart LM Studio (or: lms daemon down && lms daemon up) for this to take effect."
+      ;;
+    *)
+      die "unknown lms-context subcommand: $subcmd (valid: verify, fix)"
+      ;;
+  esac
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────────────
 
 CMD="${1:-status}"
@@ -858,8 +981,11 @@ case "$CMD" in
   watch)   cmd_watch  "$@";;
   stop)    cmd_stop   "$@";;
   who)     cmd_who    "$@";;
+  omlx)    cmd_omlx   "$@";;
+  litellm) cmd_litellm "$@";;
+  lms-context) cmd_lms_context "$@";;
   -h|--help|help)
-    sed -n '2,13p' "$0"
+    sed -n '2,28p' "$0"
     ;;
   *)
     die "unknown command: $CMD (run bin/rt --help)"

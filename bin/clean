@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# bin/clean — unified cleanup tool (consolidates cleanup, results, wait-for-download)
+#
+# Reclaim disk space and manage old benchmark results.
+#
+# Subcommands:
+#   clean [status]        Show what can be cleaned
+#   clean results         Remove old/completed benchmark runs
+#   clean cache           Clear temporary cache and scratch files
+#   clean all             Everything
+#
+# Flags:
+#   --dry-run             Preview what would be deleted
+#   --aggressive          Remove more aggressively
+#   --yes                 Skip confirmation prompts
+#
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
+
+show_help() {
+  help_header "clean" "reclaim disk space from results and caches"
+  help_section "USAGE"
+  help_line "  clean [SUBCOMMAND] [OPTIONS]"
+
+  help_section "SUBCOMMANDS"
+  help_command "status"  "Show what can be cleaned (default)"
+  help_command "results"  "Remove old benchmark results"
+  help_command "cache"   "Clear temporary files and caches"
+  help_command "all"     "Clean everything"
+
+  help_section "OPTIONS"
+  help_flag "--dry-run" "" "preview what would be deleted"
+  help_flag "--aggressive" "" "remove more aggressively"
+  help_flag "--yes" "" "skip confirmation prompts"
+
+  help_section "EXAMPLES"
+  help_line "  Preview cleanup:"
+  help_line "    \$ clean --dry-run"
+  help_line ""
+  help_line "  Remove old result directories:"
+  help_line "    \$ clean results"
+}
+
+DRY_RUN=0
+AGGRESSIVE=0
+YES=0
+
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --aggressive) AGGRESSIVE=1; shift ;;
+    --yes) YES=1; shift ;;
+    *) die "unknown flag: $1" ;;
+  esac
+done
+
+SUBCOMMAND="${1:-status}"
+
+cmd_status() {
+  info "Cleanup Status"
+  echo ""
+  
+  # Results
+  local result_dirs result_size
+  result_dirs=$(find "$RESULTS_DIR" -maxdepth 1 -type d -name "202*" 2>/dev/null | wc -l)
+  result_size=$(du -sh "$RESULTS_DIR" 2>/dev/null | cut -f1)
+  
+  if [ "$result_dirs" -gt 0 ]; then
+    printf '  %s benchmark results: %d directories (~%s)\n' \
+      "${C_YEL}[clean results]${C_RST}" "$result_dirs" "$result_size"
+  fi
+  
+  echo ""
+  echo "Usage: bin/clean results  [--dry-run] [--yes]"
+  echo "       bin/clean all      [--dry-run] [--yes]"
+}
+
+cmd_results() {
+  info "Removing old benchmark results..."
+  
+  local result_dirs
+  result_dirs=$(find "$RESULTS_DIR" -maxdepth 1 -type d -name "202*" 2>/dev/null)
+  
+  if [ -z "$result_dirs" ]; then
+    ok "No old results to clean"
+    return 0
+  fi
+  
+  local count size
+  count=$(echo "$result_dirs" | wc -l)
+  size=$(du -sh "$RESULTS_DIR" 2>/dev/null | cut -f1)
+  
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "$result_dirs" | sed 's|^|  |'
+    echo ""
+    warn "Would remove $count directories (~$size). Use --dry-run to preview, --yes to confirm."
+    return 0
+  fi
+  
+  if [ "$YES" -eq 0 ]; then
+    echo "$result_dirs" | sed 's|^|  |'
+    echo ""
+    printf "Remove %d old results (~%s)? (y/N): " "$count" "$size"
+    read -r confirm
+    [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Cancelled"; return 0; }
+  fi
+  
+  echo "$result_dirs" | while read -r dir; do
+    rm -rf "$dir"
+    echo "  Removed: $(basename "$dir")"
+  done
+  
+  ok "Cleaned $count old result directories"
+}
+
+cmd_cache() {
+  info "Clearing cache and temporary files..."
+  
+  local targets=(
+    "$HOME/.cache/pip"
+    "$HERE/.cache"
+    "$HERE/scratch"
+    /tmp/lint_*
+    /tmp/bench_*
+  )
+  
+  if [ "$DRY_RUN" -eq 1 ]; then
+    warn "Would remove:"
+    for t in "${targets[@]}"; do
+      [ -e "$t" ] && du -sh "$t" 2>/dev/null | sed 's|^|  |'
+    done
+    return 0
+  fi
+  
+  for t in "${targets[@]}"; do
+    if [ -e "$t" ]; then
+      rm -rf "$t" && echo "  Removed: $t"
+    fi
+  done
+  
+  ok "Cache cleared"
+}
+
+cmd_all() {
+  cmd_results
+  echo ""
+  cmd_cache
+  echo ""
+  help_next_steps_section \
+    "Run benchmarks again|bin/bench --agent aider" \
+    "Check disk space|df -h"
+}
+
+case "$SUBCOMMAND" in
+  status)  cmd_status ;;
+  results) cmd_results ;;
+  cache)   cmd_cache ;;
+  all)     cmd_all ;;
+  *)       die "unknown subcommand: $SUBCOMMAND (try: bin/clean --help)" ;;
+esac

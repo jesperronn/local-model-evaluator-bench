@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# bin/build — unified build/generation tool (consolidates build-llmrun, build-onboarding, setup-ollama-modelfile)
+#
+# Generate distributable packages and configuration variants.
+#
+# Subcommands:
+#   build llmrun            Generate standalone llmrun launcher binary
+#   build onboarding        Generate curated onboarding kit for new machines
+#   build ollama-modelfile  Build custom Ollama Modelfile variant
+#   build all               Build everything
+#
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
+
+show_help() {
+  help_header "build" "generate distributable packages and variants"
+  help_section "USAGE"
+  help_line "  build <subcommand> [OPTIONS]"
+
+  help_section "SUBCOMMANDS"
+  help_command "llmrun"  "Generate standalone llmrun launcher binary"
+  help_command "onboarding"  "Generate curated onboarding kit"
+  help_command "ollama-modelfile"  "Build custom Ollama Modelfile"
+  help_command "all"     "Build everything"
+
+  help_section "EXAMPLES"
+  help_line "  Generate llmrun:"
+  help_line "    \$ build llmrun"
+  help_line ""
+  help_line "  Generate onboarding kit:"
+  help_line "    \$ build onboarding"
+}
+
+cmd_llmrun() {
+  info "Building llmrun binary..."
+  if [ -x "$HERE/bin/build-llmrun" ]; then
+    "$HERE/bin/build-llmrun" "$@"
+  else
+    die "bin/build-llmrun not found"
+  fi
+}
+
+cmd_onboarding() {
+  info "Building onboarding kit..."
+  if [ -x "$HERE/bin/build-onboarding" ]; then
+    "$HERE/bin/build-onboarding" "$@"
+  else
+    die "bin/build-onboarding not found"
+  fi
+}
+
+cmd_ollama_modelfile() {
+  info "Building Ollama Modelfile..."
+  if [ -x "$HERE/bin/setup-ollama-modelfile" ]; then
+    "$HERE/bin/setup-ollama-modelfile" "$@"
+  else
+    die "bin/setup-ollama-modelfile not found"
+  fi
+}
+
+cmd_all() {
+  info "Building all packages..."
+  cmd_llmrun
+  echo ""
+  cmd_onboarding
+  echo ""
+  cmd_ollama_modelfile
+  echo ""
+  help_next_steps_section \
+    "Verify builds|ls bin/llmrun* onboard-*.zip" \
+    "Install llmrun|cp bin/llmrun ~/.local/bin/" \
+    "Share onboarding kit|onboard-*.zip"
+}
+
+if [ $# -eq 0 ] || [[ "$1" == -h ]] || [[ "$1" == --help ]]; then
+  show_help
+  exit 0
+fi
+
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+  llmrun)        cmd_llmrun "$@" ;;
+  onboarding)    cmd_onboarding "$@" ;;
+  ollama-modelfile) cmd_ollama_modelfile "$@" ;;
+  all)           cmd_all "$@" ;;
+  *)             die "unknown subcommand: $SUBCOMMAND" ;;
+esac
