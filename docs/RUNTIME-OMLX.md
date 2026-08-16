@@ -164,6 +164,30 @@ that would load fine — but the `unsloth/Qwen3.8-27B-NVFP4` repo as published
 is out of scope for this runtime. Documented as unsupported rather than
 retested per release.
 
+## Dense models are the wrong shape for oMLX-under-timeout
+
+Benched 2026-08-15: `Qwen3.8-27B-4bit` (dense, all ~27B params active every
+token) runs at only ~8 tok/s on oMLX, vs ~30+ tok/s for the MoE entries above
+(`Qwen3.6-35B-A3B-MLX-4bit`, `Ornith-1.0-35B-4bit` — 256 experts, 8 active).
+That's architectural, not a bug: MoE models spend compute on a handful of
+experts per token regardless of total size, dense models spend it on
+everything. At 8 tok/s the harder cases (`bash-01-topwords`,
+`deleg-01-validate-format-pipeline`, `ts-01-groupby`) blow through the 300s
+timeout / 120s stall watchdog across every adapter:
+
+| runtime/model | pass rate | avg s |
+|---|---|---|
+| ollama `qwen3.8:27b-mlx` | 90.9% (160/176) | 111.5s |
+| omlx `Qwen3.8-27B-4bit-mlxc` | 81.0% (136/168) | 163.7s |
+| omlx `Qwen3.8-27B-4bit` (Qwen org) | 70.3% (121/172) | 173.5s |
+
+Ollama's own MLX backend is simply faster for this dense model than oMLX is —
+**prefer the ollama tag for any dense 27B+ model**; reserve oMLX for MoE
+models or smaller dense ones where the timeout budget isn't the bottleneck.
+The two omlx entries above are the *same weights/quant family* re-uploaded by
+two orgs — the gap between them is a single-trial result and may just be
+run-to-run variance, not a real quality difference between the uploads.
+
 ## Gotcha
 
 oMLX will happily serve a model whose config doesn't match its weights and only

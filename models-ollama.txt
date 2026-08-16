@@ -11,7 +11,20 @@
 # 27B — Qwen3.8 dense, MLX-quantized; smoketested 2026-08-15. pi/caveman 100%
 # (44/44), opencode 90.9%, aider 72.7% (aider's SEARCH/REPLACE diff format
 # struggles on this model — pi/caveman unaffected, so treat as adapter-specific).
+# Dense, not MoE — Qwen has not shipped an A3B/MoE variant of the 3.8-27B line
+# (successor to dense Qwen3.6-27B, not to MoE Qwen3.6-35B-A3B); expect ~7-8
+# tok/s, well below the MoE entries below. Prefer this tag over the omlx copies
+# (models-omlx.txt) and over the ollama `-mtp-*` tags (see below).
 qwen3.8:27b-mlx
+
+# NOT RECOMMENDED: qwen3.8:27b-mtp-q4_K_M — measured 2026-08-15 at 3.80 tok/s vs
+# 6.84 tok/s for qwen3.8:27b-mlx on the same prompt (both via ollama). The "mtp"
+# (multi-token prediction) tag promises a speculative-decoding speedup, but it's
+# a llama.cpp/GGUF quant, not MLX, and ollama's llama.cpp backend does not
+# appear to exploit the draft heads here — it's just a slower quant format on
+# this stack. Also trips the bench stall watchdog (120s) on bursty/silent
+# generation even though it eventually completes (--stall 0 confirms 4/4 pass).
+# qwen3.8:27b-mtp-q4_K_M
 
 # 35B MoE (3.6B active) — maps to qwen/qwen3.6-35b-a3b in LM Studio
 qwen3.6:35b-a3b-coding-mxfp8

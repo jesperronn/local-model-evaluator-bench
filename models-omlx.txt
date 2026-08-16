@@ -37,3 +37,13 @@ gpt-oss-20b-MXFP4-Q8
 #   Qwen3.6-35B-A3B-4bit                   mlx-community twin of the lmstudio copy above
 #   Qwen3-Coder-30B-A3B-Instruct-4bit      mlx-community twin of the lmstudio copy above
 #   Qwen3.6-27B-MLX-8bit                   27B dense was dropped from models.txt 2026-06-12
+#   Qwen3.8-27B-4bit                       Qwen-org copy, dense 27B. 70.3% (121/172), avg 173.5s.
+#                                           NOT RECOMMENDED here: prefer ollama's qwen3.8:27b-mlx
+#                                           (90.9%, avg 111.5s) — oMLX runs this dense model at
+#                                           only ~8 tok/s, which times out the harder cases
+#                                           (bash-01, deleg-01, ts-01) under the 300s ceiling.
+#   Qwen3.8-27B-4bit-mlxc                  mlx-community twin of the above, same weights/quant
+#                                           family. Scored higher in one run (81.0%, 136/168,
+#                                           avg 163.7s) but single-trial — could be run-to-run
+#                                           variance, not a confirmed quality difference between
+#                                           the two uploads. Same "prefer ollama" advice applies.
