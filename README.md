@@ -227,9 +227,12 @@ Run-to-run variance is material (a triple can swing 4/4 → 0/4 between identica
 When accuracy alone doesn't explain a result, inspect the model's actual tool calls:
 
 ```bash
-bin/trace-edit <adapter> <model> [case]       # Run one triple, dump session transcript
-bin/trace-tool-calls [--latest]               # Read transcript, flag mangling (e.g. edit-tool issues)
+bin/debug <adapter> <model> [case]       # Run one triple, dump session transcript
+bin/debug --calls --latest               # Inspect tool calls, flag mangling
+bin/debug --failures <run-id>            # Triage all failures from a run
 ```
+
+(See [docs/WORKFLOWS.md](docs/WORKFLOWS.md#workflow-5-debug-a-failure) for the debug workflow.)
 
 ### Important: Context Windows
 
@@ -255,76 +258,19 @@ docs/                    documentation hub (see above)
 
 ---
 
-## All Scripts
+## All Tools & Scripts
 
-See [WORKFLOW.md](docs/WORKFLOW.md) for detailed usage of each script.
+The complete reference of tools and scripts is available in **[TOOLS.md](docs/TOOLS.md)**.
 
-### Core Pipeline
-- `bin/setup` — check and install required tools
-- `bin/doctor` — preflight check: server, CLIs, models, cases
-- `bin/smoke` — verify every tool can reach the model
-- `bin/bench` — run the matrix (adapters × models × cases)
-- `bin/report` — merge runs into the leaderboard
-- `bin/gen-evals` — build per-model / per-tool eval pages
-- `bin/viz` — rebuild the HTML dashboard
+Key tools are:
+- **Setup & Verification**: `bin/setup`, `bin/doctor`, `bin/smoke`
+- **Benchmarking**: `bin/bench`, `bin/stale`, `bin/bench-overnight`
+- **Results**: `bin/report` (with `--all`, `--save`, `--viz`, `--evals` flags)
+- **Debugging**: `bin/debug`, `bin/test-ide`
+- **Management**: `bin/model`, `bin/clean`, `bin/watch`, `bin/rt`
+- **Quality**: `bin/lint`, `bin/card`
 
-### Iteration & Debugging
-- `bin/test-ide` — interactively test IDE extensions (Cline/VS Code, Continue/IntelliJ) on individual cases
-- `bin/bench --list` — show what would run, without running
-- `bin/bench -i` — interactive fzf pickers
-- `bin/bench --trials N` — repeat and record medians
-- `bin/investigate` — triage failing combos
-- `bin/stale` — emit worklist of outdated runs
-- `bin/trace-edit <adapter> <model> [case]` — run one triple, dump transcript
-- `bin/trace-tool-calls` — inspect tool calls, flag mangling
-
-### Maintenance & Operations
-- `bin/bench-overnight` — benchmark low-footprint models with Ollama
-- `bin/nightly` — prepare and run nightly bench
-- `bin/lms_gc` — unload idle models
-- `bin/lms_update` — re-download outdated models
-- `bin/prune` — list and remove downloaded models
-- `bin/outdated` — check if local models are behind upstream
-- `bin/rt` — runtime status and control
-- `bin/hwprofile` — detect RAM and report the nearest benchmarked hardware tier (phase-3 porting)
-- `bin/stale.test.sh` — tests for bin/stale
-
-### Card & Quality Tools
-- `bin/lint-cards` — validate model/tool cards against [CARD-SPEC.md](docs/CARD-SPEC.md)
-- `bin/fix-card` — loop a model until it passes lint-cards
-- `bin/eval-agent` — score an agent on the 100-question suite ([AGENT-EVAL-SUITE.md](docs/AGENT-EVAL-SUITE.md))
-
-### Adapter & Model Tooling
-- `bin/lint` — static checks for project scripts
-- `bin/lint-adapters` — static checks for adapters
-- `bin/setup-ollama-modelfile` — build custom Ollama model variants
-- `bin/tool-call-proxy` — Ollama proxy for Qwen tool calls
-- `bin/build-llmrun` — generate standalone llmrun launcher
-- `bin/build-onboarding` — generate a curated onboarding kit (get-a-working-agent subset, minus leaderboard/report tooling) for new machines
-- `bin/pi-patch-edit-shim` — reapply Qwen3-Coder edit-tool shim
-- `bin/mlx-serve-qwen3-coder` — MLX server wrapper
-
-### Internal & Advanced Tools
-
-These scripts are discoverable via next-steps guidance from the main pipeline, or are specialized utilities for advanced use cases:
-
-**Recovery & Management**
-- `bin/debug` — advanced diagnostics and troubleshooting
-- `bin/recover-lms` — recover corrupted LM Studio installations (macOS issues)
-- `bin/results` — manage and clean old benchmark results (called by `bin/stale`)
-- `bin/verify-model-availability` — check if models are available on HuggingFace / OllamaHUB
-
-**Scheduling & Variants**
-- `bin/qualify` — L1 filter: read L0 smoke results, output viable (adapter, model) pairs (internal gating)
-- `bin/sweep-cards` — automated card maintenance via local agent (advanced workflow)
-- `bin/agents-config` — reconcile each agent's native config to config.sh: model lists + endpoint/api-key settings (`--verify` to check, `--write` to apply)
-- `bin/run` — execution wrapper for orchestrated workflows
-
-**Project Infrastructure**
-- `bin/test` — run colocated shell test files (`.test.sh`), used in CI/pre-commit
-- `bin/mlx-serve-qwen3-next` — MLX server variant for Qwen3-Coder-Next (experimental)
-
-**Why these aren't in the core pipeline:** They're either discoverable via next-steps from other commands (e.g., `bin/doctor` suggests `bin/recover-lms`), or they're internal utilities for advanced/specialized workflows. Users following the happy path won't need them; they surface contextually when needed.
+For detailed usage and all available scripts, see [**docs/TOOLS.md**](docs/TOOLS.md).
 
 ---
 
