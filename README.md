@@ -16,8 +16,8 @@ There are two ways to use this repo. Most people want Path A.
 
 Detect your hardware, install a runtime + model + one or two agents, wire them to
 your local server, and prove it works. Full walkthrough →
-**[ONBOARDING.md](docs/ONBOARDING.md)** (Path A) — start with the
-**[visual flow at a glance](docs/ONBOARDING.md#flow-at-a-glance-new-machine-from-scratch)**.
+**[ONBOARDING.md](docs/ONBOARDING.md)** (step-by-step guide) or
+**[WORKFLOWS.md](docs/WORKFLOWS.md)** (visual flowcharts with next-steps guidance).
 
 ```bash
 lms server start                # start LM Studio's OpenAI-compatible server (or: ollama serve)
@@ -27,10 +27,7 @@ bin/doctor                      # confirm server, model, AND agent configs are c
 bin/smoke --agent aider,hermes  # prove each agent can actually drive the model
 ```
 
-`bin/setup --agent …` now configures the agents for you — it writes each agent's
-own config file (aider, opencode, pi, hermes) to point at your local endpoint via
-[`bin/agents-config`](bin/agents-config). Re-run any step; they're idempotent.
-Next, wire up an **IDE plugin** with `bin/test-ide` (VS Code + Cline, or JetBrains + Continue).
+Each step is idempotent — safe to re-run. See [SETUP.md](docs/SETUP.md) for agent configuration and IDE extension setup.
 
 ### Path B — Benchmark everything (advanced)
 
@@ -48,58 +45,15 @@ Results go to `results/<timestamp>/` (CSV + HTML dashboard at `results/index.htm
 
 ## Why This Project
 
-When you run models **locally**, the best model isn't the biggest — it's the **smallest and fastest one that still passes under realistic load**. Every extra GB is RAM you don't have; every extra second per task multiplies across all agents. So this harness scores two things as **co-equal**:
+The best **local** model isn't the biggest — it's the smallest and fastest that passes. Score accuracy and speed as co-equal. See [PURPOSE.md](docs/PURPOSE.md) for full rationale.
 
-- **Accuracy** — does the produced code pass the hidden test suite?
-- **Speed** — how many seconds did it take? (recorded per run, surfaced as `med s` in leaderboard)
+Three phases: **Bench** (this machine) → **Run** (production) → **Port** (other machines). See [HARDWARE-RECOMMENDATIONS.md](docs/HARDWARE-RECOMMENDATIONS.md) for per-tier guidance.
 
-The question: **what is the smallest / fastest local model that reliably passes at your target concurrency — and which tool gets the most out of it?**
+## How It Works
 
-See [docs/PURPOSE.md](docs/PURPOSE.md) for the full rationale and what this project explicitly does not measure.
+Test cases → Run all adapters × models → Grade objectively → Measure speed → Leaderboard.
 
-### Three phases: Bench → Run → Port
-
-This repo's work happens in three stages, each with a different scope:
-
-1. **Bench (this machine)** — `bin/bench` exhaustively tests every (runtime ×
-   model × adapter × case) combination on the machine you're developing on,
-   scoring accuracy and speed for each. This is what most of this README
-   documents.
-2. **Run (any machine, once winners are known)** — once bench has identified
-   the best runtime/model/adapter combos, use `llmrun` — a standalone
-   dotfiles binary built from this repo (see
-   [PLAN-CLI-UNIFICATION.md](docs/PLAN-CLI-UNIFICATION.md)) — to do real
-   work with those combos, without needing this repo checked out.
-   `bin/build-llmrun` generates it.
-3. **Port (other machines, by RAM tier)** — carry what bench learned here to
-   other machines (64 GB / 48 GB / 32 GB / 24 GB tiers) so they don't have to
-   re-run the full matrix. See
-   [HARDWARE-RECOMMENDATIONS.md](docs/HARDWARE-RECOMMENDATIONS.md) for
-   per-tier guidance (currently 128 GB and 32 GB; more tiers in progress) and
-   [PLAN-MULTI-MACHINE-PORTABILITY.md](docs/PLAN-MULTI-MACHINE-PORTABILITY.md)
-   for the machine-readable bootstrap this is moving towards.
-
----
-
-## How It Works (Simple → Detailed)
-
-### The Basics
-
-1. **Test cases** — lives in `cases/<id>/`: a prompt, starter code, and a hidden grader
-2. **Run the matrix** — bin/bench runs every (adapter × model × case), grades each, records accuracy and time
-3. **Merge results** — bin/report creates a leaderboard of (tool, model, score, speed)
-4. **Visualize** — bin/viz builds an interactive HTML dashboard
-
-### Realistic Concurrency
-
-The target workload is multi-agent: an orchestrator directing 2–3 agents all running concurrently against the same local model. `config.sh` sets `BENCH_PARALLEL=3` (orchestrator + 2–3 agents); drop to `BENCH_PARALLEL=1` for single-request throughput, or bump to `BENCH_PARALLEL=4` to stress-test under realistic load. A model that scores well at `--parallel 1` but degrades at `--parallel 4` is not a good fit for agentic workloads.
-
-### Design Criteria
-
-- **Self-contained test cases** — each case in `cases/<id>/` has its own prompt, code, and grader
-- **Objective verification + timing** — hidden test suites grade the model's edits; wall-clock time is recorded
-- **One endpoint feeds everything** — LM Studio (OpenAI-compatible API) serves all tools. Adding a model = download + one line in `models.txt`
-- **Modern-efficiency architectures preferred** — MLX (Apple Silicon), MoE/A3B (sparse), QAT (quantized), MTP (multi-token prediction) keep large models fast enough to benchmark locally
+See [CASES.md](docs/CASES.md) for test specifications, [WORKFLOW.md](docs/WORKFLOW.md) for benchmarking process, and [SCORING.md](docs/SCORING.md) for accuracy/speed scoring.
 
 ---
 
@@ -107,10 +61,11 @@ The target workload is multi-agent: an orchestrator directing 2–3 agents all r
 
 ### Getting Started (Do This First)
 
-- [**ONBOARDING.md**](docs/ONBOARDING.md) — step-by-step guide: detect hardware → configure → verify → benchmark (4 phases)
-- [**WORKFLOWS.md**](docs/WORKFLOWS.md) — **NEW:** visual flowcharts for 6 main workflows (Quick Setup, Full Benchmarking, Maintenance Loop, Model Management, Debug Failure, Multi-Machine). Each command prints "Next steps:" so you don't need to read docs.
-- [**WORKFLOW.md**](docs/WORKFLOW.md) — the complete workflow: adding adapters & models, running tests, interpreting results, managing incompatibilities
+- [**ONBOARDING.md**](docs/ONBOARDING.md) — step-by-step guide: detect hardware → configure → verify → benchmark
+- [**WORKFLOWS.md**](docs/WORKFLOWS.md) — visual flowcharts for 6 main workflows (Quick Setup, Full Benchmarking, Maintenance Loop, Model Management, Debug Failure, Multi-Machine). Each command prints "Next steps:" so you don't need to read docs.
+- [**TOOLS.md**](docs/TOOLS.md) — all available bin/* commands with subcommands and flags
 - [**SETUP.md**](docs/SETUP.md) — LM Studio setup, per-tool config, IDE extensions, context window tuning
+- [**WORKFLOW.md**](docs/WORKFLOW.md) — technical: how to add adapters, manage models, understand the benchmark harness (for developers)
 
 ### Core Concepts (Understanding the System)
 
@@ -124,6 +79,11 @@ The target workload is multi-agent: an orchestrator directing 2–3 agents all r
 - [**CLI-DISCOVERY.md**](docs/CLI-DISCOVERY.md) — the Command Boundary Pattern: every tool shows what to do next
 - [**MODEL-RESEARCH.md**](docs/MODEL-RESEARCH.md) — dated candidates worth testing, with sources and re-runnable search queries
 - [**Troubleshooting**](docs/troubleshooting-qwen-reasoning-loops.md) — common issues and fixes
+
+### Further Reference
+
+- [**FURTHER-READING.md**](docs/FURTHER-READING.md) — index of all additional reference materials (hardware, models, adapters, development, architecture, archived docs)
+- [**archived/**](docs/archived/) — historical documents: decisions made, completed handoffs, prior planning
 
 ### Adding & Extending (Contributing)
 
@@ -176,67 +136,20 @@ The target workload is multi-agent: an orchestrator directing 2–3 agents all r
 
 ---
 
-## The Pipeline: Bench → Report → Evaluate → Visualize
+## The Pipeline
 
-Four stages, each a script. Run in order or use the one-liner:
-
-### 1. **Bench** — Run the full matrix
+Run benchmarks, merge results, visualize:
 
 ```bash
-bin/bench                              # All adapters × all models × all cases
-bin/bench --agent hermes --trials 3    # One adapter, 3 trials (records MEDIAN)
-bin/bench --agent aider,opencode --models qwen/qwen3-coder-30b --cases js-01-slugify-bug  # Narrow scope
-bin/bench --list                       # Show what would run, without running
-bin/bench -i                           # Interactive fzf pickers for models and tools
+bin/bench --agent hermes --trials 3        # Run benchmarks
+bin/report --all --save && bin/viz         # Merge results, visualize
 ```
 
-Results go to `results/<timestamp>/`: a `results.csv` plus per-run sandboxes with logs.
-
-### 2. **Report** — Merge runs into the leaderboard
-
-```bash
-bin/report --all                       # Merge all runs (latest result per combo)
-bin/report --all --save                # Same, persist to LEADERBOARD.md
-```
-
-### 3. **Evaluate** — Build per-model / per-tool pages
-
-```bash
-bin/gen-evals --all | claude --print   # (or run /gen-evals --all interactively)
-                                       # → refreshes docs/models/*.md and docs/tools/*.md
-```
-
-### 4. **Visualize** — Rebuild the HTML dashboard
-
-```bash
-bin/viz                                # Regenerate results/index.html from all run CSVs
-```
-
-**One-liner for the common case:**
-
-```bash
-bin/bench --agent hermes --trials 3 && bin/report --all --save && bin/viz
-```
-
-### Understanding Variance and Medians
-
-Run-to-run variance is material (a triple can swing 4/4 → 0/4 between identical runs). Use `--trials N` to repeat each (tool, model, case) N times and record the **median** score and seconds; per-trial details land in `trials.csv`. See [SCORING.md](docs/SCORING.md#trials-and-medians---trials-n).
-
-### Debugging a Run
-
-When accuracy alone doesn't explain a result, inspect the model's actual tool calls:
-
-```bash
-bin/debug <adapter> <model> [case]       # Run one triple, dump session transcript
-bin/debug --calls --latest               # Inspect tool calls, flag mangling
-bin/debug --failures <run-id>            # Triage all failures from a run
-```
-
-(See [docs/WORKFLOWS.md](docs/WORKFLOWS.md#workflow-5-debug-a-failure) for the debug workflow.)
-
-### Important: Context Windows
-
-**Hermes needs ≥64K context.** `config.sh` sets `BENCH_CONTEXT=65536`. Hermes **hard-refuses any model loaded with <64K context** and aborts on startup (~3s), silently zeroing every hermes trial. Keep `BENCH_CONTEXT` at 65536 or higher; on a 128 GB machine the extra KV cache is cheap.
+For detailed command options, workflow diagrams, and debugging, see:
+- **All commands:** [TOOLS.md](docs/TOOLS.md)
+- **Visual workflows:** [WORKFLOWS.md](docs/WORKFLOWS.md)
+- **Variance & scoring:** [SCORING.md](docs/SCORING.md)
+- **Debugging a run:** [TOOLS.md#debugging--investigation](docs/TOOLS.md#debugging--investigation)
 
 ## File Structure
 
@@ -280,25 +193,6 @@ For detailed usage and all available scripts, see [**docs/TOOLS.md**](docs/TOOLS
 - **Add a test case** → copy a `cases/<id>/` folder, follow [ADDING-CASES.md](docs/ADDING-CASES.md)
 - **Add a CLI tool** → drop `adapters/<name>.sh` following the contract, add a card in `docs/tools/` (see [SETUP.md](docs/SETUP.md))
 - **Add an IDE extension** → test locally, add a card in `docs/extensions/` (see [docs/extensions/README.md](docs/extensions/README.md))
-
----
-
-## Further Reading
-
-### Runtime Selection & Benchmarks
-- [Choosing an On-Device LLM Runtime on Apple Silicon: A Decision Framework Beyond Benchmarks](https://medium.com/@michael.hannecke/choosing-an-on-device-llm-runtime-on-apple-silicon-a-decision-framework-beyond-benchmarks-2449067b8b67) — context handling, API surface, agentic fit (beyond tok/s)
-- [Local LLM on iPhone: MLX vs llama.cpp vs LiteRT-LM vs CoreML](https://rockyshikoku.medium.com/local-llm-on-iphone-which-runtime-is-actually-fastest-58096685481e) — cross-runtime speed on Apple Silicon (May 2026)
-- [Prefix Caching: SGLang vs vLLM](https://medium.com/byte-sized-ai/prefix-caching-sglang-vs-vllm-token-level-radix-tree-vs-block-level-hashing-b99ece9977a1) — token-level radix tree vs block-level hashing
-
-### Apple Silicon & MLX
-- [WWDC26 #232: Run Local Agentic AI on Mac Using MLX](https://developer.apple.com/videos/play/wwdc2026/232/) — mlx_lm.server, continuous batching, M5 Neural Accelerators, distributed inference
-- [WWDC26 #233: Distributed Inference & Training with MLX](https://developer.apple.com/videos/play/wwdc2026/233/) — multi-Mac model sharding
-- [Exploring LLMs with MLX and M5 GPU Neural Accelerators](https://machinelearning.apple.com/research/exploring-llms-mlx-m5) — Apple ML Research on kernel selection and throughput
-- [LM Studio MLX Engine — Agentic Workloads (v1.8.5, June 2026)](https://lmstudio.ai/blog/mlx-engine-agentic-workloads) — disk-backed KV cache checkpointing
-
-### Model Architectures for Local Inference
-- [Gemma 4 12B Developer Guide](https://developers.googleblog.com/gemma-4-12b-the-developer-guide/) — LiteRT-LM, MoE variants (E2B/E4B), on-device deployment
-- [Blazing Fast On-Device GenAI with LiteRT-LM](https://developers.googleblog.com/blazing-fast-on-device-genai-with-litert-lm/) — MTP speculative decoding, session save/restore, constrained decoding
 
 ---
 

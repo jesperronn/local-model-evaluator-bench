@@ -101,6 +101,8 @@ bin/bench --agent aider        # Prints "Next steps:" after run
 
 Or read the visual workflows: [WORKFLOWS.md](WORKFLOWS.md)
 
+**Building your own tools?** See [CLI-DISCOVERY.md](CLI-DISCOVERY.md) — it documents the pattern that all `bin/*` tools follow (next-steps guidance, help text format, dry-run modes). Use this as a reference when creating new tools.
+
 ## Pattern: Unified Tools with Subcommands
 
 Recent consolidations follow a pattern for discoverability:
