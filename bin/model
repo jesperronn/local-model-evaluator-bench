@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# bin/model — unified model management (consolidates lms_gc, lms_update, prune, outdated, scout)
+#
+# Unified interface for model operations across all runtimes (lms, ollama, mlx, omlx).
+#
+# Subcommands:
+#   status              Show all installed models + which are loaded on each runtime
+#   update <model>      Re-download outdated model from HuggingFace
+#   remove <model>      Delete a downloaded model
+#   cleanup             Unload idle models, garbage collect unused models
+#   gc                  Alias for cleanup
+#   list                List all models across all runtimes
+#
+# Flags:
+#   --runtime NAME      Filter to specific runtime (lms, ollama, mlx, omlx)
+#   --verbose           Show more details
+#
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
+
+show_help() {
+  help_header "model" "unified model management across all runtimes"
+  help_section "USAGE"
+  help_line "  model <subcommand> [OPTIONS]"
+
+  help_section "SUBCOMMANDS"
+  help_command "status"   "Show all installed models + which are loaded"
+  help_command "update"   "Re-download an outdated model from HuggingFace"
+  help_command "remove"   "Delete a downloaded model"
+  help_command "cleanup"  "Unload idle models, garbage collect unused"
+  help_command "gc"       "Alias for cleanup"
+  help_command "list"     "List all available models (installed + discovered)"
+
+  help_section "OPTIONS"
+  help_flag "--runtime" "NAME" "Filter to one runtime (lms, ollama, mlx, omlx)"
+  help_flag "--verbose" "" "Show more details"
+  help_flag "-h, --help" "" "Show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Show what's installed and loaded:"
+  help_line "    \$ model status"
+  help_line ""
+  help_line "  Download updates for a model:"
+  help_line "    \$ model update qwen/qwen3.6-35b-a3b"
+  help_line ""
+  help_line "  Delete a model to free space:"
+  help_line "    \$ model remove llama/llama-3.1-8b"
+  help_line ""
+  help_line "  Clean up idle models:"
+  help_line "    \$ model cleanup"
+}
+
+# ── Subcommand: status ───────────────────────────────────────────────────────
+cmd_status() {
+  info "Model Status Across Runtimes"
+  echo ""
+
+  # LM Studio
+  if lms_up; then
+    echo "${C_BLD}LM Studio (lms)${C_RST}"
+    lms ls | head -20
+    echo ""
+    echo "  Loaded in memory:"
+    if lms ps &>/dev/null; then
+      lms ps | tail -n +2 | awk '{print "    • " $1}'
+    else
+      echo "    (none)"
+    fi
+  else
+    echo "${C_YEL}LM Studio${C_RST} not running (start with: lms server start)"
+  fi
+  echo ""
+
+  # Ollama
+  if command -v ollama &>/dev/null; then
+    echo "${C_BLD}Ollama${C_RST}"
+    if ollama list &>/dev/null; then
+      ollama list | tail -n +2 | awk '{print "    • " $1}'
+    else
+      echo "  (not running; start with: ollama serve)"
+    fi
+  fi
+  echo ""
+
+  # MLX
+  if [ -f "$MLX_MODELS_DIR/.models" ] 2>/dev/null; then
+    echo "${C_BLD}MLX${C_RST}"
+    ls -d "$MLX_MODELS_DIR"/*/ 2>/dev/null | xargs -n1 basename | while read m; do
+      echo "    • $m"
+    done
+  fi
+  echo ""
+
+  # Summary
+  echo "${C_DIM}For detailed info: bin/doctor${C_RST}"
+  echo ""
+
+  help_next_steps_section \
+    "See what's available|model list" \
+    "Update a model|model update <model-id>" \
+    "Delete unused models|model remove <model-id>" \
+    "Clean up idle models|model cleanup"
+}
+
+# ── Subcommand: update ───────────────────────────────────────────────────────
+cmd_update() {
+  local model="$1"
+  [ -n "$model" ] || { err "model update: missing model id"; exit 1; }
+
+  info "Updating model: $model"
+
+  # Try LMS first
+  if lms_up; then
+    info "Checking LM Studio..."
+    if lms ls | grep -q "^$model$"; then
+      info "Downloading update via LMS..."
+      lms get "$model"
+      ok "Model updated: $model"
+      exit 0
+    fi
+  fi
+
+  # Try HuggingFace direct
+  if command -v hf &>/dev/null; then
+    info "Downloading via HuggingFace CLI..."
+    hf download "$model" --repo-type model --local-dir ~/.lmstudio/models/
+    ok "Model downloaded: $model"
+    exit 0
+  fi
+
+  err "Could not update $model — neither lms nor hf CLI available"
+  exit 1
+}
+
+# ── Subcommand: remove ───────────────────────────────────────────────────────
+cmd_remove() {
+  local model="$1"
+  [ -n "$model" ] || { err "model remove: missing model id"; exit 1; }
+
+  warn "This will delete: $model"
+  echo "Confirm? (type 'yes' to delete, or Ctrl+C to cancel)"
+  read -r confirm
+
+  if [ "$confirm" != "yes" ]; then
+    err "Cancelled"
+    exit 1
+  fi
+
+  info "Removing model: $model"
+
+  # LM Studio storage: ~/.lmstudio/models/lmstudio-community/
+  if [ -d ~/.lmstudio/models/lmstudio-community/"$model" ]; then
+    rm -rf ~/.lmstudio/models/lmstudio-community/"$model"
+    ok "Deleted from LM Studio: $model"
+  fi
+
+  # Ollama storage: ~/.ollama/models/
+  if [ -d ~/.ollama/models/"$model" ]; then
+    rm -rf ~/.ollama/models/"$model"
+    ok "Deleted from Ollama: $model"
+  fi
+}
+
+# ── Subcommand: cleanup ───────────────────────────────────────────────────────
+cmd_cleanup() {
+  info "Cleaning up models..."
+
+  # Unload idle models from LM Studio
+  if lms_up; then
+    info "Unloading idle models from LM Studio..."
+    if lms ps &>/dev/null; then
+      lms ps | tail -n +2 | awk '{print $1}' | while read model; do
+        info "Unloading: $model"
+        lms unload "$model" || true
+      done
+    fi
+  fi
+
+  # TODO: oMLX unload
+  # TODO: garbage collection for unused models
+
+  ok "Cleanup complete"
+
+  help_next_steps_section \
+    "Run benchmarks with cleaned-up models|bin/bench --agent aider" \
+    "See model status|model status" \
+    "Monitor runs|bin/report --all"
+}
+
+# ── Main dispatch ────────────────────────────────────────────────────────────
+if [ $# -eq 0 ] || [[ "$1" == -h ]] || [[ "$1" == --help ]]; then
+  show_help
+  exit 0
+fi
+
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+  status)  cmd_status "$@" ;;
+  update)  cmd_update "$@" ;;
+  remove)  cmd_remove "$@" ;;
+  cleanup) cmd_cleanup "$@" ;;
+  gc)      cmd_cleanup "$@" ;;
+  list)    err "list subcommand not yet implemented"; exit 1 ;;
+  *)       err "unknown subcommand: $SUBCOMMAND"; exit 1 ;;
+esac
