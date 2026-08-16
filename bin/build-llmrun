@@ -41,8 +41,8 @@ sed \
 # Regenerate: cd @@PROJECT@@ && bin/build-llmrun
 #
 # Usage:
-#   llmrun [--agent <name>] [--runtime <lms|mlx|ollama>] [--model <id>] [--dry-run] [prompt...]
-#   llmrun runtime status|start|stop|logs [lms|ollama|mlx|all] ...
+#   llmrun [--agent <name>] [--runtime <lms|ollama|mlx|omlx>] [--model <id>] [--dry-run] [prompt...]
+#   llmrun runtime status|start|stop|logs [lms|ollama|mlx|omlx|all] ...
 #
 # --dry-run resolves tool/runtime/model/adapter as usual but prints the
 # resolved adapter path and env instead of exec'ing it — no model is loaded.
@@ -411,10 +411,10 @@ if [ "${1:-}" = "runtime" ]; then
     logs)   cmd_runtime_logs   "$@";;
     -h|--help|help)
       cat <<'EOF'
-llmrun runtime status [lms|ollama|mlx|all]        show up/down + loaded model
-llmrun runtime start  <lms|ollama|mlx> [model]    start a runtime (mlx needs a model)
-llmrun runtime stop   <lms|ollama|mlx|all>        unload models and stop the runtime
-llmrun runtime logs   [--all] [<lms|ollama|mlx>] [-f] [N]  tail runtime logs (--all: all runtimes)
+llmrun runtime status [lms|ollama|mlx|omlx|all]        show up/down + loaded model
+llmrun runtime start  <lms|ollama|mlx|omlx> [model]    start a runtime (mlx needs a model)
+llmrun runtime stop   <lms|ollama|mlx|omlx|all>        unload models and stop the runtime
+llmrun runtime logs   [--all] [<lms|ollama|mlx|omlx>] [-f] [N]  tail runtime logs (--all: all runtimes)
 EOF
       ;;
     *) die "unknown runtime subcommand: $RSUB (valid: status start stop logs)";;
@@ -567,7 +567,7 @@ if [ "${1:-}" = "model" ]; then
     update) cmd_model_update "$@";;
     -h|--help|help)
       cat <<'EOF'
-llmrun model list     [lms|ollama|mlx|all]              list downloaded models
+llmrun model list     [lms|ollama|mlx|omlx|all]          list downloaded models
 llmrun model get      <id> --runtime X                  download a model
 llmrun model load     <id> --runtime X                  load into memory
 llmrun model unload   [<id>] [--idle Nm] --runtime X     unload from memory
