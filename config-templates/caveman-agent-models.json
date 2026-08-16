@@ -68,6 +68,9 @@
         },
         {
           "id": "qwen3.8:27b-mlx"
+        },
+        {
+          "id": "qwen3.8:27b-mtp-q4_K_M"
         }
       ]
     },
@@ -76,6 +79,9 @@
       "api": "openai-completions",
       "apiKey": "omlx",
       "models": [
+        {
+          "id": "DeepSeek-V4-Flash-2bit-DQ"
+        },
         {
           "id": "KAT-Coder-V2.5-Dev"
         },

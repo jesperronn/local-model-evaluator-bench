@@ -53,11 +53,26 @@ omlx_loaded_models() {
 # pressure, but bench unloads explicitly between models so the next model's
 # timings aren't measured against a machine still holding the previous weights.
 # Returns non-zero if the server is unreachable or rejects the request.
+#
+# The admin unload endpoint returns 200 as soon as the unload is QUEUED, not
+# when it's complete — oMLX defers the actual unload until in-flight scheduler
+# work drains, which can take several seconds. A caller that treats the 200 as
+# "done" and immediately starts a new bench process against the same server
+# can send requests into that drain window and get instant 500s (see TASKS.md
+# T19). Poll omlx_loaded_models until the model is actually gone before
+# returning, so callers never race the async teardown.
 omlx_unload_model() {
-  local m="$1" code
+  local m="$1" code waited=0
   code=$(curl -fsS --max-time 30 -o /dev/null -w '%{http_code}' \
     -X POST "${OMLX_BASE_URL%/v1}/admin/api/models/${m}/unload" 2>/dev/null) || return 1
-  [ "$code" = "200" ]
+  [ "$code" = "200" ] || return 1
+  while omlx_loaded_models | grep -qx "$m"; do
+    sleep 1; waited=$((waited + 1))
+    if [ "$waited" -ge 30 ]; then
+      warn "omlx_unload_model: $m still reported loaded after 30s — proceeding anyway"
+      return 1
+    fi
+  done
 }
 
 # Portable timeout: run_timeout <seconds> <cmd...>. Uses GNU timeout if present,

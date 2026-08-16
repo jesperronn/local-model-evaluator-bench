@@ -80,6 +80,9 @@
       "apiKey": "omlx",
       "models": [
         {
+          "id": "DeepSeek-V4-Flash-2bit-DQ"
+        },
+        {
           "id": "KAT-Coder-V2.5-Dev"
         },
         {

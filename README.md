@@ -108,6 +108,7 @@ The target workload is multi-agent: an orchestrator directing 2–3 agents all r
 ### Getting Started (Do This First)
 
 - [**ONBOARDING.md**](docs/ONBOARDING.md) — step-by-step guide: detect hardware → configure → verify → benchmark (4 phases)
+- [**WORKFLOWS.md**](docs/WORKFLOWS.md) — **NEW:** visual flowcharts for 6 main workflows (Quick Setup, Full Benchmarking, Maintenance Loop, Model Management, Debug Failure, Multi-Machine). Each command prints "Next steps:" so you don't need to read docs.
 - [**WORKFLOW.md**](docs/WORKFLOW.md) — the complete workflow: adding adapters & models, running tests, interpreting results, managing incompatibilities
 - [**SETUP.md**](docs/SETUP.md) — LM Studio setup, per-tool config, IDE extensions, context window tuning
 
