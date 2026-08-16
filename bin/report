@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
-# bin/report [options] [results.csv] — print leaderboards from a results CSV.
-# Defaults to the newest run under results/.
+# bin/report — unified results reporting tool (consolidates viz, gen-evals)
+#
+# Generate leaderboards, dashboards, and eval pages from benchmark results.
+#
+# Subcommands:
+#   report              show leaderboard (default)
+#   report --all        merge all runs
+#   report --speed      show speed comparison
+#   report --save       update LEADERBOARD.md
+#   report --viz        generate results/index.html dashboard
+#   report --evals      generate model/tool eval pages
+#   report --prune      delete superseded runs
+#
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 usage() {
-  help_header "report" "print leaderboards from a results CSV"
+  help_header "report" "unified results reporting (leaderboards, dashboards, eval pages)"
 
   help_section "USAGE"
   help_line "  report [OPTIONS] [results.csv]"
 
   help_section "DESCRIPTION"
-  help_line "  Print leaderboards and comparisons from bench results. Defaults"
-  help_line "  to the newest results.csv in results/ if no file is provided."
+  help_line "  Generate leaderboards, interactive dashboards, and eval pages from"
+  help_line "  benchmark results. Defaults to the newest results.csv in results/."
 
   help_section "OPTIONS"
   help_flag "-t, --agent" "TOOL[,TOOL...]" "filter by adapter/tool (comma-separated)"
@@ -22,23 +33,23 @@ usage() {
   help_flag "-i, --interactive" "" "use fzf to select tool(s) and model(s)"
   help_flag "-a, --all" "" "merge all runs (latest result wins per combo)"
   help_flag "--speed" "" "show speed comparison (avg seconds), fastest first"
-  help_flag "--save" "[FILE]" "write leaderboards as markdown (default: LEADERBOARD.md); unfiltered runs also refresh LEADERBOARD-DATA.csv (stable-sorted, diff-friendly)"
-  help_flag "--prune" "" "delete runs fully superseded by newer runs (confirm first)"
+  help_flag "--save" "[FILE]" "update LEADERBOARD.md or specified file"
+  help_flag "--viz" "" "generate results/index.html interactive dashboard"
+  help_flag "--evals" "" "generate model/tool eval pages (requires context)"
+  help_flag "--prune" "" "delete runs fully superseded by newer runs"
   help_flag "--yes" "" "skip confirmation with --prune"
   help_flag "-h, --help" "" "show this help and exit"
 
   help_section "EXAMPLES"
   help_line "  Show latest results:"
-  help_line "  \$ report"
+  help_line "    \$ report"
   help_line ""
-  help_line "  Filter by model and adapter:"
-  help_line "  \$ report --agent aider,cline --model qwen/qwen3.5-9b"
+  help_line "  Generate all outputs:"
+  help_line "    \$ report --all --save --viz --evals"
   help_line ""
-  help_line "  Show speed comparison across all runs:"
-  help_line "  \$ report --all --speed"
-  help_line ""
-  help_line "  Save leaderboard to markdown:"
-  help_line "  \$ report --save LEADERBOARD.md"
+  help_line "  Save and visualize:"
+  help_line "    \$ report --all && report --viz"
+
   exit 0
 }
 
@@ -50,6 +61,8 @@ ALL_RUNS=0
 SPEED=0
 CSV=""
 SAVE_MD=""
+DO_VIZ=0
+DO_EVALS=0
 PRUNE=0
 YES=0
 
@@ -62,6 +75,8 @@ while [[ $# -gt 0 ]]; do
     -i|--interactive) INTERACTIVE=1; shift ;;
     -a|--all) ALL_RUNS=1; shift ;;
     --speed) SPEED=1; shift ;;
+    --viz) DO_VIZ=1; shift ;;
+    --evals) DO_EVALS=1; shift ;;
     --prune) PRUNE=1; shift ;;
     --yes)   YES=1;   shift ;;
     --save)
@@ -429,6 +444,55 @@ if [ -n "$SAVE_MD" ]; then
       echo "$AGG_BY_ADAPTER_MODEL" | sort -t, -k1,1 -k2,2 -k3,3
     } > "$LB_DATA"
     ok "Stable data file saved → $LB_DATA"
+  fi
+fi
+
+# ── Generate interactive dashboard (--viz) ───────────────────────────────────
+if [ "$DO_VIZ" -eq 1 ]; then
+  info "Generating interactive dashboard..."
+  if [ -x "$HERE/bin/viz" ]; then
+    "$HERE/bin/viz" || die "Failed to generate dashboard"
+    echo ""
+    help_next_steps_section \
+      "View dashboard|open results/index.html" \
+      "Share results|git add results/ && git push" \
+      "Compare runs|bin/report --all"
+  else
+    die "bin/viz not found"
+  fi
+fi
+
+# ── Generate eval pages (--evals) ────────────────────────────────────────────
+if [ "$DO_EVALS" -eq 1 ]; then
+  info "Generating eval pages..."
+  if [ -x "$HERE/bin/gen-evals" ]; then
+    # gen-evals outputs markdown context; pipe to claude if available
+    if command -v claude >/dev/null 2>&1; then
+      "$HERE/bin/gen-evals" | claude --print || die "Failed to generate eval pages"
+    else
+      warn "claude CLI not found; running gen-evals in preview mode"
+      "$HERE/bin/gen-evals" | head -50
+      echo "${C_DIM}(truncated; run with: bin/gen-evals | claude --print)${C_RST}"
+    fi
+    echo ""
+    help_next_steps_section \
+      "Review generated pages|ls docs/models/ docs/tools/" \
+      "Commit changes|git add docs/" \
+      "Visualize dashboard|bin/report --viz"
+  else
+    die "bin/gen-evals not found"
+  fi
+fi
+
+# ── Final next steps if multiple operations ──────────────────────────────────
+if [ "$DO_VIZ" -eq 1 ] || [ "$SAVE_MD" != "" ]; then
+  if [ "$DO_VIZ" -eq 0 ] && [ "$DO_EVALS" -eq 0 ]; then
+    # Only leaderboard/save was done
+    echo ""
+    help_next_steps_section \
+      "Visualize results|bin/report --viz" \
+      "Generate eval pages|bin/report --evals" \
+      "Commit all|git add LEADERBOARD.md && git commit"
   fi
 fi
 
