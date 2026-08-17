@@ -218,7 +218,7 @@ cmd_runtime_start() {
       ;;
     omlx)
       _require_project "runtime start omlx"
-      "$_PROJECT/bin/omlx" start
+      "${OMLX_CLI:-/Applications/oMLX.app/Contents/MacOS/omlx-cli}" start
       ;;
     *) die "unknown runtime: $target (valid: lms ollama mlx omlx)";;
   esac
@@ -259,7 +259,7 @@ cmd_runtime_stop() {
       ;;
     omlx)
       _require_project "runtime stop omlx"
-      "$_PROJECT/bin/omlx" stop
+      "$_PROJECT/bin/rt" stop omlx
       ;;
     all) cmd_runtime_stop lms; cmd_runtime_stop ollama; cmd_runtime_stop mlx; cmd_runtime_stop omlx;;
     *) die "unknown runtime: $target (valid: lms ollama mlx omlx all)";;
@@ -316,7 +316,7 @@ cmd_runtime_logs() {
       if [ "$follow" = 1 ]; then tail -n "$n" -f "$_rt_mlx_logfile"; else tail -n "$n" "$_rt_mlx_logfile"; fi
       ;;
     omlx)
-      die "oMLX has no llmrun-managed log file — check the oMLX.app UI, or: bin/omlx status"
+      die "oMLX has no llmrun-managed log file — check the oMLX.app UI, or: bin/rt omlx status"
       ;;
     *) die "unknown runtime: $tgt (valid: lms ollama mlx omlx all)";;
   esac
@@ -871,7 +871,7 @@ case "$RUNTIME" in
   lms)    lms_up    || die "LM Studio not reachable at $_LMS_URL — start with: lms server start";;
   ollama) ollama_up || die "Ollama not reachable at localhost:11434 — start with: ollama serve";;
   mlx)    mlx_up    || die "mlx_lm.server not reachable at localhost:8080 — start with: python -m mlx_lm.server --model <id>";;
-  omlx)   omlx_up   || die "oMLX not reachable at $_OMLX_URL — start with: bin/omlx start";;
+  omlx)   omlx_up   || die "oMLX not reachable at $_OMLX_URL — start with: bin/rt omlx start";;
 esac
 
 if ! command -v "$TOOL" >/dev/null 2>&1; then

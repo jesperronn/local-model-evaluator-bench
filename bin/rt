@@ -274,10 +274,10 @@ cmd_status() {
       if [ -n "$_ol" ]; then
         while IFS= read -r _m; do
           # Per-model eviction; `bin/rt stop omlx` unloads all and stops the server.
-          printf '    bin/omlx unload       %s\n' "${C_DIM}${_m}${C_RST}"
+          printf '    bin/rt omlx unload       %s\n' "${C_DIM}${_m}${C_RST}"
         done <<< "$_ol"
       else
-        printf '    bin/omlx unload       %s\n' "${C_DIM}(nothing resident)${C_RST}"
+        printf '    bin/rt omlx unload       %s\n' "${C_DIM}(nothing resident)${C_RST}"
       fi
     fi
 
@@ -782,8 +782,9 @@ cmd_stop() {
           omlx_unload_model "$_m" || warn "unload failed: $_m"
         done <<< "$(omlx_loaded_models)"
       fi
-      if [ -x "${OMLX_CLI:-/Applications/oMLX.app/Contents/MacOS/omlx-cli}" ]; then
-        if "$HERE/bin/omlx" stop >/dev/null 2>&1; then ok "oMLX stopped"; else info "oMLX: not running"; fi
+      _omlx_cli="${OMLX_CLI:-/Applications/oMLX.app/Contents/MacOS/omlx-cli}"
+      if [ -x "$_omlx_cli" ]; then
+        if "$_omlx_cli" stop >/dev/null 2>&1; then ok "oMLX stopped"; else info "oMLX: not running"; fi
       else
         info "oMLX: CLI not found — nothing to stop"
       fi

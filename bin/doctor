@@ -387,7 +387,7 @@ if [ ${#problems_found[@]} -gt 0 ]; then
   # Problem: LM Studio default context length not set to Model maximum
   if [ -n "${unique_problems[lms_context_not_max]:-}" ]; then
     help_line "  ${step}. ${C_BLD}Set LM Studio's default context length to Model maximum${C_RST}"
-    help_line "     ${C_GRN}\$ bin/lmstudio-context fix${C_RST}"
+    help_line "     ${C_GRN}\$ bin/rt lms-context fix${C_RST}"
     help_line "     ${C_DIM}bin/smoke/bin/bench always pass an explicit -c and are unaffected;${C_RST}"
     help_line "     ${C_DIM}this only matters for models loaded via the LM Studio UI.${C_RST}"
     ((step++))

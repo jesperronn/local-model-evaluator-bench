@@ -131,11 +131,11 @@ comparison" is really measuring the quant. Currently mapped: `qwen3.6-35b-a3b`,
 
 ## Through the LiteLLM proxy
 
-`bin/litellm-proxy` exposes oMLX as `omlx/<id>` alongside the other runtimes, and
+`bin/rt litellm proxy` exposes oMLX as `omlx/<id>` alongside the other runtimes, and
 because oMLX is multi-model the route actually enumerates:
 
 ```bash
-bin/litellm-proxy --models | grep '^omlx/'
+bin/rt litellm models | grep '^omlx/'
 ```
 
 Native tool-calling works over that path (verified with a function-calling

@@ -24,7 +24,7 @@
 #   --ollama           Ollama runtime
 #   --fzf              fzf (required for --interactive pickers)
 #   --hf               HuggingFace CLI (required for bin/lms_update)
-#   --litellm          uv, prerequisite for the optional bin/litellm-proxy
+#   --litellm          uv, prerequisite for the optional bin/rt litellm proxy
 #
 # Model flags:
 #   --model            show model status across runtimes
@@ -100,7 +100,7 @@ show_help() {
   help_flag "--omlx" "" "oMLX multi-model MLX server"
   help_flag "--ollama" "" "Ollama runtime"
   help_flag "--fzf" "" "fzf (required for --interactive pickers)"
-  help_flag "--litellm" "" "uv, prerequisite for the optional bin/litellm-proxy"
+  help_flag "--litellm" "" "uv, prerequisite for the optional bin/rt litellm proxy"
   help_flag "--hf" "" "HuggingFace CLI (required for bin/lms_update)"
 
   help_section "MODEL FLAGS"
@@ -454,10 +454,10 @@ setup_hf() {
 }
 
 setup_litellm() {
-  # Optional: bin/litellm-proxy runs litellm via uvx, so uv is the only real
+  # Optional: bin/rt litellm proxy runs litellm via uvx, so uv is the only real
   # prerequisite — nothing to install up front.
   step "LiteLLM proxy (optional, via uvx)"
-  check_cmd "uv" uv "brew install uv  # required by bin/litellm-proxy" || \
+  check_cmd "uv" uv "brew install uv  # required by bin/rt litellm proxy" || \
     { [ "$DO_LITELLM" = 1 ] && do_install "uv" uv "uv"; }
 }
 
