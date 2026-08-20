@@ -86,9 +86,9 @@ cmd_status() {
   echo ""
 
   # MLX
-  if [ -f "$MLX_MODELS_DIR/.models" ] 2>/dev/null; then
+  if [ -d "$OMLX_MODELS_DIR" ]; then
     echo "${C_BLD}MLX${C_RST}"
-    ls -d "$MLX_MODELS_DIR"/*/ 2>/dev/null | xargs -n1 basename | while read m; do
+    ls -d "$OMLX_MODELS_DIR"/*/ 2>/dev/null | xargs -n1 basename | while read m; do
       echo "    • $m"
     done
   fi
