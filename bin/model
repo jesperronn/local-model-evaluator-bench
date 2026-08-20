@@ -190,6 +190,60 @@ cmd_cleanup() {
     "Monitor runs|bin/report --all"
 }
 
+# ── Subcommand: list ─────────────────────────────────────────────────────────
+cmd_list() {
+  local runtime=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --runtime) runtime="$2"; shift 2 ;;
+      --verbose) shift ;;
+      *) shift ;;
+    esac
+  done
+
+  if [ -z "$runtime" ] || [ "$runtime" = "lms" ]; then
+    echo "${C_BLD}LM Studio (lms)${C_RST}"
+    if lms_up; then
+      lms ls | tail -n +2 | awk '{print "    • " $1}'
+    else
+      echo "    (not running; start with: lms server start)"
+    fi
+    echo ""
+  fi
+
+  if [ -z "$runtime" ] || [ "$runtime" = "ollama" ]; then
+    echo "${C_BLD}Ollama${C_RST}"
+    if command -v ollama &>/dev/null && ollama list &>/dev/null; then
+      ollama list | tail -n +2 | awk '{print "    • " $1}'
+    else
+      echo "    (not running; start with: ollama serve)"
+    fi
+    echo ""
+  fi
+
+  if [ -z "$runtime" ] || [ "$runtime" = "omlx" ]; then
+    echo "${C_BLD}oMLX${C_RST}"
+    if omlx_up; then
+      omlx_models | awk '{print "    • " $0}'
+    else
+      echo "    (not running; start with: bin/omlx start)"
+    fi
+    echo ""
+  fi
+
+  if [ -z "$runtime" ] || [ "$runtime" = "mlx" ]; then
+    echo "${C_BLD}MLX${C_RST}"
+    if [ -d "$OMLX_MODELS_DIR" ]; then
+      ls -d "$OMLX_MODELS_DIR"/*/ 2>/dev/null | xargs -n1 basename | while read m; do
+        echo "    • $m"
+      done
+    else
+      echo "    (no models dir: $OMLX_MODELS_DIR)"
+    fi
+    echo ""
+  fi
+}
+
 # ── Main dispatch ────────────────────────────────────────────────────────────
 if [ $# -eq 0 ] || [[ "$1" == -h ]] || [[ "$1" == --help ]]; then
   show_help
@@ -205,6 +259,6 @@ case "$SUBCOMMAND" in
   remove)  cmd_remove "$@" ;;
   cleanup) cmd_cleanup "$@" ;;
   gc)      cmd_cleanup "$@" ;;
-  list)    err "list subcommand not yet implemented"; exit 1 ;;
+  list)    cmd_list "$@" ;;
   *)       err "unknown subcommand: $SUBCOMMAND"; exit 1 ;;
 esac
