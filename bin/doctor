@@ -170,7 +170,7 @@ for name in $(for a in "$ADAPTERS_DIR"/*.sh; do
   n="$(basename "$a" .sh)"
   # Repeatedly strip trailing runtime/routing tokens (order in filenames is
   # <tool>[-proxy]-<runtime>, e.g. codex-proxy-ollama.sh -> codex).
-  while [[ "$n" =~ -(lms|ollama|mlx|omlx|proxy)$ ]]; do n="${n%-*}"; done
+  while [[ "$n" =~ -(lms|ollama|mlx|omlx|mtplx|proxy)$ ]]; do n="${n%-*}"; done
   echo "$n"
 done | sort -u); do
   if command -v "$name" >/dev/null 2>&1; then ok "$name -> $(command -v "$name")"
@@ -223,6 +223,40 @@ if lms_up 2>/dev/null; then
 fi
 runtime_models "$OLLAMA_BASE_URL" | sed 's/^/    ollama:/'
 runtime_models "$OMLX_BASE_URL" | sed 's/^/    omlx:/'
+runtime_models "$MTPLX_BASE_URL" | sed 's/^/    mtplx:/'
+
+echo
+info "omp model catalog (~/.omp/agent/models.yml — verifies omp itself can see each running runtime):"
+if ! command -v omp >/dev/null 2>&1; then
+  echo "    omp not installed — skipping"
+else
+  omp_models_yml="$HOME/.omp/agent/models.yml"
+  if [ ! -f "$omp_models_yml" ]; then
+    warn "$omp_models_yml not found — omp falls back to its single built-in lm-studio provider"
+    problems_found+=("omp_models_yml_missing")
+  else
+    _omp_refresh="$(omp models refresh 2>&1)"
+    if printf '%s\n' "$_omp_refresh" | grep -q "validation failed"; then
+      err "models.yml failed validation — custom providers are disabled:"
+      printf '%s\n' "$_omp_refresh" | grep -A2 "validation failed" | sed 's/^/    /'
+      problems_found+=("omp_models_yml_invalid")
+    else
+      _omp_json="$(omp models --json 2>/dev/null)"
+      for _rt in lms:"$LMS_BASE_URL" omlx:"$OMLX_BASE_URL" mtplx:"$MTPLX_BASE_URL" mlx:"$MLX_BASE_URL"; do
+        _name="${_rt%%:*}"; _url="${_rt#*:}"
+        _live="$(runtime_models "$_url" | sort)"
+        [ -z "$_live" ] && continue  # runtime not up right now — nothing to compare
+        _cataloged="$(printf '%s' "$_omp_json" | jq -r --arg p "$_name" '.models[] | select(.provider==$p) | .id' 2>/dev/null | sort)"
+        if [ "$_live" = "$_cataloged" ]; then
+          ok "$_name: omp sees $(printf '%s\n' "$_live" | sed '/^$/d' | wc -l | tr -d ' ') model(s), matches /v1/models"
+        else
+          warn "$_name: omp's \"$_name\" provider doesn't match live /v1/models (wrong baseUrl in $omp_models_yml, or stale cache)"
+          problems_found+=("omp_catalog_stale:$_name")
+        fi
+      done
+    fi
+  fi
+fi
 
 echo
 info "Test cases ($CASES_DIR):"
@@ -418,6 +452,31 @@ if [ ${#problems_found[@]} -gt 0 ]; then
   if [ -n "${unique_problems[agent_config_drift]:-}" ]; then
     help_line "  ${step}. ${C_BLD}Wire agent configs to config.sh (endpoint/api key/model)${C_RST}"
     help_line "     ${C_GRN}\$ bin/agents-config --write${C_RST}"
+    ((step++))
+  fi
+
+  # Problem: omp has no per-runtime providers configured
+  if [ -n "${unique_problems[omp_models_yml_missing]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Register lms/omlx/mtplx/mlx as omp providers${C_RST}"
+    help_line "     Create ~/.omp/agent/models.yml — see adapters/omp-mtplx.sh for the format"
+    ((step++))
+  fi
+
+  # Problem: models.yml doesn't parse
+  if [ -n "${unique_problems[omp_models_yml_invalid]:-}" ]; then
+    help_line "  ${step}. ${C_BLD}Fix ~/.omp/agent/models.yml (failed validation, custom providers disabled)${C_RST}"
+    help_line "     ${C_GRN}\$ omp models refresh${C_RST}  (prints the validation error)"
+    ((step++))
+  fi
+
+  # Problem: omp's cached catalog for a runtime doesn't match /v1/models
+  _omp_stale_rts=()
+  for key in "${!unique_problems[@]}"; do
+    [[ "$key" =~ ^omp_catalog_stale: ]] && _omp_stale_rts+=("${key#omp_catalog_stale:}")
+  done
+  if [ ${#_omp_stale_rts[@]} -gt 0 ]; then
+    help_line "  ${step}. ${C_BLD}Refresh omp's model catalog (stale for: $(IFS=,; echo "${_omp_stale_rts[*]}"))${C_RST}"
+    help_line "     ${C_GRN}\$ omp models refresh${C_RST}"
     ((step++))
   fi
 

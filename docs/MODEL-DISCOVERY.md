@@ -74,6 +74,27 @@ hermes as settings-only and opt-in (`--agent hermes`), so its model list is
 hand-maintained and has rotted. Either extend the sync or expect hermes to name
 models that no longer exist.
 
+## omp (oh-my-pi)
+
+Not in the original measurement pass — added 2026-08-22. omp's built-in
+`lm-studio` provider does its own LM-Studio-specific discovery
+(`GET /api/v0/models`), which none of lms/omlx/mtplx implement (they only
+serve the standard `/v1/models`); the practical effect is the same as pi/
+caveman/hermes: a locally cached catalog (`~/.omp/models.db`) that silently
+goes stale. Worse, `omp-mtplx.sh` and `omp-omlx.sh` both used to point that
+*same* built-in provider at whichever server `LM_STUDIO_BASE_URL` last named,
+so mtplx and omlx would clobber each other's entry.
+
+Fixed by giving each runtime its own custom provider in
+`~/.omp/agent/models.yml` (`lms`, `omlx`, `mtplx`, `mlx`), each with
+`discovery: { type: openai-models-list }` — that discovery mode hits the
+standard `/v1/models` endpoint, so unlike pi/caveman/opencode it never goes
+stale on its own; `omp models refresh` re-queries live every time. The
+adapters now address models as `mtplx/<id>` / `omlx/<id>` instead of
+`lm-studio/<id>`. `bin/doctor` checks that omp's per-provider catalog matches
+each running runtime's `/v1/models` (catches a wrong `baseUrl` in
+`models.yml`, not just staleness).
+
 ## What this means for adding a model
 
 After `lms get` / `ollama pull` / dropping a directory in `~/.omlx/models`:
@@ -83,9 +104,15 @@ bin/omlx reload            # oMLX only: rescan the model dir
 bin/agents-config --write  # push the new inventory into opencode/pi/caveman
 ```
 
-codex, goose and forge need neither step. aider, cline, copilot, gptme,
-openhands, claude and cn need nothing either — they never had a list to update.
-Everything else needs the sync.
+codex, goose, forge and omp need neither step (all three query the live
+endpoint themselves). aider, cline, copilot, gptme, openhands, claude and cn
+need nothing either — they never had a list to update. Everything else needs
+the sync.
+
+mtplx models specifically only sync into an agent's `omlx`-style config if
+that config already declares an `mtplx` provider block (same opt-in rule as
+omlx, see `bin/agents-config` header) — `bin/agents-config --verify` warns
+when mtplx is serving models no agent config lists yet.
 
 ## Known breakage found during this pass
 

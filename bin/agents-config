@@ -30,10 +30,11 @@
 # (its id form is unambiguous); pi/opencode/caveman keep whatever default model
 # you chose.
 #
-# The omlx provider is synced only when the agent's config already declares it —
-# these agents can't discover models over HTTP, but silently inventing a provider
-# block in someone's hand-written config is worse than leaving it alone. Create
-# the block once (see docs/RUNTIME-OMLX.md), and it stays in sync from then on.
+# The omlx and mtplx providers are synced only when the agent's config already
+# declares them — these agents can't discover models over HTTP, but silently
+# inventing a provider block in someone's hand-written config is worse than
+# leaving it alone. Create the block once (omlx: docs/RUNTIME-OMLX.md; mtplx:
+# adapters/omp-mtplx.sh), and it stays in sync from then on.
 #
 # What it does NOT touch: mlx / ollama_proxy providers in opencode, and
 # pi/opencode/caveman top-level default model.
@@ -97,6 +98,12 @@ OMLX_JSON="[]"
 if omlx_up; then
   OMLX_JSON="$(omlx_models | jq -R . | jq -s .)"
 fi
+# MTPLX, same story as oMLX: no inventory CLI, server IS the inventory, and a
+# stopped server must never look like "zero models" to the merge logic below.
+MTPLX_JSON="[]"
+if mtplx_up; then
+  MTPLX_JSON="$(runtime_models "$MTPLX_BASE_URL" | jq -R . | jq -s .)"
+fi
 
 broken_keys_for() {
   local adapter="$1"
@@ -110,23 +117,27 @@ sync_one_models_json_file() {
   local target="$1" label="$2" adapter="$3"
   [ -f "$target" ] || { echo "$label: not found, skipping (run bin/setup --caveman-cli first)"; return; }
   local broken_json; broken_json="$(broken_keys_for "$adapter" | jq -R . | jq -s .)"
-  local lms_models ollama_models omlx_models_json
+  local lms_models ollama_models omlx_models_json mtplx_models_json
   lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_json" '
     [.[] | .modelKey as $k | select($broken | index($k) | not) | {id: $k}] | sort_by(.id)')"
   ollama_models="$(echo "$OLLAMA_JSON" | jq --argjson broken "$broken_json" '
     [.[] | select(test("embed") | not) | select(. as $k | $broken | index($k) | not) | {id: .}] | sort_by(.id)')"
   omlx_models_json="$(echo "$OMLX_JSON" | jq --argjson broken "$broken_json" '
     [.[] | select(. as $k | $broken | index($k) | not) | {id: .}] | sort_by(.id)')"
+  mtplx_models_json="$(echo "$MTPLX_JSON" | jq --argjson broken "$broken_json" '
+    [.[] | select(. as $k | $broken | index($k) | not) | {id: .}] | sort_by(.id)')"
   # Merge, don't overwrite: an existing entry can carry hand-tuned fields
   # (contextWindow, maxTokens, reasoning) that a bare {id} would silently reset.
   # Installed set decides membership; existing entries decide their own contents.
   jq --argjson lms "$lms_models" --argjson ollama "$ollama_models" \
-     --argjson omlx "$omlx_models_json" --argjson omlx_up "$([ "$OMLX_JSON" = "[]" ] && echo false || echo true)" '
+     --argjson omlx "$omlx_models_json" --argjson omlx_up "$([ "$OMLX_JSON" = "[]" ] && echo false || echo true)" \
+     --argjson mtplx "$mtplx_models_json" --argjson mtplx_up "$([ "$MTPLX_JSON" = "[]" ] && echo false || echo true)" '
     def merge_models(want): . as $have
       | [ want[] | .id as $id | (($have // []) | map(select(.id == $id)) | first) // {id: $id} ];
     .providers.lmstudio.models = (.providers.lmstudio.models | merge_models($lms))
     | if .providers.ollama then .providers.ollama.models = (.providers.ollama.models | merge_models($ollama)) else . end
     | if (.providers.omlx and $omlx_up) then .providers.omlx.models = (.providers.omlx.models | merge_models($omlx)) else . end
+    | if (.providers.mtplx and $mtplx_up) then .providers.mtplx.models = (.providers.mtplx.models | merge_models($mtplx)) else . end
   ' "$target" | commit_if_changed "$target" "$label" "$WRITE"
 }
 
@@ -143,7 +154,13 @@ sync_caveman_models() {
 sync_opencode_models() {
   [ -f "$OPENCODE_CFG" ] || { echo "opencode config not found at $OPENCODE_CFG (skipping)" >&2; return; }
   local broken_lms; broken_lms="$(broken_keys_for opencode | jq -R . | jq -s .)"
-  local existing; existing="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" lmstudio ollama omlx)"
+  # mtplx is opt-in like omlx: only read/write its block if the config already
+  # declares one — reading a provider key patch-jsonc-models.mjs can't find
+  # exits nonzero, so it must not be requested unless it's actually there.
+  local _read_providers=(lmstudio ollama omlx)
+  local _has_mtplx=0
+  grep -qE '^\s*"mtplx"\s*:' "$OPENCODE_CFG" && { _has_mtplx=1; _read_providers+=(mtplx); }
+  local existing; existing="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" "${_read_providers[@]}")"
   local lms_models ollama_models
   lms_models="$(echo "$LMS_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
     [.[] | .modelKey as $k | select($broken | index($k) | not)
@@ -168,6 +185,17 @@ sync_opencode_models() {
            | {(.): ($existing.omlx[.] // {name: (. | titlecase)})}]
       | sort_by(keys[0]) | add // {}')"
     _write_args+=(omlx "$omlx_models_map")
+  fi
+  # Same opt-in rule for mtplx: only if the config already declared the block
+  # (checked above via _has_mtplx) AND the server answered right now.
+  if [ "$_has_mtplx" = 1 ] && [ "$MTPLX_JSON" != "[]" ]; then
+    local mtplx_models_map
+    mtplx_models_map="$(echo "$MTPLX_JSON" | jq --argjson broken "$broken_lms" --argjson existing "$existing" '
+      def titlecase: gsub("[:_-]"; " ");
+      [.[] | select(. as $k | $broken | index($k) | not)
+           | {(.): ($existing.mtplx[.] // {name: (. | titlecase)})}]
+      | sort_by(keys[0]) | add // {}')"
+    _write_args+=(mtplx "$mtplx_models_map")
   fi
   local out; out="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" "${_write_args[@]}")"
   printf '%s\n' "$out" | commit_if_changed "$OPENCODE_CFG" "$OPENCODE_CFG" "$WRITE"
@@ -284,34 +312,39 @@ run_agent() {
   return 0
 }
 
-# ── Concern 3: surface oMLX models no agent config has yet ───────────────────
-# omlx blocks are opt-in (see header comment) — sync_* only fills in a
-# providers.omlx that already exists. A model oMLX now serves can therefore sit
-# invisible to every agent forever if nobody notices. Report the gap instead.
-report_omlx_new() {
-  [ "$OMLX_JSON" = "[]" ] && { [ "$VERIFY" = 1 ] || warn "oMLX unreachable — skipping new-model check"; return; }
+# ── Concern 3: surface omlx/mtplx models no agent config has yet ────────────
+# Both providers are opt-in (see header comment) — sync_* only fills in a
+# providers.<name> block that already exists. A model the runtime now serves
+# can therefore sit invisible to every agent forever if nobody notices.
+# Report the gap instead.
+report_provider_new() {
+  local provider="$1" live_json="$2" docs_ref="$3" label="$4"
+  [ "$live_json" = "[]" ] && { [ "$VERIFY" = 1 ] || warn "$label unreachable — skipping new-model check"; return; }
   local known="[]"
   if [ -f "$PI_LIVE_CFG" ]; then
-    known="$(jq -c --argjson k "$known" '$k + [(.providers.omlx.models // [])[].id]' "$PI_LIVE_CFG" 2>/dev/null || echo "$known")"
+    known="$(jq -c --argjson k "$known" --arg p "$provider" '$k + [(.providers[$p].models // [])[].id]' "$PI_LIVE_CFG" 2>/dev/null || echo "$known")"
   fi
   if [ -f "$CAVEMAN_LIVE_CFG" ]; then
-    known="$(jq -c --argjson k "$known" '$k + [(.providers.omlx.models // [])[].id]' "$CAVEMAN_LIVE_CFG" 2>/dev/null || echo "$known")"
+    known="$(jq -c --argjson k "$known" --arg p "$provider" '$k + [(.providers[$p].models // [])[].id]' "$CAVEMAN_LIVE_CFG" 2>/dev/null || echo "$known")"
   fi
-  if [ -f "$OPENCODE_CFG" ]; then
-    local oc_omlx; oc_omlx="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" omlx 2>/dev/null | jq -c '.omlx // {} | keys')"
-    [ -n "$oc_omlx" ] || oc_omlx="[]"
-    known="$(jq -c --argjson k "$known" --argjson oc "$oc_omlx" -n '$k + $oc')"
+  if [ -f "$OPENCODE_CFG" ] && grep -qE "^\\s*\"$provider\"\\s*:" "$OPENCODE_CFG"; then
+    local oc_models; oc_models="$(node "$HERE/bin/lib/patch-jsonc-models.mjs" read "$OPENCODE_CFG" "$provider" 2>/dev/null | jq -c --arg p "$provider" '.[$p] // {} | keys')"
+    [ -n "$oc_models" ] || oc_models="[]"
+    known="$(jq -c --argjson k "$known" --argjson oc "$oc_models" -n '$k + $oc')"
   fi
-  local new_ids; new_ids="$(jq -r --argjson known "$known" '. - $known | .[]' <<<"$OMLX_JSON")"
+  local new_ids; new_ids="$(jq -r --argjson known "$known" '. - $known | .[]' <<<"$live_json")"
   if [ -n "$new_ids" ]; then
-    warn "oMLX is serving models not yet in any agent's omlx config:"
+    warn "$label is serving models not yet in any agent's $provider config:"
     while IFS= read -r m; do warn "  - $m"; done <<<"$new_ids"
-    warn "omlx blocks are only synced where already declared (docs/RUNTIME-OMLX.md) — add one, then re-run bin/agents-config --write"
+    warn "$provider blocks are only synced where already declared ($docs_ref) — add one, then re-run bin/agents-config --write"
   fi
 }
+report_omlx_new()  { report_provider_new omlx  "$OMLX_JSON"  "docs/RUNTIME-OMLX.md"     "oMLX"; }
+report_mtplx_new() { report_provider_new mtplx "$MTPLX_JSON" "adapters/omp-mtplx.sh"    "MTPLX"; }
 
 for a in $AGENTS; do run_agent "$a"; done
 report_omlx_new
+report_mtplx_new
 
 if [ "$VERIFY" = "1" ]; then
   echo
