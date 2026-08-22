@@ -72,7 +72,7 @@ Derived from QUESTION-SUITE.md sections A/B/F/G into `eval/questions.jsonl`
 {"id":"A1","section":"A","mode":"open","grade":"judge","question":"Starting from the README alone, where do I learn the project's end goal?","expected":"README 'End goal': a multi-agent orchestration setup (orchestrator + 2-3 agents) at --parallel 3-4.","source":"README.md#end-goal"}
 {"id":"B17","section":"B","grade":"exact","question":"What's the fastest adapter overall, and on what model?","expected":"aider, ~11s avg on qwen3-coder-30b","source":"docs/AGENT-SELECTION.md"}
 {"id":"F79","section":"F","grade":"judge","question":"What is the primary score?","expected":"Objective test pass-rate (fraction of assertion points passing).","source":"docs/SCORING.md"}
-{"id":"G91","section":"G","grade":"exact","question":"How do I add a new model to the bench?","expected":"Download it in LM Studio and add its id to models.txt.","source":"docs/WORKFLOW.md"}
+{"id":"G91","section":"G","grade":"exact","question":"How do I add a new model to the bench?","expected":"Download it (in LM Studio, Ollama, etc.) — it's discovered live via /v1/models, no file to update.","source":"docs/WORKFLOW.md"}
 ```
 
 Fields: `id` (matches QUESTION-SUITE numbering), `section`, `question`,

@@ -11,7 +11,7 @@ Key files:
 - **`bin/smoke`**: Fast smoke test to verify each adapter can reach a model (also updates compat.json)
 - **`bin/bench`**: Full benchmark suite; automatically skips broken adapters for efficiency
 - **`adapters/*.sh`**: Individual adapter implementations
-- **`models.txt`, `models-ollama.txt`, `models-mlx.txt`**: Model lists per runtime
+- **Model discovery**: no static list — `bin/bench` and friends query each runtime's live `/v1/models` endpoint (or `lms ls`/`ollama list`) for what's available
 
 ---
 
@@ -133,20 +133,15 @@ Output will be one of:
 
 ## 2. Adding a New Model
 
-### Step 2a: Add the model to the appropriate models file
+### Step 2a: Download it
 
-Choose the runtime(s) where the model will be available:
-
-- **LM Studio** → `models.txt`
-- **Ollama** → `models-ollama.txt`
-- **MLX** → `models-mlx.txt`
-
-Add one model ID per line:
-
-```
-qwen/qwen3.6-35b-a3b
-meta-llama/llama-3.1-70b
-```
+Download the model on whichever runtime(s) it should be available for (`lms
+get <id>`, `ollama pull <id>`, drop it in the MLX/oMLX/MTPLX model dir, etc.).
+There's no file to register it in — `bin/bench` (and `bin/stale`,
+`bin/scout`, ...) discover what's available by querying each runtime's live
+`/v1/models` endpoint, so a downloaded model is in scope immediately. Run
+`bin/bench --runtime <rt> --models <id>` to test one specific model, or omit
+`--models` to sweep everything that runtime currently has installed/loaded.
 
 ### Step 2b: (Optional) Add a model alias
 
@@ -417,8 +412,8 @@ sed -i 's/DEFAULT_ADAPTERS="/DEFAULT_ADAPTERS="hermes,/' config.sh
 # 3. Quick smoke test
 bin/smoke --adapter hermes  # → compat.json now has hermes entries
 
-# 4. Add a new model
-echo "meta-llama/llama-3.1-70b" >> models.txt
+# 4. Download a new model (discovered live — no file to register it in)
+lms get meta-llama/llama-3.1-70b
 
 # 5. Smoke test new model with all adapters (to populate compat.json)
 bin/smoke --model meta-llama/llama-3.1-70b

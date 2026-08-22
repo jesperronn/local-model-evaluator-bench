@@ -41,8 +41,10 @@ evicts every resident model and then stops the server.
    model id its registry doesn't know.
 4. `bin/agents-config --write` — pushes the new inventory into the agents that
    can't discover (see [MODEL-DISCOVERY.md](MODEL-DISCOVERY.md)).
-5. Optionally add the basename to `models-omlx.txt` so a bare
-   `bin/bench --runtime omlx` includes it.
+
+A bare `bin/bench --runtime omlx` (no `--models`) already sweeps every model
+oMLX serves — discovered live via `/v1/models` — so no separate registration
+step is needed for `bin/bench` itself.
 
 ## Adapters
 

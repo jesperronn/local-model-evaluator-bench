@@ -366,7 +366,7 @@ Benchmark on 128 GB, share learnings with 32 GB machine (phase 3).
 │                                                               │
 │ $ bin/bootstrap-machine --profile <profile.json>            │
 │                                                               │
-│ Output: Suggested config.sh + models.txt for 32 GB tier    │
+│ Output: Suggested config.sh + recommended models for 32 GB  │
 │         BENCH_PARALLEL=2 (not 3)                            │
 │         Smaller models recommended                          │
 │                                                               │

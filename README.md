@@ -155,7 +155,6 @@ For detailed command options, workflow diagrams, and debugging, see:
 
 ```
 config.sh                endpoint URL + defaults (BENCH_CONTEXT, BENCH_PARALLEL, etc.)
-models.txt               models under test — one per line
 adapters/<name>.sh       how each CLI is driven non-interactively
 cases/<id>/              task.md (prompt) + workdir/ (code) + check/ (hidden grader)
 lib/                     shared bash helpers (common.sh, grader.sh, node-test-score.sh, etc.)
@@ -165,7 +164,7 @@ docs/                    documentation hub (see above)
   models/                per-model cards
   tools/                 per-tool cards
   extensions/            IDE plugins
-  runtimes/              LM Studio, Ollama, MLX
+  runtimes/              LM Studio, Ollama, MLX (see also RUNTIME-OMLX.md for oMLX)
   templates/             card templates
 ```
 
@@ -189,7 +188,7 @@ For detailed usage and all available scripts, see [**docs/TOOLS.md**](docs/TOOLS
 
 ## Adding & Contributing
 
-- **Add a model** → download in LM Studio, add to `models.txt`, create a card in `docs/models/` (see [SETUP.md](docs/SETUP.md))
+- **Add a model** → download it (LM Studio/Ollama/etc. auto-discover it live), create a card in `docs/models/` (see [SETUP.md](docs/SETUP.md))
 - **Add a test case** → copy a `cases/<id>/` folder, follow [ADDING-CASES.md](docs/ADDING-CASES.md)
 - **Add a CLI tool** → drop `adapters/<name>.sh` following the contract, add a card in `docs/tools/` (see [SETUP.md](docs/SETUP.md))
 - **Add an IDE extension** → test locally, add a card in `docs/extensions/` (see [docs/extensions/README.md](docs/extensions/README.md))

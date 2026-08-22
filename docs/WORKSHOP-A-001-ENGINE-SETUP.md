@@ -43,7 +43,7 @@ lms get qwen/qwen3.5-9b
 lms get qwen/qwen3.6-35b-a3b   # kun hvis du har 32 GB+ RAM
 ```
 
-(Ollama: `ollama pull qwen2.5-coder:7b` osv. — se `models-ollama.txt` i repoet for præcise tags.)
+(Ollama: `ollama pull qwen2.5-coder:7b` osv. — kør `ollama list` for at se præcise tags.)
 
 ---
 

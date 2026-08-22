@@ -265,8 +265,9 @@ runtimes (see Q100).
 
 ## G. Process / workflow (10)
 
-91. **How do I add a new model to the bench?** → download in LM Studio, add its id
-    to `models.txt`. *Source: [README.md](../README.md) §Adding things; [docs/WORKFLOW.md](WORKFLOW.md) §2.*
+91. **How do I add a new model to the bench?** → download it (in LM Studio,
+    Ollama, etc.) — it's discovered live via `/v1/models`, no file to update.
+    *Source: [README.md](../README.md) §Adding things; [docs/WORKFLOW.md](WORKFLOW.md) §2.*
 92. **How do I add a new adapter (CLI)?** → drop `adapters/<name>.sh` per the
     contract, update config.sh, smoke test, check compat.json. *Source: [docs/WORKFLOW.md](WORKFLOW.md) §1.*
 93. **How do I add a new test case?** → copy a `cases/<id>/` folder. *Source:

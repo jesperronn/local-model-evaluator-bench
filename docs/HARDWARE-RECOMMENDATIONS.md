@@ -182,9 +182,7 @@ lms get qwen/qwen3.6-35b-a3b
 # Optional: also grab the fast coder
 lms get qwen/qwen3-coder-30b
 
-# Add to models.txt
-echo "qwen/qwen3.6-35b-a3b" >> models.txt
-echo "qwen/qwen3-coder-30b" >> models.txt
+# Both are now discoverable live via `lms ls` — no file to register them in
 
 # Run smoke test
 bin/smoke --model qwen/qwen3.6-35b-a3b
@@ -202,8 +200,7 @@ lms get qwen/qwen3.5-9b
 # Or: smaller footprint + higher accuracy
 lms get google/gemma-4-26b-a4b-qat
 
-# Add to models.txt
-echo "qwen/qwen3.5-9b" >> models.txt
+# It's now discoverable live via `lms ls` — no file to register it in
 
 # Tune config for 32 GB
 # In config.sh: BENCH_PARALLEL=2, BENCH_CONTEXT=65536

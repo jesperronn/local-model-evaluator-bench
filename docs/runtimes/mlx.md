@@ -55,8 +55,9 @@ curl http://localhost:8080/v1/models
 ## Connection setup
 
 `bin/bench --runtime mlx` takes the model as either a HuggingFace repo id or a
-**local absolute filesystem path** to an MLX model directory (see
-`models-mlx.txt`). This is the critical gotcha:
+**local absolute filesystem path** to an MLX model directory — pass it via
+`--models`, or omit `--models` and it discovers whatever `mlx_lm.server` is
+currently serving via `/v1/models`. This is the critical gotcha:
 
 > ⚠️ **Known compat bug — model-id-as-path breaks LiteLLM-based adapters.**
 > When the model argument is a raw filesystem path (e.g.

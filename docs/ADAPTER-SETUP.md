@@ -75,15 +75,16 @@ Before a user ever runs an adapter, this project generates a plan of recommended
 
 ## Detecting and registering new models: bin/scout + bin/sync
 
-Downloading a model (`lms get ...` / `ollama pull ...`) does not make it usable
-here — it needs an entry in `models.txt` / `models-ollama.txt`, **and** an
-entry in `~/.config/llmrun/agents.json` (section 2 above), before any adapter
-runs it configured correctly. Being listed in `models.txt` without global
-config is exactly the "adapter starts but is misconfigured" trap this doc
-opened with — a model can be "registered" and still run every adapter with
-unset context/temperature. `bin/scout` checks both; two commands close the
-gap, and are meant to be simple enough for workshop participants (not just
-benchmark maintainers) to run on their own:
+Downloading a model (`lms get ...` / `ollama pull ...`) makes it immediately
+discoverable by `bin/bench` (live via `/v1/models` / `lms ls` / `ollama
+list`), but that alone doesn't make it usable by the *adapters* — it still
+needs an entry in `~/.config/llmrun/agents.json` (section 2 above) before any
+adapter runs it configured correctly. A model can be fully discoverable and
+still run every adapter with unset context/temperature — that's exactly the
+"adapter starts but is misconfigured" trap this doc opened with. `bin/scout`
+checks for that gap, and `bin/sync` closes it; two commands are meant to be
+simple enough for workshop participants (not just benchmark maintainers) to
+run on their own:
 
 ```bash
 # See what's missing — new downloads AND registered-but-unconfigured models
@@ -98,16 +99,15 @@ bin/scout
 bin/sync --provider lms --model qwen/qwen3.5-9b --agent opencode,pi
 ```
 
-`bin/sync` appends the model to the right models list and seeds
-`~/.config/llmrun/agents.json` via `bin/suggest-tuning` — registration only,
-no model load. It prints a `bin/smoke` command as the next step for whoever
-wants to actually prove the model works before relying on it (that step is
-slow, so it's opt-in rather than automatic).
+`bin/sync` seeds `~/.config/llmrun/agents.json` via `bin/suggest-tuning` and
+runs `bin/agents-config --write` — registration only, no model load. It
+prints a `bin/smoke` command as the next step for whoever wants to actually
+prove the model works before relying on it (that step is slow, so it's
+opt-in rather than automatic).
 
-`bin/scout` is read-only and never deletes: if a model is registered in
-`models.txt`/`models-ollama.txt` but no longer downloaded, it's flagged
-("registered but not downloaded") and left alone — that's a job for
-[`bin/prune`](../bin/prune), not `bin/scout`.
+`bin/scout` is read-only and never deletes. Detecting models that are still
+configured in `~/.config/llmrun/agents.json` but no longer downloaded is a
+job for [`bin/prune`](../bin/prune), not `bin/scout`.
 
 For every downloaded model it also prints a per-(model, agent) breakdown,
 checking the actual config file each agent reads at launch

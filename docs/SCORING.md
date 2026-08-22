@@ -60,8 +60,8 @@ in which case the median is just the single trial and no `trials.csv` is written
 - **by model** — a model's overall pass-rate across all adapters.
 
 Because the unit is "tests passed", scores are comparable across models and
-across runs, and a new model needs *zero* manual grading — add it to
-`models.txt` and re-run.
+across runs, and a new model needs *zero* manual grading — download it and
+re-run `bin/bench` (it discovers what's available live, no file to update).
 
 ## Workarounds and fairness
 

@@ -35,7 +35,7 @@ lms ps                      # show what's currently loaded
 
 > **Model id caveat.** Most tools address a model by the id LM Studio exposes on
 > `/v1/models`, which usually matches `lms ls`. If a tool can't find a model,
-> run `bin/doctor`, copy the exact id it prints, and use that in `models.txt`.
+> run `bin/doctor`, copy the exact id it prints, and use that with `--models`.
 
 > **One model at a time.** Local inference is memory-bound. `bin/bench` does not
 > load/unload models for you — load the one you're testing (or test models in
@@ -88,14 +88,19 @@ hf --version    # verify
 ## 2. Adding a model under test
 
 1. Download it in LM Studio (GUI) or `lms get <id>`.
-2. Add its id as a new line in `models.txt`.
-3. `bin/doctor` to confirm the id resolves; `bin/bench --models <id>` to test it.
+2. `bin/doctor` to confirm the id resolves; `bin/bench --models <id>` to test it.
 
-**Shortcut:** run `bin/scout` any time after downloading — it diffs `lms
-ls`/`ollama list` against `models.txt`/`models-ollama.txt`, and also checks
-`~/.config/llmrun/agents.json` for models that are registered but never got
-global config (context/temperature) seeded — either case prints a
-ready-to-run command:
+There's no file to register the model in — `bin/bench`, `bin/stale`, and
+friends discover what's available by querying each runtime's live
+`/v1/models` endpoint (or `lms ls` / `ollama list` for lms/ollama), so a
+downloaded model is in scope the moment the runtime can see it. Run
+`bin/bench` with no `--models` flag to sweep every model the current
+`--runtime` currently has loaded/installed.
+
+**Shortcut:** run `bin/scout` any time after downloading — it checks
+`~/.config/llmrun/agents.json` for live-discovered models that never got
+global config (context/temperature) seeded, and prints a ready-to-run
+command:
 
 ```
 NOTE: new model not registered globally: qwen/qwen3.5-9b (lms)
@@ -105,24 +110,11 @@ NOTE: no global config for qwen/qwen3-coder-30b (lms) — adapters will use unse
 bin/sync --provider lms --model qwen/qwen3-coder-30b --agent aider,cline,hermes,opencode,pi
 ```
 
-`bin/sync` does step 2 for you (plus seeding `~/.config/llmrun/agents.json`
-with recommended settings) — registration only, no model load. It prints a
-`bin/smoke` command as the next step for proving the model actually works
-with the adapter(s) you list. It's read-only for the *other* direction too:
-a model that's registered but no longer downloaded is flagged, never
-auto-removed — use [`bin/prune`](#bin-prune-model-disk-cleanup) for that.
-
-> **Why `models.txt` still exists even though some CLIs auto-discover
-> models.** A few adapters (goose, cn, cline — see the table above) can list
-> whatever's installed on a backend. That doesn't replace `models.txt`:
-> discovery answers "what's installed," while `models.txt` is this repo's
-> curated **rotation** — which of the installed models the nightly bench
-> actually runs, in what order, with commentary on why others were dropped
-> (see the comments in the file itself). The bench also always pins one
-> explicit model id per trial for reproducible scoring, so no adapter's
-> discovery UI enters the loop during a run. On a fresh machine, `models.txt`
-> is also the fastest way to know *what to download* before anything is
-> installed — discovery has nothing to show until then.
+`bin/sync` seeds `~/.config/llmrun/agents.json` with recommended settings —
+registration only, no model load. It prints a `bin/smoke` command as the next
+step for proving the model actually works with the adapter(s) you list.
+Detecting a model that's still configured but no longer downloaded is a job
+for [`bin/prune`](#bin-prune-model-disk-cleanup), not `bin/scout`.
 
 ### Which model — modern-efficiency features
 

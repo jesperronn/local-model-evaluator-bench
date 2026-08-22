@@ -42,8 +42,8 @@ $ bin/bootstrap-machine
 ✓ Detected: 64 GB RAM
 
 Proposed changes:
-  - models.txt: 4 models (down from 8)
   - config.sh:  BENCH_PARALLEL=2 (max safe concurrency)
+  - Recommended models for this tier: qwen/qwen3.6-27b, ...
 
 Next steps:
   1. Review above and run with --write if happy
@@ -55,8 +55,8 @@ Apply changes, report what was done, **then show next steps**.
 
 ```bash
 $ bin/bootstrap-machine --write
-✓ Updated models.txt (4 models for 64 GB tier)
 ✓ Updated config.sh (BENCH_PARALLEL=2)
+✓ Recommended models for 64 GB tier printed above — download them, no file to update
 
 Next steps:
   Download the recommended models: lms get qwen/qwen3.6-27b
