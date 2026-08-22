@@ -43,7 +43,7 @@ sed \
 # Regenerate: cd @@PROJECT@@ && bin/build-llmrun
 #
 # Usage:
-#   llmrun [--agent <name>] [--runtime <lms|ollama|mlx|omlx|mtplx>] [--model <id>] [--dry-run] [prompt...]
+#   llmrun [--agent <name>] [--model <id>] [--dry-run] [prompt...]
 #   llmrun runtime status|start|stop|logs [lms|ollama|mlx|omlx|mtplx|all] ...
 #
 # --dry-run resolves tool/runtime/model/adapter as usual but prints the
@@ -769,11 +769,10 @@ fi
 
 trap 'echo; warn "Interrupted"; exit 130' INT TERM
 
-TOOL=""; RUNTIME=""; MODEL=""; PROMPT_ARGS=(); LLMRUN_DRY_RUN=0
+TOOL=""; MODEL=""; PROMPT_ARGS=(); LLMRUN_DRY_RUN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent|-t)    TOOL="$2";    shift 2;;
-    --runtime|-r) RUNTIME="$2"; shift 2;;
     --model|-m)   MODEL="$2";   shift 2;;
     --dry-run)    LLMRUN_DRY_RUN=1; shift;;
     -h|--help)
@@ -822,9 +821,56 @@ done
 command -v fzf >/dev/null 2>&1 || die "fzf not installed — brew install fzf"
 [ -d "$_ADAPTERS" ] || die "adapter directory not found: $_ADAPTERS — set LLMRUN_ADAPTERS or regenerate: cd @@PROJECT@@ && bin/build-llmrun"
 
+# ── Unified proxy model discovery via /v1/models ───────────────────────────────
+proxy_models() {
+  # Query /v1/models from all available proxies and runtimes, prefixing with provider
+  local all_models=""
+
+  # Try LMS
+  if lms_up 2>/dev/null; then
+    local lms_models
+    lms_models=$(lms ls 2>/dev/null | awk '$1 ~ /\// {print "lms/" $1}')
+    all_models="${all_models}${lms_models}"
+    [ -n "$all_models" ] && all_models="${all_models}"$'\n'
+  fi
+
+  # Try Ollama
+  if ollama_up 2>/dev/null; then
+    local ollama_models
+    ollama_models=$(_rt_ollama_models | sed 's/^/ollama\//')
+    all_models="${all_models}${ollama_models}"
+    [ -n "$all_models" ] && all_models="${all_models}"$'\n'
+  fi
+
+  # Try MLX
+  if mlx_up 2>/dev/null; then
+    local mlx_models
+    mlx_models=$(_rt_mlx_models | sed 's/^/mlx\//')
+    all_models="${all_models}${mlx_models}"
+    [ -n "$all_models" ] && all_models="${all_models}"$'\n'
+  fi
+
+  # Try oMLX
+  if omlx_up 2>/dev/null; then
+    local omlx_models
+    omlx_models=$(_rt_omlx_models | sed 's/^/omlx\//')
+    all_models="${all_models}${omlx_models}"
+    [ -n "$all_models" ] && all_models="${all_models}"$'\n'
+  fi
+
+  # Try MTPLX
+  if mtplx_up 2>/dev/null; then
+    local mtplx_models
+    mtplx_models=$(_rt_mtplx_models | sed 's/^/mtplx\//')
+    all_models="${all_models}${mtplx_models}"
+  fi
+
+  printf '%s' "$all_models" | grep -v '^$'
+}
+
 # ── Phase 1: Select ───────────────────────────────────────────────────────────
 all_adapters() { ls "$_ADAPTERS"/*.sh 2>/dev/null | xargs -I{} basename {} .sh; }
-all_tools()    { all_adapters | sed -E 's/-(lms|ollama|mlx|omlx|mtplx)$//' | sort -u; }
+all_tools()    { all_adapters; }
 
 if [ -z "$TOOL" ]; then
   tools="$(all_tools)"
@@ -833,76 +879,27 @@ if [ -z "$TOOL" ]; then
   [ -z "$TOOL" ] && die "no tool selected"
 fi
 
-if [ -z "$RUNTIME" ]; then
-  # A unified adapter (<tool>.sh, no runtime suffix) speaks to whichever runtime
-  # it is handed, so offer all three. Suffixed variants only offer what exists.
-  if [ -f "$_ADAPTERS/${TOOL}.sh" ]; then
-    runtimes="$(printf 'lms\nmlx\nollama\n')"
-  else
-    runtimes="$(all_adapters | grep -E "^${TOOL}-" | grep -oE '(lms|ollama|mlx|omlx|mtplx)$' | sort -u)"
-  fi
-  [ -z "$runtimes" ] && die "no adapters found for tool '$TOOL' in $_ADAPTERS"
-  rt_count="$(printf '%s\n' "$runtimes" | wc -l | tr -d ' ')"
-  if [ "$rt_count" = 1 ]; then
-    RUNTIME="$runtimes"
-    info "runtime: $RUNTIME (only option for $TOOL)"
-  else
-    RUNTIME="$(printf '%s\n' "$runtimes" | fzf --prompt='Runtime > ' --header='Select a runtime')"
-    [ -z "$RUNTIME" ] && die "no runtime selected"
-  fi
-fi
-
 if [ -z "$MODEL" ]; then
-  model_list=""
-  case "$RUNTIME" in
-    lms)
-      model_list="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
-      [ -z "$model_list" ] && die "no models found via 'lms ls' — is LM Studio running?"
-      ;;
-    ollama)
-      if ollama_up 2>/dev/null; then
-        model_list="$(_rt_ollama_models)"
-      fi
-      [ -z "$model_list" ] && die "Ollama not reachable or no models available"
-      ;;
-    mlx)
-      if mlx_up 2>/dev/null; then
-        model_list="$(_rt_mlx_models)"
-      fi
-      [ -z "$model_list" ] && die "mlx server not reachable or no models available"
-      ;;
-    omlx)
-      if omlx_up 2>/dev/null; then
-        model_list="$(_rt_omlx_models)"
-      fi
-      [ -z "$model_list" ] && die "oMLX server not reachable or no models available"
-      ;;
-    mtplx)
-      if mtplx_up 2>/dev/null; then
-        model_list="$(_rt_mtplx_models)"
-      fi
-      [ -z "$model_list" ] && die "MTPLX server not reachable or no models available"
-      ;;
-    *)
-      die "unknown runtime '$RUNTIME' — expected lms, ollama, mlx, omlx, or mtplx"
-      ;;
-  esac
+  model_list="$(proxy_models)"
+  [ -z "$model_list" ] && die "no models found — no runtimes available or running"
   MODEL="$(printf '%s\n' "$model_list" | fzf --prompt='Model   > ' --header='Select a model')"
   [ -z "$MODEL" ] && die "no model selected"
 fi
 
 # ── Phase 2: Validate ─────────────────────────────────────────────────────────
-# Prefer a runtime-specific adapter, fall back to the unified one — same
-# resolution order bin/bench uses.
-ADAPTER_FILE="$_ADAPTERS/${TOOL}-${RUNTIME}.sh"
-[ -f "$ADAPTER_FILE" ] || ADAPTER_FILE="$_ADAPTERS/${TOOL}.sh"
+# Adapter resolution: look for ${TOOL}.sh (unified adapter, no runtime suffix)
+ADAPTER_FILE="$_ADAPTERS/${TOOL}.sh"
 if [ ! -f "$ADAPTER_FILE" ]; then
-  err "no adapter for ${TOOL}-${RUNTIME} (and no unified ${TOOL}.sh)"
-  printf '\nAvailable combos:\n'
+  err "no adapter found: ${TOOL}.sh"
+  printf '\nAvailable adapters:\n'
   all_adapters | sed 's/^/  /'
-  printf '\nTry a different --agent or --runtime.\n'
+  printf '\nTry a different --agent.\n'
   exit 1
 fi
+
+# Extract runtime and model ID from proxy format (e.g., "lms/mistral")
+RUNTIME="${MODEL%%/*}"
+MODEL_ID="${MODEL#*/}"
 
 # --dry-run stops here — it exists to let callers verify tool/runtime/model
 # resolution and the adapter env without a live runtime, a PATH-installed
@@ -922,7 +919,7 @@ if [ "$LLMRUN_DRY_RUN" = 1 ]; then
   else dr_var_url=LMS_BASE_URL; dr_var_key=LMS_API_KEY; fi
   printf 'agent=%s\n'   "$TOOL"
   printf 'runtime=%s\n' "$RUNTIME"
-  printf 'model=%s\n'   "$MODEL"
+  printf 'model=%s\n'   "$MODEL_ID"
   printf 'adapter=%s\n' "$ADAPTER_FILE"
   printf '%s=%s\n' "$dr_var_url" "$dr_url"
   printf '%s=%s\n' "$dr_var_key" "$dr_key"
@@ -946,13 +943,13 @@ if ! command -v "$TOOL" >/dev/null 2>&1; then
 fi
 
 # ── Phase 3: Exec ─────────────────────────────────────────────────────────────
-echo "${C_DIM}Rerun: llmrun --agent $TOOL --runtime $RUNTIME --model $MODEL${C_RST}"
-info "launching ${C_BLD}${TOOL}${C_RST} via ${C_BLD}${RUNTIME}${C_RST} with model ${C_BLD}${MODEL}${C_RST}"
-export MODEL_ID="$MODEL"
+echo "${C_DIM}Rerun: llmrun --agent $TOOL --model $MODEL${C_RST}"
+info "launching ${C_BLD}${TOOL}${C_RST} via ${C_BLD}${RUNTIME}${C_RST} with model ${C_BLD}${MODEL_ID}${C_RST}"
+export MODEL_ID
 
 # Point LMS_BASE_URL/LMS_API_KEY at the *selected* runtime and export RUNTIME,
 # matching what bin/bench does. Unified adapters source config.sh, whose
-# LMS_BASE_URL default is LM Studio — without this a `--runtime ollama` run
+# LMS_BASE_URL default is LM Studio — without this an ollama run
 # would silently talk to LM Studio and mislabel which backend answered.
 # omlx/mtplx are deliberately NOT part of this rewiring: their adapters source
 # config.sh and read OMLX_BASE_URL/OMLX_API_KEY or MTPLX_BASE_URL/MTPLX_API_KEY

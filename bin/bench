@@ -42,7 +42,8 @@
 #   --verbose/-v       on every non-pass trial, print the .bench.log path plus a
 #                      short error excerpt inline (so failures are diagnosable
 #                      without hunting through results/<ts>/sandbox/)
-#   --runtime RUNTIME  inference backend: lms (default), ollama, mlx, omlx, mtplx
+#   --runtime RUNTIME  inference backend: litellm-proxy (default), lms, ollama, mlx, omlx, mtplx
+#                      litellm-proxy: unified proxy at $LITELLM_BASE_URL; fronts all runtimes
 #                      lms:    LM Studio at $LMS_BASE_URL; loads/unloads models
 #                      ollama: Ollama at localhost:11434/v1; models always ready
 #                      mlx:    mlx_lm.server at localhost:8080/v1; start manually
@@ -54,8 +55,6 @@
 #                              start with `mtplx quickstart --port 8001 --model <model>`
 #                      Models are discovered from the runtime's live /v1/models
 #                      endpoint when --models is not given.
-#                      Adapters: if adapters/<name>-<runtime>.sh exists it is
-#                      preferred over adapters/<name>.sh for that runtime.
 #   --skip-compat-filter  don't filter out adapters marked as broken in compat.json
 #                      (used by bin/smoke --retry-broken to test broken adapters)
 set -uo pipefail
@@ -118,7 +117,7 @@ resolve_model() {
 }
 
 # Pre-scan for --runtime so --help can show the right models file.
-_help_runtime="lms"; _prev_ha=""
+_help_runtime="litellm-proxy"; _prev_ha=""
 for _ha in "$@"; do [ "$_prev_ha" = "--runtime" ] && _help_runtime="$_ha"; _prev_ha="$_ha"; done
 
 show_help() {
@@ -128,7 +127,6 @@ show_help() {
   echo "Available adapters:"
   ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
     | xargs -I{} basename {} .sh \
-    | sed "s/-${runtime}$//" \
     | sort -u \
     | awk -F- '{
         key=$1
@@ -140,23 +138,22 @@ show_help() {
   echo "Available models ($runtime):"
   local base_url
   case "$runtime" in
+    litellm-proxy) base_url="$LITELLM_BASE_URL";;
     lms)    base_url="$LMS_BASE_URL";;
     ollama) base_url="http://localhost:11434/v1";;
     mlx)    base_url="http://localhost:8080/v1";;
     omlx)   base_url="$OMLX_BASE_URL";;
     mtplx)  base_url="$MTPLX_BASE_URL";;
-    *)      base_url="$LMS_BASE_URL";;
+    *)      base_url="$LITELLM_BASE_URL";;
   esac
   runtime_models "$base_url" | sed 's/^/  /' || echo "  (unable to discover models — is the runtime server running?)"
 }
 
 # Show available adapters for discovery/error recovery
 show_available_adapters() {
-  local runtime="$1"
-  echo "Available adapters for $runtime:"
+  echo "Available adapters:"
   ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
     | xargs -I{} basename {} .sh \
-    | sed "s/-${runtime}$//" \
     | sort -u | sed 's/^/  /'
   echo
   echo "Examples:"
@@ -164,7 +161,7 @@ show_available_adapters() {
   echo "  bin/bench --agent hermes --interactive"
 }
 
-ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="lms"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""
+ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="litellm-proxy"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent|-a)        ADAPTERS="$2"; shift 2;;
@@ -210,12 +207,13 @@ if [ "$INTERACTIVE" = 1 ]; then
   if [ -z "$MODELS" ]; then
     # Set RUNTIME_BASE_URL for discovery
     case "$RUNTIME" in
+      litellm-proxy) _base_url="$LITELLM_BASE_URL";;
       lms)    _base_url="$LMS_BASE_URL";;
       ollama) _base_url="http://localhost:11434/v1";;
       mlx)    _base_url="http://localhost:8080/v1";;
       omlx)   _base_url="$OMLX_BASE_URL";;
       mtplx)  _base_url="$MTPLX_BASE_URL";;
-      *)      _base_url="$LMS_BASE_URL";;
+      *)      _base_url="$LITELLM_BASE_URL";;
     esac
 
     case "$RUNTIME" in
@@ -234,7 +232,7 @@ if [ "$INTERACTIVE" = 1 ]; then
   fi
 
   if [ -z "$ADAPTERS" ]; then
-    all_tools="$(ls "$ADAPTERS_DIR"/*.sh 2>/dev/null | xargs -I{} basename {} .sh | sed -E 's/-(lms|ollama|mlx|omlx)$//' | sort -u)"
+    all_tools="$(ls "$ADAPTERS_DIR"/*.sh 2>/dev/null | xargs -I{} basename {} .sh | sort -u)"
     [ -z "$all_tools" ] && die "no adapters found in $ADAPTERS_DIR"
     sel_tools="$(printf '%s\n' "$all_tools" | fzf --multi --prompt='Tools  > ' --header='TAB = multi-select  ENTER = confirm')"
     [ -z "$sel_tools" ] && die "no tools selected"
@@ -249,55 +247,32 @@ fi
 # Validate that requested adapters exist; filter out unavailable ones with guidance
 _available_adapters=()
 _unavailable_adapters=()
-_unavailable_in_runtime=()
 IFS=',' read -ra _check_adapters <<< "$ADAPTERS"
 for _ca in "${_check_adapters[@]}"; do
-  _ca_sh="$ADAPTERS_DIR/$_ca-$RUNTIME.sh"
-  [ -f "$_ca_sh" ] || _ca_sh="$ADAPTERS_DIR/$_ca.sh"
+  _ca_sh="$ADAPTERS_DIR/$_ca.sh"
   if [ -f "$_ca_sh" ]; then
     _available_adapters+=("$_ca")
   else
     _unavailable_adapters+=("$_ca")
-    # Check if this adapter exists for a different runtime
-    for _rt in lms ollama mlx omlx; do
-      [ "$_rt" = "$RUNTIME" ] && continue
-      if [ -f "$ADAPTERS_DIR/$_ca-$_rt.sh" ] || [ -f "$ADAPTERS_DIR/$_ca.sh" ]; then
-        _unavailable_in_runtime+=("$_ca (exists for $RUNTIME, not $RUNTIME)")
-        break
-      fi
-    done
   fi
 done
 
 # If some adapters are unavailable but some are available, warn and continue with available
 if [ ${#_unavailable_adapters[@]} -gt 0 ] && [ ${#_available_adapters[@]} -gt 0 ]; then
-  warn "adapters not available for $RUNTIME: ${_unavailable_adapters[*]}"
+  warn "adapters not found: ${_unavailable_adapters[*]}"
   echo "${C_DIM}  Available: ${_available_adapters[*]}${C_RST}"
   echo "${C_DIM}  Skipping unavailable adapters and continuing with available ones.${C_RST}"
   echo
   ADAPTERS="$(IFS=','; printf '%s' "${_available_adapters[*]}")"
 elif [ ${#_unavailable_adapters[@]} -gt 0 ]; then
   # All requested adapters are unavailable
-  echo "${C_RED}[FAIL]${C_RST} no adapters available for $RUNTIME: ${_unavailable_adapters[*]}" >&2
+  echo "${C_RED}[FAIL]${C_RST} no adapters found: ${_unavailable_adapters[*]}" >&2
   echo >&2
   echo "${C_YEL}Next steps:${C_RST}"
-  echo "  1. Use available adapters for $RUNTIME:"
+  echo "  1. Use available adapters:"
   show_available_adapters "$RUNTIME" | sed 's/^/     /'
   echo
-  echo "  2. Or specify a different runtime where these adapters exist:"
-  for _ca in "${_unavailable_adapters[@]}"; do
-    for _rt in lms ollama mlx omlx; do
-      [ "$_rt" = "$RUNTIME" ] && continue
-      _ca_lms="$ADAPTERS_DIR/$_ca-$_rt.sh"
-      [ -f "$_ca_lms" ] || _ca_lms="$ADAPTERS_DIR/$_ca.sh"
-      if [ -f "$_ca_lms" ]; then
-        echo "     bin/bench --runtime $_rt --agent $_ca --model ..."
-        break
-      fi
-    done
-  done
-  echo
-  echo "  3. Check docs/AGENT-SELECTION.md for adapter/runtime compatibility."
+  echo "  2. Check docs/AGENT-SELECTION.md for adapter availability."
   exit 1
 fi
 
@@ -325,6 +300,8 @@ fi
 
 # ── Runtime: set base URL and API key ────────────────────────────────────────
 case "$RUNTIME" in
+  litellm-proxy) RUNTIME_BASE_URL="$LITELLM_BASE_URL"
+          RUNTIME_API_KEY="$LITELLM_MASTER_KEY";;
   lms)    RUNTIME_BASE_URL="$LMS_BASE_URL"
           RUNTIME_API_KEY="$LMS_API_KEY";;
   ollama) RUNTIME_BASE_URL="http://localhost:11434/v1"
@@ -335,7 +312,7 @@ case "$RUNTIME" in
           RUNTIME_API_KEY="$OMLX_API_KEY";;
   mtplx)  RUNTIME_BASE_URL="$MTPLX_BASE_URL"
           RUNTIME_API_KEY="$MTPLX_API_KEY";;
-  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx, omlx, mtplx)";;
+  *)      die "unknown --runtime: $RUNTIME (valid: litellm-proxy, lms, ollama, mlx, omlx, mtplx)";;
 esac
 export LMS_BASE_URL="$RUNTIME_BASE_URL"
 export LMS_API_KEY="$RUNTIME_API_KEY"
@@ -380,15 +357,10 @@ if [ "$LIST" = 1 ]; then
   echo "runtime:  $RUNTIME"; echo "adapters: ${ADAPTER_ARR[*]}"; echo "models:   ${MODEL_ARR[*]}"; echo "cases:    ${CASE_ARR[*]}"; exit 0
 fi
 
-# Health check — lms has lms_up; other runtimes probe /v1/models directly.
-if [ "$RUNTIME" = lms ]; then
-  lms_up || die "LM Studio not reachable at $LMS_BASE_URL (run: lms server start)"
-else
-  # Just verify the port is accepting HTTP — any response (even 404/405) means up.
-  _rt_port="$(echo "$RUNTIME_BASE_URL" | grep -oE ':[0-9]+' | tr -d ':')"
-  curl -s --max-time 5 -o /dev/null "http://localhost:${_rt_port:-8080}/" 2>/dev/null \
+# Health check — verify the runtime server is reachable
+_rt_port="$(echo "$RUNTIME_BASE_URL" | grep -oE ':[0-9]+' | tr -d ':')"
+curl -s --max-time 5 -o /dev/null "$RUNTIME_BASE_URL/models" 2>/dev/null \
   || die "$RUNTIME server not reachable at $RUNTIME_BASE_URL"
-fi
 
 # ── Pre-flight: check model availability ─────────────────────────────────────
 # For runtimes where we can enumerate installed models, warn about missing ones
@@ -398,6 +370,20 @@ preflight_check_models() {
   local available missing=()
 
   case "$runtime" in
+    litellm-proxy|ollama|mtplx)
+      # Query the OpenAI-compatible /v1/models endpoint
+      available="$(runtime_models "$RUNTIME_BASE_URL")"
+      if [ -z "$available" ]; then
+        warn "$RUNTIME not reachable at $RUNTIME_BASE_URL — skipping model preflight"
+        return 0
+      fi
+      for m in "${models[@]}"; do
+        printf '%s\n' "$available" | grep -qx "$m" || missing+=("$m")
+      done
+      [ "${#missing[@]}" -eq 0 ] && return 0
+      warn "models not available at $RUNTIME:"
+      for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
+      ;;
     lms)
       available="$(lms ls 2>/dev/null | awk 'NR>1 && $1!="" && $1!="EMBEDDING" {print $1}')"
       for m in "${models[@]}"; do
@@ -408,23 +394,6 @@ preflight_check_models() {
       for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
       echo "  ${C_DIM}Download:${C_RST}"
       for m in "${missing[@]}"; do echo "    ${C_DIM}lms get $m${C_RST}"; done
-      ;;
-    ollama)
-      available="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | sed 's/:latest$//')"
-      for m in "${models[@]}"; do
-        printf '%s\n' "$available" | grep -qx "${m%:latest}" || missing+=("$m")
-      done
-      [ "${#missing[@]}" -eq 0 ] && return 0
-      warn "models not found in Ollama:"
-      for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
-      echo "  ${C_DIM}To fix:${C_RST}"
-      for m in "${missing[@]}"; do
-        if [ -f "$HERE/config-templates/${m}.Modelfile" ]; then
-          echo "    ${C_DIM}bin/setup-ollama-modelfile $m${C_RST}"
-        else
-          echo "    ${C_DIM}ollama pull $m${C_RST}"
-        fi
-      done
       ;;
     mlx)
       return 0  # mlx_lm.server exposes only one model; can't enumerate
@@ -447,19 +416,6 @@ preflight_check_models() {
       for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
       echo "  ${C_DIM}To fix: place the model under $OMLX_MODELS_DIR/<org>/<name>,${C_RST}"
       echo "  ${C_DIM}then rescan: bin/omlx reload${C_RST}"
-      ;;
-    mtplx)
-      available="$(runtime_models "$MTPLX_BASE_URL")"
-      if [ -z "$available" ]; then
-        warn "MTPLX not reachable at $MTPLX_BASE_URL — skipping model preflight"
-        return 0
-      fi
-      for m in "${models[@]}"; do
-        printf '%s\n' "$available" | grep -qx "$m" || missing+=("$m")
-      done
-      [ "${#missing[@]}" -eq 0 ] && return 0
-      warn "models not served by MTPLX:"
-      for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
       ;;
   esac
 
@@ -846,9 +802,8 @@ for model_alias in "${MODEL_ARR[@]}"; do
   fi
 
   for adapter in "${ADAPTER_ARR[@]}"; do
-    # Prefer a runtime-specific adapter (e.g. hermes-ollama.sh) if one exists.
-    adapter_sh="$ADAPTERS_DIR/$adapter-$RUNTIME.sh"
-    [ -f "$adapter_sh" ] || adapter_sh="$ADAPTERS_DIR/$adapter.sh"
+    # Resolve adapter path — unified adapter for all runtimes
+    adapter_sh="$ADAPTERS_DIR/$adapter.sh"
     [ -f "$adapter_sh" ] || { warn "no adapter $adapter.sh — skipping"; continue; }
     # Variant adapters (e.g. opencode-orch) share the underlying tool's binary —
     # strip the variant suffix before checking what's actually installed.
@@ -990,6 +945,7 @@ for model_alias in "${MODEL_ARR[@]}"; do
   done
 
   case "$RUNTIME" in
+    litellm-proxy)  ;;  # litellm-proxy manages model loading/unloading
     lms)    lms_unload_model "$model";;
     ollama) info "unloading model: $model_alias"; ollama stop "$model" 2>/dev/null || true;;
     mlx)    ;;  # mlx_lm.server serves one model for its lifetime; restart to change models

@@ -119,6 +119,112 @@
           "id": "gpt-oss-20b-MXFP4-Q8"
         }
       ]
+    },
+    "litellm": {
+      "baseUrl": "http://127.0.0.1:4444/v1",
+      "api": "openai-completions",
+      "apiKey": "",
+      "models": [
+        {
+          "id": "lms/danskgpt-v4-12b"
+        },
+        {
+          "id": "lms/google/gemma-4-12b-qat"
+        },
+        {
+          "id": "lms/google/gemma-4-26b-a4b-qat"
+        },
+        {
+          "id": "lms/kwaipilot_kat-coder-v2.5-dev"
+        },
+        {
+          "id": "lms/ornith-1.0-35b"
+        },
+        {
+          "id": "lms/qwen/qwen3-coder-30b"
+        },
+        {
+          "id": "lms/qwen/qwen3-coder-next"
+        },
+        {
+          "id": "lms/qwen/qwen3.6-35b-a3b"
+        },
+        {
+          "id": "lms/qwen3-coder-30b-a3b-instruct"
+        },
+        {
+          "id": "ollama/gemma4-claude:latest"
+        },
+        {
+          "id": "ollama/gemma4:12b-mlx"
+        },
+        {
+          "id": "ollama/gemma4:26b"
+        },
+        {
+          "id": "ollama/gemma4:26b-mlx"
+        },
+        {
+          "id": "ollama/gpt-oss:20b"
+        },
+        {
+          "id": "ollama/ornith:35b"
+        },
+        {
+          "id": "ollama/qwen2.5-coder-7b:latest"
+        },
+        {
+          "id": "ollama/qwen2.5-coder:7b"
+        },
+        {
+          "id": "ollama/qwen3.5:9b"
+        },
+        {
+          "id": "ollama/qwen3.6:35b-mlx"
+        },
+        {
+          "id": "ollama/qwen3.8:27b-mlx"
+        },
+        {
+          "id": "omlx/DeepSeek-V4-Flash-2bit-DQ"
+        },
+        {
+          "id": "omlx/KAT-Coder-V2.5-Dev"
+        },
+        {
+          "id": "omlx/Ornith-1.0-35B-4bit"
+        },
+        {
+          "id": "omlx/Ornith-1.0-9B-4bit"
+        },
+        {
+          "id": "omlx/Qwen3-Coder-30B-A3B-Instruct-4bit"
+        },
+        {
+          "id": "omlx/Qwen3-Coder-Next-4bit"
+        },
+        {
+          "id": "omlx/Qwen3.6-35B-A3B-MLX-4bit"
+        },
+        {
+          "id": "omlx/Qwen3.6-35B-A3B-UD-MLX-4bit"
+        },
+        {
+          "id": "omlx/Qwen3.8-27B-4bit"
+        },
+        {
+          "id": "omlx/Qwen3.8-27B-4bit-mlxc"
+        },
+        {
+          "id": "omlx/gemma-4-31B-it-MLX-4bit"
+        },
+        {
+          "id": "omlx/gemma-4-E4B-it-MLX-8bit"
+        },
+        {
+          "id": "omlx/gpt-oss-20b-MXFP4-Q8"
+        }
+      ]
     }
   }
 }

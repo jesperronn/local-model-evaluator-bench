@@ -135,52 +135,39 @@ omlx_key_status="pass"
 check "OMLX_API_KEY is non-empty" "pass" "$omlx_key_status"
 
 # ── Test 7: --dry-run resolves adapter/runtime/model without exec'ing ────────
-# Pick a real adapter pair straight from adapters/ so this stays correct as
-# adapters are added/removed (mirrors what lint-adapters does for tool lookup).
-runtime_suffixed="$(ls "$HERE/adapters"/*-lms.sh 2>/dev/null | head -1)"
-if [ -n "$runtime_suffixed" ]; then
-  suffixed_tool="$(basename "$runtime_suffixed" -lms.sh)"
-  dr_out="$("$GENERATED_SCRIPT" --agent "$suffixed_tool" --runtime lms --model test-model --dry-run 2>&1)"
-  check "dry-run resolves runtime-suffixed adapter ($suffixed_tool-lms.sh)" \
-    "$runtime_suffixed" "$(printf '%s\n' "$dr_out" | sed -n 's/^adapter=//p')"
-  check "dry-run reports agent=$suffixed_tool" "agent=$suffixed_tool" "$(printf '%s\n' "$dr_out" | grep '^agent=')"
-  check "dry-run reports runtime=lms" "runtime=lms" "$(printf '%s\n' "$dr_out" | grep '^runtime=')"
-  check "dry-run does not print launching (never execs)" "0" "$(printf '%s\n' "$dr_out" | grep -c 'launching')"
-else
-  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no *-lms.sh adapter found — skipping runtime-suffixed dry-run check"
-fi
-
-# omlx dry-run: verify the runtime resolves and OMLX_BASE_URL/KEY are reported
-# (not LMS_BASE_URL/KEY) — this is the load-bearing distinction from handoff
-# item 8: omlx adapters read OMLX_* directly, not the shared LMS_* names.
-omlx_suffixed="$(ls "$HERE/adapters"/*-omlx.sh 2>/dev/null | head -1)"
-if [ -n "$omlx_suffixed" ]; then
-  omlx_tool="$(basename "$omlx_suffixed" -omlx.sh)"
-  dr_out_omlx="$("$GENERATED_SCRIPT" --agent "$omlx_tool" --runtime omlx --model test-model --dry-run 2>&1)"
-  check "dry-run resolves omlx-suffixed adapter ($omlx_tool-omlx.sh)" \
-    "$omlx_suffixed" "$(printf '%s\n' "$dr_out_omlx" | sed -n 's/^adapter=//p')"
-  check "dry-run reports runtime=omlx" "runtime=omlx" "$(printf '%s\n' "$dr_out_omlx" | grep '^runtime=')"
-else
-  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no *-omlx.sh adapter found — skipping omlx dry-run check"
-fi
-
-# Unified adapter (no runtime suffix): falls back to <tool>.sh per Phase 2's
-# resolution order — pick one that has no lms/ollama/mlx/omlx-suffixed sibling.
-unified_adapter="$(ls "$HERE/adapters"/*.sh 2>/dev/null | grep -vE '(-lms|-ollama|-mlx|-omlx)\.sh$' | head -1)"
+# Pick a real adapter from adapters/ so this stays correct as adapters are
+# added/removed. The new llmrun uses unified adapters and extracts runtime from
+# the model format (e.g., "lms/test-model" extracts lms as the runtime).
+# Mirror what proxy model discovery does: use "runtime/model" format.
+unified_adapter="$(ls "$HERE/adapters"/*.sh 2>/dev/null | grep -vE 'model-metadata.json$' | head -1)"
 if [ -n "$unified_adapter" ]; then
   unified_tool="$(basename "$unified_adapter" .sh)"
-  dr_out2="$("$GENERATED_SCRIPT" --agent "$unified_tool" --runtime ollama --model test-model --dry-run 2>&1)"
-  check "dry-run falls back to unified adapter ($unified_tool.sh)" \
-    "$unified_adapter" "$(printf '%s\n' "$dr_out2" | sed -n 's/^adapter=//p')"
+  # Test with lms runtime via proxy format
+  dr_out="$("$GENERATED_SCRIPT" --agent "$unified_tool" --model lms/test-model --dry-run 2>&1)"
+  check "dry-run resolves unified adapter ($unified_tool.sh)" \
+    "$unified_adapter" "$(printf '%s\n' "$dr_out" | sed -n 's/^adapter=//p')"
+  check "dry-run reports agent=$unified_tool" "agent=$unified_tool" "$(printf '%s\n' "$dr_out" | grep '^agent=')"
+  check "dry-run extracts runtime=lms from model format" "runtime=lms" "$(printf '%s\n' "$dr_out" | grep '^runtime=')"
+  check "dry-run extracts model=test-model from model format" "model=test-model" "$(printf '%s\n' "$dr_out" | grep '^model=')"
+  check "dry-run does not print launching (never execs)" "0" "$(printf '%s\n' "$dr_out" | grep -c 'launching')"
 else
-  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no unified adapter found — skipping fallback dry-run check"
+  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no unified adapter found — skipping dry-run check"
+fi
+
+# Test with ollama runtime via proxy format
+if [ -n "$unified_adapter" ]; then
+  unified_tool="$(basename "$unified_adapter" .sh)"
+  dr_out2="$("$GENERATED_SCRIPT" --agent "$unified_tool" --model ollama/test-model --dry-run 2>&1)"
+  check "dry-run extracts runtime=ollama from model format" "runtime=ollama" "$(printf '%s\n' "$dr_out2" | grep '^runtime=')"
+else
+  printf '%s\n' "${C_YEL}[SKIP]${C_RST} no unified adapter found — skipping ollama dry-run check"
 fi
 
 # Unknown agent must fail (non-zero exit) without ever reaching exec — the
 # whole point of --dry-run is to catch a bad resolution before it costs a
 # model load, so this must not silently succeed.
 dr_bad_exit=0
-"$GENERATED_SCRIPT" --agent __nonexistent_agent__ --runtime lms --model test-model --dry-run >/dev/null 2>&1 || dr_bad_exit=$?
+"$GENERATED_SCRIPT" --agent __nonexistent_agent__ --model lms/test-model --dry-run >/dev/null 2>&1 || dr_bad_exit=$?
 check "dry-run exits non-zero for an unknown agent" "1" "$([ "$dr_bad_exit" -ne 0 ] && echo 1 || echo 0)"
 
 # ── Summary ───────────────────────────────────────────────────────────────────

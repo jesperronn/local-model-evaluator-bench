@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # bin/lib/model-profiles.sh — parse models-recommended.conf and resolve aliases
 #
-# Usage:
+# Usage (proxy-first approach):
 #   profiles_list              # list all available profiles
 #   profile_exists <name>      # test if profile exists
 #   profile_aliases <name>     # get space-separated aliases for profile
 #   profile_primary <name>     # get primary (recommended) alias
 #   alias_ids <alias> <rt>    # get model id for alias + runtime (rt=lms|ollama|mlx)
+#   alias_ids_proxy <alias> [rt]  # get proxy-compatible id: prefix/model-id (rt=lms|ollama|mlx|omlx|all)
 #   profile_description <name> # get tier description
 
 set -uo pipefail
@@ -60,6 +61,57 @@ alias_ids() {
     *)      return 1;;
   esac
   command grep "^$alias" "$MODELS_ALIASES" | awk -F'\t' "{print \$$col}" | xargs
+}
+
+# ── Get proxy-compatible model id with runtime prefix ─────────────────────────
+# Returns the full proxy-compatible ID: prefix/model_id for use with liteLLM proxy
+# Usage:
+#   alias_ids_proxy <alias> [rt]
+# Where rt is: lms, mlx, ollama, omlx, or all (default: all available)
+# Returns space-separated IDs for each available runtime in order: lms, mlx, ollama, omlx
+alias_ids_proxy() {
+  local alias="$1" rt="${2:-all}"
+  local ids=()
+
+  # Helper to append prefixed ID if available
+  _add_proxy_id() {
+    local prefix="$1" col="$2"
+    local id; id="$(command grep "^$alias" "$MODELS_ALIASES" | awk -F'\t' "{print \$$col}" | xargs)"
+    if [ -n "$id" ] && [ "$id" != "-" ]; then
+      ids+=("${prefix}/${id}")
+    fi
+  }
+
+  case "$rt" in
+    all)
+      # Return all available runtimes (lms, mlx, ollama, omlx in order)
+      _add_proxy_id "lms" 2
+      _add_proxy_id "mlx" 3
+      _add_proxy_id "ollama" 4
+      _add_proxy_id "omlx" 5
+      ;;
+    lms)
+      _add_proxy_id "lms" 2
+      ;;
+    mlx)
+      _add_proxy_id "mlx" 3
+      ;;
+    ollama)
+      _add_proxy_id "ollama" 4
+      ;;
+    omlx)
+      _add_proxy_id "omlx" 5
+      ;;
+    *)
+      printf 'error: unknown runtime "%s" (valid: lms, mlx, ollama, omlx, all)\n' "$rt" >&2
+      return 1
+      ;;
+  esac
+
+  if [ ${#ids[@]} -eq 0 ]; then
+    return 1
+  fi
+  printf '%s\n' "${ids[@]}"
 }
 
 # ── Get all aliases available (across all profiles) ───────────────────────────

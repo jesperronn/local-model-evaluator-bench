@@ -30,10 +30,11 @@ export OMLX_MODELS_DIR="${OMLX_MODELS_DIR:-$HOME/.omlx/models}"
 # which are multi-model). Default port is mlx_lm.server's own default.
 export MLX_BASE_URL="${MLX_BASE_URL:-http://127.0.0.1:8080/v1}"
 
-# Optional LiteLLM proxy fronting all five local runtimes on one endpoint.
-# Not used by default — adapters reach the runtimes directly. Start it with
-# `bin/litellm-proxy` and address models as lms/<id>, ollama/<id>, mlx/<id>,
-# omlx/<id>, mtplx/<id>.
+# LiteLLM proxy — unified endpoint fronting all five local runtimes (lms, ollama, mlx, omlx, mtplx).
+# NEW PROXY-FIRST APPROACH: When LITELLM_BASE_URL is set, adapters prefer it and fall back to
+# direct runtime endpoints only if proxy is unavailable. Use bin/litellm-proxy to run the
+# Docker-backed service; models are addressed as lms/<id>, ollama/<id>, mlx/<id>, omlx/<id>, mtplx/<id>.
+export LITELLM_PROXY_MODE="${LITELLM_PROXY_MODE:-1}"  # 1 = proxy available; set to 0 to disable
 export LITELLM_PORT="${LITELLM_PORT:-4444}"
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1}"
 # Unset by default: litellm does not require a key for any endpoint (including
