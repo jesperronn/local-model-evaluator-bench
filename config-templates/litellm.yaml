@@ -11,6 +11,7 @@
 #   ollama/<id> -> Ollama
 #   mlx/<id>    -> mlx_lm.server
 #   omlx/<id>   -> oMLX
+#   mtplx/<id>  -> MTPLX
 #
 # Start with: bin/litellm-proxy
 
@@ -40,6 +41,13 @@ model_list:
       model: "openai/*"
       api_base: os.environ/LITELLM_OMLX_BASE
       api_key: os.environ/LITELLM_OMLX_KEY
+
+  # MTPLX is also multi-model, like oMLX — /v1/models enumerates what it serves.
+  - model_name: "mtplx/*"
+    litellm_params:
+      model: "openai/*"
+      api_base: os.environ/LITELLM_MTPLX_BASE
+      api_key: os.environ/LITELLM_MTPLX_KEY
 
 litellm_settings:
   # REQUIRED, not a nicety. Without it a wildcard route makes /v1/models return

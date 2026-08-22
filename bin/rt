@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bin/rt — unified runtime control (consolidates omlx, litellm-proxy, lmstudio-context)
 #
-# Control and monitor local LLM inference runtimes: LM Studio, Ollama, MLX, oMLX, LiteLLM.
+# Control and monitor local LLM inference runtimes: LM Studio, Ollama, MLX, oMLX, MTPLX, LiteLLM.
 #
 # Core Commands:
 #   bin/rt [status] [-v]     show snapshot: RAM, runtimes, running bench
@@ -9,7 +9,7 @@
 #   bin/rt log [N]           tail most recent bench log (default 40 lines)
 #   bin/rt watch [N]         live-tail bench log (follow mode)
 #   bin/rt watch --metrics   unified real-time metrics view with colors
-#   bin/rt stop TARGET       stop: bench, mlx, omlx, ollama, lms, litellm, all
+#   bin/rt stop TARGET       stop: bench, mlx, omlx, mtplx, ollama, lms, litellm, all
 #   bin/rt who [RUNTIME]     show which processes are connected to a runtime
 #
 # oMLX Commands (formerly: bin/omlx):
@@ -76,6 +76,10 @@ _mlx_up() {
 
 _ollama_up() {
   curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1
+}
+
+_mtplx_up() {
+  curl -fsS --max-time 2 "$MTPLX_BASE_URL/models" >/dev/null 2>&1
 }
 
 _bench_pids() {
@@ -214,17 +218,32 @@ cmd_status() {
     printf '%s\n' "${C_DIM}down${C_RST}"
   fi
 
+  local mtplx_up_flag=0
+  printf '%s  ' "${C_BLU}MTPLX${C_RST}"
+  if _mtplx_up; then
+    mtplx_up_flag=1
+    local _mtplx_served
+    _mtplx_served=$(runtime_models "$MTPLX_BASE_URL" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+    if [ -n "$_mtplx_served" ]; then
+      printf '%s  %sserved:%s %s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}" "$_mtplx_served"
+    else
+      printf '%s  %s(no models served)%s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}"
+    fi
+  else
+    printf '%s\n' "${C_DIM}down${C_RST}"
+  fi
+
   # Optional layer — only surface it when running, so the default (adapters
   # talking to runtimes directly) stays uncluttered.
   if curl -fsS --max-time 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
     printf '%s ' "${C_BLU}LiteLLM${C_RST}"
-    printf '%s  %sport %s, routes:%s lms/ ollama/ mlx/ omlx/\n' \
+    printf '%s  %sport %s, routes:%s lms/ ollama/ mlx/ omlx/ mtplx/\n' \
       "${C_GRN}up${C_RST}" "${C_DIM}" "$LITELLM_PORT" "${C_RST}"
   fi
 
   # ── next steps ───────────────────────────────────────────────────────────────
   # Show whenever any runtime is up — these are the key operations users forget.
-  if [ "$lms_up_flag" = 1 ] || [ "$ollama_up_flag" = 1 ] || [ "$mlx_up_flag" = 1 ] || [ "$omlx_up_flag" = 1 ]; then
+  if [ "$lms_up_flag" = 1 ] || [ "$ollama_up_flag" = 1 ] || [ "$mlx_up_flag" = 1 ] || [ "$omlx_up_flag" = 1 ] || [ "$mtplx_up_flag" = 1 ]; then
     # Fetch LMS sizes once for use in unload hints
     local lms_json_sizes="[]"
     [ "$lms_up_flag" = 1 ] && lms_json_sizes=$(lms ls --json 2>/dev/null || echo "[]")
@@ -287,6 +306,7 @@ cmd_status() {
     [ "$ollama_up_flag" = 1 ] && printf '    bin/rt stop ollama\n'
     [ "$mlx_up_flag"    = 1 ] && printf '    bin/rt stop mlx\n'
     [ "$omlx_up_flag"   = 1 ] && printf '    bin/rt stop omlx\n'
+    [ "$mtplx_up_flag"  = 1 ] && printf '    bin/rt stop mtplx\n'
 
     # Delete from disk — verbose only
     if [ "$verbose" = 1 ]; then
@@ -739,7 +759,7 @@ cmd_watch() {
 
 cmd_stop() {
   local target="${1:-}"
-  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|omlx|ollama|lms|litellm|all]"; exit 1; }
+  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|omlx|mtplx|ollama|lms|litellm|all]"; exit 1; }
 
   case "$target" in
     bench)
@@ -787,6 +807,16 @@ cmd_stop() {
         if "$_omlx_cli" stop >/dev/null 2>&1; then ok "oMLX stopped"; else info "oMLX: not running"; fi
       else
         info "oMLX: CLI not found — nothing to stop"
+      fi
+      ;;
+    mtplx)
+      local pid; pid=$(lsof -ti ":$MTPLX_PORT" 2>/dev/null | head -1)
+      if [ -z "$pid" ]; then
+        info "mtplx: nothing on port $MTPLX_PORT"
+      else
+        info "stopping MTPLX server (PID $pid)"
+        kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+        ok "MTPLX stopped"
       fi
       ;;
     litellm)
@@ -847,12 +877,13 @@ cmd_stop() {
       cmd_stop bench
       cmd_stop mlx
       cmd_stop omlx
+      cmd_stop mtplx
       cmd_stop ollama
       cmd_stop lms
       cmd_stop litellm
       ;;
     *)
-      die "unknown stop target: $target (valid: bench mlx omlx ollama lms litellm all)"
+      die "unknown stop target: $target (valid: bench mlx omlx mtplx ollama lms litellm all)"
       ;;
   esac
 }
@@ -908,6 +939,8 @@ cmd_litellm() {
       export LITELLM_OLLAMA_BASE="${LITELLM_OLLAMA_BASE:-$OLLAMA_BASE_URL}"
       export LITELLM_MLX_BASE="${LITELLM_MLX_BASE:-http://127.0.0.1:8080/v1}"
       export LITELLM_OMLX_BASE="${LITELLM_OMLX_BASE:-$OMLX_BASE_URL}"
+      export LITELLM_MTPLX_BASE="${LITELLM_MTPLX_BASE:-$MTPLX_BASE_URL}"
+      export LITELLM_MTPLX_KEY="${LITELLM_MTPLX_KEY:-$MTPLX_API_KEY}"
       exec uvx --python 3.12 --with 'fastapi<0.116' --from 'litellm[proxy]' \
         litellm --config "$HERE/config-templates/litellm.yaml" --port "$LITELLM_PORT" --host 127.0.0.1
       ;;

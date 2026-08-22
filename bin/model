@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bin/model — unified model management (consolidates lms_gc, lms_update, prune, outdated, scout)
 #
-# Unified interface for model operations across all runtimes (lms, ollama, mlx, omlx).
+# Unified interface for model operations across all runtimes (lms, ollama, mlx, omlx, mtplx).
 #
 # Subcommands:
 #   status              Show all installed models + which are loaded on each runtime
@@ -12,7 +12,7 @@
 #   list                List all models across all runtimes
 #
 # Flags:
-#   --runtime NAME      Filter to specific runtime (lms, ollama, mlx, omlx)
+#   --runtime NAME      Filter to specific runtime (lms, ollama, mlx, omlx, mtplx)
 #   --verbose           Show more details
 #
 set -uo pipefail
@@ -35,7 +35,7 @@ show_help() {
   help_command "list"     "List all available models (installed + discovered)"
 
   help_section "OPTIONS"
-  help_flag "--runtime" "NAME" "Filter to one runtime (lms, ollama, mlx, omlx)"
+  help_flag "--runtime" "NAME" "Filter to one runtime (lms, ollama, mlx, omlx, mtplx)"
   help_flag "--verbose" "" "Show more details"
   help_flag "-h, --help" "" "Show this help and exit"
 
@@ -239,6 +239,16 @@ cmd_list() {
       done
     else
       echo "    (no models dir: $OMLX_MODELS_DIR)"
+    fi
+    echo ""
+  fi
+
+  if [ -z "$runtime" ] || [ "$runtime" = "mtplx" ]; then
+    echo "${C_BLD}MTPLX${C_RST}"
+    if curl -fsS --max-time 5 "$MTPLX_BASE_URL/models" >/dev/null 2>&1; then
+      runtime_models "$MTPLX_BASE_URL" | awk '{print "    • " $0}'
+    else
+      echo "    (not running; start with: mtplx quickstart --port 8001 --model <model>)"
     fi
     echo ""
   fi

@@ -18,12 +18,13 @@ AGENT=""
 show_help() {
   help_header "verify" "step-by-step check: server, models, load, call — for workshop participants"
   help_section "USAGE"
-  help_line "  verify [--runtime lms|ollama] [--model ID] [--verbose]"
-  help_line "  verify --agent pi|opencode [--runtime lms|ollama] [--model ID] [--verbose]"
+  help_line "  verify [--runtime lms|ollama|mtplx] [--model ID] [--verbose]"
+  help_line "  verify --agent pi|opencode [--runtime lms|ollama|mtplx] [--model ID] [--verbose]"
   help_section "OPTIONS"
-  help_flag "--runtime" "lms|ollama" "engine to verify against (default: lms)"
+  help_flag "--runtime" "lms|ollama|mtplx" "engine to verify against (default: lms)"
   help_flag "--lms" "" "shorthand for --runtime lms (default)"
   help_flag "--ollama" "" "shorthand for --runtime ollama"
+  help_flag "--mtplx" "" "shorthand for --runtime mtplx"
   help_flag "--agent NAME" "" "instead of the raw engine, verify an agent CLI: pi | opencode"
   help_flag "--model ID" "" "model to load/call (default: small qwen3.5-9b for lms, qwen2.5-coder:7b for ollama)"
   help_flag "--verbose" "" "print each command before running it"
@@ -35,6 +36,7 @@ while [ $# -gt 0 ]; do
     --runtime) RUNTIME="$2"; shift 2;;
     --lms) RUNTIME="lms"; shift;;
     --ollama) RUNTIME="ollama"; shift;;
+    --mtplx) RUNTIME="mtplx"; shift;;
     --agent) AGENT="$2"; shift 2;;
     --model) MODEL="$2"; shift 2;;
     --verbose) VERBOSE=1; shift;;
@@ -43,11 +45,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$RUNTIME" in lms|ollama) ;; *) die "unknown --runtime: $RUNTIME (valid: lms, ollama)";; esac
+case "$RUNTIME" in lms|ollama|mtplx) ;; *) die "unknown --runtime: $RUNTIME (valid: lms, ollama, mtplx)";; esac
 
 if [ "$RUNTIME" = "lms" ]; then
   BASE_URL="$LMS_BASE_URL"
   MODEL="${MODEL:-qwen/qwen3.5-9b}"
+elif [ "$RUNTIME" = "mtplx" ]; then
+  BASE_URL="$MTPLX_BASE_URL"
+  MODEL="${MODEL:-}"
 else
   BASE_URL="$OLLAMA_BASE_URL"
   MODEL="${MODEL:-qwen2.5-coder:7b}"
@@ -171,10 +176,12 @@ if run curl -fsS --max-time 5 "$BASE_URL/models" >/tmp/.verify-models.json 2>&1;
 else
   err "server not reachable at $BASE_URL"
   if [ "$RUNTIME" = "lms" ]; then err "start it with: lms server start"
+  elif [ "$RUNTIME" = "mtplx" ]; then err "start it with: mtplx quickstart --port 8001 --model <model>"
   else err "start it with: ollama serve"
   fi
   exit 1
 fi
+[ "$RUNTIME" = "mtplx" ] && [ -z "$MODEL" ] && die "--model is required for --runtime mtplx (no default model)"
 
 # ── Step 2: list models ──────────────────────────────────────────────────────
 step 2 "list available models"
@@ -195,6 +202,9 @@ if [ "$RUNTIME" = "lms" ]; then
   else
     err "failed to load $MODEL"; exit 1
   fi
+elif [ "$RUNTIME" = "mtplx" ]; then
+  # MTPLX is a multi-model server addressed like oMLX — no separate load step.
+  ok "$MODEL is served by MTPLX (no separate load step)"
 else
   # Ollama loads a model into memory on first use; a tiny generate call warms it.
   if run curl -fsS "$BASE_URL/../api/generate" -d "{\"model\":\"$MODEL\",\"prompt\":\"hi\",\"stream\":false}" >/dev/null; then

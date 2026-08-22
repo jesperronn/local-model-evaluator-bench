@@ -26,12 +26,21 @@ export OMLX_API_KEY="${OMLX_API_KEY:-omlx}"
 # report what is installed without going through the HTTP API.
 export OMLX_MODELS_DIR="${OMLX_MODELS_DIR:-$HOME/.omlx/models}"
 
-# Optional LiteLLM proxy fronting all four local runtimes on one endpoint.
+# Optional LiteLLM proxy fronting all five local runtimes on one endpoint.
 # Not used by default — adapters reach the runtimes directly. Start it with
 # `bin/litellm-proxy` and address models as lms/<id>, ollama/<id>, mlx/<id>,
-# omlx/<id>.
+# omlx/<id>, mtplx/<id>.
 export LITELLM_PORT="${LITELLM_PORT:-4444}"
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1}"
+
+# MTPLX (https://github.com/youssofal/MTPLX) — local multi-model server, also
+# OpenAI-compatible. Its default port (8000) collides with oMLX's, so it's
+# moved to 8001 here; start the API-only server with:
+#   mtplx quickstart --port 8001 --model <model>
+
+export MTPLX_PORT="${MTPLX_PORT:-8001}"
+export MTPLX_BASE_URL="${MTPLX_BASE_URL:-http://127.0.0.1:${MTPLX_PORT}/v1}"
+export MTPLX_API_KEY="${MTPLX_API_KEY:-mtplx}"
 
 # Default model used by adapters when MODEL_ID is not set externally.
 # Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh
@@ -114,4 +123,3 @@ export REPO_ROOT
 export CASES_DIR="$REPO_ROOT/cases"
 export RESULTS_DIR="$REPO_ROOT/results"
 export ADAPTERS_DIR="$REPO_ROOT/adapters"
-export MODELS_FILE="$REPO_ROOT/models.txt"
