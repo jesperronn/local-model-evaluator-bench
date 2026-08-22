@@ -22,14 +22,24 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 # --- fake repo layout --------------------------------------------------------
-mkdir -p "$TMP/adapters" "$TMP/cases/c1/workdir" "$TMP/results"
+mkdir -p "$TMP/adapters" "$TMP/cases/c1/workdir" "$TMP/results" "$TMP/mock_bin"
 : > "$TMP/config.sh"; : > "$TMP/common.sh"; : > "$TMP/bench"; : > "$TMP/shim"
 echo 'echo hi' > "$TMP/adapters/aider-lms.sh"
 echo 'echo hi' > "$TMP/adapters/pi-lms.sh"
 echo '{"id":"c1"}' > "$TMP/cases/c1/meta.json"
 echo 'task' > "$TMP/cases/c1/task.md"
 echo 'x' > "$TMP/cases/c1/workdir/f.txt"
-printf 'm1\n' > "$TMP/models.txt"
+
+# Mock curl to simulate the runtime /v1/models endpoint
+cat > "$TMP/mock_bin/curl" <<'MOCKEOF'
+#!/usr/bin/env bash
+# Mock curl that simulates runtime /v1/models endpoint returning model m1
+# Ignores all args except the URL
+[[ "$*" == *"/models"* ]] && echo '{"data":[{"id":"m1"}]}' && exit 0
+# For any other curl calls, fail silently
+exit 1
+MOCKEOF
+chmod +x "$TMP/mock_bin/curl"
 
 # Backdate every input so a result run timestamped "now-ish" looks newer.
 OLD='200001010000'  # touch -t stamp: 2000-01-01
@@ -48,9 +58,11 @@ EOF
 
 run_stale() {  # extra args -> CSV stdout only (stderr discarded)
   STALE_RESULTS_DIR="$TMP/results" STALE_CASES_DIR="$TMP/cases" \
-  STALE_ADAPTERS_DIR="$TMP/adapters" STALE_MODELS_FILE="$TMP/models.txt" \
+  STALE_ADAPTERS_DIR="$TMP/adapters" \
   STALE_CONFIG_SH="$TMP/config.sh" STALE_COMMON_SH="$TMP/common.sh" \
   STALE_BENCH="$TMP/bench" STALE_SHIM="$TMP/shim" \
+  LMS_BASE_URL="http://localhost:1234/v1" \
+  PATH="$TMP/mock_bin:$PATH" \
   bash "$STALE" --agent aider,pi --cases c1 "$@" 2>/dev/null
 }
 

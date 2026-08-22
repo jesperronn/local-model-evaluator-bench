@@ -94,11 +94,11 @@ cat <<'SECTION'
 
 ---
 
-## 2. Models under test (models.txt)
+## 2. Models under test (distinct models in this CSV)
 
 ```
 SECTION
-grep -v '^#' "$HERE/models.txt" | grep -v '^\s*$'
+tail -n +2 "$CSV" | cut -d',' -f2 | sort -u
 cat <<'SECTION'
 ```
 

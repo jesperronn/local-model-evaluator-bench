@@ -7,7 +7,7 @@
 #
 # Flags:
 #   --agent/-a a,b   CLI adapters to run  (default: $DEFAULT_ADAPTERS)
-#   --models/--model/-m a,b  model ids            (default: models.txt)
+#   --models/--model/-m a,b  model ids            (default: discovered from runtime)
 #   --cases    a,b     case ids                   (default: all cases/)
 #   --difficulty t,t   keep only cases of these tiers (easy|medium|hard) from
 #                      meta.json — gates small/weak models to easier tiers; hard
@@ -42,7 +42,7 @@
 #   --verbose/-v       on every non-pass trial, print the .bench.log path plus a
 #                      short error excerpt inline (so failures are diagnosable
 #                      without hunting through results/<ts>/sandbox/)
-#   --runtime RUNTIME  inference backend: lms (default), ollama, mlx, omlx
+#   --runtime RUNTIME  inference backend: lms (default), ollama, mlx, omlx, mtplx
 #                      lms:    LM Studio at $LMS_BASE_URL; loads/unloads models
 #                      ollama: Ollama at localhost:11434/v1; models always ready
 #                      mlx:    mlx_lm.server at localhost:8080/v1; start manually
@@ -50,11 +50,10 @@
 #                              model under ~/.omlx/models; start with
 #                              `bin/omlx start`. Models are addressed by the
 #                              directory basename, e.g. Qwen3-Coder-Next-4bit.
-#                      Per-runtime models file used when --models not given:
-#                        lms    → models.txt
-#                        ollama → models-ollama.txt
-#                        mlx    → models-mlx.txt
-#                        omlx   → models-omlx.txt
+#                      mtplx:  MTPLX at $MTPLX_BASE_URL; multi-model MLX server,
+#                              start with `mtplx quickstart --port 8001 --model <model>`
+#                      Models are discovered from the runtime's live /v1/models
+#                      endpoint when --models is not given.
 #                      Adapters: if adapters/<name>-<runtime>.sh exists it is
 #                      preferred over adapters/<name>.sh for that runtime.
 #   --skip-compat-filter  don't filter out adapters marked as broken in compat.json
@@ -138,16 +137,17 @@ show_help() {
       }
       END { for(i=1;i<=n;i++) print "  "grp[ord[i]] }'
   echo
-  local mfile
+  echo "Available models ($runtime):"
+  local base_url
   case "$runtime" in
-    lms)    mfile="$MODELS_FILE";;
-    ollama) mfile="$HERE/models-ollama.txt";;
-    mlx)    mfile="$HERE/models-mlx.txt";;
-    omlx)   mfile="$HERE/models-omlx.txt";;
-    *)      mfile="$MODELS_FILE";;
+    lms)    base_url="$LMS_BASE_URL";;
+    ollama) base_url="http://localhost:11434/v1";;
+    mlx)    base_url="http://localhost:8080/v1";;
+    omlx)   base_url="$OMLX_BASE_URL";;
+    mtplx)  base_url="$MTPLX_BASE_URL";;
+    *)      base_url="$LMS_BASE_URL";;
   esac
-  echo "Available models ($runtime → $(basename "$mfile")):"
-  read_list "$mfile" | sed 's/^/  /'
+  runtime_models "$base_url" | sed 's/^/  /' || echo "  (unable to discover models — is the runtime server running?)"
 }
 
 # Show available adapters for discovery/error recovery
@@ -208,25 +208,24 @@ if [ "$INTERACTIVE" = 1 ]; then
   command -v fzf >/dev/null 2>&1 || die "fzf not installed (brew install fzf)"
 
   if [ -z "$MODELS" ]; then
+    # Set RUNTIME_BASE_URL for discovery
+    case "$RUNTIME" in
+      lms)    _base_url="$LMS_BASE_URL";;
+      ollama) _base_url="http://localhost:11434/v1";;
+      mlx)    _base_url="http://localhost:8080/v1";;
+      omlx)   _base_url="$OMLX_BASE_URL";;
+      mtplx)  _base_url="$MTPLX_BASE_URL";;
+      *)      _base_url="$LMS_BASE_URL";;
+    esac
+
     case "$RUNTIME" in
       lms)
         all_models="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')"
         [ -z "$all_models" ] && die "no models found via lms ls"
         ;;
-      ollama)
-        all_models="$(read_list "$HERE/models-ollama.txt")"
-        [ -z "$all_models" ] && die "no models found in models-ollama.txt"
-        ;;
-      mlx)
-        all_models="$(read_list "$HERE/models-mlx.txt")"
-        [ -z "$all_models" ] && die "no models found in models-mlx.txt"
-        ;;
-      omlx)
-        # oMLX serves every model under its model dir, so ask the server rather
-        # than a checked-in list — the list is only a curation of what to bench.
-        all_models="$(omlx_models 2>/dev/null)"
-        [ -z "$all_models" ] && all_models="$(read_list "$HERE/models-omlx.txt")"
-        [ -z "$all_models" ] && die "no models found: oMLX not reachable at $OMLX_BASE_URL and models-omlx.txt is empty"
+      *)
+        all_models="$(runtime_models "$_base_url")"
+        [ -z "$all_models" ] && die "no models found: $RUNTIME not reachable at $_base_url"
         ;;
     esac
     sel_models="$(printf '%s\n' "$all_models" | fzf --multi --prompt='Models > ' --header='TAB = multi-select  ENTER = confirm')"
@@ -324,21 +323,19 @@ if [ "$STALL" -gt 0 ] && [ "$STALL" -ge "$TIMEOUT" ]; then
   warn "--stall ($STALL) >= --timeout ($TIMEOUT): the no-progress watchdog can never fire before the hard ceiling"
 fi
 
-# ── Runtime: set base URL, API key, and default models file ──────────────────
+# ── Runtime: set base URL and API key ────────────────────────────────────────
 case "$RUNTIME" in
-  lms)    RUNTIME_MODELS_FILE="$MODELS_FILE"
-          RUNTIME_BASE_URL="$LMS_BASE_URL"
+  lms)    RUNTIME_BASE_URL="$LMS_BASE_URL"
           RUNTIME_API_KEY="$LMS_API_KEY";;
-  ollama) RUNTIME_MODELS_FILE="$HERE/models-ollama.txt"
-          RUNTIME_BASE_URL="http://localhost:11434/v1"
+  ollama) RUNTIME_BASE_URL="http://localhost:11434/v1"
           RUNTIME_API_KEY="ollama";;
-  mlx)    RUNTIME_MODELS_FILE="$HERE/models-mlx.txt"
-          RUNTIME_BASE_URL="http://localhost:8080/v1"
+  mlx)    RUNTIME_BASE_URL="http://localhost:8080/v1"
           RUNTIME_API_KEY="not-needed";;
-  omlx)   RUNTIME_MODELS_FILE="$HERE/models-omlx.txt"
-          RUNTIME_BASE_URL="$OMLX_BASE_URL"
+  omlx)   RUNTIME_BASE_URL="$OMLX_BASE_URL"
           RUNTIME_API_KEY="$OMLX_API_KEY";;
-  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx, omlx)";;
+  mtplx)  RUNTIME_BASE_URL="$MTPLX_BASE_URL"
+          RUNTIME_API_KEY="$MTPLX_API_KEY";;
+  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx, omlx, mtplx)";;
 esac
 export LMS_BASE_URL="$RUNTIME_BASE_URL"
 export LMS_API_KEY="$RUNTIME_API_KEY"
@@ -349,7 +346,7 @@ export RUNTIME
 # Resolve the three axes into arrays.
 IFS=',' read -ra ADAPTER_ARR <<< "$ADAPTERS"
 if [ -n "$MODELS" ]; then IFS=',' read -ra MODEL_ARR <<< "$MODELS";
-else mapfile -t MODEL_ARR < <(read_list "$RUNTIME_MODELS_FILE"); fi
+else mapfile -t MODEL_ARR < <(runtime_models "$RUNTIME_BASE_URL"); fi
 if [ -n "$CASES" ]; then IFS=',' read -ra CASE_ARR <<< "$CASES";
 else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] && basename "$d"; done); fi
 
@@ -450,6 +447,19 @@ preflight_check_models() {
       for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
       echo "  ${C_DIM}To fix: place the model under $OMLX_MODELS_DIR/<org>/<name>,${C_RST}"
       echo "  ${C_DIM}then rescan: bin/omlx reload${C_RST}"
+      ;;
+    mtplx)
+      available="$(runtime_models "$MTPLX_BASE_URL")"
+      if [ -z "$available" ]; then
+        warn "MTPLX not reachable at $MTPLX_BASE_URL — skipping model preflight"
+        return 0
+      fi
+      for m in "${models[@]}"; do
+        printf '%s\n' "$available" | grep -qx "$m" || missing+=("$m")
+      done
+      [ "${#missing[@]}" -eq 0 ] && return 0
+      warn "models not served by MTPLX:"
+      for m in "${missing[@]}"; do echo "    ${C_DIM}$m${C_RST}"; done
       ;;
   esac
 
@@ -984,6 +994,7 @@ for model_alias in "${MODEL_ARR[@]}"; do
     ollama) info "unloading model: $model_alias"; ollama stop "$model" 2>/dev/null || true;;
     mlx)    ;;  # mlx_lm.server serves one model for its lifetime; restart to change models
     omlx)   info "unloading model: $model_alias"; omlx_unload_model "$model" || true;;
+    mtplx)  ;;  # no known unload endpoint yet; server manages its own memory
   esac
 done
 

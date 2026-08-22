@@ -24,11 +24,10 @@ usage() {
   help_flag "--dry-run" "" "print what would happen, change nothing"
   help_flag "-h, --help" "" "show this help and exit"
   help_section "WHAT IT DOES"
-  help_line "  1. Appends the model to models.txt / models-ollama.txt (skipped if already there)" ""
-  help_line "  2. Seeds ~/.config/llmrun/agents.json with recommended settings for this model" ""
+  help_line "  1. Seeds ~/.config/llmrun/agents.json with recommended settings for this model" ""
   help_line "     (via bin/suggest-tuning | llmrun agents config apply --write; needs a model" ""
   help_line "     card under docs/models/ to have anything to suggest — best-effort)" ""
-  help_line "  3. Runs bin/agents-config --write --agent <agents> so pi/opencode/caveman" ""
+  help_line "  2. Runs bin/agents-config --write --agent <agents> so pi/opencode/caveman" ""
   help_line "     actually list this model in their own config (the file each agent reads" ""
   help_line "     at launch — this is the step bin/scout's per-agent check verifies)" ""
   help_line "  Does NOT load the model or run a smoke test — that's slow, so it's a" ""
@@ -51,26 +50,13 @@ done
 [ -n "$PROVIDER" ] || die "--provider is required (lms or ollama)  (tip: run bin/scout to discover unregistered models)"
 [ -n "$MODEL" ]    || die "--model is required  (tip: run bin/scout to discover unregistered models)"
 case "$PROVIDER" in
-  lms)    MODELS_LIST_FILE="$MODELS_FILE";;
-  ollama) MODELS_LIST_FILE="$HERE/models-ollama.txt";;
+  lms|ollama) ;;
   *)      die "unknown --provider: $PROVIDER (valid: lms, ollama)";;
 esac
 
 info "provider=$PROVIDER model=$MODEL agent(s)=$AGENTS"
 
-# ── 1. register in the models list (skip if already present) ────────────────
-if grep -qxF "$MODEL" "$MODELS_LIST_FILE" 2>/dev/null; then
-  ok "already registered in $(basename "$MODELS_LIST_FILE")"
-else
-  if [ "$DRY_RUN" = "1" ]; then
-    info "[dry-run] would append '$MODEL' to $(basename "$MODELS_LIST_FILE")"
-  else
-    printf '%s\n' "$MODEL" >> "$MODELS_LIST_FILE"
-    ok "appended '$MODEL' to $(basename "$MODELS_LIST_FILE")"
-  fi
-fi
-
-# ── 2. seed global agent config (context/temperature/etc, best-effort) ──────
+# ── 1. seed global agent config (context/temperature/etc, best-effort) ──────
 if command -v llmrun >/dev/null 2>&1; then
   if [ "$DRY_RUN" = "1" ]; then
     info "[dry-run] would run: bin/suggest-tuning '$MODEL' | llmrun agents config apply <plan> --write"
@@ -88,10 +74,10 @@ else
   warn "llmrun not on PATH — skipping agents.json seeding (run bin/build-llmrun first)"
 fi
 
-# ── 3. write per-agent config (pi/opencode/caveman model lists) ─────────────
+# ── 2. write per-agent config (pi/opencode/caveman model lists) ─────────────
 # This is the actual registration step bin/scout's per-agent check verifies —
-# without it, models.txt/agents.json can be up to date while pi/opencode still
-# have no idea the model exists.
+# without it, agents.json can be up to date while pi/opencode still have no
+# idea the model exists.
 if [ "$DRY_RUN" = "1" ]; then
   info "[dry-run] would run: bin/agents-config --write --agent $AGENTS"
   exit 0

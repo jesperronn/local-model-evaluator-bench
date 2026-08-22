@@ -26,9 +26,9 @@
 #
 # Flags (axis flags mirror bin/bench so the desired matrix matches a real run):
 #   --agent/-t a,b        adapters    (default: $DEFAULT_ADAPTERS)
-#   --models/--model/-m  models      (default: per-runtime models file)
+#   --models/--model/-m  models      (default: discovered from runtime)
 #   --cases a,b          cases       (default: all cases/)
-#   --runtime RUNTIME    lms|ollama|mlx (default: lms) — picks models file + adapter variant
+#   --runtime RUNTIME    lms|ollama|mlx|omlx|mtplx (default: lms)
 #   --missing-only       emit only never-run combos
 #   --stale-only         emit only input-changed combos
 #   --failed-only        emit only last-status-not-ok combos
@@ -36,7 +36,7 @@
 #   --list               human summary only; no CSV on stdout
 #
 # Test override hooks (used by bin/stale.test.sh; ignore in normal use):
-#   STALE_RESULTS_DIR, STALE_CASES_DIR, STALE_ADAPTERS_DIR, STALE_MODELS_FILE,
+#   STALE_RESULTS_DIR, STALE_CASES_DIR, STALE_ADAPTERS_DIR,
 #   STALE_CONFIG_SH, STALE_COMMON_SH, STALE_BENCH, STALE_SHIM
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -46,7 +46,6 @@ source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/he
 RESULTS_DIR="${STALE_RESULTS_DIR:-$RESULTS_DIR}"
 CASES_DIR="${STALE_CASES_DIR:-$CASES_DIR}"
 ADAPTERS_DIR="${STALE_ADAPTERS_DIR:-$ADAPTERS_DIR}"
-MODELS_FILE="${STALE_MODELS_FILE:-$MODELS_FILE}"
 CONFIG_SH="${STALE_CONFIG_SH:-$HERE/config.sh}"
 COMMON_SH="${STALE_COMMON_SH:-$HERE/lib/common.sh}"
 BENCH_BIN="${STALE_BENCH:-$HERE/bin/bench}"
@@ -72,22 +71,25 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Determine runtime base URL for live model discovery
 case "$RUNTIME" in
-  lms)    RT_MODELS_FILE="$MODELS_FILE";;
-  ollama) RT_MODELS_FILE="$HERE/models-ollama.txt";;
-  mlx)    RT_MODELS_FILE="$HERE/models-mlx.txt";;
-  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx)";;
+  lms)    RT_BASE_URL="$LMS_BASE_URL";;
+  ollama) RT_BASE_URL="http://localhost:11434/v1";;
+  mlx)    RT_BASE_URL="http://localhost:8080/v1";;
+  omlx)   RT_BASE_URL="$OMLX_BASE_URL";;
+  mtplx)  RT_BASE_URL="$MTPLX_BASE_URL";;
+  *)      die "unknown --runtime: $RUNTIME (valid: lms, ollama, mlx, omlx, mtplx)";;
 esac
 
 # ── Resolve the desired axes (same precedence as bin/bench) ──────────────────
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
 IFS=',' read -ra ADAPTER_ARR <<< "$ADAPTERS"
 if [ -n "$MODELS" ]; then IFS=',' read -ra MODEL_ARR <<< "$MODELS"
-else mapfile -t MODEL_ARR < <(read_list "$RT_MODELS_FILE"); fi
+else mapfile -t MODEL_ARR < <(runtime_models "$RT_BASE_URL"); fi
 if [ -n "$CASES" ]; then IFS=',' read -ra CASE_ARR <<< "$CASES"
 else mapfile -t CASE_ARR < <(for d in "$CASES_DIR"/*/; do [ -f "$d/meta.json" ] && basename "$d"; done); fi
 
-[ "${#MODEL_ARR[@]}" -gt 0 ] || die "no models resolved (runtime $RUNTIME, file $(basename "$RT_MODELS_FILE"))"
+[ "${#MODEL_ARR[@]}" -gt 0 ] || die "no models resolved for runtime $RUNTIME at $RT_BASE_URL"
 [ "${#CASE_ARR[@]}" -gt 0 ] || die "no cases resolved under $CASES_DIR"
 
 # --difficulty easy,medium → restrict to cases of that tier (small-model gating).

@@ -41,9 +41,11 @@ SANDBOX="$TMP/sandbox"
 REPO="$SANDBOX/repo"
 mkdir -p "$SANDBOX/.lmstudio/.internal" \
          "$SANDBOX/.lmstudio/models/lmstudio-community" \
+         "$SANDBOX/.cache/huggingface/hub/models--mlx-community--qwen3-32b" \
          "$SANDBOX/MOCK_LMS" \
          "$REPO/bin" \
          "$REPO/lib"
+echo "dummy" > "$SANDBOX/.cache/huggingface/hub/models--mlx-community--qwen3-32b/model.safetensors"
 
 cp "$HERE/bin/prune" "$REPO/bin/prune"
 PRUNE="$REPO/bin/prune"
@@ -61,25 +63,13 @@ warn() { echo "WARNING: $*" >&2; }
 read_list() { grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$1" 2>/dev/null || true; }
 EOF
 
-# Model lists (all referenced, so --unused shows nothing). glm-4.7-flash
-# must be included too — it's one of the 3 fixture models in the lms index
-# below, and Test 6 asserts "no unused models" before adding a genuine orphan.
-cat > "$REPO/models.txt" <<'EOF'
-google/gemma-4-26b-a4b
-qwen/qwen3-coder-30b
-zai-org/glm-4.7-flash
-EOF
-cat > "$REPO/models-ollama.txt" <<'EOF'
-mistralai/devstral-small-2-2512
-EOF
-cat > "$REPO/models-mlx.txt" <<'EOF'
-mlx-community/qwen3-32b
-EOF
-cat > "$REPO/models-aliases.conf" <<'EOF'
-# model-aliases
-gemma  google/gemma-4-26b-a4b
-qwen3  qwen/qwen3-coder-30b
-EOF
+# models-aliases.conf (alias -> per-runtime id map) is the ONLY curated
+# allowlist bin/prune's --unused check consults now that models.txt/
+# models-mlx.txt/models-ollama.txt are gone (live discovery replaced them
+# everywhere else). All fixture models below are covered by some column here
+# (lms, mlx, or ollama), so --unused should show nothing until Test 6 adds a
+# genuine orphan.
+printf 'gemma\tgoogle/gemma-4-26b-a4b\t-\t-\t-\nqwen3\tqwen/qwen3-coder-30b\t-\t-\t-\nglm\tzai-org/glm-4.7-flash\t-\t-\t-\ndevstral\t-\t-\tmistralai/devstral-small-2-2512\t-\nqwen3-mlx\t-\tmlx-community/qwen3-32b\t-\t-\n' > "$REPO/models-aliases.conf"
 
 # --- fake LM Studio index with 3 controlled models ----------------------------
 cat > "$SANDBOX/.lmstudio/.internal/model-index-cache.json" <<EOF
@@ -279,7 +269,7 @@ check_contains "--runtime=mlx shows mlx models" \
 echo ""
 echo "=== Test: --unused filter ==="
 
-# All models in our sandbox are referenced by models.txt / models-ollama.txt / models-mlx.txt
+# All models in our sandbox are referenced by models-aliases.conf
 # so --unused should show nothing.
 PRUNE_UNUSED=true \
 run_prune; output="$RUN_PRUNE_OUTPUT"

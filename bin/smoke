@@ -15,8 +15,9 @@
 #
 # Flags:
 #   --runtime NAME  lms | ollama | mlx | omlx  (default: lms)
-#   --model/-m ID   model to test       (default: $SMOKE_MODEL for lms,
-#                                        first line of models-ollama.txt for ollama)
+#   --model/-m ID   model to test       (default: $SMOKE_MODEL for lms; for
+#                                        other runtimes, resolved via
+#                                        models-aliases.conf or live discovery)
 #   --agent/-t NAME  only test this adapter (default: all)
 #   --retry-broken[=ADAPTERS]  retry adapters marked as broken in compat.json
 #                                (default: all broken adapters; or comma-separated list)
@@ -290,7 +291,7 @@ elif [ "$RUNTIME" = "omlx" ]; then
   if [ -n "$_omlx_id" ] && ! omlx_models | grep -qx "$_omlx_id"; then
     die "oMLX does not serve '$_omlx_id' (see: bin/omlx models)"
   fi
-  ok "oMLX up — ${_omlx_id:-model from models-omlx.txt} (loads on first request)"
+  ok "oMLX up — ${_omlx_id:-$(omlx_models | head -1)} (loads on first request)"
 
 elif [ "$RUNTIME" = "ollama" ]; then
   # Proxy liveness check: if OLLAMA_BASE_URL targets a non-default port, verify proxy.

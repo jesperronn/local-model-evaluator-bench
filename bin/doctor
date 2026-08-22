@@ -217,8 +217,12 @@ else
 fi
 
 echo
-info "Models under test ($MODELS_FILE):"
-read_list "$MODELS_FILE" | sed 's/^/    /'
+info "Models available (live discovery):"
+if lms_up 2>/dev/null; then
+  lms ls 2>/dev/null | awk '$1 ~ /\// {printf "    lms:%s\n", $1}'
+fi
+runtime_models "$OLLAMA_BASE_URL" | sed 's/^/    ollama:/'
+runtime_models "$OMLX_BASE_URL" | sed 's/^/    omlx:/'
 
 echo
 info "Test cases ($CASES_DIR):"

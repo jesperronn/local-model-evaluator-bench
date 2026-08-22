@@ -22,6 +22,16 @@ read_list() {
   grep -vE '^\s*(#|$)' "$1" 2>/dev/null || true
 }
 
+# Query live model discovery from a runtime's /v1/models endpoint.
+# Usage: runtime_models <base_url>
+# Returns model ids one per line, or empty string if unreachable.
+# All OpenAI-compatible runtimes (lms, ollama, mlx, omlx, mtplx) support this.
+runtime_models() {
+  local base_url="$1"
+  curl -fsS --max-time 5 "$base_url/models" 2>/dev/null \
+    | jq -r '.data[].id' 2>/dev/null || true
+}
+
 # Reachability check against the LM Studio server. Returns 0 if up.
 lms_up() {
   curl -fsS --max-time 5 "$LMS_BASE_URL/models" >/dev/null 2>&1
@@ -36,8 +46,7 @@ omlx_up() {
 # directory under its model dir at startup, so this IS the authoritative list —
 # there is no separate "downloaded but not registered" state as in LM Studio.
 omlx_models() {
-  curl -fsS --max-time 5 "$OMLX_BASE_URL/models" 2>/dev/null \
-    | jq -r '.data[].id' 2>/dev/null || true
+  runtime_models "$OMLX_BASE_URL"
 }
 
 # Model ids oMLX currently holds in memory. oMLX loads on first request and

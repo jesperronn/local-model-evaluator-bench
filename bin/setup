@@ -389,11 +389,11 @@ setup_mlx() {
   fi
   [ "$DO_MLX" = 0 ] && return
   ok "start with: mlx_lm.server --model mlx-community/<model-name>"
-  local mlx_models="$HERE/models-mlx.txt"
-  if [ -f "$mlx_models" ]; then
-    ok "models file: $mlx_models"
+  local mlx_models; mlx_models="$(runtime_models "http://localhost:8080/v1")"
+  if [ -n "$mlx_models" ]; then
+    ok "mlx server running — $(printf '%s\n' "$mlx_models" | wc -l | tr -d ' ') model(s) served"
   else
-    warn "models-mlx.txt not found — create it with HuggingFace model ids (mlx-community/...)"
+    warn "mlx_lm.server not running — start it, then it will report loaded models here"
   fi
 }
 
@@ -431,13 +431,12 @@ setup_ollama() {
     printf '    start with: ollama serve\n'
     [ "$DRY_RUN" = 0 ] && info "run 'ollama serve' in a separate terminal to start"
   fi
-  local ollama_models="$HERE/models-ollama.txt"
-  if [ -f "$ollama_models" ]; then
-    ok "models file: $ollama_models"
+  local ollama_models; ollama_models="$(runtime_models "$OLLAMA_BASE_URL")"
+  if [ -n "$ollama_models" ]; then
     info "installed Ollama models:"
-    ollama list 2>/dev/null | tail -n +2 | sed 's/^/    /'
+    printf '%s\n' "$ollama_models" | sed 's/^/    /'
   else
-    warn "models-ollama.txt not found — create it with Ollama model ids"
+    warn "no Ollama models found — is the server running and are models pulled?"
   fi
 }
 
@@ -674,8 +673,8 @@ setup_model_profile() {
     if [ "$mlx_id" != "-" ] && [ -n "$mlx_id" ]; then
       if [ -d "$mlx_id" ]; then
         ok "  $alias — already present at $mlx_id"
-      elif [ -f "$HERE/models-mlx.txt" ] && grep -qF "$mlx_id" "$HERE/models-mlx.txt"; then
-        info "  $alias ($mlx_id) — referenced in models-mlx.txt (downloads on first use)"
+      elif printf '%s\n' "$(runtime_models "http://localhost:8080/v1")" | grep -qxF "$mlx_id"; then
+        info "  $alias ($mlx_id) — already served by mlx_lm.server"
       else
         to_download_mlx+=("$mlx_id")
       fi
@@ -740,7 +739,7 @@ show_models() {
   esac
 
   if [ "$show_lms" = 1 ]; then
-    info "LM Studio (models.txt → $LMS_BASE_URL)"
+    info "LM Studio ($LMS_BASE_URL)"
     if lms_up; then
       local loaded; loaded="$(lms_loaded_models)"
       while IFS= read -r m; do
@@ -749,63 +748,39 @@ show_models() {
         else
           printf '    %s\n' "$m"
         fi
-      done < <(read_list "$MODELS_FILE")
+      done < <(lms ls 2>/dev/null | awk '$1 ~ /\// {print $1}')
     else
       warn "LM Studio not running — run: lms server start"
-      read_list "$MODELS_FILE" | sed 's/^/    /'
     fi
   fi
 
   if [ "$show_ollama" = 1 ] && command -v ollama >/dev/null 2>&1; then
     echo
     info "Ollama models"
-    local ollama_file="$HERE/models-ollama.txt"
-    if [ -f "$ollama_file" ]; then
-      local installed; installed="$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')"
-      while IFS= read -r m; do
-        if printf '%s\n' "$installed" | grep -qxF "$m"; then
-          ok "  $m  ${C_DIM}[installed]${C_RST}"
-        else
-          warn "  $m  ${C_DIM}not installed — run: ollama pull $m${C_RST}"
-        fi
-      done < <(read_list "$ollama_file")
+    local installed; installed="$(runtime_models "$OLLAMA_BASE_URL")"
+    if [ -n "$installed" ]; then
+      printf '%s\n' "$installed" | sed 's/^/  /'
     else
-      warn "models-ollama.txt not found"
-      info "installed Ollama models:"
-      ollama list 2>/dev/null | sed 's/^/  /'
+      warn "no Ollama models found — is the server running and are models pulled?"
     fi
   fi
 
   if [ "$show_mlx" = 1 ] && command -v mlx_lm.server >/dev/null 2>&1; then
     echo
-    info "MLX models (~/.lmstudio/models or HuggingFace cache)"
-    local mlx_file="$HERE/models-mlx.txt"
-    if [ -f "$mlx_file" ]; then
-      read_list "$mlx_file" | sed 's/^/  /'
+    info "MLX models (mlx_lm.server, http://localhost:8080/v1)"
+    local mlx_models; mlx_models="$(runtime_models "http://localhost:8080/v1")"
+    if [ -n "$mlx_models" ]; then
+      printf '%s\n' "$mlx_models" | sed 's/^/  /'
     else
-      warn "models-mlx.txt not found"
+      warn "mlx_lm.server not running or no model loaded"
     fi
   fi
 
   if [ "$show_omlx" = 1 ] && omlx_up; then
     echo
-    info "oMLX models (models-omlx.txt → $OMLX_BASE_URL)"
-    # oMLX serves everything under its model dir, so anything in models-omlx.txt
-    # that it doesn't list is a real miss — a stale entry or a pending rescan.
+    info "oMLX models ($OMLX_BASE_URL)"
     local served; served="$(omlx_models)"
-    local omlx_file="$HERE/models-omlx.txt"
-    if [ -f "$omlx_file" ]; then
-      while IFS= read -r m; do
-        if printf '%s\n' "$served" | grep -qxF "$m"; then
-          ok "  $m  ${C_DIM}[served]${C_RST}"
-        else
-          warn "  $m  ${C_DIM}not served — add it under $OMLX_MODELS_DIR, then: bin/omlx reload${C_RST}"
-        fi
-      done < <(read_list "$omlx_file")
-    else
-      warn "models-omlx.txt not found"
-      printf '%s\n' "$served" | sed 's/^/    /'
-    fi
+    printf '%s\n' "$served" | sed 's/^/  /'
   fi
 
   # Interactive: fzf to pick a model and show pull command
@@ -814,17 +789,16 @@ show_models() {
     echo
     info "Interactive model picker"
     local candidates=""
-    # Gather LM Studio models not yet in models.txt
+    # Gather LM Studio models
     if lms_up 2>/dev/null; then
       candidates="$(lms ls 2>/dev/null | awk '$1 ~ /\// {print "lms:" $1}')"
     fi
     # Gather Ollama models
     candidates="$candidates
 $(ollama list 2>/dev/null | tail -n +2 | awk '{print "ollama:" $1}')"
-    # Gather any from models-mlx.txt
-    [ -f "$HERE/models-mlx.txt" ] && \
-      candidates="$candidates
-$(read_list "$HERE/models-mlx.txt" | sed 's/^/mlx:/')"
+    # Gather MLX models currently served
+    candidates="$candidates
+$(runtime_models "http://localhost:8080/v1" | sed 's/^/mlx:/')"
 
     candidates="$(printf '%s\n' "$candidates" | grep -v '^$' | sort -u)"
     [ -z "$candidates" ] && die "no models found to pick from"
@@ -841,10 +815,9 @@ $(read_list "$HERE/models-mlx.txt" | sed 's/^/mlx:/')"
     while IFS= read -r entry; do
       local rt="${entry%%:*}" mid="${entry#*:}"
       case "$rt" in
-        lms)    printf '  echo "%s" >> models.txt\n' "$mid";;
-        ollama) printf '  ollama pull %s\n' "$mid"
-                printf '  echo "%s" >> models-ollama.txt\n' "$mid";;
-        mlx)    printf '  # already in models-mlx.txt\n';;
+        lms)    printf '  # %s already available via LM Studio\n' "$mid";;
+        ollama) printf '  ollama pull %s\n' "$mid";;
+        mlx)    printf '  # %s already served by mlx_lm.server\n' "$mid";;
       esac
     done <<< "$sel"
   fi

@@ -33,8 +33,7 @@ Without --interactive, prints a table and exits (no deletion).
 Options:
   --runtime=RT        Filter to a single runtime: lms, ollama, mlx, all (default: all)
   -i, --interactive   Pick models to remove via fzf, then delete
-  --unused            Only show/offer models NOT referenced by the bench lists
-                      (models.txt, models-mlx.txt, models-ollama.txt, aliases)
+  --unused            Only show/offer models NOT referenced by models-aliases.conf
   --dry-run           With --interactive: preview what would be removed
   --restart-daemon    Restart LM Studio's headless background daemon (llmster)
                       so it rescans disk and drops stale model-index entries.
@@ -260,25 +259,23 @@ collect_ollama() {
 }
 
 collect_mlx() {
-  local models_file="${HERE}/models-mlx.txt"
-  [ -f "$models_file" ] || { warn "models-mlx.txt not found — skipping mlx runtime"; return; }
+  # Discovers downloaded mlx models directly off disk — the HuggingFace hub
+  # cache dir naming convention (models--<org>--<name>) IS the source of
+  # truth for "what's downloaded", live and disk-based; no static file needed.
+  [ -d "$HF_CACHE" ] || { warn "$HF_CACHE not found — skipping mlx runtime"; return; }
 
-  while IFS= read -r model; do
-    local dir
-    if [[ "$model" == /* ]]; then
-      dir="$model"
-    else
-      # HuggingFace id: mlx-community/Foo → ~/.cache/huggingface/hub/models--mlx-community--Foo
-      dir="${HF_CACHE}/models--${model//\//--}"
-    fi
+  local dir base model
+  for dir in "$HF_CACHE"/models--*/; do
+    [ -d "$dir" ] || continue
+    base="$(basename "$dir")"
+    model="${base#models--}"
+    model="${model//--//}"
 
     local size_bytes=0 last_used_s=0
-    if [ -d "$dir" ]; then
-      size_bytes=$(dir_bytes "$dir")
-      last_used_s=$(path_mtime "$dir")
-    fi
-    echo "mlx	$model	$size_bytes	$last_used_s	$dir"
-  done < <(read_list "$models_file")
+    size_bytes=$(dir_bytes "$dir")
+    last_used_s=$(path_mtime "$dir")
+    echo "mlx	$model	$size_bytes	$last_used_s	${dir%/}"
+  done
 }
 
 # ── gather all entries ────────────────────────────────────────────────────────
@@ -298,16 +295,15 @@ entries_tsv=$(gather_entries)
 # ── --unused filter ─────────────────────────────────────────────────────────
 # Keep only entries NOT referenced by any bench list. A model counts as "used"
 # if its id, any delete-target path, or that path's basename appears in:
-#   models.txt, models-ollama.txt (publisher/key ids)
-#   models-mlx.txt               (absolute concrete dir paths)
-#   models-aliases.conf          (target column)
+#   models-aliases.conf          (target column — the curated alias->id map,
+#                                 a different concept from "what's downloaded",
+#                                 kept as the allowlist of models NOT to prune)
 
 build_used() {
-  local f
-  for f in models.txt models-ollama.txt models-mlx.txt; do
-    [[ -f "$HERE/$f" ]] && grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$HERE/$f"
-  done
-  [[ -f "$HERE/models-aliases.conf" ]] && awk '!/^[[:space:]]*#/ && NF>=2 {print $2}' "$HERE/models-aliases.conf"
+  # Columns are alias, lms_id, mlx_id, ollama_id, omlx_id (tab-separated);
+  # pull every runtime id column, skipping "-" placeholders.
+  [[ -f "$HERE/models-aliases.conf" ]] && \
+    awk -F'\t' '!/^[[:space:]]*#/ && NF>=2 { for (i=2;i<=NF && i<=5;i++) if ($i != "" && $i != "-") print $i }' "$HERE/models-aliases.conf"
 }
 
 # Match is by exact id/path/basename first; then a token-subset fallback so a

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# bin/scout — flag models present on disk but not registered in the bench's
-# model lists, models registered but not downloaded, and models with no
-# global agent config (~/.config/llmrun/agents.json) so adapters would run
-# them unconfigured. Read-only: never edits models.txt/models-ollama.txt or
+# bin/scout — flag models present on disk (live discovery via each runtime's
+# /v1/models) with no global agent config (~/.config/llmrun/agents.json) so
+# adapters would run them unconfigured. Read-only: never edits
 # ~/.config/llmrun/agents.json, and never deletes anything.
 #
-# The global-config check is the actual point: being listed in models.txt
+# The global-config check is the actual point: being downloaded/discoverable
 # isn't "usable" — an adapter reading unset context/temperature from
 # agents.json is the "why isn't this working?" trap ADAPTER-SETUP.md exists
 # to prevent. bin/scout surfaces that gap; bin/sync closes it.
@@ -38,15 +37,11 @@ usage() {
   help_flag "--agent" "LIST" "comma-separated agents to show per-agent checks for (default: pi,opencode)"
   help_flag "-h, --help" "" "show this help and exit"
   help_section "WHAT IT CHECKS"
-  help_line "  new         model downloaded (lms ls / ollama list) but missing from" ""
-  help_line "              models.txt / models-ollama.txt -> prints a bin/sync command" ""
-  help_line "  no config   model registered + downloaded but has no entry in" ""
-  help_line "              ~/.config/llmrun/agents.json -> prints a bin/sync command" ""
+  help_line "  no config   model discovered live (lms ls / ollama list) but has no entry" ""
+  help_line "              in ~/.config/llmrun/agents.json -> prints a bin/sync command" ""
   help_line "              (adapters would run it with unset context/temperature)" ""
-  help_line "  per-agent   for every downloaded model, one PASS/FAIL/SKIP line per agent" ""
+  help_line "  per-agent   for every discovered model, one PASS/FAIL/SKIP line per agent" ""
   help_line "              checking the actual config file it reads at launch" ""
-  help_line "  orphaned    model registered in the list but not downloaded locally" ""
-  help_line "              -> flagged only, nothing is removed (see bin/prune for cleanup)" ""
   help_section "EXAMPLES"
   help_line "  bin/scout" ""
   help_line "  bin/scout --runtime lms" ""
@@ -65,7 +60,7 @@ done
 runtime_enabled() { [[ ",$RUNTIMES," == *",$1,"* ]]; }
 
 # ── global agent config (~/.config/llmrun/agents.json) ──────────────────────
-# Keyed by exact model id, same ids used in models.txt/models-ollama.txt.
+# Keyed by exact model id, same ids reported by each runtime's /v1/models.
 # A model with zero keys set here is unconfigured — adapters fall back to
 # their own defaults (often wrong context/temperature for that model).
 CONFIG_STORE="${LLMRUN_AGENTS_STORE:-$HOME/.config/llmrun/agents.json}"
@@ -142,23 +137,7 @@ check_agent_registration() {
   done
 }
 
-NEW_COUNT=0
-ORPHAN_COUNT=0
 NOCONFIG_COUNT=0
-
-note_new() {
-  local runtime="$1" model="$2"
-  ((NEW_COUNT++)) || true
-  printf '%s# NOTE: new model not registered globally: %s (%s)%s\n' "$C_YEL" "$model" "$runtime" "$C_RST"
-  printf '%sbin/sync --provider %s --model %s --agent %s%s\n\n' \
-    "$C_GRN" "$runtime" "$model" "$DEFAULT_SYNC_AGENTS" "$C_RST"
-}
-
-note_orphaned() {
-  local runtime="$1" model="$2"
-  ((ORPHAN_COUNT++)) || true
-  printf '%s# NOTE: registered but not downloaded: %s (%s) — not touching models list%s\n' "$C_DIM" "$model" "$runtime" "$C_RST"
-}
 
 note_no_config() {
   local runtime="$1" model="$2"
@@ -170,42 +149,25 @@ note_no_config() {
 
 check_lms() {
   command -v lms >/dev/null 2>&1 || { warn "lms: not found, skipping"; return; }
-  mapfile -t registered < <(read_list "$MODELS_FILE")
   mapfile -t downloaded < <(lms ls --json 2>/dev/null | jq -r '.[].modelKey' 2>/dev/null)
   [ "${#downloaded[@]}" -gt 0 ] || { warn "lms: no models reported by 'lms ls --json' — is LM Studio running?"; }
 
   for m in "${downloaded[@]}"; do
     [ -n "$m" ] || continue
-    if printf '%s\n' "${registered[@]}" | grep -qxF "$m"; then
-      has_config "$m" || note_no_config "lms" "$m"
-    else
-      note_new "lms" "$m"
-    fi
+    has_config "$m" || note_no_config "lms" "$m"
     check_agent_registration "lms" "$m"
-  done
-  for m in "${registered[@]}"; do
-    printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "lms" "$m"
   done
 }
 
 check_ollama() {
   command -v ollama >/dev/null 2>&1 || { warn "ollama: not found, skipping"; return; }
-  local ollama_models_file="$HERE/models-ollama.txt"
-  mapfile -t registered < <(read_list "$ollama_models_file")
-  mapfile -t downloaded < <(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-  [ "${#downloaded[@]}" -gt 0 ] || { warn "ollama: no models reported by 'ollama list' — is the daemon running?"; }
+  mapfile -t downloaded < <(runtime_models "$OLLAMA_BASE_URL")
+  [ "${#downloaded[@]}" -gt 0 ] || { warn "ollama: no models reported — is the daemon running?"; }
 
   for m in "${downloaded[@]}"; do
     [ -n "$m" ] || continue
-    if printf '%s\n' "${registered[@]}" | grep -qxF "$m"; then
-      has_config "$m" || note_no_config "ollama" "$m"
-    else
-      note_new "ollama" "$m"
-    fi
+    has_config "$m" || note_no_config "ollama" "$m"
     check_agent_registration "ollama" "$m"
-  done
-  for m in "${registered[@]}"; do
-    printf '%s\n' "${downloaded[@]}" | grep -qxF "$m" || note_orphaned "ollama" "$m"
   done
 }
 
@@ -214,6 +176,6 @@ runtime_enabled ollama && check_ollama
 
 echo
 info "per-agent checks shown for: $SHOW_AGENTS (rerun with: bin/scout --agent aider,cline,hermes,opencode,pi)"
-info "$NEW_COUNT new, $NOCONFIG_COUNT missing global config, $ORPHAN_COUNT registered-but-not-downloaded"
-[ "$NEW_COUNT" -eq 0 ] && [ "$NOCONFIG_COUNT" -eq 0 ] || exit 1
+info "$NOCONFIG_COUNT missing global config"
+[ "$NOCONFIG_COUNT" -eq 0 ] || exit 1
 exit 0
