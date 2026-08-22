@@ -7,7 +7,7 @@
 #
 # Wildcard routes pass the model id through after the prefix, so no model needs
 # listing here individually:
-#   lms/<id>    -> LM Studio       (bin/litellm-proxy overrides via LMS_BASE_URL)
+#   lms/<id>    -> LM Studio
 #   ollama/<id> -> Ollama
 #   mlx/<id>    -> mlx_lm.server
 #   omlx/<id>   -> oMLX
@@ -62,5 +62,11 @@ litellm_settings:
   drop_params: true
 
 general_settings:
-  # Local-only proxy; no auth layer, no telemetry, no spend DB.
+  # Local-only proxy; no telemetry, no spend tracking.
   telemetry: false
+  # Persist models added via the admin API (POST /model/new) into Postgres
+  # instead of only in-memory, so they survive a proxy restart. Requires
+  # DATABASE_URL (bin/litellm-proxy provisions a local Docker Postgres) and
+  # LITELLM_MASTER_KEY to authenticate the admin endpoints.
+  # https://docs.litellm.ai/docs/proxy/model_management
+  store_model_in_db: true

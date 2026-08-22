@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# bin/litellm-proxy — control the LiteLLM proxy in front of the local runtimes
+# (lms | ollama | mlx | omlx | mtplx), with store_model_in_db=true so models
+# can be added/removed via the admin API without editing
+# config-templates/litellm.yaml or restarting the proxy.
+#
+# Optional. Adapters talk to the runtimes directly by default; this exists for
+# when you want one endpoint that spans all five, e.g. pointing an external
+# tool at a single URL, or A/B-ing the same model across backends.
+#
+#   bin/litellm-proxy start     start proxy + Postgres, detached
+#   bin/litellm-proxy stop      stop both containers (data persists)
+#   bin/litellm-proxy restart
+#   bin/litellm-proxy status    is it up, DB connected, per-route model counts
+#   bin/litellm-proxy logs      follow proxy container logs (-f)
+#   bin/litellm-proxy models    list what the proxy currently resolves
+#
+# Then route by prefixing the model id with the runtime:
+#   curl "$LITELLM_BASE_URL/chat/completions" -d '{"model":"lms/ornith-1.0-9b",...}'
+#   curl "$LITELLM_BASE_URL/chat/completions" -d '{"model":"omlx/Ornith-1.0-9B-4bit",...}'
+#
+# Managing models via the admin API (requires $LITELLM_MASTER_KEY):
+#   curl "$LITELLM_BASE_URL/model/new" -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+#     -d '{"model_name":"mtplx/my-model","litellm_params":{"model":"openai/my-model","api_base":"'"$MTPLX_BASE_URL"'"}}'
+#   curl "$LITELLM_BASE_URL/model/info" -H "Authorization: Bearer $LITELLM_MASTER_KEY"
+#
+# LOCAL ONLY: config-templates/litellm.yaml lists no cloud providers and no
+# fallbacks. Keep it that way — a remote fallback would leak sandbox prompts and
+# silently grade a different model than the result label claims.
+#
+# WHY DOCKER, NOT uvx: store_model_in_db needs Prisma, and litellm's PyPI
+# package does not ship pre-generated Prisma client binaries — a plain
+# `uvx litellm[proxy]` fails at startup with "Unable to find Prisma binaries.
+# Please run 'prisma generate' first," because there is no vendored schema to
+# generate from outside their own build. LiteLLM's own answer to this is the
+# `litellm-database` image, which bundles it already generated. This also
+# sidesteps the fastapi pin (see docs/archived/DECISION-litellm-proxy.md) that
+# the plain uvx path (no store_model_in_db) needs instead.
+#
+# WHY --restart unless-stopped, NOT nohup+pidfile: the containers already run
+# under the Docker daemon, which is its own supervisor — it tracks the process,
+# restarts it across Docker/host restarts, and gives us `docker ps`/`docker
+# logs` for status/logs for free. A nohup+pidfile wrapper would just duplicate
+# that supervision worse (no auto-restart on crash, manual PID bookkeeping).
+# This is the same paradigm `brew services` gives Homebrew formulas via
+# launchd: a managed daemon that owns the process, not the shell that started it.
+#
+# Both containers run on a private Docker network (created below) so the proxy
+# reaches Postgres by container name. To reach the local runtimes (LM Studio,
+# Ollama, mlx_lm.server, oMLX, MTPLX) running on the host, the container uses
+# host.docker.internal in place of 127.0.0.1 — Docker Desktop on macOS provides
+# this out of the box.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$HERE/config.sh"
+
+CONFIG="$HERE/config-templates/litellm.yaml"
+NETWORK="litellm-net"
+PG_IMAGE="postgres:16-alpine"
+LITELLM_IMAGE="ghcr.io/berriai/litellm-database:main-stable"
+PROXY_CONTAINER="litellm-proxy"
+
+_host_url() { echo "$1" | sed -E 's#127\.0\.0\.1|localhost#host.docker.internal#'; }
+
+_need_docker() {
+  command -v docker >/dev/null 2>&1 || {
+    echo "docker not found — required for the litellm-database image and its Postgres backend." >&2
+    echo "Install Docker Desktop, or brew install docker." >&2
+    exit 1
+  }
+}
+
+_running() { docker ps --filter "name=^${1}\$" --filter "status=running" --format '{{.Names}}' | grep -qx "$1"; }
+_exists()  { docker ps -a --filter "name=^${1}\$" --format '{{.Names}}' | grep -qx "$1"; }
+
+cmd_start() {
+  _need_docker
+  if _running "$PROXY_CONTAINER"; then
+    echo "litellm-proxy: already running"
+    return 0
+  fi
+
+  docker network create "$NETWORK" >/dev/null 2>&1 || true
+
+  if ! _running "$LITELLM_PG_CONTAINER"; then
+    if _exists "$LITELLM_PG_CONTAINER"; then
+      echo "litellm-proxy: starting existing Postgres container $LITELLM_PG_CONTAINER"
+      docker start "$LITELLM_PG_CONTAINER" >/dev/null
+    else
+      echo "litellm-proxy: creating Postgres container $LITELLM_PG_CONTAINER"
+      docker run -d \
+        --name "$LITELLM_PG_CONTAINER" \
+        --network "$NETWORK" \
+        --restart unless-stopped \
+        -p "127.0.0.1:${LITELLM_PG_PORT}:5432" \
+        -e POSTGRES_USER=litellm \
+        -e POSTGRES_PASSWORD=litellm \
+        -e POSTGRES_DB=litellm \
+        -v "${LITELLM_PG_CONTAINER}-data:/var/lib/postgresql/data" \
+        "$PG_IMAGE" >/dev/null
+    fi
+  fi
+
+  echo -n "litellm-proxy: waiting for Postgres..."
+  for _ in $(seq 1 30); do
+    if docker exec "$LITELLM_PG_CONTAINER" pg_isready -U litellm >/dev/null 2>&1; then
+      echo " ready"
+      break
+    fi
+    echo -n "."
+    sleep 1
+  done
+
+  docker rm -f "$PROXY_CONTAINER" >/dev/null 2>&1 || true
+
+  echo "litellm-proxy: master key is \$LITELLM_MASTER_KEY (default: sk-local-litellm) — required for /model/new etc."
+
+  docker run -d \
+    --name "$PROXY_CONTAINER" \
+    --network "$NETWORK" \
+    --restart unless-stopped \
+    -p "127.0.0.1:${LITELLM_PORT}:${LITELLM_PORT}" \
+    -e DATABASE_URL="postgresql://litellm:litellm@${LITELLM_PG_CONTAINER}:5432/litellm" \
+    -e LITELLM_MASTER_KEY="$LITELLM_MASTER_KEY" \
+    -e STORE_MODEL_IN_DB=true \
+    -e LITELLM_LMS_BASE="$(_host_url "${LITELLM_LMS_BASE:-$LMS_BASE_URL}")" \
+    -e LITELLM_OLLAMA_BASE="$(_host_url "${LITELLM_OLLAMA_BASE:-$OLLAMA_BASE_URL}")" \
+    -e LITELLM_MLX_BASE="$(_host_url "${LITELLM_MLX_BASE:-$MLX_BASE_URL}")" \
+    -e LITELLM_OMLX_BASE="$(_host_url "${LITELLM_OMLX_BASE:-$OMLX_BASE_URL}")" \
+    -e LITELLM_OMLX_KEY="${LITELLM_OMLX_KEY:-$OMLX_API_KEY}" \
+    -e LITELLM_MTPLX_BASE="$(_host_url "${LITELLM_MTPLX_BASE:-$MTPLX_BASE_URL}")" \
+    -e LITELLM_MTPLX_KEY="${LITELLM_MTPLX_KEY:-$MTPLX_API_KEY}" \
+    -v "$CONFIG:/app/config.yaml:ro" \
+    "$LITELLM_IMAGE" \
+    --config /app/config.yaml --port "$LITELLM_PORT" --host 0.0.0.0 >/dev/null
+
+  echo -n "litellm-proxy: waiting for proxy..."
+  for _ in $(seq 1 30); do
+    if curl -fsS -m 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
+      echo " up at $LITELLM_BASE_URL"
+      return 0
+    fi
+    echo -n "."
+    sleep 1
+  done
+  echo " timed out — check: bin/litellm-proxy logs" >&2
+  return 1
+}
+
+cmd_stop() {
+  docker stop "$PROXY_CONTAINER" "$LITELLM_PG_CONTAINER" >/dev/null 2>&1 || true
+  echo "litellm-proxy: stopped (data persists — bin/litellm-proxy start to resume)"
+}
+
+cmd_status() {
+  if _running "$PROXY_CONTAINER"; then
+    local health
+    health="$(curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/health/readiness" 2>/dev/null || echo '{}')"
+    echo "litellm proxy: up at $LITELLM_BASE_URL"
+    echo "  db: $(echo "$health" | jq -r '.db // "unknown"' 2>/dev/null)"
+  else
+    echo "litellm proxy: down (start: bin/litellm-proxy start)"
+  fi
+  if _running "$LITELLM_PG_CONTAINER"; then
+    echo "postgres: up ($LITELLM_PG_CONTAINER, port $LITELLM_PG_PORT)"
+  else
+    echo "postgres: down ($LITELLM_PG_CONTAINER)"
+  fi
+}
+
+cmd_logs() { _need_docker; exec docker logs -f "$PROXY_CONTAINER"; }
+
+cmd_models() {
+  # What the proxy actually resolves, grouped by route. With
+  # check_provider_endpoint: true this is a live query of each backend, so a
+  # missing group means that runtime is down — not that it has no models.
+  curl -fsS -m 15 "$LITELLM_BASE_URL/models" -H "Authorization: Bearer $LITELLM_MASTER_KEY" 2>/dev/null \
+    | jq -r '.data[].id' 2>/dev/null | sort \
+    || { echo "litellm proxy: not reachable at $LITELLM_BASE_URL (start it with: bin/litellm-proxy start)" >&2; exit 1; }
+}
+
+case "${1:-status}" in
+  start)          cmd_start;;
+  stop)           cmd_stop;;
+  restart)        cmd_stop; cmd_start;;
+  status|--check) cmd_status;;
+  logs)           cmd_logs;;
+  models|--models) cmd_models;;
+  -h|--help|help) awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0";;
+  *) echo "unknown command: $1 (see bin/litellm-proxy --help)" >&2; exit 2;;
+esac

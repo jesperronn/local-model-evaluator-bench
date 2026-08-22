@@ -26,12 +26,26 @@ export OMLX_API_KEY="${OMLX_API_KEY:-omlx}"
 # report what is installed without going through the HTTP API.
 export OMLX_MODELS_DIR="${OMLX_MODELS_DIR:-$HOME/.omlx/models}"
 
+# mlx_lm.server — one model per process, restart to switch (unlike oMLX/MTPLX,
+# which are multi-model). Default port is mlx_lm.server's own default.
+export MLX_BASE_URL="${MLX_BASE_URL:-http://127.0.0.1:8080/v1}"
+
 # Optional LiteLLM proxy fronting all five local runtimes on one endpoint.
 # Not used by default — adapters reach the runtimes directly. Start it with
 # `bin/litellm-proxy` and address models as lms/<id>, ollama/<id>, mlx/<id>,
 # omlx/<id>, mtplx/<id>.
 export LITELLM_PORT="${LITELLM_PORT:-4444}"
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1}"
+# Master key required by litellm's admin/model-management endpoints whenever a
+# database is attached (store_model_in_db). Local-only proxy, so a fixed
+# default is fine — override if this ever needs to be reachable beyond 127.0.0.1.
+export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-local-litellm}"
+# Postgres backing store for store_model_in_db (litellm requires Postgres, no
+# sqlite support). bin/litellm-proxy runs this in a local Docker container
+# named litellm-postgres, so no system Postgres install is needed.
+export LITELLM_PG_CONTAINER="${LITELLM_PG_CONTAINER:-litellm-postgres}"
+export LITELLM_PG_PORT="${LITELLM_PG_PORT:-5443}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://litellm:litellm@127.0.0.1:${LITELLM_PG_PORT}/litellm}"
 
 # MTPLX (https://github.com/youssofal/MTPLX) — local multi-model server, also
 # OpenAI-compatible. Its default port (8000) collides with oMLX's, so it's
