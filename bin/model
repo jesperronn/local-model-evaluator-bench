@@ -201,6 +201,19 @@ cmd_list() {
     esac
   done
 
+  # Try to query the LiteLLM proxy first, then fall back to per-runtime discovery.
+  if curl -fsS --max-time 5 "$LITELLM_BASE_URL/models" >/dev/null 2>&1; then
+    # Proxy is running — query all models from it (cleaner endpoint)
+    info "Querying LiteLLM proxy at $LITELLM_BASE_URL"
+    echo ""
+    runtime_models "$LITELLM_BASE_URL" | sort | while read m; do
+      echo "    • $m"
+    done
+    echo ""
+    return 0
+  fi
+
+  # Fallback: query each runtime directly
   if [ -z "$runtime" ] || [ "$runtime" = "lms" ]; then
     echo "${C_BLD}LM Studio (lms)${C_RST}"
     if lms_up; then

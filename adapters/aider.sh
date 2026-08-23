@@ -1,30 +1,49 @@
 #!/usr/bin/env bash
-# Adapter: aider -> any local runtime (lms | ollama | mlx), all OpenAI-compatible.
-# Contract: CWD is the sandbox to edit. $MODEL_ID set.
-# Non-interactive (piped stdin, e.g. bin/bench): prompt arrives on stdin, one-shot.
-# Interactive (stdin is a tty, e.g. `llmrun --agent aider`): drops into a real
-# aider REPL with the same runtime/model wiring.
+# Adapter: aider -> unified endpoint via LiteLLM proxy.
+# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
+# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
 #
-# bin/bench exports LMS_BASE_URL/LMS_API_KEY already pointed at the *active*
-# runtime, so the endpoint needs no per-runtime branching here. Only the flags
-# that genuinely differ per runtime are switched on $RUNTIME below.
+# The proxy must be running: bin/litellm-proxy start
+# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
+#
+# Adapter accepts --provider to override which backend to target:
+#   --provider lms        # route to LM Studio (default if lms/ prefix)
+#   --provider ollama     # route to Ollama
+#   --provider omlx       # route to oMLX
+#   --provider mlx        # route to mlx_lm.server
+#   --provider mtplx      # route to MTPLX
+#
+# Contract: CWD is the sandbox to edit. $MODEL_ID set.
+# Non-interactive (piped stdin): prompt arrives on stdin, one-shot.
+# Interactive (stdin is a tty): drops into a real aider REPL.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-RUNTIME="${RUNTIME:-lms}"
+PROVIDER="${PROVIDER:-lms}"
 
 declare -a REMAINING_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model) MODEL_ID="$2"; shift 2;;
-    *)       REMAINING_ARGS+=("$1"); shift;;
+    --model)    MODEL_ID="$2"; shift 2;;
+    --provider) PROVIDER="$2"; shift 2;;
+    *)          REMAINING_ARGS+=("$1"); shift;;
   esac
 done
 
-# Interactive callers (stdin is a tty, e.g. `llmrun --agent aider` with no
-# piped prompt) get a real aider REPL instead of an error — `timeout 0.1 cat`
-# would just read nothing off an idle terminal and force a bogus failure here.
+command -v aider >/dev/null 2>&1 || {
+  echo "aider not found; install: pip install aider-chat" >&2
+  exit 1
+}
+
+# Prefix the model ID with the provider name if not already prefixed.
+if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+  PREFIXED_MODEL_ID="$MODEL_ID"
+else
+  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+fi
+
+# Interactive callers get a real aider REPL; batch callers pass the prompt on stdin.
 INTERACTIVE=0
 MESSAGE=""
 if [ -t 0 ]; then
@@ -37,57 +56,26 @@ Error: aider adapter requires input text (prompt) on stdin.
 
 Next steps:
   1. For testing: pipe a prompt via stdin:
-     echo "your prompt" | adapters/aider.sh --model qwen/qwen3.5-9b
+     echo "your prompt" | adapters/aider.sh
 
-  2. For interactive work, run without piping input (or use aider directly):
-     aider --model openai/qwen/qwen3.5-9b \\
-       --openai-api-base "$LMS_BASE_URL" \\
-       --openai-api-key "$LMS_API_KEY"
+  2. For interactive work, run without piping input:
+     adapters/aider.sh
 EOF
     exit 1
   fi
 fi
 
 AIDER_ARGS=(
-  --model "openai/${MODEL_ID}"
-  --openai-api-base "$LMS_BASE_URL"
-  --openai-api-key "$LMS_API_KEY"
+  --model "openai/${PREFIXED_MODEL_ID}"
+  --openai-api-base "$LITELLM_BASE_URL"
+  --openai-api-key "${LITELLM_MASTER_KEY:-litellm}"
   --no-check-update --no-show-model-warnings --no-gitignore
   --yes-always --no-auto-commits --no-dirty-commits
 )
 
-case "$RUNTIME" in
-  ollama)
-    # Ollama-served models produce cleaner search/replace diffs than whole-file
-    # rewrites; without this aider defaults to `whole` and truncates on edits.
-    AIDER_ARGS+=(--edit-format diff --no-git)
-    ;;
-  mlx)
-    # aider can't infer context/cost limits for a filesystem model path, so the
-    # metadata has to be supplied explicitly or it refuses to run.
-    AIDER_ARGS+=(--model-metadata-file "${SCRIPT_DIR}/aider-mlx-model-metadata.json")
-    ;;
-  omlx)
-    # Same reason as mlx: the model id is a bare directory name aider's registry
-    # has never heard of. The metadata file is generated from what oMLX serves —
-    # regenerate after adding models with: bin/omlx aider-metadata
-    AIDER_ARGS+=(--model-metadata-file "${SCRIPT_DIR}/aider-omlx-model-metadata.json")
-    # No --edit-format override: aider's default (whole) is what works here.
-    # Measured 2026-08-06 on Ornith-1.0-9B-4bit — forcing `diff` (as the ollama
-    # branch does) made create-from-scratch fail: the model emitted a bare fenced
-    # block instead of a SEARCH/REPLACE pair with an empty SEARCH, so smoke-00
-    # never produced the file. Edits passed either way.
-    ;;
-esac
-
 [ "$INTERACTIVE" = 1 ] || AIDER_ARGS+=(--message "$MESSAGE")
 
-# Pass the sandbox's source files so aider has context for edit cases. Empty for
-# create-from-scratch cases, which is fine. Skipped in interactive mode: there
-# the CWD is whatever real project the user launched from, not a throwaway
-# sandbox, and dumping every file on the command line blows past ARG_MAX
-# (found running from this repo: "Argument list too long"). Interactive users
-# add files themselves via aider's own /add.
+# Pass the sandbox's source files so aider has context for edit cases.
 declare -a FILES=()
 if [ "$INTERACTIVE" != 1 ]; then
   mapfile -t FILES < <(find . -type f \

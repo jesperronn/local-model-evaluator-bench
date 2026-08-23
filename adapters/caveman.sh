@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Adapter: caveman -> unified endpoint via provider routing.
-# Routes to different local runtimes (lms, ollama, mlx, omlx, mtplx) based on
-# the --provider flag or MODEL_ID prefix.
+# Adapter: caveman -> unified endpoint via LiteLLM proxy.
+# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
+# (lms, ollama, omlx) based on model ID prefix.
+# Note: mlx and mtplx are not supported by caveman's current implementation.
 #
-# Adapter accepts --provider to select which backend to target:
-#   --provider lms        # route to LM Studio
+# The proxy must be running: bin/litellm-proxy start
+# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>
+#
+# Adapter accepts --provider to override which backend to target:
+#   --provider lms        # route to LM Studio (default if lms/ prefix)
 #   --provider ollama     # route to Ollama
 #   --provider omlx       # route to oMLX
-#   --provider mlx        # skip (caveman doesn't support mlx_lm.server)
-#   --provider mtplx      # skip (caveman doesn't support MTPLX)
 #
 # Install: npm install -g @juliusbrussee/caveman-code
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
@@ -36,34 +38,42 @@ command -v caveman >/dev/null 2>&1 || {
   exit 1
 }
 
-# Validate provider and ensure config exists
+# Validate provider
 case "$PROVIDER" in
   lms|ollama|omlx)
-    CAVE_LIVE_CFG="$HOME/.cave/agent/models.json"
-    if [ ! -f "$CAVE_LIVE_CFG" ] || ! jq -e ".providers.$PROVIDER" "$CAVE_LIVE_CFG" >/dev/null 2>&1; then
-      echo "warn: $CAVE_LIVE_CFG missing a $PROVIDER provider — copying config-templates/caveman-agent-models.json" >&2
-      mkdir -p "$(dirname "$CAVE_LIVE_CFG")"
-      cp "$REPO_ROOT/config-templates/caveman-agent-models.json" "$CAVE_LIVE_CFG"
-    fi
+    # These are supported
     ;;
   mlx)
-    if [ ! -t 0 ]; then cat > /dev/null; fi  # drain stdin when piped
-    echo "caveman: skipped — caveman built-in model list required; MLX model IDs not supported" >&2
+    if [ ! -t 0 ]; then cat > /dev/null; fi
+    echo "caveman: skipped — MLX not supported by caveman" >&2
     exit 1
     ;;
   mtplx)
-    if [ ! -t 0 ]; then cat > /dev/null; fi  # drain stdin when piped
+    if [ ! -t 0 ]; then cat > /dev/null; fi
     echo "caveman: skipped — MTPLX not supported by caveman" >&2
     exit 1
     ;;
   *)
-    if [ ! -t 0 ]; then cat > /dev/null; fi  # drain stdin when piped
+    if [ ! -t 0 ]; then cat > /dev/null; fi
     echo "caveman: unknown provider '$PROVIDER' (valid: lms, ollama, omlx)" >&2
     exit 1
     ;;
 esac
 
-CAVEMAN_ARGS=(--provider "$PROVIDER" --model "$MODEL_ID")
+# Prefix the model ID with the provider name if not already prefixed.
+if [[ "$MODEL_ID" =~ ^(lms|ollama|omlx)/ ]]; then
+  PREFIXED_MODEL_ID="$MODEL_ID"
+else
+  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+fi
+
+# Caveman uses OpenAI-compatible routing via configuration.
+# Point it to the litellm proxy which handles per-runtime routing.
+CAVEMAN_ARGS=(
+  --api-key "${LITELLM_MASTER_KEY:-litellm}"
+  --api-base "$LITELLM_BASE_URL"
+  --model "$PREFIXED_MODEL_ID"
+)
 
 if [ ! -t 0 ]; then
   exec caveman "${CAVEMAN_ARGS[@]}" --print "$(cat)"

@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Adapter: cline -> unified endpoint via provider routing.
-# Routes to different local runtimes (lms, ollama, mlx, omlx) by configuring
-# cline's provider at runtime via the `cline auth` command.
+# Adapter: cline -> unified endpoint via LiteLLM proxy.
+# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
+# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
 #
-# Adapter accepts --provider to select which backend to target:
-#   --provider lms        # route to LM Studio (openai-compatible)
-#   --provider ollama     # route to Ollama (built-in provider)
-#   --provider omlx       # route to oMLX (openai-compatible)
-#   --provider mlx        # route to mlx_lm.server (openai-compatible)
+# The proxy must be running: bin/litellm-proxy start
+# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
+#
+# Adapter accepts --provider to override which backend to target:
+#   --provider lms        # route to LM Studio (default if lms/ prefix)
+#   --provider ollama     # route to Ollama
+#   --provider omlx       # route to oMLX
+#   --provider mlx        # route to mlx_lm.server
+#   --provider mtplx      # route to MTPLX
 #
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 #
@@ -44,54 +48,25 @@ else
   CLINE=cline
 fi
 
-# Configure provider-specific auth and data directory
-case "$PROVIDER" in
-  lms)
-    DATA_DIR="$HOME/.cline-lms-adapter"
-    "$CLINE" auth openai-compatible \
-      --data-dir "$DATA_DIR" \
-      --apikey  "$LMS_API_KEY" \
-      --modelid "$MODEL_ID" \
-      --baseurl "$LMS_BASE_URL" >/dev/null 2>&1
-    CLINE_PROVIDER="openai-compatible"
-    ;;
-  ollama)
-    DATA_DIR="$HOME/.cline-ollama-adapter"
-    "$CLINE" auth ollama \
-      --data-dir "$DATA_DIR" \
-      --apikey  "ollama" \
-      --modelid "$MODEL_ID" >/dev/null 2>&1
-    CLINE_PROVIDER="ollama"
-    ;;
-  omlx)
-    DATA_DIR="$HOME/.cline-omlx-adapter"
-    "$CLINE" auth openai \
-      --data-dir "$DATA_DIR" \
-      --apikey  "$OMLX_API_KEY" \
-      --modelid "$MODEL_ID" \
-      --baseurl "$OMLX_BASE_URL" >/dev/null 2>&1
-    CLINE_PROVIDER="openai"
-    ;;
-  mlx)
-    DATA_DIR="$HOME/.cline-mlx-adapter"
-    "$CLINE" auth openai \
-      --data-dir "$DATA_DIR" \
-      --apikey  "mlx" \
-      --modelid "$MODEL_ID" \
-      --baseurl "http://localhost:8080/v1" >/dev/null 2>&1
-    CLINE_PROVIDER="openai"
-    ;;
-  *)
-    if [ ! -t 0 ]; then cat > /dev/null; fi  # drain stdin when piped
-    echo "cline: unknown provider '$PROVIDER' (valid: lms, ollama, omlx, mlx)" >&2
-    exit 1
-    ;;
-esac
+# Prefix the model ID with the provider name if not already prefixed.
+if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+  PREFIXED_MODEL_ID="$MODEL_ID"
+else
+  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+fi
+
+# Configure cline to use the litellm proxy for all backends
+DATA_DIR="$HOME/.cline-litellm-adapter"
+"$CLINE" auth openai-compatible \
+  --data-dir "$DATA_DIR" \
+  --apikey  "${LITELLM_MASTER_KEY:-litellm}" \
+  --modelid "$PREFIXED_MODEL_ID" \
+  --baseurl "$LITELLM_BASE_URL" >/dev/null 2>&1
 
 CLINE_ARGS=(
   --data-dir "$DATA_DIR"
-  -P "$CLINE_PROVIDER"
-  --model "$MODEL_ID"
+  -P "openai-compatible"
+  --model "$PREFIXED_MODEL_ID"
 )
 
 if [ ! -t 0 ]; then
