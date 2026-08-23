@@ -63,11 +63,11 @@ cmd_ollama_modelfile() {
 
 cmd_all() {
   info "Building all packages..."
-  cmd_llmrun
+  cmd_llmrun "$@"
   echo ""
-  cmd_onboarding
+  cmd_onboarding "$@"
   echo ""
-  cmd_ollama_modelfile
+  cmd_ollama_modelfile "$@"
   echo ""
   help_next_steps_section \
     "Verify builds|ls bin/llmrun* onboard-*.zip" \
