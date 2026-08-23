@@ -100,7 +100,7 @@ done
 IFS=',' read -ra _ag <<< "$ALL_AGENTS"
 for a in "${_ag[@]}"; do
   a="$(printf '%s' "$a" | xargs)"
-  for f in "$HERE"/adapters/"$a"-*.sh "$HERE"/adapters/"$a"-*.json; do
+  for f in "$HERE"/adapters/"$a".sh "$HERE"/adapters/"$a"-*.sh "$HERE"/adapters/"$a"-*.json; do
     [ -e "$f" ] || continue
     _copy "adapters/$(basename "$f")"
   done
