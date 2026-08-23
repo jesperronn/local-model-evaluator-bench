@@ -19,7 +19,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
@@ -49,10 +49,36 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
+# Map our provider names to hermes provider names. Hermes supports built-in
+# providers for lmstudio, ollama, etc. For other runtimes, we'd need custom config.
+# Hermes doesn't natively support omlx/mlx/mtplx, but can use custom OpenAI endpoint.
+HERMES_PROVIDER="lmstudio"
+HERMES_MODEL="$PREFIXED_MODEL_ID"
+
+case "$PROVIDER" in
+  lms)
+    HERMES_PROVIDER="lmstudio"
+    # Strip lms/ prefix for lmstudio provider
+    HERMES_MODEL="${PREFIXED_MODEL_ID#lms/}"
+    ;;
+  ollama)
+    HERMES_PROVIDER="ollama"
+    # Strip ollama/ prefix for ollama provider
+    HERMES_MODEL="${PREFIXED_MODEL_ID#ollama/}"
+    ;;
+  omlx|mlx|mtplx)
+    # These runtimes aren't directly supported by hermes.
+    # Use openai provider with litellm proxy endpoint if available.
+    # Fall back to lmstudio (known limitation until hermes adds custom provider support).
+    HERMES_PROVIDER="lmstudio"
+    HERMES_MODEL="${PREFIXED_MODEL_ID#${PROVIDER}/}"
+    ;;
+esac
+
 # -t file,terminal: both toolsets work together since v0.17.0 (the tool-name
 # conflict present in v0.16.0 is fixed). Enables write_file, patch, read_file,
 # search_files, process, AND direct shell execution via terminal.
-HERMES_ARGS=(--provider lmstudio -m "$PREFIXED_MODEL_ID" -t file,terminal)
+HERMES_ARGS=(--provider "$HERMES_PROVIDER" -m "$HERMES_MODEL" -t file,terminal)
 
 if [ ! -t 0 ]; then
   # Interactive approval mode: the smart guardian will ask for confirmations
