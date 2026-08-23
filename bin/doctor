@@ -96,6 +96,22 @@ if [ -x "${OMLX_CLI:-/Applications/oMLX.app/Contents/MacOS/omlx-cli}" ]; then
   fi
 fi
 
+# mtplx runtime — optional like the other non-lms runtimes
+if [ -n "${MTPLX_BASE_URL:-}" ]; then
+  echo
+  info "mtplx runtime:"
+  if runtime_models "$MTPLX_BASE_URL" >/dev/null 2>&1; then
+    _mtplx_count="$(runtime_models "$MTPLX_BASE_URL" | wc -l | tr -d ' ')"
+    if [ "$_mtplx_count" -gt 0 ]; then
+      ok "reachable at $MTPLX_BASE_URL — $_mtplx_count models served"
+    else
+      warn "reachable but no models available"
+    fi
+  else
+    warn "not reachable at $MTPLX_BASE_URL — start it or check configuration"
+  fi
+fi
+
 # Optional component: only report on it when it's actually running, since the
 # default setup has adapters talking to the runtimes directly.
 if curl -fsS -m 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
@@ -106,7 +122,7 @@ if curl -fsS -m 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; th
   # each backend, so a route with zero models means that runtime is down.
   _ll_models="$(curl -fsS -m 10 "$LITELLM_BASE_URL/models" 2>/dev/null | jq -r '.data[].id' 2>/dev/null | grep -v '/\*$')"
   if [ -n "$_ll_models" ]; then
-    for _rt in lms ollama mlx omlx; do
+    for _rt in lms ollama mlx omlx mtplx; do
       _n="$(printf '%s\n' "$_ll_models" | grep -c "^$_rt/" || true)"
       if [ "$_n" -gt 0 ]; then ok "  $_rt/ — $_n models"; else info "  $_rt/ — backend down (0 models)"; fi
     done
