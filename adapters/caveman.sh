@@ -18,7 +18,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
@@ -67,11 +67,17 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# Caveman uses OpenAI-compatible routing via configuration.
-# Point it to the litellm proxy which handles per-runtime routing.
+# Caveman doesn't support --api-base via CLI, so configure via environment variables
+# that caveman may use for OpenAI-compatible endpoints.
+export CAVEMAN_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export CAVEMAN_API_BASE="$LITELLM_BASE_URL"
+export CAVEMAN_MODEL="$PREFIXED_MODEL_ID"
+
+# Also set standard OpenAI env vars in case caveman uses those
+export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export OPENAI_API_BASE="$LITELLM_BASE_URL"
+
 CAVEMAN_ARGS=(
-  --api-key "${LITELLM_MASTER_KEY:-litellm}"
-  --api-base "$LITELLM_BASE_URL"
   --model "$PREFIXED_MODEL_ID"
 )
 
