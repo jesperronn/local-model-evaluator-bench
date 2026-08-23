@@ -19,7 +19,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
@@ -38,6 +38,26 @@ command -v pi >/dev/null 2>&1 || {
   echo "pi not found; install: npm install -g @earendil-works/pi-coding-agent" >&2
   exit 1
 }
+
+# Ensure litellm provider is configured in pi's models.json
+PI_LIVE_CFG="$HOME/.pi/agent/models.json"
+if [ ! -f "$PI_LIVE_CFG" ] || ! jq -e '.providers.litellm' "$PI_LIVE_CFG" >/dev/null 2>&1; then
+  mkdir -p "$(dirname "$PI_LIVE_CFG")"
+  # Merge litellm provider into existing config or create new one
+  if [ -f "$PI_LIVE_CFG" ]; then
+    jq '.providers.litellm = {
+      "baseUrl": "http://127.0.0.1:4444/v1",
+      "api": "openai-completions",
+      "apiKey": "litellm",
+      "models": [
+        {"id": "lms/qwen2.5-coder-7b"},
+        {"id": "ollama/gemma4-claude:latest"},
+        {"id": "omlx/Qwen3.6-35B-A3B-MLX-4bit"},
+        {"id": "omlx/Ornith-1.0-35B-4bit"}
+      ]
+    }' "$PI_LIVE_CFG" > "$PI_LIVE_CFG.tmp" && mv "$PI_LIVE_CFG.tmp" "$PI_LIVE_CFG"
+  fi
+fi
 
 # Reapply the qwen3-coder edit-tool XML-recovery shim if missing (idempotent,
 # fast no-op when already patched). pi is a global npm install, so the patch is

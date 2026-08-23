@@ -20,7 +20,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
@@ -43,30 +43,35 @@ command -v gptme >/dev/null 2>&1 || {
 # Prefix the model ID with the provider name if not already prefixed.
 # This allows both "lms/model-id" and separate --provider flag to work.
 if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx)/ ]]; then
-  # Already has a provider prefix, use as-is
-  PREFIXED_MODEL_ID="$MODEL_ID"
+  # Strip the provider prefix and use just the model name
+  # gptme will use OPENAI_BASE_URL (pointing to litellm) for the actual model routing
+  MODEL_NAME="${MODEL_ID#*/}"
 else
-  # Add the provider prefix based on --provider flag
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  # No prefix, use model ID as-is
+  MODEL_NAME="$MODEL_ID"
 fi
 
+# gptme expects format: openai/model-name (it will use OPENAI_BASE_URL for the endpoint)
+GPTME_MODEL="openai/${MODEL_NAME}"
+
 export OPENAI_BASE_URL="$LITELLM_BASE_URL"
-export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-default}"
+export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
 
 # gptme requires the Python bin to be on PATH
 export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"
 
 # --no-confirm: skip interactive approval prompts in headless mode.
 # --workspace .: tells gptme the project root is CWD.
+# gptme uses "openai" provider by default when OPENAI_* env vars are set.
 if [ ! -t 0 ]; then
   exec gptme \
-    --model "openai/${PREFIXED_MODEL_ID}" \
+    --model "${GPTME_MODEL}" \
     --workspace "$(pwd)" \
     --no-confirm \
     "$(cat)"
 else
   exec gptme \
-    --model "openai/${PREFIXED_MODEL_ID}" \
+    --model "${GPTME_MODEL}" \
     --workspace "$(pwd)" \
     "$@"
 fi

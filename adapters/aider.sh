@@ -20,7 +20,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 declare -a REMAINING_ARGS=()
 while [[ $# -gt 0 ]]; do
@@ -66,7 +66,7 @@ EOF
 fi
 
 AIDER_ARGS=(
-  --model "openai/${PREFIXED_MODEL_ID}"
+  --model "${PREFIXED_MODEL_ID}"
   --openai-api-base "$LITELLM_BASE_URL"
   --openai-api-key "${LITELLM_MASTER_KEY:-litellm}"
   --no-check-update --no-show-model-warnings --no-gitignore
@@ -85,4 +85,12 @@ if [ "$INTERACTIVE" != 1 ]; then
     2>/dev/null | sort)
 fi
 
-exec aider "${AIDER_ARGS[@]}" "${FILES[@]}" "${REMAINING_ARGS[@]}"
+# For batch mode with many files, limit to avoid argument overflow
+# aider can work without explicit file list for one-shot prompts
+if [ "$INTERACTIVE" != 1 ]; then
+  # Batch mode: skip files (message is piped, context is minimal)
+  exec aider "${AIDER_ARGS[@]}" "${REMAINING_ARGS[@]}"
+else
+  # Interactive mode: provide all files for context
+  exec aider "${AIDER_ARGS[@]}" "${FILES[@]}" "${REMAINING_ARGS[@]}"
+fi

@@ -19,7 +19,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
@@ -59,11 +59,11 @@ if [ ! -t 0 ]; then
   # agent.mode defaults to "confirm" (interactive per-step approval), which
   # hangs forever with stdin piped. yolo runs unattended.
   exec mini-swe-agent \
-    --model "openai/${PREFIXED_MODEL_ID}" \
+    --model "${PREFIXED_MODEL_ID}" \
     -c mini.yaml -c agent.mode=yolo \
     --exit-immediately \
     --task "$TASK"
 else
   exec mini-swe-agent \
-    --model "openai/${PREFIXED_MODEL_ID}"
+    --model "${PREFIXED_MODEL_ID}"
 fi

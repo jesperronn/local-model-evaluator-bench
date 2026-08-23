@@ -23,7 +23,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
@@ -62,9 +62,9 @@ schema: v1
 models:
   - name: litellm-model
     provider: openai
-    model: ${PREFIXED_MODEL_ID}
-    apiBase: ${LITELLM_BASE_URL}
-    apiKey: ${LITELLM_API_KEY}
+    model: "${PREFIXED_MODEL_ID}"
+    apiBase: "${LITELLM_BASE_URL}"
+    apiKey: "${LITELLM_MASTER_KEY}"
     roles:
       - chat
       - edit

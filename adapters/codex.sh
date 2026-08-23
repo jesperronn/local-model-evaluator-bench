@@ -25,7 +25,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
@@ -52,7 +52,7 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-export LITELLM_API_KEY  # codex reads the key from this env var (see -c env_key).
+export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"  # codex reads the key from this env var (see -c env_key).
 
 CODEX_COMMON=(
   -c model="$PREFIXED_MODEL_ID"
