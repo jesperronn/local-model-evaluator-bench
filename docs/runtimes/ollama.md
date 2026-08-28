@@ -35,10 +35,18 @@ ollama pull qwen:35b-mlx
 | **Accuracy impact vs baseline** | mild drop — no adapter hit a perfect 100% on qwen3.6-35b-a3b (best: interpreter 100%, others 85–95%) |
 | **Speed vs baseline** | 1.4×–2.6× slower than lms per case (models stay resident, but per-case latency is higher) |
 | **Best model class** | MoE with matched MLX quantization, e.g. `qwen3.6:35b-mlx` |
-| **Recommended for** | keeping a model warm across many trials without per-run load cost; NOT for latency-sensitive single-shot use |
-| **Status** | secondary |
+| **Recommended for** | ⚠️ NOT RECOMMENDED — tool calling is unreliable; use oMLX or llama.cpp instead |
+| **Status** | ⚠️ not recommended |
 
-> Rule: when two runtimes have equal accuracy, prefer the faster one. Speed must always be filled.
+> **Why:** Ollama's vendored backend has broken tool calling and structured output support. Qwen models specifically show "problems with tool calls and garbage responses that only happen with Ollama." oMLX outperforms it (1.8× faster, better accuracy) and uses a stable llama.cpp foundation.
+
+## ⚠️ Known issues
+
+**Tool calling failures:** Ollama's custom vendored backend has known problems with tool call handling and structured output. Qwen and other models exhibit "garbage responses" when using tool calls that don't occur on llama.cpp or oMLX runtimes.
+
+**Performance regression:** Ollama is ~1.8× slower than llama.cpp on identical hardware and models due to backend regresssions.
+
+**Recommendation:** Use **oMLX** or direct **llama.cpp** instead. Both have better accuracy, faster performance, and stable tool calling support.
 
 ## Metadata
 
@@ -97,6 +105,4 @@ among adapters that clear 80%+.
 
 ## Status
 
-**secondary** — use when you need many repeated trials against one model
-without reload cost, or specifically want to validate MLX-repackaged Ollama
-tags. For single-shot latency or best accuracy, prefer lms.
+**⚠️ Not recommended** — Ollama's tool calling is broken and its performance lags both oMLX and llama.cpp. Use oMLX instead for the same MLX-optimized performance without the tool-calling regressions.
