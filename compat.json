@@ -1308,5 +1308,55 @@
     "resolved_date": "2026-08-15",
     "resolved_run_id": "20260815-152710",
     "resolved_agent_version": "0.84.2"
+  },
+  "caveman:Qwen3.6-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "caveman",
+    "model": "Qwen3.6-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-23",
+    "run_id": "20260823-231723",
+    "symptom": "Error: Unknown option: --api-base",
+    "status": "open"
+  },
+  "claude:Qwen3.6-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "claude",
+    "model": "Qwen3.6-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-23",
+    "run_id": "20260823-231735",
+    "symptom": "API Error: 400 litellm.BadRequestError: You passed in model=openai/lms/Qwen3.6-35B-A3B-MLX-4bit. There are no healthy de",
+    "status": "open"
+  },
+  "cn:Qwen3.6-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "cn",
+    "model": "Qwen3.6-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-23",
+    "run_id": "20260823-231747",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "codex:Qwen3.6-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "codex",
+    "model": "Qwen3.6-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "codex-cli 0.149.0",
+    "first_seen": "2026-08-23",
+    "run_id": "20260823-231758",
+    "symptom": "2026-08-23T21:17:59.547427Z ERROR codex_models_manager::manager: failed to refresh available models: Missing environment",
+    "status": "open"
+  },
+  "copilot:Qwen3.6-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "copilot",
+    "model": "Qwen3.6-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-23",
+    "run_id": "20260823-231808",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
   }
 }

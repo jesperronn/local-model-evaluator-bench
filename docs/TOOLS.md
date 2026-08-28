@@ -71,7 +71,7 @@ See [WORKFLOW.md](WORKFLOW.md) for detailed usage patterns and best practices.
 
 **Generate standalone packages**
 
-- `bin/build [llmrun|onboarding|ollama-modelfile|all]` — Build distributable packages (consolidates build-llmrun, build-onboarding, setup-ollama-modelfile)
+- `bin/build [llmrun|onboarding|all]` — Build distributable packages (consolidates build-llmrun, build-onboarding)
   - `bin/build llmrun` — Generate standalone launcher
   - `bin/build onboarding` — Generate setup kit for new machines
 

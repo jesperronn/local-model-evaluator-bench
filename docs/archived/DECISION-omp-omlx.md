@@ -20,11 +20,11 @@ This occurs when using --ignore-scripts during installation, or when using a
 package manager like pnpm that does not run postinstall scripts by default.
 ```
 
-`omp`'s CLI (`~/.npm-global/lib/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js`)
-requires the `bun` runtime, whose own postinstall never ran. This is a broken
-global install, not an omlx routing problem — it would block omp on every
+`omp`'s CLI (installed via npm to `~/.npm-global/lib/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js`)
+requires the `bun` runtime, whose own postinstall may not run. This is a broken
+global npm install, not an omlx routing problem — it would block omp on every
 runtime (lms/ollama/mlx/omlx alike), and `adapters/omp-ollama.sh` is presumably
-equally broken right now.
+equally broken. Note: `brew install omp` avoids this postinstall issue entirely.
 
 Deferred rather than worked around: fixing a broken `bun` install is outside
 the scope of "add omlx routes to existing agents" and risks masking the actual

@@ -104,9 +104,7 @@ Configure shai? (y/n) [y]: n
 Top models available:
   → ollama/phi4:latest
   → ollama/qwen3.5:9b
-  → ollama/qwen2.5-coder-7b:latest
   → ollama/gemma4:12b-mlx
-  → ollama/gemma4-claude:latest
 
 Select primary model (press Enter for default, or enter custom): 
 
@@ -117,7 +115,7 @@ Select primary model (press Enter for default, or enter custom):
 Top models available:
   → ollama/phi4:latest
   → ollama/qwen3.5:9b
-  → ollama/qwen2.5-coder-7b:latest
+  → ollama/gemma4:12b-mlx
 
 Select primary model (press Enter for default, or enter custom): -m qwen3.5:9b
 

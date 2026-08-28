@@ -6,7 +6,7 @@
 |-------|-------|
 | **Tool name** | omp (oh-my-pi) — a pi fork, distinct tool despite the similar name (see [pi.md](pi.md)) |
 | **CLI command** | `omp` |
-| **npm package** | `@oh-my-pi/pi-coding-agent` |
+| **Installation** | `brew install omp` (or npm: `npm install -g @oh-my-pi/pi-coding-agent`) |
 | **Upstream** | [github.com/can1357/oh-my-pi](https://github.com/can1357/oh-my-pi) |
 | **Adapter scripts** | [`adapters/omp-ollama.sh`](../../adapters/omp-ollama.sh), [`adapters/omp-omlx.sh`](../../adapters/omp-omlx.sh) |
 | **How it connects (ollama)** | `--model "$MODEL_ID"` — omp auto-registers Ollama as a local provider and resolves the model directly. |
@@ -34,7 +34,7 @@ Not yet evaluated in this bench.
 
 ## Known issues
 
-**`omp --help` fails with `Error: Bun's postinstall script was not run`.** omp's CLI requires the `bun` runtime, and a global npm install (or installs via `--ignore-scripts` / package managers like pnpm that skip postinstall by default) can leave bun's own postinstall unrun. Fix by running it manually:
+**`omp --help` fails with `Error: Bun's postinstall script was not run`.** This can occur with npm installations when the `bun` runtime's postinstall script doesn't run (e.g., with `--ignore-scripts` or package managers like pnpm). The brew installation handles this automatically. For npm installs, run the bun postinstall manually:
 
 ```bash
 node "$(npm root -g)/@oh-my-pi/pi-coding-agent/node_modules/bun/install.js"

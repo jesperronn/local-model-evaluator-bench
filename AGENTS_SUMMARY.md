@@ -68,8 +68,7 @@ echo "Write a hello world in Python" | shai agent ollama
 
 **Installation:**
 ```bash
-npm install -g @oh-my-pi/pi-coding-agent
-bun install -g bun  # dependency
+brew install omp
 ```
 
 **Configuration:**

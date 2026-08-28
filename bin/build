@@ -23,7 +23,6 @@ show_help() {
   help_section "SUBCOMMANDS"
   help_command "llmrun"  "Generate standalone llmrun launcher binary"
   help_command "onboarding"  "Generate curated onboarding kit"
-  help_command "ollama-modelfile"  "Build custom Ollama Modelfile"
   help_command "all"     "Build everything"
 
   help_section "EXAMPLES"
@@ -52,22 +51,12 @@ cmd_onboarding() {
   fi
 }
 
-cmd_ollama_modelfile() {
-  info "Building Ollama Modelfile..."
-  if [ -x "$HERE/bin/setup-ollama-modelfile" ]; then
-    "$HERE/bin/setup-ollama-modelfile" "$@"
-  else
-    die "bin/setup-ollama-modelfile not found"
-  fi
-}
 
 cmd_all() {
   info "Building all packages..."
   cmd_llmrun "$@"
   echo ""
   cmd_onboarding "$@"
-  echo ""
-  cmd_ollama_modelfile "$@"
   echo ""
   help_next_steps_section \
     "Verify builds|ls bin/llmrun* onboard-*.zip" \
@@ -86,7 +75,6 @@ shift
 case "$SUBCOMMAND" in
   llmrun)        cmd_llmrun "$@" ;;
   onboarding)    cmd_onboarding "$@" ;;
-  ollama-modelfile) cmd_ollama_modelfile "$@" ;;
   all)           cmd_all "$@" ;;
   *)             die "unknown subcommand: $SUBCOMMAND" ;;
 esac

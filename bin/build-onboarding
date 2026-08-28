@@ -48,7 +48,7 @@ done
 # onboarding verify step) runs its cases through bin/bench.
 KEEP_BIN=(
   setup doctor smoke bench report agents-config hwprofile bootstrap-machine
-  tool-call-proxy setup-ollama-modelfile verify-model-availability
+  tool-call-proxy verify-model-availability
   recover-lms lms_update rt
 )
 # report is kept because bin/bench calls it on completion (and bin/smoke runs
@@ -116,11 +116,10 @@ for g in "${_case_globs[@]}"; do
   done
 done
 
-# config + templates + data files agents-config/smoke/bench need
+# config + data files agents-config/smoke/bench need
 for f in config.sh compat.json profile.json models-aliases.conf; do
   _copy "$f"
 done
-_copy "config-templates"
 
 # docs: onboarding path + setup + hardware + runtimes + kept tool cards
 for d in ONBOARDING.md SETUP.md HARDWARE-RECOMMENDATIONS.md CASES.md \

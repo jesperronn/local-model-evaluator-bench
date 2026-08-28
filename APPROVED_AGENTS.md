@@ -15,7 +15,7 @@
 
 **Details:**
 - Version: 16.3.6
-- Installation: npm global (`npm install -g @oh-my-pi/pi-coding-agent`)
+- Installation: `brew install omp`
 - License: MIT
 - Repository: https://github.com/can1357/oh-my-pi
 

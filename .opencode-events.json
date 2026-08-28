@@ -1,1 +1,1 @@
-{"type":"error","timestamp":1786432130714,"sessionID":"ses_01058f2d7ffe7bHGbuPixCnLtN","error":{"name":"UnknownError","data":{"message":"Unexpected server error. Check server logs for details.","ref":"err_4694a835"}}}
+{"type":"step_start","timestamp":1787522519169,"sessionID":"ses_fcf5af796ffe2GBm2aLMlpITaF","part":{"id":"prt_030a5107d001EDqSld9uwJwgWY","messageID":"msg_030a50a4b001HpVL4ElOnrO1uf","sessionID":"ses_fcf5af796ffe2GBm2aLMlpITaF","snapshot":"2eff346846f83ddec6d523b833fc7266474ef3ee","type":"step-start"}}
