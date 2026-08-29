@@ -1,7 +1,7 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-08-29 18:23
+**Generated:** 2026-08-29 18:28
 
 ## Models to Avoid
 
@@ -29,7 +29,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| omlx | 969/1288 | 75.2% | 110.1 |
+| omlx | 1007/1326 | 75.9% | 108.3 |
 | lms | 4291/6114 | 70.2% | 94.1 |
 | ollama | 2063/3189 | 64.7% | 98.8 |
 | mlx | 374/654 | 57.2% | 61.4 |
@@ -50,7 +50,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | omlx | omp | Qwen3.8-27B-4bit | 6/6 | 100.0% | 75.7 | 1 |
 | omlx | omp | Qwen3.8-27B | 6/6 | 100.0% | 124.7 | 1 |
 | omlx | omp | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 26.0 | 1 |
-| omlx | nanocoder | Ornith-1.5-35B-A3B-MLX-4bit | 6/6 | 100.0% | 15.0 | 1 |
+| omlx | nanocoder | Ornith-1.5-35B-A3B-MLX-4bit | 44/44 | 100.0% | 21.1 | 1 |
 | omlx | nanocoder | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 8.7 | 1 |
 | omlx | mini-swe-agent | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 44.7 | 1 |
 | omlx | hermes | Ornith-1.5-35B-A3B-MLX-4bit | 44/44 | 100.0% | 115.0 | 1 |
@@ -524,7 +524,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | omlx | Qwen3.8-27B-4bit-mlxc | 136/168 | 81.0% | 163.7 |
 | lms | qwen/qwen3.5-9b | 362/450 | 80.4% | 100.1 |
 | ollama | gpt-oss-20b | 64/80 | 80.0% | 58.9 |
-| omlx | Ornith-1.5-35B-A3B-MLX-4bit | 459/586 | 78.3% | 97.0 |
+| omlx | Ornith-1.5-35B-A3B-MLX-4bit | 497/624 | 79.6% | 93.5 |
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 124/160 | 77.5% | 106.2 |
 | ollama | qwen3.6:35b-a3b-coding-mxfp8 | 221/300 | 73.7% | 131.0 |
 | omlx | Qwen3.8-27B-4bit | 127/178 | 71.3% | 167.7 |
@@ -577,8 +577,8 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | qwen | 46/50 | 92.0% | 100.7 |
 | goose | 442/531 | 83.2% | 118.8 |
 | pi | 949/1155 | 82.2% | 81.8 |
+| nanocoder | 298/369 | 80.8% | 67.7 |
 | vibe | 35/44 | 79.5% | 122.7 |
-| nanocoder | 260/331 | 78.5% | 71.4 |
 | interpreter | 526/679 | 77.5% | 97.8 |
 | aider | 1014/1328 | 76.4% | 85.9 |
 | cline | 485/657 | 73.8% | 110.6 |

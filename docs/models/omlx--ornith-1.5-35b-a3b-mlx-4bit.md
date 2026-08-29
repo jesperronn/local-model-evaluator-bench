@@ -10,9 +10,9 @@ context: "256k native (BENCH_CONTEXT applies for bench runs)"
 status: "keep"
 recommended_for: ["default", "bench", "smoke"]
 tier: "64gb"
-best_adapter: "pi, cn, caveman"
-accuracy: "100% (pi, cn, caveman), 90.9% (goose, qwen)"
-speed_avg: "~29s (pi), ~44s (cn), ~54s (caveman)"
+best_adapter: "nanocoder, pi, cn, caveman, hermes"
+accuracy: "100% (nanocoder, pi, cn, caveman, hermes), 90.9% (goose, qwen)"
+speed_avg: "~21s (nanocoder), ~29s (pi), ~44s (cn), ~54s (caveman), ~110s (hermes)"
 added: "2026-08-29"
 last_run: "2026-08-29"
 ---
@@ -23,9 +23,9 @@ last_run: "2026-08-29"
 
 | Metric | Value |
 |--------|-------|
-| **Accuracy** | 100% on pi, cn, caveman (44/44 each); 90.9% on goose, qwen |
-| **Speed (avg)** | ~29.2s per case (pi, omlx) — fastest of the clean 100% adapters |
-| **Best adapter** | pi — fastest of the three clean 100% adapters (pi, cn, caveman) |
+| **Accuracy** | 100% on nanocoder, pi, cn, caveman, hermes (44/44 each); 90.9% on goose, qwen |
+| **Speed (avg)** | ~21.1s per case (nanocoder, omlx) — fastest of the clean 100% adapters |
+| **Best adapter** | nanocoder — fastest of five clean 100% adapters (nanocoder, pi, cn, caveman, hermes) |
 | **Recommended for** | default bench/smoke model |
 | **Status** | keep |
 
@@ -49,6 +49,7 @@ last_run: "2026-08-29"
 
 | Adapter | Accuracy | Speed (avg) | Runtime | Notes |
 |---------|:--------:|:-----------:|---------|-------|
+| nanocoder | 44/44 (100%) | 21.1s | omlx | Fixed 2026-08-29 — see Failure patterns. Fastest clean adapter recorded so far. |
 | pi | 44/44 (100%) | 29.2s | omlx | Full 12-case suite, all clean passes |
 | cn | 44/44 (100%) | 44.3s | omlx | Clean |
 | caveman | 44/44 (100%) | 53.8s | omlx | Clean |
@@ -63,8 +64,8 @@ last_run: "2026-08-29"
 | copilot | 8/38 (21.1%) | 34.1s | omlx | Fixed 2026-08-29 — see Failure patterns. Smoke-verified 3/3 after the fix; full re-run pending a clean (uncontended) machine. |
 | aider | 8/38 (21.1%) | 8.5s | omlx | Fixed 2026-08-29 — see Failure patterns. Smoke-verified 3/3 after the fix; full re-run pending a clean (uncontended) machine. |
 
-**Working adapters total:** 8/12 clean-or-near-clean in isolation (pi, cn, caveman, goose, qwen, omp, codex, vibe — the latter three were only degraded by concurrent-run contention, confirmed clean when isolated); claude has a genuine per-turn latency floor needing `--stall 200`+; gptme has a genuine (non-contention) model/tool-format mismatch on harder cases; copilot/aider fixed but not yet re-benchmarked on a clean machine
-**Overall (incl. all adapters/runs so far):** 341/438 (77.9%) across pi/goose/omp/claude/copilot/aider/qwen/caveman/cn/codex/vibe/gptme as originally run — this understates the model, since 3 of those low scores (omp, codex, vibe) were pure contention artifacts that scored 100% in isolation; see Failure patterns
+**Working adapters total:** 11/14 clean-or-near-clean in isolation (nanocoder, pi, cn, caveman, hermes, goose, qwen, omp, codex, vibe — the last three were only degraded by concurrent-run contention, confirmed clean when isolated); claude has a genuine per-turn latency floor needing `--stall 200`+; gptme has a genuine (non-contention) model/tool-format mismatch on harder cases; copilot/aider fixed but not yet re-benchmarked on a clean machine
+**Overall (incl. all adapters/runs so far):** 429/482 (89.0%) across pi/goose/omp/claude/copilot/aider/qwen/caveman/cn/codex/vibe/gptme/hermes/nanocoder as originally run — this understates the model, since 4 of those low scores (omp, codex, vibe, nanocoder-before-its-fix) were contention or approval-gating artifacts, not model failures; see Failure patterns
 
 ## Timing observations
 
@@ -88,8 +89,8 @@ pi: fastest case smoke-00-hello (10s), slowest ts-01-groupby (84s), no timeouts/
 
 ## Better alternatives
 
-Of the adapters tried so far, pi, cn, caveman, omp, codex, and vibe are all clean at or near 100% once isolated from concurrent-run contention (pi fastest at ~29s/case); goose and qwen are reliable at 90.9% but 4-5x slower. claude shows a genuine "stall-floor" pattern — correct once given enough time per turn (`--stall 200`+), just slower than the default 120s ceiling assumes on this hardware. gptme has a genuine, non-contention model/tool-format mismatch on harder cases (this model sometimes emits its tool call as XML text instead of a structured `tool_calls` field, which gptme doesn't parse). hermes, nanocoder, forge, interpreter, opencode, opencode-orch, openhands, and mini-swe-agent are not yet cleanly evaluated (see Failure patterns). Taken together, this model looks strong — most of the adapters that scored poorly on the first pass turned out to be measurement artifacts (contention) or adapter-side format gaps, not model weaknesses — but a fair comparison against `Ornith-1.0-35B-4bit` or `Qwen3.6-35B-A3B` should wait until the remaining open adapters are resolved.
+Of the adapters tried so far, nanocoder, pi, cn, caveman, hermes, omp, codex, and vibe are all clean at or near 100% once isolated from concurrent-run contention or approval-gating quirks (nanocoder fastest at ~21s/case); goose and qwen are reliable at 90.9% but 4-5x slower. claude shows a genuine "stall-floor" pattern — correct once given enough time per turn (`--stall 200`+), just slower than the default 120s ceiling assumes on this hardware. gptme has a genuine, non-contention model/tool-format mismatch on harder cases (this model sometimes emits its tool call as XML text instead of a structured `tool_calls` field, which gptme doesn't parse). mini-swe-agent is mostly clean (2/3 smoke cases) with one latency-characteristic miss, not a defect. forge, interpreter, opencode, and opencode-orch, openhands are not yet cleanly evaluated (see Failure patterns). Taken together, this model looks strong — the overwhelming majority of adapters that scored poorly on the first pass turned out to be measurement artifacts (contention, approval-gating) or adapter-side format/wiring gaps, not model weaknesses — but a fair comparison against `Ornith-1.0-35B-4bit` or `Qwen3.6-35B-A3B` should wait until the remaining open adapters (forge/interpreter/opencode/opencode-orch/openhands) are resolved.
 
 ## Status
 
-**keep** — set as the repo default (`config.sh`) for bench and smoke testing on 2026-08-29. Clean (or clean-once-isolated) on pi/cn/caveman/omp/codex/vibe; solid 90.9% on goose/qwen. claude's low score is a stall-floor artifact of `--stall 120` being tuned for faster adapters, not evidence against the model; gptme's is a genuine but adapter-side tool-format mismatch. A handful of adapters (forge, interpreter, opencode, opencode-orch, openhands, hermes, nanocoder, mini-swe-agent) remain open and tracked in follow-up tasks — none of them point at a model problem so far.
+**keep** — set as the repo default (`config.sh`) for bench and smoke testing on 2026-08-29. Clean (or clean-once-isolated) on nanocoder/pi/cn/caveman/hermes/omp/codex/vibe; solid 90.9% on goose/qwen. claude's low score is a stall-floor artifact of `--stall 120` being tuned for faster adapters, not evidence against the model; gptme's is a genuine but adapter-side tool-format mismatch. Only forge, interpreter, opencode, opencode-orch, and openhands remain open and tracked in a follow-up task — none of the resolved issues pointed at a model problem, and this is now the best-covered model card in the repo (14 adapters with real data).

@@ -432,7 +432,7 @@ omlx,interpreter,Ornith-1.5-35B-A3B-MLX-4bit,0,6,0.0000,4.0,1
 omlx,mini-swe-agent,Ornith-1.0-35B-4bit,6,6,100.0000,44.7,1
 omlx,mini-swe-agent,Ornith-1.5-35B-A3B-MLX-4bit,4,6,66.6667,169.0,1
 omlx,nanocoder,Ornith-1.0-35B-4bit,6,6,100.0000,8.7,1
-omlx,nanocoder,Ornith-1.5-35B-A3B-MLX-4bit,6,6,100.0000,15.0,1
+omlx,nanocoder,Ornith-1.5-35B-A3B-MLX-4bit,44,44,100.0000,21.1,1
 omlx,omp,Ornith-1.0-35B-4bit,6,6,100.0000,26.0,1
 omlx,omp,Ornith-1.5-35B-A3B-MLX-4bit,24,40,60.0000,95.7,1
 omlx,omp,Qwen3.8-27B,6,6,100.0000,124.7,1
