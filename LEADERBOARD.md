@@ -1,7 +1,7 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-08-29 13:11
+**Generated:** 2026-08-29 14:50
 
 ## Models to Avoid
 
@@ -29,8 +29,8 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| omlx | 554/746 | 74.3% | 115.4 |
 | lms | 4291/6114 | 70.2% | 94.1 |
+| omlx | 643/944 | 68.1% | 109.2 |
 | ollama | 2063/3189 | 64.7% | 98.8 |
 | mlx | 374/654 | 57.2% | 61.4 |
 | litellm-proxy | 0/2 | 0.0% | 15.0 |
@@ -170,6 +170,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | cline | google/gemma-4-26b-a4b | 35/38 | 92.1% | 181.9 | 1 |
 | ollama | omp | gemma4-claude | 31/34 | 91.2% | 241.1 | 1 |
 | ollama | aider | qwen3.6:35b-mlx | 31/34 | 91.2% | 72.5 | 1 |
+| omlx | goose | Ornith-1.5-35B-A3B-MLX-4bit | 40/44 | 90.9% | 134.4 | 1 |
 | omlx | caveman | Qwen3.8-27B-4bit-mlxc | 40/44 | 90.9% | 165.4 | 1 |
 | lms | pi | qwen/qwen3.5-9b | 40/44 | 90.9% | 111.4 | 1 |
 | lms | codex | qwen/qwen3.6-35b-a3b | 40/44 | 90.9% | 59.8 | 1 |
@@ -282,6 +283,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | interpreter | qwen/qwen2.5-coder-7b | 17/29 | 58.6% | 49.8 | 1 |
 | lms | codex | google/gemma-4-e4b-qat | 14/24 | 58.3% | 128.6 | 1 |
 | lms | caveman | google/gemma-4-e4b | 22/38 | 57.9% | 45.7 | 1 |
+| omlx | omp | Ornith-1.5-35B-A3B-MLX-4bit | 23/40 | 57.5% | 110.3 | 1 |
 | ollama | codex | gpt-oss:20b | 18/32 | 56.2% | 183.3 | 1 |
 | ollama | aider | qwen3.6:35b-a3b-coding-mxfp8 | 18/32 | 56.2% | 114.3 | 1 |
 | ollama | aider | gemma4:12b-mlx | 18/32 | 56.2% | 98.0 | 1 |
@@ -389,6 +391,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | ollama | hermes | qwen3.5-claude | 8/26 | 30.8% | 141.4 | 1 |
 | lms | copilot | ibm/granite-4.1-30b | 9/30 | 30.0% | 291.9 | 1 |
 | ollama | caveman | qwen3.5-claude | 6/22 | 27.3% | 122.4 | 1 |
+| omlx | claude | Ornith-1.5-35B-A3B-MLX-4bit | 10/38 | 26.3% | 126.8 | 1 |
 | lms | hermes | google/gemma-4-e4b | 8/32 | 25.0% | 11.1 | 1 |
 | lms | opencode | qwen2.5-coder-7b | 5/21 | 23.8% | 70.1 | 1 |
 | lms | copilot | qwen2.5-coder-7b | 5/21 | 23.8% | 66.0 | 1 |
@@ -397,6 +400,8 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | caveman | qwen/qwen3-coder-next | 9/38 | 23.7% | 2.1 | 1 |
 | lms | aider | microsoft/phi-4-mini | 7/30 | 23.3% | 30.9 | 1 |
 | lms | codex | microsoft/phi-4-mini | 7/32 | 21.9% | 394.6 | 1 |
+| omlx | copilot | Ornith-1.5-35B-A3B-MLX-4bit | 8/38 | 21.1% | 34.6 | 1 |
+| omlx | aider | Ornith-1.5-35B-A3B-MLX-4bit | 8/38 | 21.1% | 8.5 | 1 |
 | ollama | hermes | qwen3.5:9b | 1/5 | 20.0% | 190.5 | 1 |
 | lms | opencode | microsoft/phi-4-mini | 6/30 | 20.0% | 5.8 | 1 |
 | lms | hermes | microsoft/phi-4-mini | 6/30 | 20.0% | 96.6 | 1 |
@@ -484,7 +489,6 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | Runtime | Model | Pass | Pass% | Avg s |
 |---------|-------|------|-------|-------|
 | omlx | Qwen3.8-27B | 6/6 | 100.0% | 124.7 |
-| omlx | Ornith-1.5-35B-A3B-MLX-4bit | 44/44 | 100.0% | 29.2 |
 | omlx | Ornith-1.0-9B-4bit | 28/28 | 100.0% | 67.8 |
 | ollama | qwen3.8:27b-mtp-q4_K_M | 6/6 | 100.0% | 135.7 |
 | mlx | /Users/jesper/src/dotfiles/link-dir/.lmstudio/models/lmstudio-community/Qwen3.5-9B-MLX-4bit | 2/2 | 100.0% | 362.0 |
@@ -527,6 +531,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | lms | nvidia/nemotron-3-nano-omni | 39/66 | 59.1% | 30.7 |
 | lms | google/gemma-4-e4b-qat | 78/137 | 56.9% | 52.0 |
 | ollama | gemma4-12b-mlx | 34/60 | 56.7% | 74.6 |
+| omlx | Ornith-1.5-35B-A3B-MLX-4bit | 133/242 | 55.0% | 74.0 |
 | ollama | phi4 | 50/97 | 51.5% | 32.7 |
 | lms | qwen2.5-coder-7b | 94/183 | 51.4% | 46.6 |
 | lms | ibm/granite-4.1-30b | 89/175 | 50.9% | 310.6 |
@@ -558,20 +563,20 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | qwen | 6/6 | 100.0% | 29.7 |
 | opencode-orch | 12/12 | 100.0% | 133.5 |
 | cn | 64/72 | 88.9% | 20.3 |
-| goose | 402/487 | 82.5% | 117.6 |
+| goose | 442/531 | 83.2% | 118.8 |
 | pi | 949/1155 | 82.2% | 81.8 |
 | interpreter | 526/673 | 78.2% | 99.1 |
 | nanocoder | 254/325 | 78.2% | 72.9 |
 | gptme | 35/46 | 76.1% | 55.3 |
-| aider | 977/1288 | 75.9% | 87.0 |
+| aider | 985/1326 | 74.3% | 84.8 |
 | cline | 485/657 | 73.8% | 110.6 |
 | openhands | 344/512 | 67.2% | 109.2 |
-| omp | 190/284 | 66.9% | 166.9 |
+| omp | 213/324 | 65.7% | 160.7 |
 | opencode | 765/1166 | 65.6% | 76.9 |
 | hermes | 776/1197 | 64.8% | 106.8 |
 | codex | 536/924 | 58.0% | 111.5 |
 | caveman | 648/1153 | 56.2% | 64.0 |
-| claude | 60/119 | 50.4% | 163.7 |
+| claude | 70/157 | 44.6% | 155.2 |
 | mini-swe-agent | 6/14 | 42.9% | 97.6 |
-| copilot | 229/559 | 41.0% | 115.5 |
+| copilot | 237/597 | 39.7% | 110.9 |
 | forge | 12/50 | 24.0% | 8.6 |

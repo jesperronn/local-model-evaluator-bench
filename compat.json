@@ -1358,5 +1358,15 @@
     "run_id": "20260823-231808",
     "symptom": "MISS: hello.txt not created",
     "status": "open"
+  },
+  "copilot:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "copilot",
+    "model": "Ornith-1.5-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-29",
+    "run_id": "20260829-144813",
+    "symptom": "Failed to get response from the AI model; retried 5 times (total retry wait time: 29.70 seconds) Last error: 500 'async ",
+    "status": "open"
   }
 }
