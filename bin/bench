@@ -959,7 +959,9 @@ for model_alias in "${MODEL_ARR[@]}"; do
     lms)    lms_unload_model "$model";;
     ollama) info "unloading model: $model_alias"; ollama stop "$model" 2>/dev/null || true;;
     mlx)    ;;  # mlx_lm.server serves one model for its lifetime; restart to change models
-    omlx)   info "unloading model: $model_alias"; omlx_unload_model "$model" || true;;
+    omlx)   if [ "${BENCH_OMLX_UNLOAD:-0}" = "1" ]; then
+              info "unloading model: $model_alias"; omlx_unload_model "$model" || true
+            fi;;  # default: leave resident, oMLX self-manages via LRU (see config.sh)
     mtplx)  ;;  # no known unload endpoint yet; server manages its own memory
   esac
 done

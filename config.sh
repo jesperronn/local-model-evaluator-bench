@@ -25,6 +25,14 @@ export OMLX_API_KEY="${OMLX_API_KEY:-omlx}"
 # Directory oMLX discovers models from — used by bin/setup and bin/doctor to
 # report what is installed without going through the HTTP API.
 export OMLX_MODELS_DIR="${OMLX_MODELS_DIR:-$HOME/.omlx/models}"
+# Whether bin/bench force-unloads the model from oMLX after each (adapter x
+# model) sweep. Default 0: oMLX is a multi-model LRU server (bin/omlx status
+# shows model_memory_used vs model_memory_max) that evicts on its own under
+# memory pressure — leaving models resident lets you run other models
+# concurrently against the same server. Set to 1 to force an unload after
+# every model (guarantees each model's timings are measured cold, at the
+# cost of evicting anything else you had resident).
+export BENCH_OMLX_UNLOAD="${BENCH_OMLX_UNLOAD:-0}"
 
 # mlx_lm.server — one model per process, restart to switch (unlike oMLX/MTPLX,
 # which are multi-model). Default port is mlx_lm.server's own default.

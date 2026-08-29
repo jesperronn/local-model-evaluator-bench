@@ -12,6 +12,11 @@
 #   bin/omlx models      list served model ids (what --runtime omlx accepts)
 #   bin/omlx reload      rescan $OMLX_MODELS_DIR for newly added models
 #   bin/omlx unload ID   evict one model from memory
+#   bin/omlx gc          periodic health-check: unload resident models only if
+#                        memory usage crosses --threshold PCT (default 85).
+#                        Not called per-run by bin/bench (see BENCH_OMLX_UNLOAD
+#                        in config.sh) — oMLX's own LRU eviction handles the
+#                        common case; run this from cron for a periodic sweep.
 #   bin/omlx aider-metadata  regenerate adapters/aider-omlx-model-metadata.json
 #
 # This wraps the CLI inside oMLX.app rather than reimplementing it — the app and
@@ -35,19 +40,66 @@ cmd_status() {
     printf '%s %s\n' "${C_BLU}oMLX${C_RST}" "${C_DIM}down${C_RST} (start: bin/omlx start)"
     return 1
   fi
-  local st served loaded
+  local st served loaded used max pct
   st="$(curl -fsS --max-time 5 "$OMLX_HOST/api/status" 2>/dev/null)"
   served="$(omlx_models | wc -l | tr -d ' ')"
   loaded="$(omlx_loaded_models | paste -sd', ' - )"
-  printf '%s %s  %sv%s, %s models served, %s\n' \
+  used="$(printf '%s' "$st" | jq -r '.model_memory_used // 0')"
+  max="$(printf '%s' "$st" | jq -r '.model_memory_max // 0')"
+  pct="$(awk -v u="$used" -v m="$max" 'BEGIN{ if (m>0) printf "%.0f", (u/m)*100; else print 0 }')"
+  printf '%s %s  %sv%s, %s models served, %s (%s%%)\n' \
     "${C_BLU}oMLX${C_RST}" "${C_GRN}up${C_RST}" "${C_DIM}" \
     "$(printf '%s' "$st" | jq -r '.version // "?"')" "$served" \
-    "$(printf '%s' "$st" | jq -r '.model_memory_used_formatted // "0"') resident${C_RST}"
+    "$(printf '%s' "$st" | jq -r '.model_memory_used_formatted // "0"') resident${C_RST}" "$pct"
   if [ -n "$loaded" ]; then
     printf '  %sloaded:%s %s\n' "${C_DIM}" "${C_RST}" "$loaded"
   else
     printf '  %s(no model resident — oMLX loads on first request)%s\n' "${C_DIM}" "${C_RST}"
   fi
+}
+
+# Monitoring hook for a cron/manual health check, NOT a per-run cleanup —
+# bin/bench leaves models resident by default (BENCH_OMLX_UNLOAD=0, config.sh)
+# so oMLX's own LRU eviction (and other concurrent callers) can keep using
+# them. Call this occasionally (e.g. nightly) to reclaim memory only once
+# resident usage crosses a threshold, instead of unloading after every run.
+#
+# Caveat: /api/status exposes loaded_models but no per-model last-used
+# timestamp, so this can't single out the true LRU victim — it either checks
+# (--dry-run/no flag beyond status) or, over threshold, unloads EVERYTHING
+# resident. Fine for a periodic sweep; not a substitute for oMLX's own
+# request-time LRU eviction, which still handles the common case.
+cmd_gc() {
+  local threshold=85
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --threshold) threshold="$2"; shift 2;;
+      *) echo "usage: bin/omlx gc [--threshold PCT]" >&2; exit 2;;
+    esac
+  done
+  omlx_up || { echo "oMLX not reachable at $OMLX_BASE_URL" >&2; exit 1; }
+  local st used max pct loaded
+  st="$(curl -fsS --max-time 5 "$OMLX_HOST/api/status" 2>/dev/null)"
+  used="$(printf '%s' "$st" | jq -r '.model_memory_used // 0')"
+  max="$(printf '%s' "$st" | jq -r '.model_memory_max // 0')"
+  pct="$(awk -v u="$used" -v m="$max" 'BEGIN{ if (m>0) printf "%.0f", (u/m)*100; else print 0 }')"
+  loaded="$(omlx_loaded_models)"
+  echo "resident: ${pct}% (threshold ${threshold}%)"
+  if [ "$pct" -lt "$threshold" ]; then
+    echo "under threshold — nothing to do"
+    return 0
+  fi
+  if [ -z "$loaded" ]; then
+    echo "over threshold but no loaded_models reported — nothing to unload"
+    return 0
+  fi
+  echo "over threshold — unloading all resident models: $(echo "$loaded" | paste -sd', ' -)"
+  local m rc=0
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    omlx_unload_model "$m" && echo "unloaded: $m" || { echo "failed to unload: $m" >&2; rc=1; }
+  done <<< "$loaded"
+  return "$rc"
 }
 
 cmd_models() { omlx_up || { echo "oMLX not reachable at $OMLX_BASE_URL" >&2; exit 1; }; omlx_models; }
@@ -85,6 +137,7 @@ case "${1:-status}" in
     [ -n "${2:-}" ] || { echo "usage: bin/omlx unload <model-id>" >&2; exit 2; }
     omlx_unload_model "$2" && echo "unloaded: $2" || { echo "failed to unload: $2" >&2; exit 1; }
     ;;
+  gc) cmd_gc "${@:2}";;
   -h|--help|help) awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0";;
   *) echo "unknown command: $1 (see bin/omlx --help)" >&2; exit 2;;
 esac
