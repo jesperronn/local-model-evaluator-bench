@@ -45,8 +45,9 @@ No runs recorded yet.
 
 ## Capability notes
 
-- Cloud login is **optional** (`/login`/`/logout` are opt-in slash commands) — does *not* require a cloud account to run, unlike some harnesses excluded from this bench for that reason.
-- Ships local-inference providers (Ollama, llama.cpp, MLX) out of the box, which is why it's worth testing here rather than excluding it.
+- **Blocker: Interactive onboarding wizard required.** On first run, autohand forces an interactive wizard that requires you to select a provider and configure credentials, even for local providers. No `--skip-setup`, `--headless`, or non-interactive mode flags are documented. This makes it unsuitable for automated/non-interactive benchmark runs.
+- Cloud login is **optional** — can choose local provider (Ollama, llama.cpp, MLX) in the wizard rather than cloud providers.
+- Ships local-inference providers (Ollama, llama.cpp, MLX) natively, but the mandatory interactive setup remains a practical barrier.
 - Litellm-proxy interop is a guess based on it having an `openai` provider, not confirmed against this repo's `bin/litellm-proxy`.
 
 ## Adapter flags and their rationale
@@ -59,4 +60,4 @@ Not yet evaluated in this bench.
 
 ## Status
 
-**untested** — added to the harness list 2026-08-29 after confirming it (a) supports local model runtimes natively and (b) does not require cloud login, so it does not belong on the excluded/cloud-login-required list. No adapter script or benchmark runs exist yet.
+**Not suitable for this benchmark** — while autohand does ship native local model providers (Ollama, MLX) and does not strictly require cloud login, it blocks first-time use with a mandatory interactive onboarding wizard. No documented flags to skip/bypass this setup step exist. This makes it unsuitable for non-interactive, automated benchmark runs in a CI/headless environment. Moving to excluded list.

@@ -56,8 +56,8 @@ Not yet evaluated — no known blockers documented.
 
 ## Failure modes
 
-Not yet evaluated in this bench.
+**Stalls on slower local models (root-caused 2026-08-29, not a wiring bug):** on `Ornith-1.5-35B-A3B-MLX-4bit`/omlx, most trials hit `status=stall` at almost exactly the bench's default `--stall 120` ceiling. Isolated re-runs with `--stall 200` and no concurrent load passed cleanly (4/4 on `js-01-slugify-bug` in 59s), while harder/longer-context cases (`bash-01-topwords`, `deleg-01-validate-format-pipeline`, `ts-01-groupby`) still needed the full 200s budget. Claude Code's system prompt is heavier than other harnesses tested here (goose, omp), so on a slow local backend its per-turn latency crosses the default stall window sooner as task complexity/context grows. When benchmarking claude against a large or slow local model, raise `--stall` (200+) for a representative score — the default 120s is tuned for faster models/adapters.
 
 ## Status
 
-**experimental** — adapters exist for both lms and omlx backends but no benchmark runs are recorded yet.
+**experimental** — adapters exist for both lms and omlx backends. On `Ornith-1.5-35B-A3B-MLX-4bit`/omlx specifically, use `--stall 200` or higher (see Failure modes above).

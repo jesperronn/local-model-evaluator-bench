@@ -43,6 +43,19 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
+# aider bundles its own litellm client-side to parse --model before any network
+# call is made. It only recognizes litellm's built-in provider registry, so our
+# runtime prefixes (omlx/, mtplx/, ...) throw `LLM Provider NOT provided` before
+# --openai-api-base is ever consulted. litellm always recognizes "openai/" and,
+# for that provider, treats everything after the first slash as an opaque model
+# id it forwards verbatim — so wrapping the already-prefixed id in another
+# "openai/" layer satisfies aider's client-side check while still sending our
+# original runtime-prefixed id (e.g. "omlx/<model>") on the wire, which is what
+# config-templates/litellm.yaml's wildcard routes match on server-side.
+if [[ ! "$PREFIXED_MODEL_ID" =~ ^openai/ ]]; then
+  PREFIXED_MODEL_ID="openai/${PREFIXED_MODEL_ID}"
+fi
+
 # Interactive callers get a real aider REPL; batch callers pass the prompt on stdin.
 INTERACTIVE=0
 MESSAGE=""

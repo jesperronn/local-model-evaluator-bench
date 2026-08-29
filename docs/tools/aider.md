@@ -71,6 +71,8 @@ Despite this limitation, aider scores 5/5 on js-05 for Qwen3-Coder models and se
 
 ## Failure modes
 
+**Runtime-prefixed model ids on non-`lms` runtimes (fixed 2026-08-29):** aider bundles its own `litellm` client-side to parse `--model` before making any request, and it only recognizes litellm's built-in provider registry — passing `--model omlx/<id>` (or `mtplx/<id>`, etc.) threw `litellm.BadRequestError: LLM Provider NOT provided` before `--openai-api-base` was ever consulted. `adapters/aider.sh` now wraps the runtime-prefixed id in an extra `openai/` layer (`openai/omlx/<id>`) — litellm always recognizes `openai/` and forwards everything after the first slash verbatim, so the actual wire request still carries the runtime prefix for `config-templates/litellm.yaml`'s wildcard routes to match server-side. See [omlx--ornith-1.5-35b-a3b-mlx-4bit.md](../models/omlx--ornith-1.5-35b-a3b-mlx-4bit.md) for the repro.
+
 **No-edit / multi-file miss:** the most common aider failure. When no `--file` hint is passed, aider relies on the model to name files in its SEARCH/REPLACE blocks. For multi-file cases (js-03, js-04), the model often names only one file. The second file is never edited. This pattern appears on every model tested.
 
 **Format incompatibility on large Qwen / Gemma MoE models:** some models (notably qwen3.6-35b-a3b, qwen3-coder-30b for js-03/js-04, and gemma-4-26b-a4b-qat across most cases) produce output that aider can't parse — the model may prefix explanations before the SEARCH/REPLACE block or use a slightly different fence format. This causes aider to report no changes applied.
