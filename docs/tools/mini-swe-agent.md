@@ -84,3 +84,18 @@ test first:
 ```bash
 bin/smoke mini-swe-agent
 ```
+
+**2026-08-29 — slow, not hung, against `omlx/Ornith-1.5-35B-A3B-MLX-4bit`:** an
+earlier smoke run showed stalls/timeouts on all three cases (186s/302s/122s).
+Investigated as a possible litellm-proxy streaming hang (same class of bug
+seen in `copilot.sh`), but the proxy streams both plain and tool-call
+responses correctly in isolation (verified with curl). Re-running
+`bin/smoke --runtime omlx --model Ornith-1.5-35B-A3B-MLX-4bit --agent mini-swe-agent`
+gave 2/3 PASS: smoke-01-edit-file 245s (ok), smoke-02-numbers 165s (ok),
+smoke-00-hello errored at 97s because the model spent its turns exploring the
+repo (`cat`-ing unrelated scripts for context) rather than acting directly —
+genuine model/prompt-workflow behavior (mini.yaml's generic SWE-bench-style
+"analyze the codebase first" instructions), not an adapter or proxy bug. No
+code fix applied; this is a capability/latency characteristic of the
+model+workflow combination, worth watching for flakiness on the trivial
+smoke-00 case specifically.

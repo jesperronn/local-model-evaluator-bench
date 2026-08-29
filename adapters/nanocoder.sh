@@ -65,6 +65,16 @@ else
   PROMPT="Working directory: $(pwd)
 
 $(cat)"
+  # --mode yolo, not the "auto-accept" that `run` defaults to: auto-accept still
+  # gates execute_bash behind an interactive "Tool approval required" prompt
+  # (file-editing tools like write_file/string_replace are pre-approved, but a
+  # shell call is not). With stdin already consumed by the piped prompt there's
+  # nothing to answer that prompt with, so nanocoder sits waiting forever -- this
+  # is what the smoke-test watchdog was catching as a 120s stall (root cause was
+  # in nanocoder's own approval gating, not the LiteLLM proxy or the model).
+  # --mode yolo bypasses all such approval prompts, matching mini-swe-agent's
+  # agent.mode=yolo fix for the identical class of issue in
+  # adapters/mini-swe-agent.sh.
   exec env NANOCODER_PROVIDERS="${PROVIDER_JSON}" NANOCODER_TRUST_DIRECTORY=1 \
-    nanocoder run --provider "LiteLLM" --model "${PREFIXED_MODEL_ID}" "${PROMPT}" "$@"
+    nanocoder --mode yolo run --provider "LiteLLM" --model "${PREFIXED_MODEL_ID}" "${PROMPT}" "$@"
 fi

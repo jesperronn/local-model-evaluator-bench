@@ -76,6 +76,8 @@ hermes iterates naturally via its tool-call loop. With `--yolo` (used in bench m
 
 **stable** — 2026-06-29 overnight sweep confirms strong performance across all models except glm-4.7-flash (GGUF too slow, timeout floor).
 
+**2026-08-29 fix — omlx/mlx/mtplx routed to the wrong backend:** `adapters/hermes.sh` mapped every non-lms/ollama `--provider` (omlx, mlx, mtplx) to `HERMES_PROVIDER="lmstudio"`, silently pointing hermes at LM Studio's endpoint (127.0.0.1:1234) instead of the runtime actually under test. Against `omlx/Ornith-1.5-35B-A3B-MLX-4bit` this produced `API call failed after 3 retries: Connection error.` in ~25s (nothing listening/matching on LM Studio's port). Fixed by using hermes's own `custom:<provider>` provider entries in `~/.hermes/config.yaml` (`custom:omlx` → `http://127.0.0.1:8000/v1`, `custom:mlx` → `http://localhost:8080/v1`), which hit the runtime directly. mtplx has no custom entry yet and still falls back to lmstudio. Confirmed: `bin/smoke --runtime omlx --model Ornith-1.5-35B-A3B-MLX-4bit --agent hermes` → 3/3 PASS (100%, ~29-39s/case).
+
 ### Full benchmark results (2026-06-18, lms, run `20260618-213005`)
 
 | Case | Score | Time | Status |
