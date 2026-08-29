@@ -67,10 +67,14 @@ case "$PROVIDER" in
     HERMES_MODEL="${PREFIXED_MODEL_ID#ollama/}"
     ;;
   omlx|mlx|mtplx)
-    # These runtimes aren't directly supported by hermes.
-    # Use openai provider with litellm proxy endpoint if available.
-    # Fall back to lmstudio (known limitation until hermes adds custom provider support).
-    HERMES_PROVIDER="lmstudio"
+    # Hermes DOES support these as named custom providers (~/.hermes/config.yaml
+    # providers.<name>, addressed as "custom:<name>") — bin/agents-config
+    # provisions one per runtime alongside lmstudio/ollama. Corrected
+    # 2026-08-29: this used to force --provider lmstudio here, which silently
+    # routed every omlx/mlx/mtplx run at LM Studio instead (whatever model LMS
+    # had loaded, or a connection error if it wasn't running) rather than the
+    # runtime actually requested.
+    HERMES_PROVIDER="custom:${PROVIDER}"
     HERMES_MODEL="${PREFIXED_MODEL_ID#${PROVIDER}/}"
     ;;
 esac
