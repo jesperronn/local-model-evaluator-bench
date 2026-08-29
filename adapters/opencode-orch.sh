@@ -35,7 +35,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-lms}"
+PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
 # Parse --provider flag if passed
 while [[ $# -gt 0 ]]; do
