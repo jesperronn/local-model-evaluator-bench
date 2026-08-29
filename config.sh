@@ -96,13 +96,6 @@ export SMOKE_TTL="${SMOKE_TTL:-600}"
 export BENCH_TTL_MINUTES="${BENCH_TTL_MINUTES:-10}"
 export BENCH_CONTEXT="${BENCH_CONTEXT:-65536}"
 
-# Guardrails configuration — safety filters for model outputs. Disabled by default.
-export GUARDRAILS_ENABLED="${GUARDRAILS_ENABLED:-false}"         # false|true
-export GUARDRAILS_ENGINE="${GUARDRAILS_ENGINE:-}"                # runtime engine (e.g., guardrails-ai)
-export GUARDRAILS_ENTITIES="${GUARDRAILS_ENTITIES:-}"            # comma-separated entity types to filter
-export GUARDRAILS_MODE="${GUARDRAILS_MODE:-moderate}"            # filter strictness: lenient|moderate|strict
-export GUARDRAILS_SCORE_THRESHOLD="${GUARDRAILS_SCORE_THRESHOLD:-0.85}"  # min confidence to block (0.0–1.0)
-
 # Source common.sh to access hardware detection, but only if we haven't already
 # (avoids double-sourcing in scripts that source config.sh multiple times).
 if [ -z "${_COMMON_SH_LOADED:-}" ]; then

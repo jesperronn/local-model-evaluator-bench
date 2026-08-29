@@ -11,13 +11,9 @@
 #   bin/litellm-proxy start             start proxy + Postgres, detached
 #   bin/litellm-proxy stop              stop both containers (data persists)
 #   bin/litellm-proxy restart
-#   bin/litellm-proxy status            is it up, DB connected, per-route model counts, guardrails state
+#   bin/litellm-proxy status            is it up, DB connected, per-route model counts
 #   bin/litellm-proxy logs              follow proxy container logs (-f)
 #   bin/litellm-proxy models            list what the proxy currently resolves
-#   bin/litellm-proxy guardrails on     enable guardrails (presidio PII detection)
-#   bin/litellm-proxy guardrails off    disable guardrails
-#   bin/litellm-proxy guardrails status show current guardrails state
-#   bin/litellm-proxy guardrails config show full guardrails configuration
 #
 # Then route by prefixing the model id with the runtime:
 #   curl "$LITELLM_BASE_URL/chat/completions" -d '{"model":"lms/ornith-1.0-9b",...}'
@@ -142,6 +138,7 @@ cmd_start() {
     -e LITELLM_MTPLX_BASE="$(_host_url "${LITELLM_MTPLX_BASE:-$MTPLX_BASE_URL}")" \
     -e LITELLM_MTPLX_KEY="${LITELLM_MTPLX_KEY:-$MTPLX_API_KEY}" \
     -v "$CONFIG:/app/config.yaml:ro" \
+    -v "$HERE/config-templates/litellm-hooks:/app/hooks:ro" \
     "$LITELLM_IMAGE" \
     --config /app/config.yaml --port "$LITELLM_PORT" --host 0.0.0.0 >/dev/null
 
@@ -163,46 +160,12 @@ cmd_stop() {
   echo "litellm-proxy: stopped (data persists — bin/litellm-proxy start to resume)"
 }
 
-_get_guardrails_status() {
-  # Fetch guardrails state from the LiteLLM config endpoint
-  local auth=()
-  [ -n "$LITELLM_MASTER_KEY" ] && auth=(-H "Authorization: Bearer $LITELLM_MASTER_KEY")
-
-  local config_response
-  config_response="$(curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/admin/config" "${auth[@]}" 2>/dev/null || echo '{}')"
-
-  local guardrails
-  guardrails="$(echo "$config_response" | jq -r '.guardrails // []' 2>/dev/null)"
-
-  if [ "$guardrails" = "[]" ] || [ -z "$guardrails" ]; then
-    echo "off"
-  else
-    # Extract enabled guardrail(s) and their entities
-    local enabled_guardrails
-    enabled_guardrails="$(echo "$config_response" | jq -r '.guardrails[] | select(.default_on == true) | .guardrail_name' 2>/dev/null | head -1)"
-
-    if [ -z "$enabled_guardrails" ]; then
-      echo "off"
-    else
-      # Get entities for the enabled guardrail
-      local entities
-      entities="$(echo "$config_response" | jq -r '.guardrails[] | select(.default_on == true) | .entities[]?' 2>/dev/null | tr '\n' '|' | sed 's/|$//')"
-      if [ -n "$entities" ]; then
-        echo "on (presidio, $entities)"
-      else
-        echo "on"
-      fi
-    fi
-  fi
-}
-
 cmd_status() {
   if _running "$PROXY_CONTAINER"; then
     local health
     health="$(curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/health/readiness" 2>/dev/null || echo '{}')"
     echo "litellm proxy: up at $LITELLM_BASE_URL"
     echo "  db: $(echo "$health" | jq -r '.db // "unknown"' 2>/dev/null)"
-    echo "  guardrails: $(_get_guardrails_status)"
   else
     echo "litellm proxy: down (start: bin/litellm-proxy start)"
   fi
@@ -226,71 +189,6 @@ cmd_models() {
     || { echo "litellm proxy: not reachable at $LITELLM_BASE_URL (start it with: bin/litellm-proxy start)" >&2; exit 1; }
 }
 
-cmd_guardrails() {
-  local auth=()
-  [ -n "$LITELLM_MASTER_KEY" ] && auth=(-H "Authorization: Bearer $LITELLM_MASTER_KEY")
-
-  case "${1:-status}" in
-    on)
-      # Enable guardrails via the config endpoint
-      local config
-      config="$(curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/admin/config" "${auth[@]}" 2>/dev/null || echo '{}')"
-
-      # Update guardrails to enable the presidio-pii guardrail
-      local updated_config
-      updated_config="$(echo "$config" | jq '.guardrails |= map(if .guardrail_name == "presidio-pii" then .default_on = true else . end)')"
-
-      # POST the updated config
-      if curl -fsS -m 3 -X POST "${LITELLM_BASE_URL%/v1}/admin/config" \
-        "${auth[@]}" \
-        -H "Content-Type: application/json" \
-        -d "$updated_config" >/dev/null 2>&1; then
-        echo "guardrails: enabled (presidio-pii)"
-      else
-        echo "guardrails: failed to enable — check proxy is running (bin/litellm-proxy status)" >&2
-        exit 1
-      fi
-      ;;
-    off)
-      # Disable guardrails via the config endpoint
-      local config
-      config="$(curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/admin/config" "${auth[@]}" 2>/dev/null || echo '{}')"
-
-      # Update guardrails to disable the presidio-pii guardrail
-      local updated_config
-      updated_config="$(echo "$config" | jq '.guardrails |= map(if .guardrail_name == "presidio-pii" then .default_on = false else . end)')"
-
-      # POST the updated config
-      if curl -fsS -m 3 -X POST "${LITELLM_BASE_URL%/v1}/admin/config" \
-        "${auth[@]}" \
-        -H "Content-Type: application/json" \
-        -d "$updated_config" >/dev/null 2>&1; then
-        echo "guardrails: disabled"
-      else
-        echo "guardrails: failed to disable — check proxy is running (bin/litellm-proxy status)" >&2
-        exit 1
-      fi
-      ;;
-    status)
-      # Show current guardrails state
-      echo "guardrails: $(_get_guardrails_status)"
-      ;;
-    config)
-      # Show full guardrails configuration
-      local config
-      config="$(curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/admin/config" "${auth[@]}" 2>/dev/null || echo '{}')"
-      echo "$config" | jq '.guardrails' 2>/dev/null || {
-        echo "guardrails: unable to fetch config — check proxy is running (bin/litellm-proxy status)" >&2
-        exit 1
-      }
-      ;;
-    *)
-      echo "unknown guardrails command: $1 (use: on | off | status | config)" >&2
-      exit 2
-      ;;
-  esac
-}
-
 case "${1:-status}" in
   start)             cmd_start;;
   stop)              cmd_stop;;
@@ -298,7 +196,6 @@ case "${1:-status}" in
   status|--check)    cmd_status;;
   logs)              cmd_logs;;
   models|--models)   cmd_models;;
-  guardrails)        cmd_guardrails "${2:-status}";;
   -h|--help|help)    awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0";;
   *)                 echo "unknown command: $1 (see bin/litellm-proxy --help)" >&2; exit 2;;
 esac

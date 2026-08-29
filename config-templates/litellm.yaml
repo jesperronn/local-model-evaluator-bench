@@ -50,6 +50,12 @@ model_list:
       api_key: os.environ/LITELLM_MTPLX_KEY
 
 litellm_settings:
+  # Drops Copilot CLI's Responses-API-only `apply_patch` tool (type: "custom",
+  # a freeform grammar tool none of our local runtimes implement) before it
+  # reaches the backend — see config-templates/litellm-hooks/strip_unsupported_tools.py
+  # for why forwarding it crashes the proxy's streaming-iterator hook chain.
+  callbacks:
+    - hooks.strip_unsupported_tools.proxy_handler_instance
   # REQUIRED, not a nicety. Without it a wildcard route makes /v1/models return
   # litellm's built-in OpenAI registry with our prefix pasted on — 642 entries,
   # zero of them real, 549 cloud names like `lms/o3-deep-research`. That both
@@ -61,23 +67,9 @@ litellm_settings:
   request_timeout: 600
   drop_params: true
 
-guardrails:
-  - guardrail_name: "presidio-pii"
-    guardrail: "presidio"
-    mode: "pre_call"
-    default_on: false
-    entities:
-      - "PERSON"
-      - "EMAIL_ADDRESS"
-      - "PHONE_NUMBER"
-      - "CREDIT_CARD"
-    score_thresholds:
-      PERSON: 0.5
-      EMAIL_ADDRESS: 0.5
-      PHONE_NUMBER: 0.5
-      CREDIT_CARD: 0.5
-    deny_list: []
-    mask_operator: "MASK"
+# PII redaction was attempted via litellm's built-in Presidio guardrail and
+# removed — see docs/archived/DECISION-pii-guardrail-presidio.md for why, and
+# for the pre/post-call hook alternative to explore instead.
 
 general_settings:
   # Local-only proxy; no telemetry, no spend tracking.
@@ -86,5 +78,4 @@ general_settings:
   # instead of only in-memory, so they survive a proxy restart. Requires
   # DATABASE_URL (bin/litellm-proxy provisions a local Docker Postgres) and
   # LITELLM_MASTER_KEY to authenticate the admin endpoints.
-  # https://docs.litellm.ai/docs/proxy/model_management
   store_model_in_db: true
