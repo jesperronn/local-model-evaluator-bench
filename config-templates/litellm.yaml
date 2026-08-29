@@ -61,6 +61,24 @@ litellm_settings:
   request_timeout: 600
   drop_params: true
 
+guardrails:
+  - guardrail_name: "presidio-pii"
+    guardrail: "presidio"
+    mode: "pre_call"
+    default_on: false
+    entities:
+      - "PERSON"
+      - "EMAIL_ADDRESS"
+      - "PHONE_NUMBER"
+      - "CREDIT_CARD"
+    score_thresholds:
+      PERSON: 0.5
+      EMAIL_ADDRESS: 0.5
+      PHONE_NUMBER: 0.5
+      CREDIT_CARD: 0.5
+    deny_list: []
+    mask_operator: "MASK"
+
 general_settings:
   # Local-only proxy; no telemetry, no spend tracking.
   telemetry: false

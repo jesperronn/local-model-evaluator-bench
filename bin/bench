@@ -57,6 +57,8 @@
 #                      endpoint when --models is not given.
 #   --skip-compat-filter  don't filter out adapters marked as broken in compat.json
 #                      (used by bin/smoke --retry-broken to test broken adapters)
+#   --guardrails [0|1]  enable (1) or disable (0) guardrails for this run; overrides
+#                      the GUARDRAILS_ENABLED environment variable when provided.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/lib/versions.sh"
@@ -161,7 +163,7 @@ show_available_adapters() {
   echo "  bin/bench --agent hermes --interactive"
 }
 
-ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="litellm-proxy"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""
+ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="litellm-proxy"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""; GUARDRAILS_ENABLED=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent|-a)        ADAPTERS="$2"; shift 2;;
@@ -181,6 +183,8 @@ while [ $# -gt 0 ]; do
     --resume)
       if [[ "${2:-}" =~ ^[0-9]{8}-[0-9]{6}$ ]]; then RESUME="$2"; shift 2
       else RESUME="latest"; shift; fi;;
+    --guardrails)
+      GUARDRAILS_ENABLED="$2"; shift 2;;
     -h|--help)  show_help "$_help_runtime"; exit 0;;
     *) die "unknown option: $1";;
   esac
@@ -319,6 +323,12 @@ export LMS_API_KEY="$RUNTIME_API_KEY"
 # Unified adapters (one file per tool, no -lms/-ollama/-mlx variants) branch on
 # this for the flags that genuinely differ per runtime, e.g. aider's edit format.
 export RUNTIME
+
+# Export guardrails flag if provided, so child processes (adapters, graders) can see it.
+# If not provided on the command line, respect the environment variable if already set.
+if [ -n "$GUARDRAILS_ENABLED" ]; then
+  export GUARDRAILS_ENABLED
+fi
 
 # Resolve the three axes into arrays.
 IFS=',' read -ra ADAPTER_ARR <<< "$ADAPTERS"
