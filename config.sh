@@ -61,8 +61,8 @@ export MTPLX_API_KEY="${MTPLX_API_KEY:-mtplx}"
 
 # Default model used by adapters when MODEL_ID is not set externally.
 # Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh
-# Standard model for local evaluations: qwen2.5-coder-7b (balanced speed/quality for smaller models)
-export PREFERRED_MODEL_ID="${PREFERRED_MODEL_ID:-qwen2.5-coder-7b}"
+# Standard model for local evaluations: Ornith-1.5-35B-A3B-MLX-4bit via omlx
+export PREFERRED_MODEL_ID="${PREFERRED_MODEL_ID:-Ornith-1.5-35B-A3B-MLX-4bit}"
 
 # Model used by `bin/smoke` to verify every tool can reach LM Studio. Pick a
 # small, fast one — the smoke case is trivial, so capability doesn't matter.
