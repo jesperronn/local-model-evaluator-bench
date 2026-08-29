@@ -54,6 +54,18 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
+# mini-swe-agent's bundled litellm client parses --model before any network
+# call, and only recognizes litellm's built-in provider registry — our runtime
+# prefixes (omlx/, mtplx/, ...) throw `LLM Provider NOT provided` before ever
+# reaching the litellm proxy (same root cause as adapters/aider.sh, see its
+# comment). Wrapping the already-prefixed id in another "openai/" layer
+# satisfies litellm's client-side check while still sending the original
+# runtime-prefixed id on the wire, which is what the proxy's wildcard routes
+# match on.
+if [[ ! "$PREFIXED_MODEL_ID" =~ ^openai/ ]]; then
+  PREFIXED_MODEL_ID="openai/${PREFIXED_MODEL_ID}"
+fi
+
 if [ ! -t 0 ]; then
   TASK="$(cat)"
   # agent.mode defaults to "confirm" (interactive per-step approval), which

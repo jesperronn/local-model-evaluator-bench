@@ -43,16 +43,20 @@ command -v gptme >/dev/null 2>&1 || {
 # Prefix the model ID with the provider name if not already prefixed.
 # This allows both "lms/model-id" and separate --provider flag to work.
 if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx)/ ]]; then
-  # Strip the provider prefix and use just the model name
-  # gptme will use OPENAI_BASE_URL (pointing to litellm) for the actual model routing
-  MODEL_NAME="${MODEL_ID#*/}"
+  RUNTIME_PREFIXED_ID="$MODEL_ID"
 else
-  # No prefix, use model ID as-is
-  MODEL_NAME="$MODEL_ID"
+  RUNTIME_PREFIXED_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# gptme expects format: openai/model-name (it will use OPENAI_BASE_URL for the endpoint)
-GPTME_MODEL="openai/${MODEL_NAME}"
+# gptme's litellm client only recognizes "openai/" as a provider prefix, so the
+# runtime tag (omlx/, mtplx/, ...) must stay in the model name itself rather
+# than being stripped — otherwise the litellm proxy's model_name wildcard
+# (config-templates/litellm.yaml matches on "omlx/*" etc.) never matches a bare
+# name and the request 400s with "no healthy deployments for this model" (seen
+# 2026-08-29 on Ornith-1.5-35B-A3B-MLX-4bit/omlx). Wrapping the already-
+# runtime-prefixed id in another "openai/" layer satisfies gptme's client-side
+# check while still sending the original runtime-prefixed id on the wire.
+GPTME_MODEL="openai/${RUNTIME_PREFIXED_ID}"
 
 export OPENAI_BASE_URL="$LITELLM_BASE_URL"
 export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
