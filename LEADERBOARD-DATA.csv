@@ -413,7 +413,7 @@ omlx,cn,Ornith-1.0-35B-4bit,6,6,100.0000,10.7,1
 omlx,cn,Ornith-1.5-35B-A3B-MLX-4bit,44,44,100.0000,44.3,1
 omlx,cn,Qwen3.6-35B-A3B-MLX-4bit,0,6,0.0000,2.0,1
 omlx,codex,Ornith-1.0-35B-4bit,4,6,66.6667,62.3,1
-omlx,codex,Ornith-1.5-35B-A3B-MLX-4bit,38,44,86.3636,136.4,1
+omlx,codex,Ornith-1.5-35B-A3B-MLX-4bit,42,44,95.4545,131.8,1
 omlx,codex,Qwen3.6-35B-A3B-MLX-4bit,0,6,0.0000,2.7,1
 omlx,copilot,Ornith-1.0-35B-4bit,4,6,66.6667,53.7,1
 omlx,copilot,Ornith-1.0-9B-4bit,10,10,100.0000,176.0,1
@@ -425,7 +425,7 @@ omlx,forge,Ornith-1.5-35B-A3B-MLX-4bit,0,6,0.0000,14.0,1
 omlx,goose,Ornith-1.0-35B-4bit,6,6,100.0000,16.3,1
 omlx,goose,Ornith-1.5-35B-A3B-MLX-4bit,40,44,90.9091,134.4,1
 omlx,gptme,Ornith-1.0-35B-4bit,6,6,100.0000,10.7,1
-omlx,gptme,Ornith-1.5-35B-A3B-MLX-4bit,24,40,60.0000,127.8,1
+omlx,gptme,Ornith-1.5-35B-A3B-MLX-4bit,24,40,60.0000,118.3,1
 omlx,hermes,Ornith-1.0-35B-4bit,6,6,100.0000,15.0,1
 omlx,hermes,Ornith-1.5-35B-A3B-MLX-4bit,0,6,0.0000,26.0,1
 omlx,interpreter,Ornith-1.5-35B-A3B-MLX-4bit,0,6,0.0000,4.0,1
@@ -434,7 +434,7 @@ omlx,mini-swe-agent,Ornith-1.5-35B-A3B-MLX-4bit,0,6,0.0000,203.3,1
 omlx,nanocoder,Ornith-1.0-35B-4bit,6,6,100.0000,8.7,1
 omlx,nanocoder,Ornith-1.5-35B-A3B-MLX-4bit,0,6,0.0000,122.3,1
 omlx,omp,Ornith-1.0-35B-4bit,6,6,100.0000,26.0,1
-omlx,omp,Ornith-1.5-35B-A3B-MLX-4bit,23,40,57.5000,100.3,1
+omlx,omp,Ornith-1.5-35B-A3B-MLX-4bit,24,40,60.0000,95.7,1
 omlx,omp,Qwen3.8-27B,6,6,100.0000,124.7,1
 omlx,omp,Qwen3.8-27B-4bit,6,6,100.0000,75.7,1
 omlx,opencode,DeepSeek-V4-Flash-2bit-DQ,13,38,34.2105,167.3,1
@@ -456,4 +456,4 @@ omlx,pi,Qwen3.8-27B-NVFP4,0,6,0.0000,2.7,1
 omlx,qwen,Ornith-1.0-35B-4bit,6,6,100.0000,29.7,1
 omlx,qwen,Ornith-1.5-35B-A3B-MLX-4bit,40,44,90.9091,118.5,1
 omlx,vibe,Ornith-1.0-35B-4bit,6,6,100.0000,22.3,1
-omlx,vibe,Ornith-1.5-35B-A3B-MLX-4bit,23,38,60.5263,156.6,1
+omlx,vibe,Ornith-1.5-35B-A3B-MLX-4bit,29,38,76.3158,147.8,1
