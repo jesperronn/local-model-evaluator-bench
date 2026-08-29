@@ -68,8 +68,11 @@ Fair comparison testing (2026-07-05) evaluated shai, qwen, vibe, and pi using id
 ### Configuration for small models
 
 ```bash
-# Updated defaults (2026-07-05, see config.sh):
-export PREFERRED_MODEL_ID="qwen2.5-coder-7b"  # 7B, balanced speed/quality
+# Config as of 2026-08-29 (see config.sh) — repo-wide default is now the
+# larger Ornith-1.5-35B-A3B-MLX-4bit (omlx); the qwen2.5-coder-7b default
+# below reflects the earlier 2026-07-05 small-model-only setup and has been
+# retired (see f3b2192).
+export PREFERRED_MODEL_ID="Ornith-1.5-35B-A3B-MLX-4bit"  # 35B/A3B, omlx default
 DEFAULT_ADAPTERS="pi"                          # pi only for small models
 
 # Run small model benchmark:
@@ -134,6 +137,28 @@ Run concurrently with a hermes bench on the same model; timeouts reflect slot co
 | qwen/qwen3.6-27b | not run | — |
 | zai-org/glm-4.7-flash | 12/32 (37%) | Timeout floor |
 | qwen/qwen3-coder-30b | 37/38 (97%) | bash-01 3/4 |
+
+### Full benchmark results (2026-08-29, omlx, run `20260829-115614`) — `Ornith-1.5-35B-A3B-MLX-4bit`
+
+New repo default model (`PREFERRED_MODEL_ID`, `config.sh`), replacing `Ornith-1.0-35B-4bit`.
+
+| Case | Score | Time | Status |
+|------|------:|-----:|--------|
+| bash-01-topwords | 4/4 (1.00) | 28s | ok |
+| deleg-01-validate-format-pipeline | 6/6 (1.00) | 27s | ok |
+| js-01-slugify-bug | 4/4 (1.00) | 11s | ok |
+| js-02-debounce-feature | 4/4 (1.00) | 29s | ok |
+| js-03-multifile-cache | 5/5 (1.00) | 27s | ok |
+| js-04-multifile-rename | 3/3 (1.00) | 15s | ok |
+| js-05-multiselect-filter | 5/5 (1.00) | 34s | ok |
+| js-06-lint-and-test | 4/4 (1.00) | 21s | ok |
+| smoke-00-hello | 2/2 (1.00) | 10s | ok |
+| smoke-01-edit-file | 2/2 (1.00) | 13s | ok |
+| smoke-02-numbers | 2/2 (1.00) | 52s | ok |
+| ts-01-groupby | 3/3 (1.00) | 84s | ok |
+| **Total** | **44/44 (1.00)** | | |
+
+See [omlx--ornith-1.5-35b-a3b-mlx-4bit.md](../models/omlx--ornith-1.5-35b-a3b-mlx-4bit.md).
 
 ### Stale-refresh sweep (2026-07-07, lms, 12-case set, runs `20260707-*`)
 
