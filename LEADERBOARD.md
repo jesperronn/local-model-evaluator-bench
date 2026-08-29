@@ -1,7 +1,7 @@
 # Benchmark Report
 
 **Source:** `all runs (latest per adapter+model+case)`
-**Generated:** 2026-08-29 17:55
+**Generated:** 2026-08-29 18:23
 
 ## Models to Avoid
 
@@ -29,7 +29,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 
 | Runtime | Pass | Pass% | Avg s |
 |---------|------|-------|-------|
-| omlx | 915/1250 | 73.2% | 110.4 |
+| omlx | 969/1288 | 75.2% | 110.1 |
 | lms | 4291/6114 | 70.2% | 94.1 |
 | ollama | 2063/3189 | 64.7% | 98.8 |
 | mlx | 374/654 | 57.2% | 61.4 |
@@ -50,8 +50,10 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | omlx | omp | Qwen3.8-27B-4bit | 6/6 | 100.0% | 75.7 | 1 |
 | omlx | omp | Qwen3.8-27B | 6/6 | 100.0% | 124.7 | 1 |
 | omlx | omp | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 26.0 | 1 |
+| omlx | nanocoder | Ornith-1.5-35B-A3B-MLX-4bit | 6/6 | 100.0% | 15.0 | 1 |
 | omlx | nanocoder | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 8.7 | 1 |
 | omlx | mini-swe-agent | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 44.7 | 1 |
+| omlx | hermes | Ornith-1.5-35B-A3B-MLX-4bit | 44/44 | 100.0% | 115.0 | 1 |
 | omlx | hermes | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 15.0 | 1 |
 | omlx | gptme | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 10.7 | 1 |
 | omlx | goose | Ornith-1.0-35B-4bit | 6/6 | 100.0% | 16.3 | 1 |
@@ -254,6 +256,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | omlx | aider | DeepSeek-V4-Flash-2bit-DQ | 28/40 | 70.0% | 256.6 | 1 |
 | ollama | omp | gemma4:26b-mlx | 22/32 | 68.8% | 144.5 | 1 |
 | lms | openhands | google/gemma-4-26b-a4b | 26/38 | 68.4% | 119.5 | 1 |
+| omlx | mini-swe-agent | Ornith-1.5-35B-A3B-MLX-4bit | 4/6 | 66.7% | 169.0 | 1 |
 | omlx | copilot | Ornith-1.0-35B-4bit | 4/6 | 66.7% | 53.7 | 1 |
 | omlx | codex | Ornith-1.0-35B-4bit | 4/6 | 66.7% | 62.3 | 1 |
 | ollama | opencode | gpt-oss:20b | 4/6 | 66.7% | 32.7 | 1 |
@@ -431,10 +434,7 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | omlx | openhands | Ornith-1.0-35B-4bit | 0/6 | 0.0% | 8.0 | 1 |
 | omlx | opencode-orch | Ornith-1.5-35B-A3B-MLX-4bit | 0/6 | 0.0% | 3.3 | 1 |
 | omlx | opencode | Ornith-1.5-35B-A3B-MLX-4bit | 0/6 | 0.0% | 3.3 | 1 |
-| omlx | nanocoder | Ornith-1.5-35B-A3B-MLX-4bit | 0/6 | 0.0% | 122.3 | 1 |
-| omlx | mini-swe-agent | Ornith-1.5-35B-A3B-MLX-4bit | 0/6 | 0.0% | 203.3 | 1 |
 | omlx | interpreter | Ornith-1.5-35B-A3B-MLX-4bit | 0/6 | 0.0% | 4.0 | 1 |
-| omlx | hermes | Ornith-1.5-35B-A3B-MLX-4bit | 0/6 | 0.0% | 26.0 | 1 |
 | omlx | forge | Ornith-1.5-35B-A3B-MLX-4bit | 0/6 | 0.0% | 14.0 | 1 |
 | omlx | forge | Ornith-1.0-35B-4bit | 0/6 | 0.0% | 7.7 | 1 |
 | omlx | copilot | Qwen3.6-35B-A3B-MLX-4bit | 0/6 | 0.0% | 2.0 | 1 |
@@ -524,8 +524,8 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | omlx | Qwen3.8-27B-4bit-mlxc | 136/168 | 81.0% | 163.7 |
 | lms | qwen/qwen3.5-9b | 362/450 | 80.4% | 100.1 |
 | ollama | gpt-oss-20b | 64/80 | 80.0% | 58.9 |
+| omlx | Ornith-1.5-35B-A3B-MLX-4bit | 459/586 | 78.3% | 97.0 |
 | mlx | /Users/jesper/.lmstudio/models/lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-4bit | 124/160 | 77.5% | 106.2 |
-| omlx | Ornith-1.5-35B-A3B-MLX-4bit | 405/548 | 73.9% | 97.0 |
 | ollama | qwen3.6:35b-a3b-coding-mxfp8 | 221/300 | 73.7% | 131.0 |
 | omlx | Qwen3.8-27B-4bit | 127/178 | 71.3% | 167.7 |
 | ollama | qwen3.6-35b-mlx | 175/246 | 71.1% | 67.2 |
@@ -578,19 +578,19 @@ Models scoring ≤20% across ≥28 trials — broken or unusable tool calling. A
 | goose | 442/531 | 83.2% | 118.8 |
 | pi | 949/1155 | 82.2% | 81.8 |
 | vibe | 35/44 | 79.5% | 122.7 |
+| nanocoder | 260/331 | 78.5% | 71.4 |
 | interpreter | 526/679 | 77.5% | 97.8 |
-| nanocoder | 254/331 | 76.7% | 74.3 |
 | aider | 1014/1328 | 76.4% | 85.9 |
 | cline | 485/657 | 73.8% | 110.6 |
 | gptme | 59/86 | 68.6% | 83.3 |
 | opencode-orch | 12/18 | 66.7% | 55.4 |
 | openhands | 344/518 | 66.4% | 107.5 |
+| hermes | 820/1241 | 66.1% | 107.0 |
 | omp | 214/324 | 66.0% | 159.1 |
 | opencode | 765/1172 | 65.3% | 76.3 |
-| hermes | 776/1203 | 64.5% | 106.1 |
 | codex | 578/968 | 59.7% | 112.3 |
 | caveman | 692/1197 | 57.8% | 63.7 |
+| mini-swe-agent | 10/20 | 50.0% | 119.0 |
 | claude | 77/157 | 49.0% | 147.4 |
 | copilot | 249/599 | 41.6% | 123.0 |
-| mini-swe-agent | 6/20 | 30.0% | 129.3 |
 | forge | 12/56 | 21.4% | 9.4 |
