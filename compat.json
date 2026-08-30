@@ -1433,11 +1433,12 @@
     "agent_version": "unknown",
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
-    "symptom": "Assistant: Thinking...\r                                                                                \r[15:46:24] ERROR",
-    "status": "resolved",
-    "resolved_date": "2026-08-29",
-    "resolved_run_id": "20260829-165047",
-    "resolved_agent_version": "unknown"
+    "symptom": "Assistant: Thinking...\r[11:24:23] WARNING  LLM naming failed: Error code: 400 -      auto_naming.py:178",
+    "status": "open",
+    "regressed_date": "2026-08-30",
+    "regressed_run_id": "20260830-112211",
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112211"
   },
   "qwen:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "qwen",
@@ -1446,11 +1447,12 @@
     "agent_version": "unknown",
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
-    "symptom": "[API Error: 500 litellm.InternalServerError: InternalServerError: OpenAIException - Connection error.. Received Model Gr",
-    "status": "resolved",
-    "resolved_date": "2026-08-29",
-    "resolved_run_id": "20260829-160942",
-    "resolved_agent_version": "unknown"
+    "symptom": "MISS: hello.txt not created",
+    "status": "open",
+    "regressed_date": "2026-08-30",
+    "regressed_run_id": "20260830-112211",
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112211"
   },
   "openhands:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "openhands",
@@ -1461,8 +1463,8 @@
     "run_id": "20260829-154043",
     "symptom": "ValueError: tmux set-environment stderr: ['no server running on ",
     "status": "open",
-    "last_seen": "2026-08-29",
-    "last_run_id": "20260829-160942"
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112212"
   },
   "forge:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "forge",
@@ -1473,8 +1475,8 @@
     "run_id": "20260829-154043",
     "symptom": "{\"ts\":\"2026-08-29T13:45:55.049Z\",\"level\":\"warn\",\"msg\":\"primary model failed, trying fallback\",\"meta\":{\"err\":\"ForgeRuntim",
     "status": "open",
-    "last_seen": "2026-08-29",
-    "last_run_id": "20260829-160942"
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112211"
   },
   "interpreter:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "interpreter",
@@ -1485,23 +1487,22 @@
     "run_id": "20260829-154043",
     "symptom": "ERROR: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'lms/Ornith-1.5-35B-A3B-MLX-4",
     "status": "open",
-    "last_seen": "2026-08-29",
-    "last_run_id": "20260829-160942"
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112212"
   },
   "nanocoder:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "nanocoder",
     "model": "Ornith-1.5-35B-A3B-MLX-4bit",
     "runtime": "omlx",
-    "agent_version": "unknown",
+    "agent_version": "unknown\nunknown",
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
     "symptom": "MISS: hello.txt not created",
-    "status": "resolved",
-    "last_seen": "2026-08-29",
-    "last_run_id": "20260829-180333",
-    "resolved_date": "2026-08-29",
-    "resolved_run_id": "20260829-180522",
-    "resolved_agent_version": "unknown"
+    "status": "open",
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112305",
+    "regressed_date": "2026-08-30",
+    "regressed_run_id": "20260830-112305"
   },
   "opencode-orch:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "opencode-orch",
@@ -1523,6 +1524,52 @@
     "first_seen": "2026-08-29",
     "run_id": "20260829-160704",
     "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open",
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112129"
+  },
+  "omp:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "omp",
+    "model": "Ornith-1.5-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-112128",
+    "symptom": "MISS: hello.txt not created",
     "status": "open"
+  },
+  "omp:ornith-1.5-35b-a3b:omlx": {
+    "adapter": "omp",
+    "model": "ornith-1.5-35b-a3b",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-112311",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "codex:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "codex",
+    "model": "Ornith-1.5-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "codex-cli 0.151.0",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-112211",
+    "symptom": "2026-08-30T09:22:23.390615Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open",
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112211"
+  },
+  "cn:ornith-1.5-35b-a3b:omlx": {
+    "adapter": "cn",
+    "model": "ornith-1.5-35b-a3b",
+    "runtime": "omlx",
+    "agent_version": "unknown\nunknown",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-112305",
+    "symptom": "",
+    "status": "open",
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-112305"
   }
 }
