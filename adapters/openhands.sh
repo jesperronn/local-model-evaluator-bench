@@ -49,6 +49,15 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
+# openhands bundles its own litellm client-side which only recognizes built-in
+# providers. Custom prefixes (omlx/, mlx/, mtplx/) fail with "LLM Provider NOT
+# provided". Like aider, wrap in "openai/" so litellm recognizes it and forwards
+# the full prefixed ID (omlx/model-name) on the wire to LiteLLM server, which
+# routes it correctly per config-templates/litellm.yaml.
+if [[ ! "$PREFIXED_MODEL_ID" =~ ^openai/ ]]; then
+  PREFIXED_MODEL_ID="openai/${PREFIXED_MODEL_ID}"
+fi
+
 # Set environment variables to route through the LiteLLM proxy.
 # LiteLLM does not require a key for localhost access unless LITELLM_MASTER_KEY is set.
 export LLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"

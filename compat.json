@@ -1461,9 +1461,12 @@
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
     "symptom": "ValueError: tmux set-environment stderr: ['no server running on ",
-    "status": "open",
+    "status": "resolved",
     "last_seen": "2026-08-30",
-    "last_run_id": "20260830-112212"
+    "last_run_id": "20260830-125124",
+    "resolved_date": "2026-08-30",
+    "resolved_run_id": "20260830-125339",
+    "resolved_agent_version": "1.16.0"
   },
   "forge:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "forge",
