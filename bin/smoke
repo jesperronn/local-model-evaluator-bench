@@ -14,10 +14,9 @@
 # FAIL (couldn't reach the model — a wiring problem).
 #
 # Flags:
-#   --runtime NAME  lms | ollama | mlx | omlx  (default: lms)
-#   --model/-m ID   model to test       (default: $SMOKE_MODEL for lms; for
-#                                        other runtimes, resolved via
-#                                        models-aliases.conf or live discovery)
+#   --model/-m ID   model to test, optionally with provider prefix:
+#                     omlx/model-name, ollama/model-name, mlx/model-name
+#                     (default: $SMOKE_MODEL; extracted from prefix if present)
 #   --agent/-t NAME  only test this adapter (default: all)
 #   --retry-broken[=ADAPTERS]  retry adapters marked as broken in compat.json
 #                                (default: all broken adapters; or comma-separated list)

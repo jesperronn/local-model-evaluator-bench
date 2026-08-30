@@ -7,7 +7,9 @@
 #
 # Flags:
 #   --agent/-a a,b   CLI adapters to run  (default: $DEFAULT_ADAPTERS)
-#   --models/--model/-m a,b  model ids            (default: discovered from runtime)
+#   --models/--model/-m a,b  model ids, optionally with provider prefix:
+#                            omlx/model-name, ollama/model-name, mlx/model-name
+#                            (default: discovered from runtime; prefix determines runtime)
 #   --cases    a,b     case ids                   (default: all cases/)
 #   --difficulty t,t   keep only cases of these tiers (easy|medium|hard) from
 #                      meta.json — gates small/weak models to easier tiers; hard
@@ -42,19 +44,6 @@
 #   --verbose/-v       on every non-pass trial, print the .bench.log path plus a
 #                      short error excerpt inline (so failures are diagnosable
 #                      without hunting through results/<ts>/sandbox/)
-#   --runtime RUNTIME  inference backend: litellm-proxy (default), lms, ollama, mlx, omlx, mtplx
-#                      litellm-proxy: unified proxy at $LITELLM_BASE_URL; fronts all runtimes
-#                      lms:    LM Studio at $LMS_BASE_URL; loads/unloads models
-#                      ollama: Ollama at localhost:11434/v1; models always ready
-#                      mlx:    mlx_lm.server at localhost:8080/v1; start manually
-#                      omlx:   oMLX at $OMLX_BASE_URL; multi-model, serves every
-#                              model under ~/.omlx/models; start with
-#                              `bin/omlx start`. Models are addressed by the
-#                              directory basename, e.g. Qwen3-Coder-Next-4bit.
-#                      mtplx:  MTPLX at $MTPLX_BASE_URL; multi-model MLX server,
-#                              start with `mtplx quickstart --port 8001 --model <model>`
-#                      Models are discovered from the runtime's live /v1/models
-#                      endpoint when --models is not given.
 #   --skip-compat-filter  don't filter out adapters marked as broken in compat.json
 #                      (used by bin/smoke --retry-broken to test broken adapters)
 set -uo pipefail
