@@ -140,8 +140,8 @@ get <id>`, `ollama pull <id>`, drop it in the MLX/oMLX/MTPLX model dir, etc.).
 There's no file to register it in — `bin/bench` (and `bin/stale`,
 `bin/scout`, ...) discover what's available by querying each runtime's live
 `/v1/models` endpoint, so a downloaded model is in scope immediately. Run
-`bin/bench --runtime <rt> --models <id>` to test one specific model, or omit
-`--models` to sweep everything that runtime currently has installed/loaded.
+`bin/bench --model <id>` or `bin/bench --model <runtime>/<id>` to test one specific model with optional runtime prefix,
+or omit `--model` to sweep everything the default runtime has installed/loaded.
 
 ### Step 2b: (Optional) Add a model alias
 
@@ -204,7 +204,7 @@ bin/smoke --model meta-llama/llama-3.1-70b
 ### 3d: Smoke test with a different runtime
 
 ```bash
-bin/smoke --runtime ollama --model neural-chat
+bin/smoke --model ollama/neural-chat
 ```
 
 ### 3e: Dry-run (no actual execution)
@@ -386,7 +386,7 @@ After a major change (new runtime setup, updated LM Studio version, etc.), re-ev
 
 ```bash
 bin/smoke  # defaults to all adapters, default model, lms
-bin/smoke --runtime ollama --model neural-chat  # new runtime
+bin/smoke --model ollama/neural-chat  # new runtime
 # ... repeat for other model+runtime combos
 ```
 

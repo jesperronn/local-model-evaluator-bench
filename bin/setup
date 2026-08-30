@@ -412,7 +412,7 @@ setup_omlx() {
   fi
   [ "$DO_OMLX" = 0 ] && return
   ok "models directory: $OMLX_MODELS_DIR"
-  ok "bench with: bin/bench --runtime omlx --model <id>   (ids: bin/omlx models)"
+  ok "bench with: bin/bench --model omlx/<id>   (ids: bin/omlx models)"
 }
 
 setup_ollama() {

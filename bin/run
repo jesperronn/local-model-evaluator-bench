@@ -6,7 +6,7 @@
 # pass through unchanged. See docs/PLAN-CLI-UNIFICATION.md.
 #
 # Usage:
-#   bin/run [--agent a,b] [--models a,b] [--cases ...] [--runtime lms|ollama|mlx] ...
+#   bin/run [--agent a,b] [--model model-id|prefix/model-id] [--cases ...] ...
 #                                        = bin/bench (full matrix)
 #   bin/run --smoke [...]                = bin/smoke (fast wiring check)
 #   bin/run --preset nightly [...]       = bin/nightly (lms-focused overnight preset)
@@ -33,7 +33,8 @@ show_help() {
 
   help_section "PASSTHROUGH FLAGS"
   help_line "  All other flags are passed to the target command:"
-  help_line "    --agent, --models, --cases, --runtime, --dry-run, --verbose, etc."
+  help_line "    --agent, --model, --cases, --dry-run, --verbose, etc."
+  help_line "  Use model prefix for runtime selection: omlx/model-name, ollama/model-name, etc."
   help_line "  See: bin/bench --help, bin/smoke --help, bin/nightly --help"
 
   help_section "EXAMPLES"

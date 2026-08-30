@@ -30,11 +30,23 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"; source "$HERE/lib/common.sh"
 
+extract_runtime_and_model() {
+  local model="$1"
+  case "$model" in
+    omlx/*) echo "omlx"; echo "${model#omlx/}";;
+    ollama/*) echo "ollama"; echo "${model#ollama/}";;
+    mlx/*) echo "mlx"; echo "${model#mlx/}";;
+    lms/*) echo "lms"; echo "${model#lms/}";;
+    mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
+    *) echo ""; echo "$model";;
+  esac
+}
+
 RUNTIME="lms"; WORKLIST=""; FAILURES_RUN=""
 POSITIONAL=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --runtime)   RUNTIME="$2"; shift 2;;
+    --runtime)   RUNTIME="$2"; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
     --worklist)  WORKLIST="$2"; shift 2;;
     --failures)  FAILURES_RUN="$2"; shift 2;;
     -h|--help)   awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"; exit 0;;
@@ -42,6 +54,16 @@ while [ $# -gt 0 ]; do
     *)           POSITIONAL+=("$1"); shift;;
   esac
 done
+
+# Extract runtime from model if provided as a positional argument
+if [ "${#POSITIONAL[@]}" -ge 2 ]; then
+  mapfile -t _result < <(extract_runtime_and_model "${POSITIONAL[1]}")
+  _detected_runtime="${_result[0]}"
+  if [ -n "$_detected_runtime" ]; then
+    RUNTIME="$_detected_runtime"
+    POSITIONAL[1]="${_result[1]}"
+  fi
+fi
 
 # ── Build the candidate list: lines of "adapter<TAB>model<TAB>case" ──────────
 CANDIDATES="$(mktemp)"

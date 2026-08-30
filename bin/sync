@@ -91,4 +91,4 @@ info "running bin/agents-config --write --agent $AGENTS"
 ok "$MODEL is registered"
 echo
 info "Next step — prove it actually works (loads the model, takes a bit):"
-echo "  bin/smoke --runtime $PROVIDER --model $MODEL --agent $AGENTS"
+echo "  bin/smoke --model $PROVIDER/$MODEL --agent $AGENTS"

@@ -394,7 +394,8 @@ else:
         for model in sorted(missing[adapter]):
             cases_list = ','.join(missing[adapter][model])
             runtime = runtime_for.get((adapter, model), 'lms')
-            print(f'  bin/bench --runtime {runtime} --agent {adapter} --model {model} --cases {cases_list}')
+            prefixed_model = f'{runtime}/{model}' if runtime != 'lms' else model
+            print(f'  bin/bench --agent {adapter} --model {prefixed_model} --cases {cases_list}')
         print()
 PYEOF
 
