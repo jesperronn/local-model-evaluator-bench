@@ -1684,6 +1684,8 @@
     "first_seen": "2026-08-30",
     "run_id": "20260830-140649",
     "symptom": "MISS: hello.txt not created",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-08-30",
+    "last_run_id": "20260830-142154"
   }
 }
