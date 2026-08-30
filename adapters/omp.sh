@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
-# Adapter: omp (oh-my-pi) -> any local runtime, addressed by provider prefix.
+# Adapter: omp (oh-my-pi) -> unified endpoint via LiteLLM proxy.
+# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
+# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
 #
-# NOT routed through the LiteLLM proxy — omp has its own provider system
-# (~/.omp/agent/models.yml, YAML, not JSON) with lms/omlx/mtplx/mlx registered
-# as distinct custom providers pointing directly at each runtime's own port
-# (see docs/MODEL-DISCOVERY.md's "omp (oh-my-pi)" section for why: omp's
-# built-in "lm-studio" provider does LM-Studio-specific discovery that these
-# runtimes don't implement, and sharing one provider slot across runtimes
-# caused mtplx/omlx to clobber each other's cached model). The provider names
-# below just happen to match this file's --provider values.
-#
+# The proxy must be running: bin/litellm-proxy start
 # Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
 #
 # Adapter accepts --provider to override which backend to target:
@@ -55,7 +49,16 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-OMP_ARGS=(--model "$PREFIXED_MODEL_ID")
+# omp v18+ has issues discovering models with runtime prefixes.
+# Use just the model name and pass the LiteLLM proxy URL via environment.
+UNPREFIXED_MODEL_ID="$MODEL_ID"
+
+# Export environment variables for OpenAI API endpoint configuration
+export OPENAI_API_BASE="${LITELLM_BASE_URL:-http://127.0.0.1:8000/v1}"
+export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export OPENAI_ORG_ID="" # Clear any org ID that might interfere
+
+OMP_ARGS=(--model "$UNPREFIXED_MODEL_ID")
 
 if [ ! -t 0 ]; then
   exec omp "${OMP_ARGS[@]}" -p "$(cat)"
