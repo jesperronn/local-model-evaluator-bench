@@ -94,8 +94,7 @@ There's no file to register the model in — `bin/bench`, `bin/stale`, and
 friends discover what's available by querying each runtime's live
 `/v1/models` endpoint (or `lms ls` / `ollama list` for lms/ollama), so a
 downloaded model is in scope the moment the runtime can see it. Run
-`bin/bench` with no `--models` flag to sweep every model the current
-`--runtime` currently has loaded/installed.
+`bin/bench` with no `--models` flag to sweep every model the current runtime has loaded/installed.
 
 **Shortcut:** run `bin/scout` any time after downloading — it checks
 `~/.config/llmrun/agents.json` for live-discovered models that never got

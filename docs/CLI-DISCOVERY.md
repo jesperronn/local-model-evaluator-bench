@@ -26,7 +26,7 @@ $ bin/bootstrap-machine --write
 Next steps:
   1. Download the recommended models for your tier:
      lms get qwen/qwen3.6-27b
-  2. Verify the config: bin/smoke --runtime lms
+  2. Verify the config: bin/smoke --agent aider
   3. Start benchmarking: bin/bench --agent aider
 ```
 
@@ -60,7 +60,7 @@ $ bin/bootstrap-machine --write
 
 Next steps:
   Download the recommended models: lms get qwen/qwen3.6-27b
-  Verify adapters: bin/smoke --runtime lms
+  Verify adapters: bin/smoke --agent aider
   Start benchmarking: bin/bench --agent aider
 ```
 
@@ -91,7 +91,7 @@ Examples:
 # At the end of your script:
 help_section "NEXT STEPS"
 help_line "  1. Download missing models: lms get qwen/qwen3.5-9b"
-help_line "  2. Verify: bin/smoke --runtime lms"
+help_line "  2. Verify: bin/smoke --agent aider"
 help_line "  3. Benchmark: bin/bench --agent aider"
 ```
 
@@ -107,7 +107,7 @@ help_next_steps() {
 # Usage:
 help_section "NEXT STEPS"
 help_next_steps "1. Download models" "lms get qwen/qwen3.6-27b"
-help_next_steps "2. Verify" "bin/smoke --runtime lms"
+help_next_steps "2. Verify" "bin/smoke --agent aider"
 help_next_steps "3. Benchmark" "bin/bench --agent aider"
 ```
 
@@ -144,7 +144,8 @@ read_list "$MODELS_FILE" | sed 's/^/  /'
 warn "hf not found — bin/lms_update needs it: brew install hf"
 
 # Shows coverage gaps + exact commands to fill them:
-echo "  bin/bench --runtime $runtime --agent $adapter --model $model --cases ..."
+# (model prefix determines runtime: omlx/, ollama/, mlx/, or default)
+echo "  bin/bench --agent $adapter --model $model --cases ..."
 ```
 
 ### ✅ Good: bin/bench (model discovery)
