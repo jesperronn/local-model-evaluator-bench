@@ -3,14 +3,33 @@ set -euo pipefail
 
 pushd "$(dirname "$0")/.." > /dev/null || exit 1
 
-usage() {
-  cat <<'EOF'
-Usage: bin/test [--verbose] [test-file ...]
+HERE="."
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
 
-Run colocated shell test scripts (*.test.sh).
-With no arguments, all `*.test.sh` files under `bin/` and `lib/` are run.
-Use `--verbose` to show per-test `RUN` lines from test files that support it.
-EOF
+usage() {
+  help_header "test" "run colocated shell test scripts (*.test.sh)"
+
+  help_section "USAGE"
+  help_line "  test [--verbose] [test-file ...]"
+
+  help_section "DESCRIPTION"
+  help_line "  Run colocated shell test scripts. With no arguments, all '*.test.sh'"
+  help_line "  files under 'bin/' and 'lib/' are run."
+
+  help_section "OPTIONS"
+  help_flag "--verbose" "" "show per-test RUN lines from test files that support it"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Run all tests:"
+  help_line "    \$ test"
+  help_line ""
+  help_line "  Run a specific test file:"
+  help_line "    \$ test lib/versions.test.sh"
+  help_line ""
+  help_line "  Run all tests with verbose output:"
+  help_line "    \$ test --verbose"
 }
 
 collect_test_files() {

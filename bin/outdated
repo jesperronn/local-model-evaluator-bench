@@ -4,48 +4,56 @@
 # Usage: bin/outdated [--help] [--verbose] [--runtime lms,ollama,mlx]
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/config.sh"; source "$HERE/lib/common.sh"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/bin/lib/help.sh"
 
 # ── arg parsing ──────────────────────────────────────────────────────────────
 VERBOSE=0
 RUNTIMES="lms,ollama,mlx"
 
+show_help() {
+  help_header "outdated" "check whether locally installed models are behind their upstream"
+
+  help_section "USAGE"
+  help_line "  outdated [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Scans locally cached models and compares against upstream sources."
+  help_line "  Detects stale models that have been updated upstream."
+
+  help_section "OPTIONS"
+  help_flag "--runtime" "LIST" "comma-separated runtimes to check (default: lms,ollama,mlx)"
+  help_flag "--verbose, -v" "" "show extra debug info (API responses, skipped dirs)"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "SUPPORTED RUNTIMES"
+  help_line "  ${C_GRN}lms${C_RST}     LM Studio — scans ~/.lmstudio/models/lmstudio-community/"
+  help_line "            Compares against HuggingFace API lastModified date"
+  help_line ""
+  help_line "  ${C_GRN}ollama${C_RST}  Ollama — reads 'ollama list' and compares local digest"
+  help_line "            against Ollama registry manifest. Re-pull with: ${C_DIM}ollama pull <name>${C_RST}"
+  help_line ""
+  help_line "  ${C_GRN}mlx${C_RST}     MLX models cached via HuggingFace hub (~/.cache/huggingface/hub/)"
+  help_line "            Only mlx-community models checked. Re-download with:"
+  help_line "            ${C_DIM}mlx_lm.manage --update mlx-community/<model>${C_RST}"
+
+  help_section "EXIT CODES"
+  help_line "  0  All checked models are up to date (or none found)"
+  help_line "  1  One or more stale models detected"
+
+  help_section "EXAMPLES"
+  help_line "  Check all runtimes:"
+  help_line "    \$ outdated"
+  help_line ""
+  help_line "  Check only Ollama:"
+  help_line "    \$ outdated --runtime ollama"
+  help_line ""
+  help_line "  Check LMS and MLX with verbose output:"
+  help_line "    \$ outdated --verbose --runtime lms,mlx"
+}
+
 usage() {
-  cat <<EOF
-Usage: $(basename "$0") [OPTIONS]
-
-Check whether locally installed models are behind their upstream source.
-
-Options:
-  --runtime LIST   Comma-separated runtimes to check (default: lms,ollama,mlx)
-  --verbose        Show extra debug info (API responses, skipped dirs)
-  --help           Show this help
-
-Runtimes:
-  lms     LM Studio — scans ~/.lmstudio/models/lmstudio-community/
-          and compares each model against the HuggingFace API lastModified date.
-
-  ollama  Ollama — reads \`ollama list\` and compares each model's local digest
-          against the Ollama registry manifest digest.  If they differ the
-          model is STALE.  Re-pull with: ollama pull <name>
-
-  mlx     MLX models cached via HuggingFace hub (~/.cache/huggingface/hub/).
-          Only mlx-community models are checked.  Compared against the
-          HuggingFace API lastModified date.  Re-download with:
-            mlx_lm.manage --update mlx-community/<model>
-          or just delete the cached dir and let the tool re-pull on next use.
-
-Exit codes:
-  0  All checked models are up to date (or none found)
-  1  One or more stale models detected
-
-Examples:
-  bin/outdated
-  bin/outdated --runtime ollama
-  bin/outdated --runtime lms,mlx
-  bin/outdated --verbose --runtime ollama
-  bin/outdated --runtime lms --verbose
-EOF
+  show_help
+  exit 0
 }
 
 while [[ $# -gt 0 ]]; do

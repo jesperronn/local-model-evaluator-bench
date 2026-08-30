@@ -14,18 +14,46 @@
 # Exit 0 = all clean, exit 1 = failures found.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
 
 BYPASS_PATTERN='--yes-always|--dangerously-bypass-approvals-and-sandbox|--allow-dangerously-skip-permissions|--auto-approve|--yolo|--no-git\b|--no-auto-commits|--no-dirty-commits|--no-ask-user|--allow-all-tools|--allow-all-paths'
 
-if [ -t 1 ]; then
-  C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_YEL=$'\033[33m'
-  C_BLD=$'\033[1m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
-else
-  C_GRN=; C_RED=; C_YEL=; C_BLD=; C_DIM=; C_RST=
-fi
+show_help() {
+  help_header "lint-adapters" "static checks for all adapter scripts"
+
+  help_section "USAGE"
+  help_line "  lint-adapters [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Validates all adapter scripts in adapters/*.sh for:"
+  help_line "    1. Bash syntax (bash -n)"
+  help_line "    2. Bypass flags only inside non-interactive branches"
+  help_line "    3. Agent registration in bin/setup's case statements"
+
+  help_section "OPTIONS"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "BYPASS FLAGS"
+  help_line "  These flags are forbidden at top-level (must be inside [ ! -t 0 ] blocks):"
+  help_line "    --yes-always --dangerously-bypass-approvals-and-sandbox"
+  help_line "    --auto-approve --yolo --no-git --no-auto-commits --no-dirty-commits"
+
+  help_section "EXIT CODES"
+  help_line "  0  all checks passed"
+  help_line "  1  one or more checks failed"
+}
+
 ok()   { printf '%s\n' "${C_GRN}[OK]${C_RST}   $*"; }
 fail() { printf '%s\n' "${C_RED}[FAIL]${C_RST} $*"; }
 warn() { printf '%s\n' "${C_YEL}[WARN]${C_RST} $*"; }
+
+# Handle --help flag
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help; exit 0;;
+  esac
+done
 
 failures=0
 

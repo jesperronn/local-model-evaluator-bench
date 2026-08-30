@@ -22,6 +22,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.sh"
 source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
 
 DO_LOGS=0
 DO_SCRATCH=0
@@ -32,8 +33,33 @@ DO_PROCS=0
 DELETE=0
 DRY_RUN_EXPLICIT=0
 
+show_help() {
+  help_header "cleanup" "reclaim disk space from results, logs, and scratch files"
+
+  help_section "USAGE"
+  help_line "  cleanup [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Reclaim disk space from benchmark results, logs, and scratch. All targets"
+  help_line "  are opt-in; nothing is deleted without an explicit flag. By default, runs"
+  help_line "  in dry-run mode (shows what would be deleted). Pass -f/--force to actually delete."
+
+  help_section "TARGETS"
+  help_flag "--logs" "" "Root-level *.log files (benchmark-*.log, nightly-*.log)"
+  help_flag "--scratch" "" "results/_run_*.out files"
+  help_flag "--sandboxes [N]" "DAYS" "Remove agent sandboxes from runs older than N days (default: 7)"
+  help_flag "--empty" "" "Remove results dirs with no run.json (aborted or pre-versioning runs)"
+  help_flag "--procs" "" "Reap orphaned bench helper processes (tail -F, cline hubs)"
+  help_flag "--all" "" "Equivalent to --logs --scratch --sandboxes 7 --empty --procs"
+
+  help_section "MODE OPTIONS"
+  help_flag "--dry-run" "" "explicitly show what would be deleted (default mode)"
+  help_flag "-f, --force" "" "actually remove files"
+  help_flag "-h, --help" "" "show this help and exit"
+}
+
 usage() {
-  awk 'NR>1 && /^[^#]/{exit} NR>1{gsub(/^# ?/,""); print}' "$0"
+  show_help
   exit 0
 }
 

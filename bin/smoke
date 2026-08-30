@@ -123,11 +123,21 @@ BENCH_ARGS=()
 EXTRA_BENCH_ARGS=()
 ADAPTER_OVERRIDE=""
 
+extract_runtime_and_model() {
+  local model="$1"
+  case "$model" in
+    omlx/*) echo "omlx"; echo "${model#omlx/}";;
+    ollama/*) echo "ollama"; echo "${model#ollama/}";;
+    mlx/*) echo "mlx"; echo "${model#mlx/}";;
+    *) echo "lms"; echo "$model";;
+  esac
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) show_help; exit 0;;
-    --runtime)       RUNTIME="$2";  shift 2;;
-    --model|-m)      MODEL="$2";    BENCH_ARGS+=(--model "$2"); shift 2;;
+    --runtime) RUNTIME="$2"; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
+    --model|-m)      MODEL="$2"; shift 2;;
     --agent|-t)    ADAPTER_OVERRIDE="$2"; BENCH_ARGS+=(--agent "$2"); shift 2;;
     --no-proxy-check) PROXY_CHECK=0; shift;;
     --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
@@ -146,6 +156,14 @@ while [ $# -gt 0 ]; do
     *) warn "unknown flag: $1"; shift;;
   esac
 done
+
+# Extract runtime and clean model name from prefix
+if [ -n "$MODEL" ]; then
+  mapfile -t result < <(extract_runtime_and_model "$MODEL")
+  RUNTIME="${result[0]}"
+  MODEL="${result[1]}"
+  BENCH_ARGS+=(--model "$MODEL")
+fi
 
 BENCH_ARGS+=(--runtime "$RUNTIME")
 
@@ -329,7 +347,7 @@ if [ "$RETRYING_BROKEN" = 1 ]; then
   bench_args+=("--skip-compat-filter")
 fi
 _bench_rc=0
-"$HERE/bin/bench" "${bench_args[@]}" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}" || _bench_rc=$?
+RUNTIME="$RUNTIME" "$HERE/bin/bench" "${bench_args[@]}" "${BENCH_ARGS[@]}" "${EXTRA_BENCH_ARGS[@]}" || _bench_rc=$?
 [ "$_bench_rc" -eq 0 ] || exit "$_bench_rc"
 
 # ── Verdict ───────────────────────────────────────────────────────────────────

@@ -59,7 +59,7 @@
 #                      (used by bin/smoke --retry-broken to test broken adapters)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/lib/versions.sh"
+source "$HERE/config.sh"; source "$HERE/lib/common.sh"; source "$HERE/lib/versions.sh"; source "$HERE/bin/lib/help.sh"
 
 # Recursively signal a process and all its descendants. Defined early so the
 # EXIT/INT/TERM traps below can reap the verbose tails' *children*: each tail is
@@ -122,9 +122,34 @@ for _ha in "$@"; do [ "$_prev_ha" = "--runtime" ] && _help_runtime="$_ha"; _prev
 
 show_help() {
   local runtime="$1"
-  awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
-  echo
-  echo "Available adapters:"
+  help_header "bench" "run the matrix of (adapter x model x case), grade, and score"
+
+  help_section "USAGE"
+  help_line "  bench [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Copy each case workdir into an isolated sandbox, hand the task to a CLI"
+  help_line "  adapter pointed at a model, run the case's grader, and record pass/total."
+  help_line "  Results land in results/<timestamp>/results.csv plus per-run logs."
+
+  help_section "OPTIONS"
+  help_flag "--agent, -a" "a,b" "CLI adapters to run (default: \$DEFAULT_ADAPTERS)"
+  help_flag "--models, --model, -m" "a,b" "model ids (default: discovered from runtime)"
+  help_flag "--cases" "a,b" "case ids (default: all cases/)"
+  help_flag "--difficulty" "t,t" "keep only cases of these tiers: easy|medium|hard"
+  help_flag "--timeout" "N" "per-trial HARD ceiling, seconds (default: 300)"
+  help_flag "--warmup" "N" "first-byte budget, seconds (default: 180; 0 disables)"
+  help_flag "--stall" "N" "no-progress watchdog, seconds (default: 120; 0 disables)"
+  help_flag "--trials" "N" "repeat each combo N times; results.csv records MEDIAN (default: 1)"
+  help_flag "--runtime" "RUNTIME" "inference backend (default: litellm-proxy)"
+  help_flag "--list" "" "print the resolved axes and exit"
+  help_flag "--interactive, -i" "" "fzf pickers for model and adapter"
+  help_flag "--verbose, -v" "" "show error excerpts inline on non-pass trials"
+  help_flag "--resume, [RUN_ID]" "" "resume a previous run; skip completed cases"
+  help_flag "--skip-compat-filter" "" "don't filter broken adapters from compat.json"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "AVAILABLE ADAPTERS"
   ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
     | xargs -I{} basename {} .sh \
     | sort -u \
@@ -133,9 +158,9 @@ show_help() {
         if (key in grp) grp[key]=grp[key]" "$0
         else { ord[++n]=key; grp[key]=$0 }
       }
-      END { for(i=1;i<=n;i++) print "  "grp[ord[i]] }'
-  echo
-  echo "Available models ($runtime):"
+      END { for(i=1;i<=n;i++) print "  "grp[ord[i]] }' | sed "s/^/${C_GRN}  /; s/ /${C_RST} /g"
+
+  help_section "AVAILABLE MODELS (${runtime})"
   local base_url
   case "$runtime" in
     litellm-proxy) base_url="$LITELLM_BASE_URL";;
@@ -161,7 +186,18 @@ show_available_adapters() {
   echo "  bin/bench --agent hermes --interactive"
 }
 
-ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="litellm-proxy"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""
+extract_runtime_and_model() {
+  local model="$1"
+  case "$model" in
+    omlx/*) echo "omlx"; echo "${model#omlx/}";;
+    ollama/*) echo "ollama"; echo "${model#ollama/}";;
+    mlx/*) echo "mlx"; echo "${model#mlx/}";;
+    lms/*) echo "lms"; echo "${model#lms/}";;
+    *) echo ""; echo "$model";;
+  esac
+}
+
+ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="${RUNTIME:-litellm-proxy}"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent|-a)        ADAPTERS="$2"; shift 2;;
@@ -172,7 +208,7 @@ while [ $# -gt 0 ]; do
     --warmup)            WARMUP="$2";   shift 2;;
     --stall)             STALL="$2";    shift 2;;
     --trials)            TRIALS="$2";   shift 2;;
-    --runtime)           RUNTIME="$2";  shift 2;;
+    --runtime)           RUNTIME="$2"; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
     --from-qualified)    FROM_QUALIFIED="$2"; shift 2;;
     --list)              LIST=1; shift;;
     --interactive|-i)    INTERACTIVE=1; shift;;
@@ -243,6 +279,25 @@ if [ "$INTERACTIVE" = 1 ]; then
 fi
 
 [ -z "$ADAPTERS" ] && ADAPTERS="$DEFAULT_ADAPTERS"
+
+# Extract runtime from model prefix and clean model names (omlx/Model → runtime=omlx, model=Model)
+if [ -n "$MODELS" ]; then
+  IFS=',' read -ra _model_list <<< "$MODELS"
+  _first_model="${_model_list[0]}"
+  mapfile -t _prefix_result < <(extract_runtime_and_model "$_first_model")
+  _detected_runtime="${_prefix_result[0]}"
+  _cleaned_models=()
+
+  if [ -n "$_detected_runtime" ]; then
+    RUNTIME="$_detected_runtime"
+    # Clean all models by removing the same prefix
+    for _m in "${_model_list[@]}"; do
+      mapfile -t _m_result < <(extract_runtime_and_model "$_m")
+      _cleaned_models+=("${_m_result[1]}")
+    done
+    MODELS="$(IFS=',' printf '%s' "${_cleaned_models[*]}")"
+  fi
+fi
 
 # Validate that requested adapters exist; filter out unavailable ones with guidance
 _available_adapters=()
