@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Adapter: caveman -> unified endpoint via LiteLLM proxy.
 # Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, omlx) based on model ID prefix.
-# Note: mlx and mtplx are not supported by caveman's current implementation.
+# (lms, ollama, omlx, mtplx) based on model ID prefix.
+# Note: mlx is not supported by caveman's current implementation.
 #
 # The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>
+# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mtplx/<id>
 #
 # Adapter accepts --provider to override which backend to target:
 #   --provider lms        # route to LM Studio (default if lms/ prefix)
 #   --provider ollama     # route to Ollama
 #   --provider omlx       # route to oMLX
+#   --provider mtplx      # route to MTPLX
 #
 # Install: npm install -g @juliusbrussee/caveman-code
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
@@ -40,17 +41,12 @@ command -v caveman >/dev/null 2>&1 || {
 
 # Validate provider
 case "$PROVIDER" in
-  lms|ollama|omlx)
+  lms|ollama|omlx|mtplx)
     # These are supported
     ;;
   mlx)
     if [ ! -t 0 ]; then cat > /dev/null; fi
     echo "caveman: skipped — MLX not supported by caveman" >&2
-    exit 1
-    ;;
-  mtplx)
-    if [ ! -t 0 ]; then cat > /dev/null; fi
-    echo "caveman: skipped — MTPLX not supported by caveman" >&2
     exit 1
     ;;
   *)
@@ -61,7 +57,7 @@ case "$PROVIDER" in
 esac
 
 # Prefix the model ID with the provider name if not already prefixed.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|omlx)/ ]]; then
+if [[ "$MODEL_ID" =~ ^(lms|ollama|omlx|mtplx)/ ]]; then
   PREFIXED_MODEL_ID="$MODEL_ID"
 else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"

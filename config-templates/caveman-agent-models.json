@@ -119,6 +119,16 @@
           "id": "gpt-oss-20b-MXFP4-Q8"
         }
       ]
+    },
+    "mtplx": {
+      "baseUrl": "http://127.0.0.1:8001/v1",
+      "api": "openai-completions",
+      "apiKey": "mtplx",
+      "models": [
+        {
+          "id": "mtplx-flash-next-optimized-speed"
+        }
+      ]
     }
   }
 }

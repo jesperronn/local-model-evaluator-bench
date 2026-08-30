@@ -12,6 +12,10 @@
 #   models.approval.provider: auto -> guardian uses your local LM Studio default.
 #
 # Verify with: bin/doctor   (reports hermes readiness)
+#
+# Note: providers.omlx / providers.mlx / providers.mtplx blocks under
+# ~/.hermes/config.yaml `providers:` must exist before bin/agents-config can
+# sync their model lists — it only syncs an existing block, never creates one.
 
 terminal:
   backend: local
