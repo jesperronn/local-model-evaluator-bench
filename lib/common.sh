@@ -54,6 +54,11 @@ mtplx_up() {
   curl -fsS --max-time 5 "$MTPLX_BASE_URL/models" >/dev/null 2>&1
 }
 
+# Reachability check against the LiteLLM proxy. Returns 0 if up.
+litellm_up() {
+  curl -fsS --max-time 5 "$LITELLM_BASE_URL/models" >/dev/null 2>&1
+}
+
 # Model ids oMLX currently holds in memory. oMLX loads on first request and
 # evicts LRU, so "loaded" is a subset of omlx_models and changes without us
 # asking — /v1/models can't tell us this, same as with LM Studio. Uses oMLX's

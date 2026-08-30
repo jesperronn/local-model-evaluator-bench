@@ -128,6 +128,7 @@ extract_runtime_and_model() {
     omlx/*) echo "omlx"; echo "${model#omlx/}";;
     ollama/*) echo "ollama"; echo "${model#ollama/}";;
     mlx/*) echo "mlx"; echo "${model#mlx/}";;
+    mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
     *) echo "lms"; echo "$model";;
   esac
 }
@@ -295,6 +296,13 @@ if [ "$RUNTIME" = "lms" ]; then
       fi
     fi
   fi
+
+elif [ "$RUNTIME" = "mtplx" ]; then
+  # MTPLX: multi-model server via LiteLLM proxy (runs at MTPLX_BASE_URL).
+  # LiteLLM proxy must be running: bin/litellm-proxy start
+  # Models are addressed as mtplx/<id> through LITELLM_BASE_URL.
+  litellm_up || die "LiteLLM proxy not reachable at $LITELLM_BASE_URL (start it: bin/litellm-proxy start)"
+  ok "LiteLLM proxy up (MTPLX backend)"
 
 elif [ "$RUNTIME" = "omlx" ]; then
   # oMLX loads on demand, so there is nothing to pre-load — only check that the
