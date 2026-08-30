@@ -55,6 +55,14 @@ FORGE_MODEL="${PREFIXED_MODEL_ID##*/}"
 # Set up the OpenAI-compatible endpoint to point to the LiteLLM proxy
 export OPENAI_BASE_URL="$LITELLM_BASE_URL"
 export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-default}"
+export OPENAI_MODEL="$PREFIXED_MODEL_ID"
+
+# Configure forge to use the LiteLLM-proxied model for all modes
+# This ensures forge always uses the specified model instead of its defaults
+forge config set "models.fast" "$PREFIXED_MODEL_ID" >/dev/null 2>&1 || true
+forge config set "models.balanced" "$PREFIXED_MODEL_ID" >/dev/null 2>&1 || true
+forge config set "models.heavy" "$PREFIXED_MODEL_ID" >/dev/null 2>&1 || true
+forge config set "models.planner" "$PREFIXED_MODEL_ID" >/dev/null 2>&1 || true
 
 # Run forge with auto-approve and file permissions, without interactive prompts
 if [ ! -t 0 ]; then
