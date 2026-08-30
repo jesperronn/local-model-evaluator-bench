@@ -49,13 +49,12 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# Open Interpreter uses OpenAI-compatible configuration. Route all requests
-# through the LiteLLM proxy using the "openai" provider (which is configured
-# to point to LITELLM_BASE_URL in ~/.openinterpreter/config.toml).
+# Open Interpreter uses LiteLLM-compatible configuration. Route all requests
+# through the LiteLLM proxy using the "litellm" custom provider (which is configured
+# in ~/.openinterpreter/config.toml to point to LITELLM_BASE_URL).
 OI_CONFIG=(
-  -c "model_provider=\"openai\""
+  -c "model_provider=\"litellm\""
   -c "model=\"$PREFIXED_MODEL_ID\""
-  -c "base_url=\"$LITELLM_BASE_URL\""
 )
 
 if [ ! -t 0 ]; then

@@ -1485,9 +1485,12 @@
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
     "symptom": "ERROR: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'lms/Ornith-1.5-35B-A3B-MLX-4",
-    "status": "open",
+    "status": "resolved",
     "last_seen": "2026-08-30",
-    "last_run_id": "20260830-112212"
+    "last_run_id": "20260830-124835",
+    "resolved_date": "2026-08-30",
+    "resolved_run_id": "20260830-124859",
+    "resolved_agent_version": "unknown"
   },
   "nanocoder:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "nanocoder",
