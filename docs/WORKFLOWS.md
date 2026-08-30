@@ -200,7 +200,7 @@ Automate: find what needs running → run → investigate → validate.
 ┌──────────────────────────────────────────────────────────────┐
 │ STEP 2: Run Overnight (bin/bench-overnight)                 │
 ├──────────────────────────────────────────────────────────────┤
-│ $ bin/bench-overnight --stale --runtime lms                 │
+│ $ bin/bench-overnight --stale                 │
 │                                                               │
 │ Scans stale items, groups by model, runs in sequence        │
 │ Results → results/<timestamp>/                              │

@@ -24,8 +24,8 @@ model, and real discovery.
 ```bash
 bin/omlx status                      # up? which models served / resident
 bin/omlx models                      # the ids --runtime omlx accepts
-bin/bench --runtime omlx --model Ornith-1.0-9B-4bit --agent aider
-bin/smoke --runtime omlx --model Ornith-1.0-9B-4bit
+bin/bench --model omlx/ Ornith-1.0-9B-4bit --agent aider
+bin/smoke --model omlx/ Ornith-1.0-9B-4bit
 ```
 
 `bin/rt` shows an oMLX row with served vs resident counts; `bin/rt stop omlx`

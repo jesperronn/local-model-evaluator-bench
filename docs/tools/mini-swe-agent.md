@@ -90,7 +90,7 @@ earlier smoke run showed stalls/timeouts on all three cases (186s/302s/122s).
 Investigated as a possible litellm-proxy streaming hang (same class of bug
 seen in `copilot.sh`), but the proxy streams both plain and tool-call
 responses correctly in isolation (verified with curl). Re-running
-`bin/smoke --runtime omlx --model Ornith-1.5-35B-A3B-MLX-4bit --agent mini-swe-agent`
+`bin/smoke --model omlx/ Ornith-1.5-35B-A3B-MLX-4bit --agent mini-swe-agent`
 gave 2/3 PASS: smoke-01-edit-file 245s (ok), smoke-02-numbers 165s (ok),
 smoke-00-hello errored at 97s because the model spent its turns exploring the
 repo (`cat`-ing unrelated scripts for context) rather than acting directly —
