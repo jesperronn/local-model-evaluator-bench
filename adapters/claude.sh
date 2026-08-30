@@ -59,8 +59,7 @@ AUTH_TOKEN="${LITELLM_MASTER_KEY:-litellm}"
 CLAUDE_ARGS=()
 if [ ! -t 0 ]; then
   # Bench-only: skip permission prompts so the agent runs unattended in the sandbox.
-  SKIP_PERMS="--allow-dangerously-skip-permissions"
-  CLAUDE_ARGS+=($SKIP_PERMS --print --bare "$(cat)")
+  CLAUDE_ARGS+=(--dangerously-skip-permissions --print --bare "$(cat)")
 fi
 
 exec env \
