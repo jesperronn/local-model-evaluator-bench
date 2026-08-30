@@ -51,6 +51,18 @@ COMMON_SH="${STALE_COMMON_SH:-$HERE/lib/common.sh}"
 BENCH_BIN="${STALE_BENCH:-$HERE/bin/bench}"
 SHIM_BIN="${STALE_SHIM:-$HERE/bin/pi-patch-edit-shim}"
 
+extract_runtime_and_model() {
+  local model="$1"
+  case "$model" in
+    omlx/*) echo "omlx"; echo "${model#omlx/}";;
+    ollama/*) echo "ollama"; echo "${model#ollama/}";;
+    mlx/*) echo "mlx"; echo "${model#mlx/}";;
+    lms/*) echo "lms"; echo "${model#lms/}";;
+    mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
+    *) echo ""; echo "$model";;
+  esac
+}
+
 ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; RUNTIME="lms"
 ONLY=""; HEADER=0; LIST=0; VERBOSE=0
 while [ $# -gt 0 ]; do
@@ -59,7 +71,7 @@ while [ $# -gt 0 ]; do
     --models|--model|-m) MODELS="$2";   shift 2;;
     --cases)             CASES="$2";    shift 2;;
     --difficulty)        DIFFICULTY="$2"; shift 2;;
-    --runtime)           RUNTIME="$2";  shift 2;;
+    --runtime)           RUNTIME="$2"; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
     --missing-only)      ONLY="missing"; shift;;
     --stale-only)        ONLY="stale";   shift;;
     --failed-only)       ONLY="failed";  shift;;
@@ -70,6 +82,25 @@ while [ $# -gt 0 ]; do
     *) die "unknown option: $1";;
   esac
 done
+
+# Extract runtime from model prefix and clean model names (omlx/Model → runtime=omlx, model=Model)
+if [ -n "$MODELS" ]; then
+  IFS=',' read -ra _model_list <<< "$MODELS"
+  _first_model="${_model_list[0]}"
+  mapfile -t _prefix_result < <(extract_runtime_and_model "$_first_model")
+  _detected_runtime="${_prefix_result[0]}"
+  _cleaned_models=()
+
+  if [ -n "$_detected_runtime" ]; then
+    RUNTIME="$_detected_runtime"
+    # Clean all models by removing the same prefix
+    for _m in "${_model_list[@]}"; do
+      mapfile -t _m_result < <(extract_runtime_and_model "$_m")
+      _cleaned_models+=("${_m_result[1]}")
+    done
+    MODELS="$(IFS=',' printf '%s' "${_cleaned_models[*]}")"
+  fi
+fi
 
 # Determine runtime base URL for live model discovery
 case "$RUNTIME" in

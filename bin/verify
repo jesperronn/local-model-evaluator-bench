@@ -15,25 +15,33 @@ VERBOSE=0
 MODEL=""
 AGENT=""
 
+extract_runtime_and_model() {
+  local model="$1"
+  case "$model" in
+    omlx/*) echo "omlx"; echo "${model#omlx/}";;
+    ollama/*) echo "ollama"; echo "${model#ollama/}";;
+    mlx/*) echo "mlx"; echo "${model#mlx/}";;
+    lms/*) echo "lms"; echo "${model#lms/}";;
+    mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
+    *) echo ""; echo "$model";;
+  esac
+}
+
 show_help() {
   help_header "verify" "step-by-step check: server, models, load, call — for workshop participants"
   help_section "USAGE"
-  help_line "  verify [--runtime lms|ollama|mtplx] [--model ID] [--verbose]"
-  help_line "  verify --agent pi|opencode [--runtime lms|ollama|mtplx] [--model ID] [--verbose]"
+  help_line "  verify [--model lms:qwen/qwen3.5-9b] [--verbose]"
+  help_line "  verify --agent pi|opencode [--model ollama:qwen2.5-coder:7b] [--verbose]"
   help_section "OPTIONS"
-  help_flag "--runtime" "lms|ollama|mtplx" "engine to verify against (default: lms)"
-  help_flag "--lms" "" "shorthand for --runtime lms (default)"
-  help_flag "--ollama" "" "shorthand for --runtime ollama"
-  help_flag "--mtplx" "" "shorthand for --runtime mtplx"
   help_flag "--agent NAME" "" "instead of the raw engine, verify an agent CLI: pi | opencode"
-  help_flag "--model ID" "" "model to load/call (default: small qwen3.5-9b for lms, qwen2.5-coder:7b for ollama)"
+  help_flag "--model ID" "" "model with optional prefix (lms/ollama/mtplx:id); default: qwen/qwen3.5-9b"
   help_flag "--verbose" "" "print each command before running it"
   help_flag "-h, --help" "" "show this help and exit"
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --runtime) RUNTIME="$2"; shift 2;;
+    --runtime) RUNTIME="$2"; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
     --lms) RUNTIME="lms"; shift;;
     --ollama) RUNTIME="ollama"; shift;;
     --mtplx) RUNTIME="mtplx"; shift;;
@@ -44,6 +52,16 @@ while [ $# -gt 0 ]; do
     *) err "unknown option: $1"; echo; show_help; exit 1;;
   esac
 done
+
+# Extract runtime from model prefix if present
+if [ -n "$MODEL" ]; then
+  mapfile -t _result < <(extract_runtime_and_model "$MODEL")
+  _detected_runtime="${_result[0]}"
+  if [ -n "$_detected_runtime" ]; then
+    RUNTIME="$_detected_runtime"
+    MODEL="${_result[1]}"
+  fi
+fi
 
 case "$RUNTIME" in lms|ollama|mtplx) ;; *) die "unknown --runtime: $RUNTIME (valid: lms, ollama, mtplx)";; esac
 
