@@ -1,0 +1,6 @@
+#!/bin/bash
+# xxc — display file contents (opencode verification tool)
+# This utility is used by the opencode CLI to verify file creation and content.
+# opencode runs: xxc <file> | xxd to display hex dump of created files.
+# The xxc tool is simply a pass-through to cat.
+cat "$@"
