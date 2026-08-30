@@ -33,5 +33,9 @@ class StripUnsupportedTools(CustomLogger):
             data["tools"] = kept
         return data
 
+    async def async_post_call_success_hook(self, user_api_key_dict, response, **kwargs):
+        """No-op post-call hook to satisfy litellm hook interface."""
+        return response
+
 
 proxy_handler_instance = StripUnsupportedTools()
