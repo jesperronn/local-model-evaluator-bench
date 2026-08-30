@@ -1636,7 +1636,9 @@
     "first_seen": "2026-08-30",
     "run_id": "20260830-133657",
     "symptom": "Warning: Model \"mtplx/mtplx-flash-next-optimized-speed\" not found for provider \"litellm\". Using custom model id.",
-    "status": "open"
+    "status": "resolved",
+    "resolved_date": "2026-08-30",
+    "resolved_run_id": "20260830-161415"
   },
   "claude:ornith-1.5-35b-a3b:omlx": {
     "adapter": "claude",
@@ -1687,5 +1689,45 @@
     "status": "open",
     "last_seen": "2026-08-30",
     "last_run_id": "20260830-142154"
+  },
+  "claude:mtplx-flash-next-optimized-speed:mtplx": {
+    "adapter": "claude",
+    "model": "mtplx-flash-next-optimized-speed",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-205302",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "forge:mtplx-flash-next-optimized-speed:mtplx": {
+    "adapter": "forge",
+    "model": "mtplx-flash-next-optimized-speed",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-205302",
+    "symptom": "{\"ts\":\"2026-08-30T19:05:27.021Z\",\"level\":\"warn\",\"msg\":\"primary model failed, trying fallback\",\"meta\":{\"err\":\"ForgeRuntim",
+    "status": "open"
+  },
+  "codex:mtplx-flash-next-optimized-speed:mtplx": {
+    "adapter": "codex",
+    "model": "mtplx-flash-next-optimized-speed",
+    "runtime": "mtplx",
+    "agent_version": "codex-cli 0.151.0",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-205302",
+    "symptom": "2026-08-30T18:59:05.927565Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
+  },
+  "gptme:mtplx-flash-next-optimized-speed:mtplx": {
+    "adapter": "gptme",
+    "model": "mtplx-flash-next-optimized-speed",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-08-30",
+    "run_id": "20260830-205302",
+    "symptom": "Assistant: Thinking...\r[21:09:32] WARNING  LLM naming failed: Error code: 400 -      auto_naming.py:178",
+    "status": "open"
   }
 }
