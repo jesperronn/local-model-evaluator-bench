@@ -77,6 +77,8 @@ On strong models (qwen3.6-35b-a3b, qwen3-coder-30b, qwen3.5-9b), codex achieves 
 
 ## Known issues
 
+**codex + MTPLX: missing `/v1/responses` (upstream backend gap, re-checked 2026-08-30):** codex-cli 0.142+ dropped support for `wire_api="chat"` and hard-requires the Responses API, i.e. it only ever calls `POST /v1/responses`, never `/v1/chat/completions`. MTPLX (confirmed as of v2.10.1) still only implements `/v1/chat/completions` — a direct `curl -X POST http://127.0.0.1:8001/v1/responses` returns a bare `404 Not Found`. This was previously confirmed on the pre-upgrade MTPLX build and re-confirmed unchanged after the v2.10.1 upgrade. LiteLLM's `mtplx/*` route in `config-templates/litellm.yaml` is a raw `openai/*` passthrough (not a translating proxy), so it does not bridge Responses-API calls into Chat-Completions calls either. This is a genuine upstream incompatibility between codex and MTPLX, not an adapter bug in this repo — every other adapter tested against `mtplx/*` (pi, aider, cline, etc.) works fine since they use `/v1/chat/completions`. Re-check when either codex regains `wire_api="chat"` support or MTPLX implements `/v1/responses`.
+
 **`lmstudio` reserved provider ID:** codex has a built-in `lmstudio` provider that cannot be overridden with `-c`. The workaround (`lmstudio_local`) works but requires all four `-c model_providers.*` flags to be passed on every invocation. A persistent config in `~/.codex/config.toml` would simplify this. See `docs/SETUP.md`.
 
 **Non-zero exit on clean results:** codex exits with rc=1 after correct edits on qwen3-coder-30b (js-06, ts-01). This is a reproducible codex CLI bug at version 0.138.0. Monitor in future versions.
