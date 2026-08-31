@@ -1,7 +1,7 @@
 # Decision: drop the built-in Presidio PII guardrail (removed 2026-08-29)
 
 commit abe97dd ("feat: Add PII redaction guardrails via LiteLLM Presidio")
-added a `guardrails:` block to `config-templates/litellm.yaml` using litellm's
+added a `guardrails:` block to [config-templates/litellm.yaml](../../config-templates/litellm.yaml) using litellm's
 built-in Presidio integration. It never actually worked, and the proxy has
 been unable to start with that config since the commit landed — it only kept
 running because the container wasn't restarted until this was debugged.
@@ -13,7 +13,7 @@ running because the container wasn't restarted until this was debugged.
    the installed `litellm-database:main-stable` image requires those fields
    nested under `litellm_params:` — `guardrail_registry.py`'s
    `initialize_guardrail` reads `guardrail["litellm_params"]`
-   unconditionally and `KeyError`s otherwise.
+   unconditionally and `KeyError`s otherwise (see [litellm guardrail registry](https://github.com/BerriAI/litellm/blob/main/litellm/proxy/guardrails/guardrail_registry.py)).
 
 2. **Hard container dependency, no way around it.** Even with the schema
    fixed, litellm's presidio hook calls `validate_environment()`
@@ -34,11 +34,11 @@ running because the container wasn't restarted until this was debugged.
 ## What was removed
 
 - The `guardrails:` block (already commented out) from
-  `config-templates/litellm.yaml`.
+  [config-templates/litellm.yaml](../../config-templates/litellm.yaml).
 - `cmd_guardrails`, `_get_guardrails_status`, the `guardrails` case in the
   command dispatch, and the guardrails line in `cmd_status` from
-  `bin/litellm-proxy`.
-- `bin/guardrails-test-inline`.
+  [bin/litellm-proxy](../../bin/litellm-proxy).
+- [bin/guardrails-test-inline](../../bin/guardrails-test-inline).
 
 The corrected `litellm_params`-nested schema is preserved in git history if
 this is revisited (see the commit on branch `agent-/elegant-benz-17ff2e`
@@ -46,12 +46,14 @@ touching `config-templates/litellm.yaml`).
 
 ## Alternatives to explore later
 
+### Custom hook pattern (recommended)
+
 If PII redaction is needed again, the pattern already used elsewhere in this
 proxy for exactly this kind of "touch the request/response before it leaves"
 problem is a custom `CustomLogger`-style hook wired in via `callbacks:` — see
-`config-templates/litellm-hooks/strip_unsupported_tools.py`, already
+[config-templates/litellm-hooks/strip_unsupported_tools.py](../../config-templates/litellm-hooks/strip_unsupported_tools.py), already
 registered as `hooks.strip_unsupported_tools.proxy_handler_instance` in
-`config-templates/litellm.yaml`.
+[config-templates/litellm.yaml](../../config-templates/litellm.yaml).
 
 The same shape works for anonymization: a pre-call hook
 (`async_pre_call_hook`) redacts/tokenizes PII in the outbound request before
@@ -61,4 +63,11 @@ container dependency entirely — the hook can call a local NER/regex-based
 redactor in-process, or shell out to a locally-run detector, without litellm
 itself needing to know about Presidio or validate any Presidio-specific env
 vars at startup. Worth prototyping as
-`config-templates/litellm-hooks/pii_redact.py` if this becomes a priority.
+[config-templates/litellm-hooks/pii_redact.py](../../config-templates/litellm-hooks/pii_redact.py) if this becomes a priority.
+
+### External libraries
+
+- [PrivAiTe](https://github.com/crp4222/PrivAiTe) — Local Python library with
+  custom recognizers and anonymizers for flexible PII detection and redaction
+  without external containers. Explored in prior session "PrivAiTe integration
+  for local setup" (2026-08-29).
