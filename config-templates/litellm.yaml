@@ -43,9 +43,20 @@ model_list:
       api_key: os.environ/LITELLM_OMLX_KEY
 
   # MTPLX is also multi-model, like oMLX — /v1/models enumerates what it serves.
+  # Unlike oMLX, MTPLX returns bare model IDs without provider prefix, so we
+  # explicitly list known models here with the mtplx/ prefix for discovery.
   - model_name: "mtplx/*"
     litellm_params:
       model: "openai/*"
+      api_base: os.environ/LITELLM_MTPLX_BASE
+      api_key: os.environ/LITELLM_MTPLX_KEY
+
+  # Explicitly list MTPLX models with prefix (to work around MTPLX not prefixing
+  # its own /v1/models response, unlike oMLX). This appears in model discovery
+  # and allows routing both as mtplx/model-id and via the wildcard mtplx/* route.
+  - model_name: "mtplx/mtplx-flash-next-optimized-speed"
+    litellm_params:
+      model: "openai/mtplx-flash-next-optimized-speed"
       api_base: os.environ/LITELLM_MTPLX_BASE
       api_key: os.environ/LITELLM_MTPLX_KEY
 

@@ -39,7 +39,7 @@ lms_up() {
 
 # Reachability check against the oMLX server. Returns 0 if up.
 omlx_up() {
-  curl -fsS --max-time 5 "$OMLX_BASE_URL/models" >/dev/null 2>&1
+  curl -fsS --max-time 5 -H "Authorization: Bearer $OMLX_API_KEY" "$OMLX_BASE_URL/models" >/dev/null 2>&1
 }
 
 # Model ids oMLX is currently serving, one per line. oMLX discovers every model
@@ -51,7 +51,7 @@ omlx_models() {
 
 # Reachability check against the MTPLX server. Returns 0 if up.
 mtplx_up() {
-  curl -fsS --max-time 5 "$MTPLX_BASE_URL/models" >/dev/null 2>&1
+  curl -fsS --max-time 5 -H "Authorization: Bearer $MTPLX_API_KEY" "$MTPLX_BASE_URL/models" >/dev/null 2>&1
 }
 
 # Reachability check against the LiteLLM proxy. Returns 0 if up.
@@ -64,7 +64,7 @@ litellm_up() {
 # asking — /v1/models can't tell us this, same as with LM Studio. Uses oMLX's
 # own /api/status (outside /v1; not part of the OpenAI API).
 omlx_loaded_models() {
-  curl -fsS --max-time 5 "${OMLX_BASE_URL%/v1}/api/status" 2>/dev/null \
+  curl -fsS --max-time 5 -H "Authorization: Bearer $OMLX_API_KEY" "${OMLX_BASE_URL%/v1}/api/status" 2>/dev/null \
     | jq -r '.loaded_models[]? // empty' 2>/dev/null || true
 }
 

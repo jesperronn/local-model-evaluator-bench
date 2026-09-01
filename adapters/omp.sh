@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Adapter: omp (oh-my-pi) -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Routes through omp's built-in "litellm" provider (LITELLM_BASE_URL/
+# LITELLM_API_KEY): omp autodiscovers every model LiteLLM serves and matches
+# it by "<runtime>/<model>" id, so no adapter-side "litellm/" prefix needed.
 #
 # The proxy must be running: bin/litellm-proxy start
 # Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
@@ -49,16 +50,13 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# omp v18+ has issues discovering models with runtime prefixes.
-# Use just the model name and pass the LiteLLM proxy URL via environment.
-UNPREFIXED_MODEL_ID="$MODEL_ID"
+# omp v18+ ignores OPENAI_API_BASE/OPENAI_API_KEY for custom model ids — it
+# routes through its own built-in "litellm" provider instead, which reads
+# LITELLM_BASE_URL/LITELLM_API_KEY. omp requires a non-empty key value.
+export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
+export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
 
-# Export environment variables for OpenAI API endpoint configuration
-export OPENAI_API_BASE="${LITELLM_BASE_URL:-http://127.0.0.1:8000/v1}"
-export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
-export OPENAI_ORG_ID="" # Clear any org ID that might interfere
-
-OMP_ARGS=(--model "$UNPREFIXED_MODEL_ID")
+OMP_ARGS=(--model "$PREFIXED_MODEL_ID")
 
 if [ ! -t 0 ]; then
   exec omp "${OMP_ARGS[@]}" -p "$(cat)"

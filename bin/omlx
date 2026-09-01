@@ -41,7 +41,7 @@ cmd_status() {
     return 1
   fi
   local st served loaded used max pct
-  st="$(curl -fsS --max-time 5 "$OMLX_HOST/api/status" 2>/dev/null)"
+  st="$(curl -fsS --max-time 5 -H "Authorization: Bearer $OMLX_API_KEY" "$OMLX_HOST/api/status" 2>/dev/null)"
   served="$(omlx_models | wc -l | tr -d ' ')"
   loaded="$(omlx_loaded_models | paste -sd', ' - )"
   used="$(printf '%s' "$st" | jq -r '.model_memory_used // 0')"
@@ -79,7 +79,7 @@ cmd_gc() {
   done
   omlx_up || { echo "oMLX not reachable at $OMLX_BASE_URL" >&2; exit 1; }
   local st used max pct loaded
-  st="$(curl -fsS --max-time 5 "$OMLX_HOST/api/status" 2>/dev/null)"
+  st="$(curl -fsS --max-time 5 -H "Authorization: Bearer $OMLX_API_KEY" "$OMLX_HOST/api/status" 2>/dev/null)"
   used="$(printf '%s' "$st" | jq -r '.model_memory_used // 0')"
   max="$(printf '%s' "$st" | jq -r '.model_memory_max // 0')"
   pct="$(awk -v u="$used" -v m="$max" 'BEGIN{ if (m>0) printf "%.0f", (u/m)*100; else print 0 }')"
@@ -130,7 +130,7 @@ case "${1:-status}" in
   restart) _need_cli || exit 1; "$OMLX_CLI" restart "${@:2}";;
   reload)
     omlx_up || { echo "oMLX not reachable at $OMLX_BASE_URL" >&2; exit 1; }
-    curl -fsS -X POST "$OMLX_HOST/admin/api/reload" >/dev/null &&
+    curl -fsS -X POST -H "Authorization: Bearer $OMLX_API_KEY" "$OMLX_HOST/admin/api/reload" >/dev/null &&
       echo "rescanned $OMLX_MODELS_DIR — $(omlx_models | wc -l | tr -d ' ') models served"
     ;;
   unload)
