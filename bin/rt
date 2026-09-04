@@ -161,13 +161,7 @@ cmd_status() {
   printf '%s     ' "${C_BLU}LMS${C_RST}"
   if lms_up 2>/dev/null; then
     lms_up_flag=1
-    lms_models=$(lms_loaded_models 2>/dev/null || true)
-    if [ -n "$lms_models" ]; then
-      local csv; csv=$(echo "$lms_models" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
-      printf '%s  %sloaded:%s %s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}" "$csv"
-    else
-      printf '%s  %s(no model loaded)%s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}"
-    fi
+    printf '%s  %s(use: lms ps for loaded models)%s\n' "${C_GRN}up${C_RST}" "${C_DIM}" "${C_RST}"
   else
     printf '%s\n' "${C_DIM}down${C_RST}"
   fi
@@ -387,8 +381,10 @@ print(status,queued,age)
         printf '  last result written %ss ago\n' "${C_DIM}$csv_age_s${C_RST}"
       fi
     fi
-    local act; act=$(_lms_activity)
-    if [ -n "$act" ]; then
+    # Only check LMS activity if it's already up (avoid auto-start)
+    if [ "$lms_up_flag" = 1 ]; then
+      local act; act=$(_lms_activity)
+      if [ -n "$act" ]; then
       local mstatus mqueued mage_ms mage_s
       read mstatus mqueued mage_ms <<< "$act"
       mage_s=$(( mage_ms / 1000 ))
@@ -399,6 +395,7 @@ print(status,queued,age)
       else
         printf '  model: %sidle%s  last active %ss ago\n' "${C_DIM}" "${C_RST}" "$mage_s"
         [ "$mage_s" -gt 60 ] && printf '  %s(no generation for >1min — may be stuck or between cases)%s\n' "${C_YEL}" "${C_RST}"
+      fi
       fi
     fi
   else
@@ -448,13 +445,15 @@ print(status,queued,age)
       fi
       printf '  last run: %s  (%s results)  —  %s\n' "${C_DIM}$run${C_RST}" "$count" "${C_DIM}$rel_time${C_RST}"
       [ -n "$breakdown" ] && printf '%s\n' "${C_DIM}$breakdown${C_RST}"
-      # Show time since model last generated (even when bench is idle)
-      local act; act=$(_lms_activity)
-      if [ -n "$act" ]; then
-        local mstatus mqueued mage_ms mage_s
-        read mstatus mqueued mage_ms <<< "$act"
-        mage_s=$(( mage_ms / 1000 ))
-        printf '  model last active: %ss ago\n' "${C_DIM}$mage_s${C_RST}"
+      # Show time since model last generated only if LMS is already up (avoid auto-start)
+      if [ "$lms_up_flag" = 1 ]; then
+        local act; act=$(_lms_activity)
+        if [ -n "$act" ]; then
+          local mstatus mqueued mage_ms mage_s
+          read mstatus mqueued mage_ms <<< "$act"
+          mage_s=$(( mage_ms / 1000 ))
+          printf '  model last active: %ss ago\n' "${C_DIM}$mage_s${C_RST}"
+        fi
       fi
     fi
   fi
