@@ -86,6 +86,12 @@ AIDER_ARGS=(
   --yes-always --no-auto-commits --no-dirty-commits
 )
 
+# Runtime-specific flags: mtplx models sometimes struggle with whole-file format,
+# especially on single-line edits. Use diff format for more reliable edit output.
+if [[ "$PROVIDER" == "mtplx" ]]; then
+  AIDER_ARGS+=(--edit-format diff)
+fi
+
 [ "$INTERACTIVE" = 1 ] || AIDER_ARGS+=(--message "$MESSAGE")
 
 # Pass the sandbox's source files so aider has context for edit cases.
@@ -99,10 +105,10 @@ if [ "$INTERACTIVE" != 1 ]; then
 fi
 
 # For batch mode with many files, limit to avoid argument overflow
-# aider can work without explicit file list for one-shot prompts
+# aider needs explicit file list to properly track and edit files in batch mode
 if [ "$INTERACTIVE" != 1 ]; then
-  # Batch mode: skip files (message is piped, context is minimal)
-  exec aider "${AIDER_ARGS[@]}" "${REMAINING_ARGS[@]}"
+  # Batch mode: pass files so aider can track them for edits
+  exec aider "${AIDER_ARGS[@]}" "${FILES[@]}" "${REMAINING_ARGS[@]}"
 else
   # Interactive mode: provide all files for context
   exec aider "${AIDER_ARGS[@]}" "${FILES[@]}" "${REMAINING_ARGS[@]}"
