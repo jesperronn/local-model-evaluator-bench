@@ -1951,6 +1951,9 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-135740",
     "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
-    "status": "open"
+    "status": "resolved",
+    "resolved_date": "2026-09-05",
+    "resolved_run_id": "20260905-160024",
+    "resolved_agent_version": "unknown"
   }
 }
