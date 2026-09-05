@@ -1883,9 +1883,12 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-111750",
     "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
-    "status": "open",
+    "status": "resolved",
     "last_seen": "2026-09-05",
-    "last_run_id": "20260905-134651"
+    "last_run_id": "20260905-134651",
+    "resolved_date": "2026-09-05",
+    "resolved_run_id": "20260905-135007",
+    "resolved_agent_version": "unknown"
   },
   "opencode:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "opencode",
@@ -1935,6 +1938,16 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-131300",
     "symptom": "{\"type\":\"error\",\"timestamp\":1788607702651,\"sessionID\":\"ses_f8eac5a70ffe4DRcfkw94p4zdm\",\"error\":{\"name\":\"UnknownError\",\"d",
+    "status": "open"
+  },
+  "nanocoder:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "nanocoder",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-135740",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
     "status": "open"
   }
 }
