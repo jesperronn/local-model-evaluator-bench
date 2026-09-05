@@ -15,24 +15,34 @@
 #
 # Start with: bin/litellm-proxy
 
+#
+# Every entry below sets litellm_params.timeout: 600 explicitly. This is NOT
+# redundant with litellm_settings.request_timeout (below) — see the long
+# comment there for why both are needed: the per-deployment `timeout` here
+# is what keeps real /chat/completions calls able to run for the full 600s
+# once request_timeout itself gets lowered to bound model-discovery calls.
+
 model_list:
   - model_name: "lms/*"
     litellm_params:
       model: "openai/*"
       api_base: os.environ/LITELLM_LMS_BASE
       api_key: lm-studio
+      timeout: 600
 
   - model_name: "ollama/*"
     litellm_params:
       model: "openai/*"
       api_base: os.environ/LITELLM_OLLAMA_BASE
       api_key: ollama
+      timeout: 600
 
   - model_name: "mlx/*"
     litellm_params:
       model: "openai/*"
       api_base: os.environ/LITELLM_MLX_BASE
       api_key: not-needed
+      timeout: 600
 
   # oMLX is multi-model, so unlike the mlx route this one actually enumerates:
   # /v1/models returns every model oMLX serves, prefixed omlx/.
@@ -41,6 +51,7 @@ model_list:
       model: "openai/*"
       api_base: os.environ/LITELLM_OMLX_BASE
       api_key: os.environ/LITELLM_OMLX_KEY
+      timeout: 600
 
   # MTPLX is also multi-model, like oMLX — /v1/models enumerates what it serves.
   # Unlike oMLX, MTPLX returns bare model IDs without provider prefix. This
@@ -60,6 +71,7 @@ model_list:
       model: "openai/*"
       api_base: os.environ/LITELLM_MTPLX_BASE
       api_key: os.environ/LITELLM_MTPLX_KEY
+      timeout: 600
 
 litellm_settings:
   # Drops Copilot CLI's Responses-API-only `apply_patch` tool (type: "custom",
@@ -76,7 +88,32 @@ litellm_settings:
   check_provider_endpoint: true
   # No cross-backend fallbacks: fail closed rather than grading the wrong model.
   num_retries: 0
-  request_timeout: 600
+  # This is now a DISCOVERY-call timeout, not the completions timeout it looks
+  # like at first glance. Confirmed by reading litellm 1.97.0 source
+  # (litellm/_lazy_imports.py + litellm/llms/openai/chat/gpt_transformation.py):
+  # check_provider_endpoint's live `/v1/models` probe of each backend
+  # (GET /v1/models, GET /model/info, and the check_provider_endpoint calls
+  # above) goes through `litellm.module_level_client`, a single shared httpx
+  # client created ONCE at startup with `timeout=litellm.request_timeout` —
+  # i.e. exactly this value — and that call passes no per-request timeout
+  # override. With a down backend (MTPLX not running, etc.) that GET simply
+  # blocks for the full request_timeout before litellm logs
+  # "Error getting valid models: [Errno 110] Connection timed out" — 600s was
+  # turning a routine "is this backend up" check into a multi-minute hang.
+  # litellm 1.97.0 has no separate/dedicated timeout knob for
+  # check_provider_endpoint or discovery calls, so this value is the only
+  # server-side lever for it — hence 10s here, not 600s.
+  #
+  # Real /chat/completions calls do NOT read this value: litellm's router
+  # resolves each request's timeout as (in priority order) an explicit
+  # per-call timeout, then the deployment's own litellm_params.timeout, then
+  # router_settings.timeout, and only falls back to this request_timeout
+  # last (litellm/router.py Router._get_timeout). Every model_list entry
+  # above sets litellm_params.timeout: 600 explicitly for exactly this
+  # reason, so completions still get the full 10 minutes some local models
+  # genuinely need for a slow first token / long agentic turn — only the
+  # discovery path (which sets no such override) inherits this 10s.
+  request_timeout: 10
   drop_params: true
 
 # PII redaction was attempted via litellm's built-in Presidio guardrail and

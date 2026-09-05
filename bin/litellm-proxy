@@ -272,8 +272,13 @@ cmd_sync_mtplx() {
     done
     if [ "$found" -eq 0 ]; then
       model_id="mtplx-$(_sql_quote "$bare")"
+      # timeout: 600 here mirrors the "mtplx/*" wildcard entry in
+      # config-templates/litellm.yaml — litellm_settings.request_timeout is
+      # intentionally low (bounds model-discovery calls only, see that yaml's
+      # comment), so every real deployment needs its own timeout override or
+      # it would inherit the low global default for actual chat completions.
       litellm_params="$(jq -nc --arg model "openai/$bare" \
-        '{model:$model, api_base:"os.environ/LITELLM_MTPLX_BASE", api_key:"os.environ/LITELLM_MTPLX_KEY"}')"
+        '{model:$model, api_base:"os.environ/LITELLM_MTPLX_BASE", api_key:"os.environ/LITELLM_MTPLX_KEY", timeout:600}')"
       if _pg_sql "INSERT INTO \"LiteLLM_ProxyModelTable\"
                     (model_id, model_name, litellm_params, model_info, created_by, updated_by)
                   VALUES
