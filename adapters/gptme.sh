@@ -66,16 +66,22 @@ export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"
 
 # --no-confirm: skip interactive approval prompts in headless mode.
 # --workspace .: tells gptme the project root is CWD.
+# --system: custom system prompt that guides the model to use 'save' for file edits
+#   instead of 'append', preventing file duplication issues.
 # gptme uses "openai" provider by default when OPENAI_* env vars are set.
+SYSTEM_PROMPT="When editing files: use 'save' to write the complete file with corrections. Use 'append' only to add new content at the end. Never append a complete file replacement—use 'save' instead."
+
 if [ ! -t 0 ]; then
   exec gptme \
     --model "${GPTME_MODEL}" \
     --workspace "$(pwd)" \
     --no-confirm \
+    --system "$SYSTEM_PROMPT" \
     "$(cat)"
 else
   exec gptme \
     --model "${GPTME_MODEL}" \
     --workspace "$(pwd)" \
+    --system "$SYSTEM_PROMPT" \
     "$@"
 fi

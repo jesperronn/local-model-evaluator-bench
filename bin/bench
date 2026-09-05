@@ -111,31 +111,25 @@ for _ha in "$@"; do [ "$_prev_ha" = "--runtime" ] && _help_runtime="$_ha"; _prev
 
 show_help() {
   local runtime="$1"
-  help_header "bench" "run the matrix of (adapter x model x case), grade, and score"
+  help_header "bench" "run matrix of (adapter × model × case), grade, and score"
 
   help_section "USAGE"
   help_line "  bench [OPTIONS]"
 
-  help_section "DESCRIPTION"
-  help_line "  Copy each case workdir into an isolated sandbox, hand the task to a CLI"
-  help_line "  adapter pointed at a model, run the case's grader, and record pass/total."
-  help_line "  Results land in results/<timestamp>/results.csv plus per-run logs."
-
   help_section "OPTIONS"
-  help_flag "--agent, -a" "a,b" "CLI adapters to run (default: \$DEFAULT_ADAPTERS)"
-  help_flag "--models, --model, -m" "a,b" "model ids (default: discovered from runtime)"
-  help_flag "--cases" "a,b" "case ids (default: all cases/)"
-  help_flag "--difficulty" "t,t" "keep only cases of these tiers: easy|medium|hard"
-  help_flag "--timeout" "N" "per-trial HARD ceiling, seconds (default: 300)"
-  help_flag "--warmup" "N" "first-byte budget, seconds (default: 180; 0 disables)"
-  help_flag "--stall" "N" "no-progress watchdog, seconds (default: 120; 0 disables)"
-  help_flag "--trials" "N" "repeat each combo N times; results.csv records MEDIAN (default: 1)"
-  help_flag "--runtime" "RUNTIME" "inference backend (default: litellm-proxy)"
-  help_flag "--list" "" "print the resolved axes and exit"
+  help_flag "--agent, -a" "a,b" "adapters to run (default: \$DEFAULT_ADAPTERS)"
+  help_flag "--model, -m" "a,b" "model ids (default: auto-discover)"
+  help_flag "--cases" "a,b" "case ids (default: all in cases/)"
+  help_flag "--difficulty" "e|m|h" "filter cases: easy, medium, or hard"
+  help_flag "--timeout" "N" "hard ceiling per trial, seconds (default: 300)"
+  help_flag "--warmup" "N" "first-token budget, seconds (default: 180)"
+  help_flag "--stall" "N" "no-progress watchdog, seconds (default: 120)"
+  help_flag "--trials" "N" "repeat each combo N times; CSV shows MEDIAN (default: 1)"
+  help_flag "--list" "" "print resolved axes and exit"
   help_flag "--interactive, -i" "" "fzf pickers for model and adapter"
-  help_flag "--verbose, -v" "" "show error excerpts inline on non-pass trials"
-  help_flag "--resume, [RUN_ID]" "" "resume a previous run; skip completed cases"
-  help_flag "--skip-compat-filter" "" "don't filter broken adapters from compat.json"
+  help_flag "--verbose, -v" "" "show error excerpts inline on failures"
+  help_flag "--resume" "RUN_ID" "resume previous run; skip completed (default: latest)"
+  help_flag "--skip-compat-filter" "" "test broken adapters (retry mode)"
   help_flag "-h, --help" "" "show this help and exit"
 
   help_section "AVAILABLE ADAPTERS"
@@ -160,7 +154,7 @@ show_help() {
     mtplx)  base_url="$MTPLX_BASE_URL";;
     *)      base_url="$LITELLM_BASE_URL";;
   esac
-  runtime_models "$base_url" | sed 's/^/  /' || echo "  (unable to discover models — is the runtime server running?)"
+  runtime_models "$base_url" | sed 's/^/  /' || echo "  ${C_DIM}(runtime server not reachable)${C_RST}"
 }
 
 # Show available adapters for discovery/error recovery
@@ -424,7 +418,22 @@ preflight_check_models() {
         return 0
       fi
       for m in "${models[@]}"; do
-        printf '%s\n' "$available" | grep -qx "$m" || missing+=("$m")
+        # First try exact match
+        if printf '%s\n' "$available" | grep -qx "$m"; then
+          continue
+        fi
+        # For litellm-proxy, if model not found, try with provider prefixes
+        if [ "$runtime" = "litellm-proxy" ]; then
+          local found=0
+          for prefix in mtplx omlx mlx ollama lms; do
+            if printf '%s\n' "$available" | grep -qx "$prefix/$m"; then
+              found=1
+              break
+            fi
+          done
+          [ "$found" = 1 ] && continue
+        fi
+        missing+=("$m")
       done
       [ "${#missing[@]}" -eq 0 ] && return 0
       warn "models not available at $RUNTIME:"
@@ -821,6 +830,18 @@ for model_alias in "${MODEL_ARR[@]}"; do
   if [ -z "$model" ]; then
     warn "model '$model_alias' not mapped for runtime $RUNTIME (alias maps to '-') — skipping"
     continue
+  fi
+
+  # For litellm-proxy, if model doesn't have a prefix but exists with a prefix,
+  # automatically add the prefix so the adapter can find it.
+  if [ "$RUNTIME" = "litellm-proxy" ] && [[ ! "$model" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+    _available_models="$(runtime_models "$RUNTIME_BASE_URL")"
+    for _prefix in mtplx omlx mlx ollama lms; do
+      if printf '%s\n' "$_available_models" | grep -qx "$_prefix/$model"; then
+        model="$_prefix/$model"
+        break
+      fi
+    done
   fi
 
   if [ "$RUNTIME" = lms ]; then

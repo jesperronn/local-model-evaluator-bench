@@ -28,15 +28,23 @@ extract_runtime_and_model() {
 }
 
 show_help() {
-  help_header "verify" "step-by-step check: server, models, load, call — for workshop participants"
+  help_header "verify" "step-by-step: server up, models listed, model loaded, callable"
+
   help_section "USAGE"
-  help_line "  verify [--model lms:qwen/qwen3.5-9b] [--verbose]"
-  help_line "  verify --agent pi|opencode [--model ollama:qwen2.5-coder:7b] [--verbose]"
+  help_line "  verify [OPTIONS]"
+
   help_section "OPTIONS"
-  help_flag "--agent NAME" "" "instead of the raw engine, verify an agent CLI: pi | opencode"
-  help_flag "--model ID" "" "model with optional prefix (lms/ollama/mtplx:id); default: qwen/qwen3.5-9b"
-  help_flag "--verbose" "" "print each command before running it"
+  help_flag "--agent" "NAME" "verify terminal agent (pi or opencode)"
+  help_flag "--model" "ID" "model ID, with runtime prefix (lms:, ollama:, etc.)"
+  help_flag "--verbose" "" "print each command before running"
   help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Engine verification:"
+  help_line "    \$ verify --model lms:qwen/qwen3.5-9b"
+  help_line ""
+  help_line "  Agent verification:"
+  help_line "    \$ verify --agent pi --model ollama:qwen2.5-coder:7b"
 }
 
 while [ $# -gt 0 ]; do

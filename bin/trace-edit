@@ -32,16 +32,48 @@
 # and exclusive use of LM Studio (it will load the model — don't run while
 # another model is generating, to avoid RAM contention).
 set -euo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
 
-ADAPTER="${1:?usage: trace-edit <adapter> <model> [case]}"
-MODEL="${2:?usage: trace-edit <adapter> <model> [case]}"
+show_help() {
+  help_header "trace-edit" "run single case and inspect tool-call trace"
+
+  help_section "USAGE"
+  help_line "  trace-edit <adapter> <model> [case]"
+
+  help_section "OPTIONS"
+  help_line "  <adapter>  adapter name (e.g., pi-lms, caveman-lms)"
+  help_line "  <model>    model ID (e.g., qwen/qwen3-coder-30b)"
+  help_line "  [case]     case ID (default: smoke-01-edit-file)"
+
+  help_section "EXAMPLES"
+  help_line "  Trace nested edit calls with pi:"
+  help_line "    \$ trace-edit pi-lms qwen/qwen3-coder-30b"
+  help_line ""
+  help_line "  Same model via caveman:"
+  help_line "    \$ trace-edit caveman-lms qwen/qwen3-coder-30b smoke-01-edit-file"
+}
+
+if [ $# -lt 2 ]; then
+  show_help
+  exit 1
+fi
+
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+  show_help
+  exit 0
+fi
+
+ADAPTER="$1"
+MODEL="$2"
 CASE="${3:-smoke-01-edit-file}"
 
 ADAPTER_SH="$ADAPTERS_DIR/$ADAPTER.sh"
-[ -f "$ADAPTER_SH" ] || { echo "no such adapter: $ADAPTER_SH" >&2; exit 1; }
+[ -f "$ADAPTER_SH" ] || { err "no such adapter: $ADAPTER"; echo; show_help; exit 1; }
 CASE_DIR="$CASES_DIR/$CASE"
-[ -d "$CASE_DIR/workdir" ] || { echo "no workdir for case: $CASE" >&2; exit 1; }
+[ -d "$CASE_DIR/workdir" ] || { err "no workdir for case: $CASE"; exit 1; }
 
 # Isolated sandbox under results/traces/ — unique cwd ⇒ unique session slug.
 mkdir -p "$RESULTS_DIR/traces"  # must exist before we count it (pipefail + set -e)

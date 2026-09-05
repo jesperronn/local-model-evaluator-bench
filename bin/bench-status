@@ -15,12 +15,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 RESULTS_DIR="$HERE/results"
 
-# Colors (disabled if NO_COLOR set or not a terminal).
-if [ -z "${NO_COLOR:-}" ] && [ -t 1 ]; then
-  C_GRN=$'\033[32m'; C_RED=$'\033[31m'; C_YEL=$'\033[33m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
-else
-  C_GRN=; C_RED=; C_YEL=; C_DIM=; C_RST=
-fi
+source "$HERE/lib/common.sh"
+source "$HERE/bin/lib/help.sh"
 
 WATCH=0
 LATEST_ONLY=0
@@ -28,6 +24,32 @@ HISTORY_COUNT=0
 COMPARE_RUN=""
 TARGET_RUN=""
 CASES_ONLY=0
+
+show_help() {
+  help_header "bench-status" "show status of benchmark run(s)"
+
+  help_section "USAGE"
+  help_line "  bench-status [OPTIONS]"
+
+  help_section "OPTIONS"
+  help_flag "--run" "RUN_ID" "show specific run (default: latest)"
+  help_flag "--history" "N" "show last N runs (summary)"
+  help_flag "--cases" "" "show full per-case table (PASS/WARN/FAIL)"
+  help_flag "--compare" "RUN_ID" "compare latest vs. specific run"
+  help_flag "--watch" "" "live updates (5-second refresh)"
+  help_flag "--latest" "" "print latest run dir and exit"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Current status:"
+  help_line "    \$ bench-status"
+  help_line ""
+  help_line "  Last 5 runs:"
+  help_line "    \$ bench-status --history 5"
+  help_line ""
+  help_line "  Live watch:"
+  help_line "    \$ bench-status --watch"
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -37,11 +59,8 @@ while [ $# -gt 0 ]; do
     --history) HISTORY_COUNT="$2"; shift 2;;
     --compare) COMPARE_RUN="$2"; shift 2;;
     --run) TARGET_RUN="$2"; shift 2;;
-    -h|--help)
-      awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"
-      exit 0
-      ;;
-    *) shift;;
+    -h|--help) show_help; exit 0;;
+    *) warn "unknown option: $1"; shift;;
   esac
 done
 

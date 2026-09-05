@@ -63,6 +63,39 @@ extract_runtime_and_model() {
   esac
 }
 
+show_help() {
+  help_header "stale" "find (adapter, model, case) triples that need rerun"
+
+  help_section "USAGE"
+  help_line "  stale [OPTIONS]"
+
+  help_section "DESCRIPTION"
+  help_line "  Compare desired matrix against latest results, emit worklist of:"
+  help_line "    missing  — never run for this runtime"
+  help_line "    failed   — last result status not ok"
+  help_line "    stale    — input changed since result produced"
+
+  help_section "OPTIONS"
+  help_flag "--agent, -a" "a,b" "adapters (default: \$DEFAULT_ADAPTERS)"
+  help_flag "--model, -m" "a,b" "model ids (default: auto-discover)"
+  help_flag "--cases" "a,b" "case ids (default: all)"
+  help_flag "--difficulty" "e|m|h" "filter cases by tier"
+  help_flag "--missing-only" "" "only missing combos"
+  help_flag "--stale-only" "" "only stale combos"
+  help_flag "--failed-only" "" "only failed combos"
+  help_flag "--header" "" "print CSV header (default: off)"
+  help_flag "--list" "" "human summary; no CSV"
+  help_flag "--verbose, -v" "" "detailed output"
+  help_flag "-h, --help" "" "show this help and exit"
+
+  help_section "EXAMPLES"
+  help_line "  Find stale combos:"
+  help_line "    \$ stale > worklist.csv"
+  help_line ""
+  help_line "  Feed to bench-overnight:"
+  help_line "    \$ stale | bench-overnight --worklist /dev/stdin"
+}
+
 ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; RUNTIME="lms"
 ONLY=""; HEADER=0; LIST=0; VERBOSE=0
 while [ $# -gt 0 ]; do
@@ -78,7 +111,7 @@ while [ $# -gt 0 ]; do
     --header)            HEADER=1; shift;;
     --list)              LIST=1; shift;;
     --verbose|-v)        VERBOSE=1; shift;;
-    -h|--help)           awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0"; exit 0;;
+    -h|--help)           show_help; exit 0;;
     *) die "unknown option: $1";;
   esac
 done

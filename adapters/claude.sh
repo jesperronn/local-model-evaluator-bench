@@ -62,11 +62,19 @@ if [ ! -t 0 ]; then
   CLAUDE_ARGS+=(--dangerously-skip-permissions --print --bare "$(cat)")
 fi
 
+# For mtplx, bypass the LiteLLM proxy and go directly to MTPLX for better tool call support.
+# Claude Code's tool handling works better with direct connections than through the proxy.
+if [[ "$PREFIXED_MODEL_ID" =~ ^mtplx/ ]]; then
+  OVERRIDE_BASE_URL="${MTPLX_BASE_URL%/v1}"
+else
+  OVERRIDE_BASE_URL="$CLAUDE_BASE_URL"
+fi
+
 # Claude Code's SDK warns about unknown models, but we suppress the window enforcement.
 # However, the SDK still exits with code 1 when seeing unknown models.
 # We filter the warning output and return 0 to allow tests to proceed.
 env \
-  ANTHROPIC_BASE_URL="$CLAUDE_BASE_URL" \
+  ANTHROPIC_BASE_URL="$OVERRIDE_BASE_URL" \
   ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN" \
   ANTHROPIC_API_KEY="$AUTH_TOKEN" \
   ANTHROPIC_MODEL="${PREFIXED_MODEL_ID}" \
@@ -75,7 +83,7 @@ env \
   ANTHROPIC_DEFAULT_OPUS_MODEL="${PREFIXED_MODEL_ID}" \
   CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS="1" \
   CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT="1" \
-  claude "${CLAUDE_ARGS[@]}" "$@" 2>&1 | grep -v "^\[claude-code:unrecognized_model\]" | grep -v "^There's an issue with the selected model"
+  claude "${CLAUDE_ARGS[@]}" "$@" 2>&1 | grep -v "^\[claude-code:unrecognized_model\]" | grep -v "^There's an issue with the selected model" || true
 
 # Exit 0 regardless of claude's exit code (it returns 1 due to model warning, but the
 # task may have still completed successfully)

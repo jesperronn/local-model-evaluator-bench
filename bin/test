@@ -11,24 +11,20 @@ usage() {
   help_header "test" "run colocated shell test scripts (*.test.sh)"
 
   help_section "USAGE"
-  help_line "  test [--verbose] [test-file ...]"
-
-  help_section "DESCRIPTION"
-  help_line "  Run colocated shell test scripts. With no arguments, all '*.test.sh'"
-  help_line "  files under 'bin/' and 'lib/' are run."
+  help_line "  test [OPTIONS] [test-file ...]"
 
   help_section "OPTIONS"
-  help_flag "--verbose" "" "show per-test RUN lines from test files that support it"
+  help_flag "--verbose" "" "show per-test RUN lines (for tests that support it)"
   help_flag "-h, --help" "" "show this help and exit"
 
   help_section "EXAMPLES"
   help_line "  Run all tests:"
   help_line "    \$ test"
   help_line ""
-  help_line "  Run a specific test file:"
+  help_line "  Specific test file:"
   help_line "    \$ test lib/versions.test.sh"
   help_line ""
-  help_line "  Run all tests with verbose output:"
+  help_line "  With verbose output:"
   help_line "    \$ test --verbose"
 }
 

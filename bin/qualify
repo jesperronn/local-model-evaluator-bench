@@ -46,29 +46,24 @@ SKIP_COMPAT=0
 LIST_ONLY=0
 
 show_help() {
-  help_header "qualify" "filter L0 smoke test results and output viable (adapter, model) pairs"
+  help_header "qualify" "filter L0 smoke results, output viable (adapter × model) pairs"
 
   help_section "USAGE"
   help_line "  qualify [OPTIONS]"
 
-  help_section "DESCRIPTION"
-  help_line "  Reads L0 (smoke test) results and outputs a manifest of (adapter, model)"
-  help_line "  pairs that passed L0 tests and are not marked as broken in compat.json."
-  help_line "  The manifest can be fed to 'bench --from-qualified' to skip unviable"
-  help_line "  combos early."
-
   help_section "OPTIONS"
-  help_flag "--from-smoke" "FILE" "read L0 results from FILE (default: most recent results/*/results.csv)"
-  help_flag "--output" "FILE" "write manifest to FILE (default: qualified-combos.json)"
-  help_flag "--agent, -t" "NAME" "filter to only this adapter (default: all)"
-  help_flag "--model, -m" "ID" "filter to only this model (default: all)"
-  help_flag "--skip-compat" "" "ignore compat.json breakages (test everything that passed L0)"
-  help_flag "--list" "" "print qualified combos as tsv and exit"
+  help_flag "--from-smoke" "FILE" "input L0 results (default: latest results/*/results.csv)"
+  help_flag "--output" "FILE" "output manifest (default: qualified-combos.json)"
+  help_flag "--agent, -a" "NAME" "filter to adapter (default: all)"
+  help_flag "--model, -m" "ID" "filter to model (default: all)"
+  help_flag "--skip-compat" "" "ignore compat.json — test all L0-passing"
+  help_flag "--list" "" "print qualified combos as TSV and exit"
   help_flag "-h, --help" "" "show this help and exit"
 
-  help_section "OUTPUT FORMAT"
-  help_line "  qualified-combos.json contains a JSON manifest with qualified pairs:"
-  help_line "    { \"timestamp\": \"...\", \"qualified\": [{\"adapter\": \"...\", \"model\": \"...\"}] }"
+  help_section "WORKFLOW"
+  help_line "  1. bin/smoke              → smoke results in results/<ts>/results.csv"
+  help_line "  2. bin/qualify            → filter via compat.json"
+  help_line "  3. bin/bench --from-qualified qualified-combos.json"
 }
 
 parse_opts() {

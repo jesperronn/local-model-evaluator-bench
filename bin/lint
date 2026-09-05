@@ -34,44 +34,29 @@ source "$HERE/lib/common.sh"
 source "$HERE/bin/lib/help.sh"
 
 show_help() {
-  help_header "lint" "unified validation tool for scripts, adapters, and cards"
+  help_header "lint" "validate scripts, adapters, and cards"
   help_section "USAGE"
   help_line "  lint [OPTIONS]"
 
-  help_section "DESCRIPTION"
-  help_line "  Run all checks by default, or select specific ones with flags."
-
   help_section "OPTIONS"
-  help_flag "--scripts" "" "check shell scripts (bash -n, shellcheck)"
-  help_flag "--adapters" "" "check adapter scripts (bypass flags, registration)"
-  help_flag "--cards" "" "validate model/tool/runtime cards"
-  help_flag "--fix" "" "auto-fix fixable issues (cards)"
-  help_flag "--verbose, -v" "" "show detailed output"
+  help_flag "--scripts" "" "shell scripts (bash -n, shellcheck)"
+  help_flag "--adapters" "" "adapter registration and compatibility"
+  help_flag "--cards" "" "model/tool/runtime card specs"
+  help_flag "--fix" "" "auto-fix issues (cards only)"
+  help_flag "--verbose, -v" "" "detailed output"
   help_flag "-h, --help" "" "show this help and exit"
 
   help_section "EXAMPLES"
-  help_line "  Run all checks:"
+  help_line "  All checks:"
   help_line "    \$ lint"
   help_line ""
-  help_line "  Check only shell scripts:"
+  help_line "  Scripts only:"
   help_line "    \$ lint --scripts"
   help_line ""
-  help_line "  Fix card issues:"
+  help_line "  Fix cards:"
   help_line "    \$ lint --cards --fix"
 }
 
-usage() {
-  cat <<'EOF'
-Usage: bin/lint [OPTIONS]
-
-Run validation checks on scripts, adapters, and cards.
-With no flags, runs all checks.
-
-Use --help for full options.
-EOF
-}
-
-# ── Parse flags ─────────────────────────────────────────────────────────────
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) show_help; exit 0;;
@@ -80,7 +65,7 @@ while [ $# -gt 0 ]; do
     --cards) DO_CARDS=1; shift;;
     --fix) DO_FIX=1; shift;;
     --verbose|-v) LINT_VERBOSE=1; shift;;
-    *) echo "Unknown option: $1" >&2; usage >&2; exit 2;;
+    *) err "unknown option: $1"; echo; show_help; exit 2;;
   esac
 done
 
