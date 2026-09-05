@@ -955,6 +955,10 @@ if [ "$TOOL" = omp ]; then
   if ! _rt_litellm_models | grep -qx "${RUNTIME}/${MODEL_ID}"; then
     die "LiteLLM is up but does not list ${RUNTIME}/${MODEL_ID} — check its config for a ${RUNTIME} provider entry, or run: bin/litellm-proxy restart"
   fi
+  # omp keeps its own model catalog (~/.omp/models.db) and doesn't notice
+  # when LiteLLM's model list changes — refresh it before every omp run so a
+  # model just added to litellm.yaml doesn't show as "not found" in omp.
+  command -v omp >/dev/null 2>&1 && omp models refresh >/dev/null 2>&1
 fi
 
 if ! command -v "$TOOL" >/dev/null 2>&1; then
