@@ -58,7 +58,8 @@ def transform_models_response(openai_response: dict) -> dict:
                 "priority": 0,
                 "capabilities": [],
                 "deprecated": False,
-                "support_verbosity": False
+                "support_verbosity": False,
+                "truncation_policy": {"mode": "tokens", "limit": 131072}
             }
             models.append(model)
         return {"models": models}
