@@ -34,9 +34,12 @@ def transform_models_response(openai_response: dict) -> dict:
         models = []
         for item in openai_response.get("data", []):
             model_id = item.get("id", "")
+            # Create a human-readable display name from the model ID
+            display_name = model_id.split("/")[-1] if "/" in model_id else model_id
             model = {
                 "name": model_id,
                 "model": model_id,
+                "display_name": display_name,
                 "slug": model_id.replace("/", "-").replace(".", "-").replace(":", "-"),
                 "modified_at": item.get("created", 0),
                 "size": 0,
@@ -44,7 +47,18 @@ def transform_models_response(openai_response: dict) -> dict:
                 "details": {
                     "parameter_size": "unknown",
                     "quantization_level": "unknown"
-                }
+                },
+                "supported_reasoning_levels": [],
+                "shell_type": "default",
+                "visibility": "list",
+                "quant": "unknown",
+                "summary": display_name,
+                "supported_in_api": True,
+                "tier": "standard",
+                "priority": 0,
+                "capabilities": [],
+                "deprecated": False,
+                "support_verbosity": False
             }
             models.append(model)
         return {"models": models}

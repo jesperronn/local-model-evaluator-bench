@@ -68,7 +68,7 @@ WRAPPER_SCRIPT="$ADAPTER_DIR/codex-models-wrapper.py"
 # Use Python to find a free port (more portable than nc)
 WRAPPER_PORT=$(python3 -c "
 import socket
-for port in range(19990, 20000):
+for port in range(19900, 20100):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(('127.0.0.1', port))
@@ -100,8 +100,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Give the wrapper a moment to start
-sleep 0.5
+# Give the wrapper a moment to start (increased to ensure it's ready)
+sleep 1.0
 
 # Point Codex to the wrapper instead of directly to LiteLLM
 WRAPPER_URL="http://127.0.0.1:$WRAPPER_PORT"

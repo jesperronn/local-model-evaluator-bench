@@ -1820,7 +1820,7 @@
     "symptom": "Error: Could not locate the bindings file. Tried:",
     "status": "open",
     "last_seen": "2026-09-05",
-    "last_run_id": "20260905-105547"
+    "last_run_id": "20260905-112854"
   },
   "codex:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "codex",
@@ -1832,7 +1832,7 @@
     "symptom": "2026-09-05T08:52:09.261693Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
     "status": "open",
     "last_seen": "2026-09-05",
-    "last_run_id": "20260905-110042"
+    "last_run_id": "20260905-114009"
   },
   "copilot:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "copilot",
@@ -1844,7 +1844,7 @@
     "symptom": "400 litellm.BadRequestError: OpenAIException - assistant tool_call is missing a name. Received Model Group=mtplx/ornith-",
     "status": "open",
     "last_seen": "2026-09-05",
-    "last_run_id": "20260905-110159",
+    "last_run_id": "20260905-114232",
     "regressed_date": "2026-09-05",
     "regressed_run_id": "20260905-111750"
   },
@@ -1856,7 +1856,9 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-111750",
     "symptom": "MISS: _ still present in file",
-    "status": "open"
+    "status": "open",
+    "regressed_date": "2026-09-05",
+    "regressed_run_id": "20260905-131300"
   },
   "aider:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "aider",
@@ -1866,7 +1868,12 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-111750",
     "symptom": "MISS: _ still present in file",
-    "status": "open"
+    "status": "resolved",
+    "last_seen": "2026-09-05",
+    "last_run_id": "20260905-112854",
+    "resolved_date": "2026-09-05",
+    "resolved_run_id": "20260905-113931",
+    "resolved_agent_version": "unknown"
   },
   "claude:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "claude",
@@ -1876,6 +1883,58 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-111750",
     "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open",
+    "last_seen": "2026-09-05",
+    "last_run_id": "20260905-114536"
+  },
+  "opencode:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "opencode",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "1.18.29",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-131300",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "open"
+  },
+  "omp:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "omp",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-131300",
+    "symptom": "404 litellm.NotFoundError: NotFoundError: OpenAIException - {\"detail\":\"Not Found\"}. Received Model Group=mtplx/ornith-ai",
+    "status": "open"
+  },
+  "gptme:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "gptme",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-131300",
+    "symptom": "Assistant: Thinking...\r[13:17:37] WARNING  LLM naming failed: Error code: 400 -      auto_naming.py:178",
+    "status": "open"
+  },
+  "mini-swe-agent:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "mini-swe-agent",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "2.4.2",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-131300",
+    "symptom": "cannot continue working on this task.</important>",
+    "status": "open"
+  },
+  "opencode-orch:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "opencode-orch",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-131300",
+    "symptom": "{\"type\":\"error\",\"timestamp\":1788607702651,\"sessionID\":\"ses_f8eac5a70ffe4DRcfkw94p4zdm\",\"error\":{\"name\":\"UnknownError\",\"d",
     "status": "open"
   }
 }

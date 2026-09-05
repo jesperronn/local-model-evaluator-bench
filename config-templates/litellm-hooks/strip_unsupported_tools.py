@@ -20,6 +20,8 @@ Mounted read-only into the litellm-database image at
 litellm_settings.callbacks in config-templates/litellm.yaml.
 """
 
+import json
+import sys
 from litellm.integrations.custom_logger import CustomLogger
 
 
@@ -29,35 +31,69 @@ class StripUnsupportedTools(CustomLogger):
         if not tools:
             return data
 
+        # Debug: log incoming tools
+        print(f"[StripUnsupportedTools] Received {len(tools)} tool(s):", file=sys.stderr, flush=True)
+        for i, t in enumerate(tools):
+            custom_name = "?"
+            if 'custom' in t:
+                custom_name = str(type(t.get('custom')))
+                if isinstance(t.get('custom'), dict):
+                    custom_name = str(list(t.get('custom', {}).keys())[:3])  # First 3 keys
+            print(f"[StripUnsupportedTools] Tool[{i}]: type={t.get('type')}, name={t.get('name')}, function_name={t.get('function', {}).get('name')}, custom_keys={custom_name}", file=sys.stderr, flush=True)
+
         # Keep function tools, convert custom tools to function tools where possible
         kept = []
         for t in tools:
-            if t.get("type", "function") == "function":
+            tool_type = t.get("type", "function")
+
+            if tool_type == "function":
                 kept.append(t)
-            elif t.get("type") == "custom" and t.get("function", {}).get("name") == "apply_patch":
-                # Convert apply_patch from custom to function tool so it's compatible
-                # with local runtimes. The model can still output JSON, but it will be
-                # recognized as a tool call instead of free text.
-                func_tool = {
-                    "type": "function",
-                    "function": {
-                        "name": "apply_patch",
-                        "description": "Apply a unified diff patch to edit files",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "patch": {
-                                    "type": "string",
-                                    "description": "The unified diff patch to apply, starting with *** Begin Patch"
-                                }
-                            },
-                            "required": ["patch"]
+            elif tool_type == "custom":
+                # Check if this is the apply_patch custom tool from Copilot CLI
+                # Copilot sends: {"type": "custom", "custom": {...freeform grammar...}}
+                custom_def = t.get("custom", {})
+
+                # Try to identify apply_patch by looking at the custom definition
+                # or by any other identifier in the tool
+                is_apply_patch = False
+
+                # Check if "name" field exists at top level (sometimes custom tools have it)
+                if t.get("name") == "apply_patch":
+                    is_apply_patch = True
+                # Check in custom definition
+                elif isinstance(custom_def, dict) and custom_def.get("name") == "apply_patch":
+                    is_apply_patch = True
+                # Fallback: check function key (defensive)
+                elif t.get("function", {}).get("name") == "apply_patch":
+                    is_apply_patch = True
+
+                if is_apply_patch:
+                    # Convert apply_patch from custom to function tool so it's compatible
+                    # with local runtimes. The model can still output JSON, but it will be
+                    # recognized as a tool call instead of free text.
+                    func_tool = {
+                        "type": "function",
+                        "function": {
+                            "name": "apply_patch",
+                            "description": "Apply a unified diff patch to edit files",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "patch": {
+                                        "type": "string",
+                                        "description": "The unified diff patch to apply, starting with *** Begin Patch"
+                                    }
+                                },
+                                "required": ["patch"]
+                            }
                         }
                     }
-                }
-                kept.append(func_tool)
+                    kept.append(func_tool)
 
         if len(kept) != len(tools):
+            print(f"[StripUnsupportedTools] Kept {len(kept)}/{len(tools)} tool(s)", file=sys.stderr, flush=True)
+            for i, t in enumerate(kept):
+                print(f"[StripUnsupportedTools] Kept[{i}]: type={t.get('type')}, name={t.get('name') or t.get('function', {}).get('name')}", file=sys.stderr, flush=True)
             data["tools"] = kept
         return data
 
