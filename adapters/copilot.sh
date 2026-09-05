@@ -65,4 +65,3 @@ exec env \
   COPILOT_PROVIDER_WIRE_MODEL="$PREFIXED_MODEL_ID" \
   COPILOT_OFFLINE="true" \
   copilot "${COPILOT_ARGS[@]}" "$@"
-'

@@ -1842,11 +1842,14 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-105122",
     "symptom": "400 litellm.BadRequestError: OpenAIException - assistant tool_call is missing a name. Received Model Group=mtplx/ornith-",
-    "status": "open",
+    "status": "resolved",
     "last_seen": "2026-09-05",
-    "last_run_id": "20260905-114232",
+    "last_run_id": "20260905-160734",
     "regressed_date": "2026-09-05",
-    "regressed_run_id": "20260905-111750"
+    "regressed_run_id": "20260905-111750",
+    "resolved_date": "2026-09-05",
+    "resolved_run_id": "20260905-161305",
+    "resolved_agent_version": "unknown"
   },
   "cn:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "cn",
@@ -1921,7 +1924,9 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-131300",
     "symptom": "Assistant: Thinking...\r[13:17:37] WARNING  LLM naming failed: Error code: 400 -      auto_naming.py:178",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-09-05",
+    "last_run_id": "20260905-160140"
   },
   "mini-swe-agent:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "mini-swe-agent",

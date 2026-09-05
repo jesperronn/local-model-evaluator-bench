@@ -27,6 +27,29 @@ from litellm.integrations.custom_logger import CustomLogger
 
 class StripUnsupportedTools(CustomLogger):
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+        # Copilot CLI replays its own prior tool calls back into conversation
+        # history as {"type": "custom", "custom": {"name": ..., "input": ...}}
+        # (its internal Responses-API-shaped record of the apply_patch call),
+        # even though the tool call was answered as a Chat Completions
+        # `function` call on the wire. A plain OpenAI-compatible backend
+        # requires every assistant tool_call to carry `function.name`, so
+        # forwarding the "custom" shape as-is fails with "assistant tool_call
+        # is missing a name". Normalize any such history entries back to the
+        # `function` shape before sending.
+        for m in data.get("messages", []) or []:
+            if m.get("role") != "assistant" or not m.get("tool_calls"):
+                continue
+            for tc in m["tool_calls"]:
+                if not isinstance(tc, dict) or tc.get("type") != "custom":
+                    continue
+                custom = tc.get("custom", {}) or {}
+                tc["type"] = "function"
+                tc["function"] = {
+                    "name": custom.get("name", "apply_patch"),
+                    "arguments": custom.get("input", "{}"),
+                }
+                tc.pop("custom", None)
+
         tools = data.get("tools")
         if not tools:
             return data
@@ -94,7 +117,7 @@ class StripUnsupportedTools(CustomLogger):
             print(f"[StripUnsupportedTools] Kept {len(kept)}/{len(tools)} tool(s)", file=sys.stderr, flush=True)
             for i, t in enumerate(kept):
                 print(f"[StripUnsupportedTools] Kept[{i}]: type={t.get('type')}, name={t.get('name') or t.get('function', {}).get('name')}", file=sys.stderr, flush=True)
-            data["tools"] = kept
+        data["tools"] = kept
         return data
 
     async def async_post_call_success_hook(self, user_api_key_dict, response, **kwargs):
