@@ -1844,6 +1844,38 @@
     "symptom": "400 litellm.BadRequestError: OpenAIException - assistant tool_call is missing a name. Received Model Group=mtplx/ornith-",
     "status": "open",
     "last_seen": "2026-09-05",
-    "last_run_id": "20260905-105643"
+    "last_run_id": "20260905-110159",
+    "regressed_date": "2026-09-05",
+    "regressed_run_id": "20260905-111750"
+  },
+  "cn:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "cn",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-111750",
+    "symptom": "MISS: _ still present in file",
+    "status": "open"
+  },
+  "aider:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "aider",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-111750",
+    "symptom": "MISS: _ still present in file",
+    "status": "open"
+  },
+  "claude:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "claude",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-111750",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
   }
 }
