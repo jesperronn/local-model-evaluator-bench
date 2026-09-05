@@ -182,6 +182,7 @@ extract_runtime_and_model() {
     ollama/*) echo "ollama"; echo "${model#ollama/}";;
     mlx/*) echo "mlx"; echo "${model#mlx/}";;
     lms/*) echo "lms"; echo "${model#lms/}";;
+    mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
     *) echo ""; echo "$model";;
   esac
 }
@@ -710,7 +711,7 @@ run_trial() {
 
   # Launch the adapter under the hard ceiling, backgrounded so the watchdog can
   # poll progress and abort early on a no-progress stall.
-  ( cd "$sandbox" && MODEL_ID="$model" run_timeout "$TIMEOUT" \
+  ( cd "$sandbox" && MODEL_ID="$model" RUNTIME="$RUNTIME" run_timeout "$TIMEOUT" \
       bash "$adapter_sh" <"$case_src/task.md" ) >"$logf" 2>&1 &
   local apid=$!
 

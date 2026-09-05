@@ -82,7 +82,7 @@ show_help() {
   help_section "OPTIONS"
   help_flag "--runtime" "NAME" "lms | ollama | mlx | omlx (default: lms)"
   help_flag "--model, -m" "ID" "model to test (default: \$SMOKE_MODEL for lms)"
-  help_flag "--agent, -t" "NAME" "only test this adapter (default: all)"
+  help_flag "--adapter, -a" "NAMES" "test specific adapters (comma-separated, or 'all')"
   help_flag "--retry-broken[=ADAPTERS]" "" "retry adapters marked as broken in compat.json"
   help_flag "--no-proxy-check" "" "skip proxy liveness check for Ollama"
   help_flag "--verbose, -v" "" "pass --verbose to bench (shows error excerpts)"
@@ -91,16 +91,12 @@ show_help() {
   help_flag "-h, --help" "" "show this help and exit"
 
   help_section "AVAILABLE ADAPTERS"
+  printf "  "
   ls "$ADAPTERS_DIR"/*.sh 2>/dev/null \
     | xargs -I{} basename {} .sh \
     | sed "s/-${_help_runtime}$//" \
     | sort -u \
-    | awk -F- '{
-        key=$1
-        if (key in grp) grp[key]=grp[key]" "$0
-        else { ord[++n]=key; grp[key]=$0 }
-      }
-      END { for(i=1;i<=n;i++) printf "  %s\n", grp[ord[i]] }'
+    | paste -sd, -
 
   help_section "TROUBLESHOOTING"
   help_line "  If model fails with 'library not loaded' or format errors:"
@@ -138,7 +134,7 @@ while [ $# -gt 0 ]; do
     -h|--help) show_help; exit 0;;
     --runtime) RUNTIME="$2"; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
     --model|-m)      MODEL="$2"; shift 2;;
-    --agent|-t)    ADAPTER_OVERRIDE="$2"; BENCH_ARGS+=(--agent "$2"); shift 2;;
+    --adapter|--agent|-a)    ADAPTER_OVERRIDE="$2"; shift 2;;
     --no-proxy-check) PROXY_CHECK=0; shift;;
     --verbose|-v)    EXTRA_BENCH_ARGS+=(--verbose); shift;;
     --dry-run|-n)    DRY_RUN=1; shift;;
@@ -162,10 +158,15 @@ if [ -n "$MODEL" ]; then
   mapfile -t result < <(extract_runtime_and_model "$MODEL")
   RUNTIME="${result[0]}"
   MODEL="${result[1]}"
-  BENCH_ARGS+=(--model "$MODEL")
+  # Forward the model to bench with its runtime prefix restored, so bench
+  # detects the runtime itself from the prefix rather than via the deprecated
+  # --runtime flag (which would print its own redundant deprecation warning).
+  BENCH_ARGS+=(--model "$RUNTIME/$MODEL")
+else
+  # No model given (e.g. --retry-broken with $SMOKE_MODEL unset for this
+  # runtime) — nothing to prefix, so fall back to the deprecated flag.
+  BENCH_ARGS+=(--runtime "$RUNTIME")
 fi
-
-BENCH_ARGS+=(--runtime "$RUNTIME")
 
 # Resolve adapter list early so --dry-run can print it without touching runtimes.
 SMOKE_CASES="smoke-00-hello,smoke-01-edit-file,smoke-02-numbers"
@@ -303,6 +304,19 @@ elif [ "$RUNTIME" = "mtplx" ]; then
   # Models are addressed as mtplx/<id> through LITELLM_BASE_URL.
   litellm_up || die "LiteLLM proxy not reachable at $LITELLM_BASE_URL (start it: bin/litellm-proxy start)"
   ok "LiteLLM proxy up (MTPLX backend)"
+
+  if [ -n "${MODEL:-}" ]; then
+    if ! runtime_models "$MTPLX_BASE_URL" | grep -qx "$MODEL"; then
+      die "MTPLX does not serve '$MODEL' (see: curl $MTPLX_BASE_URL/models)"
+    fi
+    # The MTPLX backend serving the model is necessary but not sufficient —
+    # LiteLLM only routes mtplx/<id> for models synced into its DB-backed
+    # model table (bin/litellm-proxy sync, run automatically on start/restart,
+    # but not when MTPLX swaps models without a proxy restart).
+    if ! runtime_models "$LITELLM_BASE_URL" | grep -qx "mtplx/$MODEL"; then
+      die "'$MODEL' is served by MTPLX but not registered with LiteLLM — run: bin/litellm-proxy sync"
+    fi
+  fi
 
 elif [ "$RUNTIME" = "omlx" ]; then
   # oMLX loads on demand, so there is nothing to pre-load — only check that the

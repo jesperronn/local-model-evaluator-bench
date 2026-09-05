@@ -19,6 +19,11 @@
 # provider id in codex and cannot be overridden, so we register our own under
 # `litellm_local`. See docs/SETUP.md for the persistent setup.
 #
+# Codex requires /v1/models to return Ollama format {"models":[...]}, but
+# LiteLLM returns OpenAI format {"data":[...]}. This adapter wraps the
+# LiteLLM proxy with a models-format transformer (adapters/codex-models-wrapper.py)
+# that converts the response before Codex sees it.
+#
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 # Install: npm install -g codex-cli
 set -euo pipefail
@@ -54,11 +59,58 @@ fi
 
 export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"  # codex reads the key from this env var (see -c env_key).
 
+# Start the models-format wrapper on a local port. The wrapper transforms
+# LiteLLM's OpenAI-format /v1/models response to Ollama format.
+# Find a free port by trying to bind to one
+ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WRAPPER_SCRIPT="$ADAPTER_DIR/codex-models-wrapper.py"
+
+# Use Python to find a free port (more portable than nc)
+WRAPPER_PORT=$(python3 -c "
+import socket
+for port in range(19990, 20000):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('127.0.0.1', port))
+        s.close()
+        print(port)
+        break
+    except OSError:
+        pass
+" 2>/dev/null)
+
+if [[ -z "$WRAPPER_PORT" ]]; then
+  echo "Could not find a free port for wrapper" >&2
+  exit 1
+fi
+
+# Remove /v1 from LITELLM_BASE_URL for the wrapper (wrapper expects base URL without /v1)
+WRAPPER_TARGET_URL="${LITELLM_BASE_URL%/v1}"
+
+# Start wrapper in background, capture its PID
+python3 "$WRAPPER_SCRIPT" "$WRAPPER_PORT" "$WRAPPER_TARGET_URL" &
+WRAPPER_PID=$!
+
+# Clean up wrapper when this script exits
+cleanup() {
+  if [[ -n "$WRAPPER_PID" ]] && kill -0 "$WRAPPER_PID" 2>/dev/null; then
+    kill "$WRAPPER_PID" 2>/dev/null || true
+    wait "$WRAPPER_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+# Give the wrapper a moment to start
+sleep 0.5
+
+# Point Codex to the wrapper instead of directly to LiteLLM
+WRAPPER_URL="http://127.0.0.1:$WRAPPER_PORT"
+
 CODEX_COMMON=(
   -c model="$PREFIXED_MODEL_ID"
   -c model_provider="litellm_local"
   -c model_providers.litellm_local.name="LiteLLM Proxy"
-  -c model_providers.litellm_local.base_url="$LITELLM_BASE_URL"
+  -c model_providers.litellm_local.base_url="$WRAPPER_URL"
   -c model_providers.litellm_local.env_key="LITELLM_API_KEY"
   # codex 0.142.3 dropped wire_api="chat" support; "responses" is now the only
   # valid value. LMS ≥0.3.x and other OpenAI-compatible endpoints accept

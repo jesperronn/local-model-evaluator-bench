@@ -1729,5 +1729,121 @@
     "run_id": "20260830-205302",
     "symptom": "Assistant: Thinking...\r[21:09:32] WARNING  LLM naming failed: Error code: 400 -      auto_naming.py:178",
     "status": "open"
+  },
+  "omp:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "omp",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-080343",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "opencode:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "opencode",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "1.18.29",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-080343",
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
+    "status": "open"
+  },
+  "codex:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "codex",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "codex-cli 0.153.2",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-092523",
+    "symptom": "2026-09-05T07:29:27.973359Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open"
+  },
+  "forge:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "forge",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-092523",
+    "symptom": "{\"ts\":\"2026-09-05T07:31:00.109Z\",\"level\":\"error\",\"msg\":\"cli crashed\",\"meta\":{\"err\":\"Error: Could not locate the bindings",
+    "status": "open"
+  },
+  "opencode-orch:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "opencode-orch",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-092523",
+    "symptom": "{\"type\":\"error\",\"timestamp\":1788594130903,\"sessionID\":\"ses_f8f7b711fffeNxO9fKl7AkwXeB\",\"error\":{\"name\":\"UnknownError\",\"d",
+    "status": "open"
+  },
+  "copilot:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "copilot",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-092523",
+    "symptom": "└ Failed to parse patch: The first line of the patch must be '*** Begin Patch' The input begins",
+    "status": "open"
+  },
+  "cn:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "cn",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-092523",
+    "symptom": "MISS: _ still present in file",
+    "status": "open"
+  },
+  "claude:ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "claude",
+    "model": "ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-092523",
+    "symptom": "MISS: hello.txt not created",
+    "status": "open"
+  },
+  "forge:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "forge",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-105050",
+    "symptom": "Error: Could not locate the bindings file. Tried:",
+    "status": "open",
+    "last_seen": "2026-09-05",
+    "last_run_id": "20260905-105547"
+  },
+  "codex:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "codex",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "codex-cli 0.153.4",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-105207",
+    "symptom": "2026-09-05T08:52:09.261693Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
+    "status": "open",
+    "last_seen": "2026-09-05",
+    "last_run_id": "20260905-105931"
+  },
+  "copilot:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "copilot",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-05",
+    "run_id": "20260905-105122",
+    "symptom": "400 litellm.BadRequestError: OpenAIException - assistant tool_call is missing a name. Received Model Group=mtplx/ornith-",
+    "status": "open",
+    "last_seen": "2026-09-05",
+    "last_run_id": "20260905-105643"
   }
 }
