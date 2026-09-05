@@ -33,12 +33,18 @@ def transform_models_response(openai_response: dict) -> dict:
         # Transform each model from OpenAI format to Ollama format
         models = []
         for item in openai_response.get("data", []):
+            model_id = item.get("id", "")
             model = {
-                "name": item.get("id", ""),
-                "model": item.get("id", ""),
+                "name": model_id,
+                "model": model_id,
+                "slug": model_id.replace("/", "-").replace(".", "-").replace(":", "-"),
                 "modified_at": item.get("created", 0),
                 "size": 0,
                 "digest": "",
+                "details": {
+                    "parameter_size": "unknown",
+                    "quantization_level": "unknown"
+                }
             }
             models.append(model)
         return {"models": models}
@@ -68,10 +74,6 @@ class ModelsTransformHandler(http.server.SimpleHTTPRequestHandler):
         # Build the target URL
         target_path = self.path
         target_url = f"{TARGET_URL}{target_path}"
-        # Debug: log the request
-        if "/models" in target_path:
-            import sys
-            print(f"[WRAPPER] {self.command} {target_url}", file=sys.stderr, flush=True)
 
         # Prepare headers
         headers = {}
@@ -135,6 +137,4 @@ class ModelsTransformHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     handler = ModelsTransformHandler
     with socketserver.TCPServer(("127.0.0.1", LISTEN_PORT), handler) as httpd:
-        print(f"Models wrapper listening on http://127.0.0.1:{LISTEN_PORT}", file=sys.stderr)
-        sys.stderr.flush()
         httpd.serve_forever()
