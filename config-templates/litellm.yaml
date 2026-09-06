@@ -13,6 +13,54 @@
 #   omlx/<id>   -> oMLX
 #   mtplx/<id>  -> MTPLX
 #
+# Every route below sets litellm_params.custom_llm_provider: "custom_openai"
+# instead of relying on `model: "openai/*"` alone to say "OpenAI-compatible".
+# That distinction matters for codex/omp, which both call litellm's
+# /v1/responses endpoint (Codex always does; omp's built-in "litellm"
+# provider does too): litellm only has a Responses<->Chat-Completions bridge
+# for providers it does NOT recognize as natively speaking the Responses API.
+# `custom_llm_provider: "openai"` (what a bare `model: "openai/*"` resolves
+# to) IS recognized as native, so litellm forwards /v1/responses calls
+# straight through to `<api_base>/responses` — a route none of our local
+# runtimes implement, and upstream 404s ("Received Model Group=...", despite
+# the model being registered fine for chat completions). `custom_openai` has
+# no native Responses config
+# (litellm.utils.ProviderConfigManager.get_provider_responses_api_config
+# returns None for it, confirmed against litellm 1.97.0, the version behind
+# ghcr.io/berriai/litellm-database:main-stable at the time of this fix), so
+# litellm falls back to its `litellm_completion_transformation_handler`
+# bridge, which translates the Responses-shaped request into a normal
+# /chat/completions call against the same backend — exactly what these
+# OpenAI-compatible local servers actually support. It's also still a fully
+# supported /chat/completions provider itself (main.py dispatches
+# `custom_llm_provider == "custom_openai"` to the same generic
+# "openai call with a custom base" handler as `custom_llm_provider ==
+# "openai"`), unlike `custom_llm_provider: "openai_like"` — tried first, it
+# has no Responses config either but ALSO isn't a recognized chat-completions
+# dispatch provider on its own (only used internally as a base handler by
+# providers like maritalk/amazon_nova that set their own literal
+# custom_llm_provider), so it 400s every request, including plain
+# /chat/completions, with "Unmapped LLM provider for this endpoint".
+#
+# `model` below is bare `"*"`, NOT `"openai/*"`. That's deliberate too, and a
+# second bug this fix's first pass missed: `litellm.get_llm_provider(model,
+# custom_llm_provider=...)` only strips a recognized "<provider>/" prefix off
+# `model` when it derives custom_llm_provider FROM that prefix itself; passing
+# custom_llm_provider explicitly (as we do) short-circuits that derivation and
+# returns `model` completely unchanged — confirmed against litellm 1.97.0:
+# `get_llm_provider(model="openai/foo", custom_llm_provider="custom_openai")`
+# returns `("openai/foo", "custom_openai", ...)`, prefix intact. With
+# `model: "openai/*"` that meant the literal string `openai/<real-model-id>`
+# (the wildcard's "*" substituted from the request, still prefixed) was what
+# actually got sent to the backend — invisible against mtplx (a single-model
+# server that ignores the `model` field entirely and serves whatever is
+# loaded) but breaking every multi-model backend that dispatches by literal
+# id: Ollama, LM Studio, and oMLX would 404 with e.g. "model
+# 'openai/qwen3.8:27b-mlx' not found" since they only know the model as
+# `qwen3.8:27b-mlx`. Dropping the prefix from `model` here (leaving only the
+# wildcard's own "*") sends the bare, correct id while `custom_llm_provider`
+# still independently decides the Responses-bridge behavior above.
+#
 # Start with: bin/litellm-proxy
 
 #
@@ -25,21 +73,24 @@
 model_list:
   - model_name: "lms/*"
     litellm_params:
-      model: "openai/*"
+      model: "*"
+      custom_llm_provider: "custom_openai"
       api_base: os.environ/LITELLM_LMS_BASE
       api_key: lm-studio
       timeout: 600
 
   - model_name: "ollama/*"
     litellm_params:
-      model: "openai/*"
+      model: "*"
+      custom_llm_provider: "custom_openai"
       api_base: os.environ/LITELLM_OLLAMA_BASE
       api_key: ollama
       timeout: 600
 
   - model_name: "mlx/*"
     litellm_params:
-      model: "openai/*"
+      model: "*"
+      custom_llm_provider: "custom_openai"
       api_base: os.environ/LITELLM_MLX_BASE
       api_key: not-needed
       timeout: 600
@@ -48,7 +99,8 @@ model_list:
   # /v1/models returns every model oMLX serves, prefixed omlx/.
   - model_name: "omlx/*"
     litellm_params:
-      model: "openai/*"
+      model: "*"
+      custom_llm_provider: "custom_openai"
       api_base: os.environ/LITELLM_OMLX_BASE
       api_key: os.environ/LITELLM_OMLX_KEY
       timeout: 600
@@ -68,7 +120,8 @@ model_list:
   # after switching MTPLX to a different model without a proxy restart.
   - model_name: "mtplx/*"
     litellm_params:
-      model: "openai/*"
+      model: "*"
+      custom_llm_provider: "custom_openai"
       api_base: os.environ/LITELLM_MTPLX_BASE
       api_key: os.environ/LITELLM_MTPLX_KEY
       timeout: 600

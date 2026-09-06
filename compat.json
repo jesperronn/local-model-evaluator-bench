@@ -1830,9 +1830,12 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-105207",
     "symptom": "2026-09-05T08:52:09.261693Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
-    "status": "open",
+    "status": "resolved",
     "last_seen": "2026-09-05",
-    "last_run_id": "20260905-161629"
+    "last_run_id": "20260905-171641",
+    "resolved_date": "2026-09-05",
+    "resolved_run_id": "20260905-172142",
+    "resolved_agent_version": "codex-cli 0.153.4"
   },
   "copilot:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "copilot",
@@ -1841,15 +1844,12 @@
     "agent_version": "unknown",
     "first_seen": "2026-09-05",
     "run_id": "20260905-105122",
-    "symptom": "400 litellm.BadRequestError: OpenAIException - assistant tool_call is missing a name. Received Model Group=mtplx/ornith-",
-    "status": "resolved",
+    "symptom": "Failed to get response from the AI model; retried 5 times (total retry wait time: 32.93 seconds) Last error: 500 litellm",
+    "status": "open",
     "last_seen": "2026-09-05",
     "last_run_id": "20260905-160734",
-    "regressed_date": "2026-09-05",
-    "regressed_run_id": "20260905-111750",
-    "resolved_date": "2026-09-05",
-    "resolved_run_id": "20260905-161305",
-    "resolved_agent_version": "unknown"
+    "regressed_date": "2026-09-06",
+    "regressed_run_id": "20260906-221018"
   },
   "cn:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "cn",
@@ -1903,11 +1903,10 @@
     "agent_version": "1.18.29",
     "first_seen": "2026-09-05",
     "run_id": "20260905-131300",
-    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{",
-    "status": "resolved",
-    "resolved_date": "2026-09-05",
-    "resolved_run_id": "20260905-162816",
-    "resolved_agent_version": "1.18.29"
+    "symptom": "\u001b[91m\u001b[1mError: \u001b[0m{\"message\":\"session ses_f877f6992ffeH85dFjS0rq3fbw is already in flight\",\"type\":\"conflict_error\",\"co",
+    "status": "open",
+    "regressed_date": "2026-09-06",
+    "regressed_run_id": "20260906-221018"
   },
   "omp:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "omp",
@@ -1917,7 +1916,9 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-131300",
     "symptom": "404 litellm.NotFoundError: NotFoundError: OpenAIException - {\"detail\":\"Not Found\"}. Received Model Group=mtplx/ornith-ai",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-09-06",
+    "last_run_id": "20260906-220919"
   },
   "gptme:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "gptme",
@@ -1926,13 +1927,12 @@
     "agent_version": "unknown",
     "first_seen": "2026-09-05",
     "run_id": "20260905-131300",
-    "symptom": "Assistant: Thinking...\r[13:17:37] WARNING  LLM naming failed: Error code: 400 -      auto_naming.py:178",
-    "status": "resolved",
+    "symptom": "Assistant: Thinking...\r[22:34:12] WARNING  LLM naming failed: Error code: 400 -      auto_naming.py:178",
+    "status": "open",
     "last_seen": "2026-09-05",
     "last_run_id": "20260905-160140",
-    "resolved_date": "2026-09-05",
-    "resolved_run_id": "20260905-162038",
-    "resolved_agent_version": "unknown"
+    "regressed_date": "2026-09-06",
+    "regressed_run_id": "20260906-221018"
   },
   "mini-swe-agent:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "mini-swe-agent",
@@ -1965,9 +1965,28 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-135740",
     "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
-    "status": "resolved",
-    "resolved_date": "2026-09-05",
-    "resolved_run_id": "20260905-160024",
-    "resolved_agent_version": "unknown"
+    "status": "open",
+    "regressed_date": "2026-09-06",
+    "regressed_run_id": "20260906-221018"
+  },
+  "openhands:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "openhands",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "1.16.0",
+    "first_seen": "2026-09-06",
+    "run_id": "20260906-221018",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "interpreter:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
+    "adapter": "interpreter",
+    "model": "ornith-ai-ornith-1.5-35b-a3b-mlx-4bit",
+    "runtime": "mtplx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-06",
+    "run_id": "20260906-221018",
+    "symptom": "warning: remote app server at `ws://127.0.0.1:61945` transport failed: WebSocket protocol error: Connection reset withou",
+    "status": "open"
   }
 }

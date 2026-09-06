@@ -261,7 +261,7 @@ cmd_sync_mtplx() {
     [ -n "$name" ] && registered+=("$id"$'\t'"$name")
   done < <(_pg_sql "SELECT model_id, model_name FROM \"LiteLLM_ProxyModelTable\" WHERE model_name LIKE 'mtplx/%';" 2>/dev/null)
 
-  local added=0 removed=0 failed=0
+  local added=0 updated=0 removed=0 failed=0
   local bare wanted found pair rid rname bare_id still_live model_id litellm_params
 
   for bare in "${live_ids[@]+"${live_ids[@]}"}"; do
@@ -270,27 +270,50 @@ cmd_sync_mtplx() {
     for pair in "${registered[@]+"${registered[@]}"}"; do
       [ "${pair#*$'\t'}" = "$wanted" ] && { found=1; break; }
     done
-    if [ "$found" -eq 0 ]; then
-      model_id="mtplx-$(_sql_quote "$bare")"
-      # timeout: 600 here mirrors the "mtplx/*" wildcard entry in
-      # config-templates/litellm.yaml — litellm_settings.request_timeout is
-      # intentionally low (bounds model-discovery calls only, see that yaml's
-      # comment), so every real deployment needs its own timeout override or
-      # it would inherit the low global default for actual chat completions.
-      litellm_params="$(jq -nc --arg model "openai/$bare" \
-        '{model:$model, api_base:"os.environ/LITELLM_MTPLX_BASE", api_key:"os.environ/LITELLM_MTPLX_KEY", timeout:600}')"
-      if _pg_sql "INSERT INTO \"LiteLLM_ProxyModelTable\"
-                    (model_id, model_name, litellm_params, model_info, created_by, updated_by)
-                  VALUES
-                    ('$model_id', '$(_sql_quote "$wanted")', '$(_sql_quote "$litellm_params")'::jsonb, '{}'::jsonb,
-                     'bin/litellm-proxy sync', 'bin/litellm-proxy sync')
-                  ON CONFLICT (model_id) DO NOTHING;" >/dev/null 2>&1; then
+    model_id="mtplx-$(_sql_quote "$bare")"
+    # timeout: 600 here mirrors the "mtplx/*" wildcard entry in
+    # config-templates/litellm.yaml — litellm_settings.request_timeout is
+    # intentionally low (bounds model-discovery calls only, see that yaml's
+    # comment), so every real deployment needs its own timeout override or
+    # it would inherit the low global default for actual chat completions.
+    # custom_llm_provider: "custom_openai", and a bare (unprefixed) model id,
+    # mirror the mtplx/* wildcard entry in config-templates/litellm.yaml — see
+    # the long comment at the top of that file for both reasons: "openai" is
+    # recognized by litellm as natively speaking the Responses API, which
+    # breaks codex/omp (both call /v1/responses) since MTPLX only serves
+    # /chat/completions — "custom_openai" has no native Responses config, so
+    # litellm bridges Responses->chat-completions for it instead of 404ing.
+    # And model must stay unprefixed (not "openai/$bare"): passing
+    # custom_llm_provider explicitly stops litellm from stripping a leading
+    # "openai/" off `model` the way it would if custom_llm_provider were
+    # merely derived from that same prefix, so an "openai/"-prefixed model
+    # here would literally reach MTPLX as "openai/<bare>" on the wire instead
+    # of "<bare>".
+    litellm_params="$(jq -nc --arg model "$bare" \
+      '{model:$model, custom_llm_provider:"custom_openai", api_base:"os.environ/LITELLM_MTPLX_BASE", api_key:"os.environ/LITELLM_MTPLX_KEY", timeout:600}')"
+    # Always upsert, even for an already-registered model: this keeps an
+    # existing row's litellm_params (e.g. custom_llm_provider) in sync with
+    # what this script would write today, so a config-shape fix like the
+    # custom_llm_provider change above reaches already-registered MTPLX
+    # models on the next sync instead of only new ones.
+    if _pg_sql "INSERT INTO \"LiteLLM_ProxyModelTable\"
+                  (model_id, model_name, litellm_params, model_info, created_by, updated_by)
+                VALUES
+                  ('$model_id', '$(_sql_quote "$wanted")', '$(_sql_quote "$litellm_params")'::jsonb, '{}'::jsonb,
+                   'bin/litellm-proxy sync', 'bin/litellm-proxy sync')
+                ON CONFLICT (model_id) DO UPDATE SET
+                  litellm_params = EXCLUDED.litellm_params,
+                  updated_by = EXCLUDED.updated_by,
+                  updated_at = now();" >/dev/null 2>&1; then
+      if [ "$found" -eq 0 ]; then
         echo "litellm-proxy sync: + registered $wanted (visible within ~30s)"
         added=$((added + 1))
       else
-        echo "litellm-proxy sync: failed to register $wanted" >&2
-        failed=$((failed + 1))
+        updated=$((updated + 1))
       fi
+    else
+      echo "litellm-proxy sync: failed to register/update $wanted" >&2
+      failed=$((failed + 1))
     fi
   done
 

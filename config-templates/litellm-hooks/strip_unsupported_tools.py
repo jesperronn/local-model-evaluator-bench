@@ -27,6 +27,25 @@ from litellm.integrations.custom_logger import CustomLogger
 
 class StripUnsupportedTools(CustomLogger):
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+        # Codex always sends a top-level "client_metadata" field on every
+        # /v1/responses request (session/thread/turn bookkeeping — see
+        # docs/tools/codex.md and adapters/codex.sh). litellm's real "openai"
+        # provider handles this fine (its Responses-API-native path either
+        # forwards or maps it), but our local routes use
+        # custom_llm_provider: "custom_openai" (see the long comment in
+        # config-templates/litellm.yaml for why: it's what makes litellm use
+        # the Responses<->chat-completions bridge for non-OpenAI backends
+        # instead of trying to hit a /responses route none of them have).
+        # That bridge's generic handler passes unrecognized top-level request
+        # fields straight through to the plain `openai` Python SDK's
+        # `AsyncCompletions.create(**kwargs)` call, which rejects any keyword
+        # it doesn't know — crashing every codex turn with
+        # "AsyncCompletions.create() got an unexpected keyword argument
+        # 'client_metadata'" (confirmed in litellm-proxy container logs,
+        # litellm 1.97.0). None of our local runtimes use this field for
+        # anything, so drop it before it reaches the bridge.
+        data.pop("client_metadata", None)
+
         # Copilot CLI replays its own prior tool calls back into conversation
         # history as {"type": "custom", "custom": {"name": ..., "input": ...}}
         # (its internal Responses-API-shaped record of the apply_patch call),

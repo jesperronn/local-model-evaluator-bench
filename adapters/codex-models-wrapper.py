@@ -49,6 +49,8 @@ def transform_models_response(openai_response: dict) -> dict:
                     "quantization_level": "unknown"
                 },
                 "supported_reasoning_levels": [],
+                "experimental_supported_tools": [],
+                "base_instructions": "",
                 "shell_type": "default",
                 "visibility": "list",
                 "quant": "unknown",
@@ -110,8 +112,14 @@ class ModelsTransformHandler(http.server.SimpleHTTPRequestHandler):
                 response_body = response.read()
                 response_headers = dict(response.headers)
 
-                # Check if this is a /models or /v1/models request and transform the response
-                if (self.path == "/v1/models" or self.path.startswith("/models")) and self.command == "GET":
+                # Check if this is a /models or /v1/models request and transform the response.
+                # Compare against the path with any query string stripped (codex appends
+                # "?client_version=..."), and require the full path to actually match
+                # a models endpoint rather than merely "startswith('/models')", which
+                # also (wrongly) matched "/v1/models" itself before this fix's / v1
+                # base_url change since it doesn't start with the literal "/models".
+                path_no_query = self.path.split("?", 1)[0]
+                if path_no_query in ("/models", "/v1/models") and self.command == "GET":
                     try:
                         data = json.loads(response_body.decode('utf-8'))
                         transformed = transform_models_response(data)
@@ -149,7 +157,24 @@ class ModelsTransformHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+class ThreadingHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """Handle each connection on its own thread.
+
+    Plain socketserver.TCPServer serves one request at a time. Codex keeps a
+    long-lived streaming /v1/responses connection open for the actual
+    completion while ALSO polling /v1/models in the background to refresh its
+    model list — with a single-threaded server the poll can't get a socket
+    until the streaming request finishes, so it times out and retries
+    ("failed to refresh available models: stream disconnected"), competing
+    with (and sometimes starving) the real completion request for the same
+    single accept loop. Threading lets both be served concurrently.
+    """
+
+    daemon_threads = True
+    allow_reuse_address = True
+
+
 if __name__ == "__main__":
     handler = ModelsTransformHandler
-    with socketserver.TCPServer(("127.0.0.1", LISTEN_PORT), handler) as httpd:
+    with ThreadingHTTPServer(("127.0.0.1", LISTEN_PORT), handler) as httpd:
         httpd.serve_forever()

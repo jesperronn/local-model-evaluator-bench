@@ -84,7 +84,23 @@ if [[ -z "$WRAPPER_PORT" ]]; then
   exit 1
 fi
 
-# Remove /v1 from LITELLM_BASE_URL for the wrapper (wrapper expects base URL without /v1)
+# Strip /v1 from LITELLM_BASE_URL here because the wrapper (below) does a
+# naive `TARGET_URL + self.path` concatenation: codex's model_provider
+# base_url further down KEEPS its /v1 suffix, so codex's own request path
+# already carries "/v1/models" / "/v1/responses" — that's what self.path
+# will be. Keeping /v1 on both sides here would double it up
+# ("/v1/v1/models", a 404); stripping it here and keeping it on the base_url
+# given to codex is what makes the two halves add up to exactly one "/v1".
+#
+# An earlier version of this adapter got this backwards — /v1 stripped here
+# (right) but ALSO left off the base_url given to codex (wrong) — so codex
+# requested bare "/models"/"/responses", which landed on litellm as
+# "/responses" instead of "/v1/responses" (litellm doesn't serve that).
+# /v1/models discovery still "worked" by accident (both sides missing /v1
+# cancelled out), but every real completion mid-task 404'd, retried, and
+# eventually gave up with the generic "high demand" fallback message — with
+# no accompanying "failed to refresh available models" error, since discovery
+# alone looked fine.
 WRAPPER_TARGET_URL="${LITELLM_BASE_URL%/v1}"
 
 # Start wrapper in background, capture its PID
@@ -103,8 +119,10 @@ trap cleanup EXIT
 # Give the wrapper a moment to start (increased to ensure it's ready)
 sleep 1.0
 
-# Point Codex to the wrapper instead of directly to LiteLLM
-WRAPPER_URL="http://127.0.0.1:$WRAPPER_PORT"
+# Point Codex to the wrapper instead of directly to LiteLLM. Keep the /v1
+# suffix here — see the WRAPPER_TARGET_URL comment above for why base_url and
+# target must agree on it.
+WRAPPER_URL="http://127.0.0.1:$WRAPPER_PORT/v1"
 
 CODEX_COMMON=(
   -c model="$PREFIXED_MODEL_ID"
