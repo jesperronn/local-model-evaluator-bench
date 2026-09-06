@@ -59,7 +59,7 @@ export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
 OMP_ARGS=(--model "$PREFIXED_MODEL_ID")
 
 if [ ! -t 0 ]; then
-  exec omp "${OMP_ARGS[@]}" -p "$(cat)"
+  exec omp "${OMP_ARGS[@]}" "$(cat)"
 else
   exec omp "${OMP_ARGS[@]}" "$@"
 fi
