@@ -56,10 +56,21 @@ fi
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
 export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
 
-OMP_ARGS=(--model "$PREFIXED_MODEL_ID")
+# For MTPLX, override the provider to route through litellm proxy instead of
+# directly to MTPLX. This ensures omp sees model capabilities from litellm's
+# /v1/models endpoint. MTPLX itself doesn't report function-calling support,
+# so omp would normally disable tools without going through litellm.
+OMP_CONFIG_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/omp-litellm-config.yml"
+OMP_ARGS=(
+  --model "$PREFIXED_MODEL_ID"
+  --auto-approve
+)
+if [ -f "$OMP_CONFIG_PATH" ]; then
+  OMP_ARGS+=(--config "$OMP_CONFIG_PATH")
+fi
 
 if [ ! -t 0 ]; then
-  exec omp "${OMP_ARGS[@]}" "$(cat)"
+  exec omp "${OMP_ARGS[@]}" -p "$(cat)"
 else
   exec omp "${OMP_ARGS[@]}" "$@"
 fi
