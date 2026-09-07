@@ -56,14 +56,14 @@ show_help() {
   help_line "    \$ trace-edit caveman-lms qwen/qwen3-coder-30b smoke-01-edit-file"
 }
 
-if [ $# -lt 2 ]; then
-  show_help
-  exit 1
-fi
-
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   show_help
   exit 0
+fi
+
+if [ $# -lt 2 ]; then
+  show_help
+  exit 1
 fi
 
 ADAPTER="$1"
