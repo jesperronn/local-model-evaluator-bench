@@ -14,21 +14,26 @@
 #   bin/litellm-proxy status            is it up, DB connected, per-route model counts
 #   bin/litellm-proxy logs              follow proxy container logs (-f)
 #   bin/litellm-proxy models            list what the proxy currently resolves
-#   bin/litellm-proxy sync              re-sync MTPLX's live models into the DB, no restart needed
+#   bin/litellm-proxy sync              re-sync oMLX and MTPLX's live models into the DB, no restart needed
+#   bin/litellm-proxy sync-omlx         re-sync oMLX's live models only
+#   bin/litellm-proxy sync-mtplx        re-sync MTPLX's live models only
 #
 # Then route by prefixing the model id with the runtime:
 #   curl "$LITELLM_BASE_URL/chat/completions" -d '{"model":"lms/ornith-1.0-9b",...}'
 #   curl "$LITELLM_BASE_URL/chat/completions" -d '{"model":"omlx/Ornith-1.0-9B-4bit",...}'
 #
-# MTPLX models are NOT hand-listed in config-templates/litellm.yaml (unlike the
-# other four routes' wildcards). `cmd_sync_mtplx` below registers/deregisters
-# them at runtime, driven by MTPLX's own /v1/models — see that function's
-# comment (and the comment above the mtplx/* entry in litellm.yaml) for why,
-# and why it writes the DB directly rather than calling POST /model/new /
-# /model/delete. `sync` runs automatically at the end of `start` (and so
-# after `restart`); run it manually any time MTPLX's served model changes
-# without restarting the proxy:
+# oMLX and MTPLX models are NOT hand-listed in config-templates/litellm.yaml
+# (unlike the other four routes' wildcards). They are registered/deregistered at
+# runtime via `cmd_sync_omlx` and `cmd_sync_mtplx`, driven by their own
+# /v1/models endpoints — see those functions' comments (and the comments above
+# the omlx/* and mtplx/* entries in litellm.yaml) for why, and why they write
+# the DB directly rather than calling POST /model/new / /model/delete. The sync
+# functions run automatically at the end of `start` (and so after `restart`);
+# run them manually any time oMLX or MTPLX's served models change without
+# restarting the proxy:
 #   bin/litellm-proxy sync
+#   bin/litellm-proxy sync-omlx
+#   bin/litellm-proxy sync-mtplx
 #
 # Managing models via the admin API by hand — no auth needed unless you've set
 # $LITELLM_MASTER_KEY (unset by default; this proxy binds to 127.0.0.1 only):
@@ -157,6 +162,7 @@ cmd_start() {
   for _ in $(seq 1 30); do
     if curl -fsS -m 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
       echo " up at $LITELLM_BASE_URL"
+      cmd_sync_omlx || true
       cmd_sync_mtplx || true
       return 0
     fi
@@ -346,6 +352,113 @@ cmd_sync_mtplx() {
   [ "$failed" -eq 0 ]
 }
 
+# cmd_sync_omlx — register/deregister oMLX's live models with the proxy's
+# DB-backed model list, similar to cmd_sync_mtplx. Like MTPLX, oMLX is
+# multi-model and reports its available models via /v1/models. Unlike MTPLX,
+# oMLX returns full model names (not bare ids), so they get registered as
+# "omlx/<full-name>" directly.
+#
+# oMLX's /v1/models returns models with their full names (e.g.,
+# "Ornith-1.5-35B-A3B-MLX-4bit"), which this function diffs against registered
+# "omlx/<name>" entries and reconciles:
+#   - a live oMLX model with no matching "omlx/<name>" registration -> add it
+#   - a registered "omlx/<name>" whose model oMLX no longer reports -> remove it
+#
+# The "omlx/*" wildcard route from litellm.yaml itself is left untouched —
+# it's config-based, not DB-based. But check_provider_endpoint was not
+# reliably discovering individual oMLX models (possibly timeout or connectivity
+# issues inside the Docker container), so manual registration ensures all
+# available oMLX models appear in the proxy's model list.
+cmd_sync_omlx() {
+  local omlx_json
+  if ! omlx_json="$(curl -fsS -m 5 -H "Authorization: Bearer $OMLX_API_KEY" "$OMLX_BASE_URL/models" 2>/dev/null)"; then
+    echo "litellm-proxy sync: oMLX not reachable at $OMLX_BASE_URL — skipping (this is fine if it's not running)" >&2
+    return 0
+  fi
+
+  if ! _running "$LITELLM_PG_CONTAINER"; then
+    echo "litellm-proxy sync: Postgres ($LITELLM_PG_CONTAINER) not running — skipping" >&2
+    return 1
+  fi
+
+  local -a live_ids=()
+  while IFS= read -r id; do
+    [ -n "$id" ] && live_ids+=("$id")
+  done < <(echo "$omlx_json" | jq -r '.data[].id // empty' 2>/dev/null)
+
+  # "model_id<TAB>model_name" for every omlx/* row already in the DB.
+  local -a registered=()
+  while IFS=$'\t' read -r id name; do
+    [ -n "$name" ] && registered+=("$id"$'\t'"$name")
+  done < <(_pg_sql "SELECT model_id, model_name FROM \"LiteLLM_ProxyModelTable\" WHERE model_name LIKE 'omlx/%';" 2>/dev/null)
+
+  local added=0 updated=0 removed=0 failed=0
+  local bare wanted found pair rid rname bare_id still_live model_id litellm_params
+
+  for bare in "${live_ids[@]+"${live_ids[@]}"}"; do
+    wanted="omlx/$bare"
+    found=0
+    for pair in "${registered[@]+"${registered[@]}"}"; do
+      [ "${pair#*$'\t'}" = "$wanted" ] && { found=1; break; }
+    done
+    model_id="omlx-$(_sql_quote "$bare")"
+    # Same as MTPLX: timeout: 600 here mirrors the "omlx/*" wildcard entry in
+    # config-templates/litellm.yaml, and custom_llm_provider + unprefixed model
+    # id mirror the omlx/* entry for the same reasons (see that file's comment).
+    litellm_params="$(jq -nc --arg model "$bare" \
+      '{model:$model, custom_llm_provider:"custom_openai", api_base:"os.environ/LITELLM_OMLX_BASE", api_key:"os.environ/LITELLM_OMLX_KEY", timeout:600}')"
+    # Always upsert, even for an already-registered model: keeps litellm_params
+    # in sync with the current config.
+    if _pg_sql "INSERT INTO \"LiteLLM_ProxyModelTable\"
+                  (model_id, model_name, litellm_params, model_info, created_by, updated_by)
+                VALUES
+                  ('$model_id', '$(_sql_quote "$wanted")', '$(_sql_quote "$litellm_params")'::jsonb, '{}'::jsonb,
+                   'bin/litellm-proxy sync', 'bin/litellm-proxy sync')
+                ON CONFLICT (model_id) DO UPDATE SET
+                  litellm_params = EXCLUDED.litellm_params,
+                  updated_by = EXCLUDED.updated_by,
+                  updated_at = now();" >/dev/null 2>&1; then
+      if [ "$found" -eq 0 ]; then
+        echo "litellm-proxy sync: + registered $wanted (visible within ~30s)"
+        added=$((added + 1))
+      else
+        updated=$((updated + 1))
+      fi
+    else
+      echo "litellm-proxy sync: failed to register/update $wanted" >&2
+      failed=$((failed + 1))
+    fi
+  done
+
+  for pair in "${registered[@]+"${registered[@]}"}"; do
+    rid="${pair%%$'\t'*}"
+    rname="${pair#*$'\t'}"
+    bare_id="${rname#omlx/}"
+    still_live=0
+    for bare in "${live_ids[@]+"${live_ids[@]}"}"; do
+      [ "$bare" = "$bare_id" ] && { still_live=1; break; }
+    done
+    if [ "$still_live" -eq 0 ]; then
+      if _pg_sql "DELETE FROM \"LiteLLM_ProxyModelTable\" WHERE model_id = '$(_sql_quote "$rid")';" >/dev/null 2>&1; then
+        echo "litellm-proxy sync: - removed $rname (no longer served by oMLX)"
+        removed=$((removed + 1))
+      else
+        echo "litellm-proxy sync: failed to remove $rname" >&2
+        failed=$((failed + 1))
+      fi
+    fi
+  done
+
+  if [ "$added" -eq 0 ] && [ "$removed" -eq 0 ] && [ "$failed" -eq 0 ]; then
+    echo "litellm-proxy sync: omlx up to date (${#live_ids[@]} model(s): ${live_ids[*]:-none})"
+  elif [ "$failed" -gt 0 ]; then
+    echo "litellm-proxy sync: omlx +$added -$removed (failed: $failed)"
+  else
+    echo "litellm-proxy sync: omlx +$added -$removed"
+  fi
+  [ "$failed" -eq 0 ]
+}
+
 cmd_models() {
   # What the proxy actually resolves, grouped by route. With
   # check_provider_endpoint: true this is a live query of each backend, so a
@@ -364,7 +477,9 @@ case "${1:-status}" in
   status|--check)    cmd_status;;
   logs)              cmd_logs;;
   models|--models)   cmd_models;;
-  sync|sync-mtplx)   cmd_sync_mtplx;;
+  sync)              cmd_sync_omlx && cmd_sync_mtplx;;
+  sync-omlx)         cmd_sync_omlx;;
+  sync-mtplx)        cmd_sync_mtplx;;
   -h|--help|help)    awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0";;
   *)                 echo "unknown command: $1 (see bin/litellm-proxy --help)" >&2; exit 2;;
 esac
