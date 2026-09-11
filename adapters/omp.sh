@@ -64,6 +64,7 @@ OMP_CONFIG_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/omp-litellm-co
 OMP_ARGS=(
   --model "$PREFIXED_MODEL_ID"
   --auto-approve
+  --thinking=low
 )
 if [ -f "$OMP_CONFIG_PATH" ]; then
   OMP_ARGS+=(--config "$OMP_CONFIG_PATH")
