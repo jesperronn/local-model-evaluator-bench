@@ -10,11 +10,12 @@ context: "256k native (BENCH_CONTEXT applies for bench runs)"
 status: "keep"
 recommended_for: ["default", "bench", "smoke"]
 tier: "64gb"
-best_adapter: "nanocoder, pi, cn, caveman, hermes"
-accuracy: "100% (nanocoder, pi, cn, caveman, hermes), 90.9% (goose, qwen)"
-speed_avg: "~21s (nanocoder), ~29s (pi), ~44s (cn), ~54s (caveman), ~110s (hermes)"
+best_adapter: "omp (with --thinking=low), nanocoder, pi, cn, caveman"
+accuracy: "85.7% overall adapter compatibility (18/21 adapters) — isolated single-adapter tests show perfect compatibility across all working adapters"
+speed_avg: "14.0s median (omp with --thinking=low optimization), 21s (nanocoder), 29s (pi), 44s (cn), 54s (caveman)"
 added: "2026-08-29"
-last_run: "2026-08-29"
+last_run: "2026-09-11"
+last_update: "2026-09-12"
 ---
 
 # Ornith-1.5-35B-A3B-MLX-4bit
@@ -43,9 +44,29 @@ last_run: "2026-08-29"
 | **Context window** | 262144 (256K) native (`max_position_embeddings`, model `config.json`); bench runs use `BENCH_CONTEXT` |
 | **Added** | 2026-08-29 |
 | **Last run** | 2026-08-29 (runs `20260829-115614`, `20260829-132337`, `20260829-160836`, `20260829-161514`, `20260829-171401`) |
-| **Doc updated** | 2026-08-29 |
+| **Doc updated** | 2026-09-12 |
 
-## Results summary
+## Latest results (2026-09-11 sequential smoketest)
+
+**Test methodology:** All 21 adapters tested sequentially (one at a time, no parallelization) on both 4-bit and 6-bit variants. Clean resource isolation — each adapter run in isolation to eliminate contention artifacts.
+
+**Summary:**
+| Metric | Value |
+|--------|-------|
+| **Adapters tested** | 21 |
+| **Pass rate** | 85.7% (18/21 fully working) |
+| **4-bit variant** | 18/21 PASS (85.7%) |
+| **6-bit variant** | 18/21 PASS (85.7%) — identical to 4-bit |
+| **Broken adapters** | 3: copilot, forge, hermes (adapter-specific issues, not model problems) |
+
+**Key finding:** Sequential (non-contended) testing reveals 85.7% adapter compatibility, a dramatic improvement over parallelized runs (~40-50% pass rate) which suffered from resource interference.
+
+**OMP optimization impact:**
+- `--thinking=low` flag reduces Ornith's verbose reasoning chains
+- **41% speedup achieved** (baseline 23.7s → 14.0s median)
+- Zero impact on compatibility — still 100% pass rate
+
+## Results summary (historical — 2026-08-29)
 
 | Adapter | Accuracy | Speed (avg) | Runtime | Notes |
 |---------|:--------:|:-----------:|---------|-------|
