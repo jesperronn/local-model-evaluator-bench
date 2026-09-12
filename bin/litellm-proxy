@@ -68,13 +68,14 @@
 # host.docker.internal in place of 127.0.0.1 — Docker Desktop on macOS provides
 # this out of the box.
 set -euo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+pushd "$(dirname "$0")/.." > /dev/null || exit 1
+HERE="."
 source "$HERE/config.sh"
 source "$HERE/lib/common.sh"
 
 CONFIG="$HERE/config-templates/litellm.yaml"
 NETWORK="litellm-net"
-PG_IMAGE="postgres:16-alpine"
+PG_IMAGE="postgres:18-alpine"
 LITELLM_IMAGE="ghcr.io/berriai/litellm-database:main-stable"
 PROXY_CONTAINER="litellm-proxy"
 

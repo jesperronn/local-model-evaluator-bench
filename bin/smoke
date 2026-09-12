@@ -313,7 +313,7 @@ elif [ "$RUNTIME" = "mtplx" ]; then
     # LiteLLM only routes mtplx/<id> for models synced into its DB-backed
     # model table (bin/litellm-proxy sync, run automatically on start/restart,
     # but not when MTPLX swaps models without a proxy restart).
-    if ! runtime_models "$LITELLM_BASE_URL" | grep -qx "mtplx/$MODEL"; then
+    if ! runtime_models "$LITELLM_BASE_URL" "${LITELLM_MASTER_KEY:-litellm}" | grep -qx "mtplx/$MODEL"; then
       die "'$MODEL' is served by MTPLX but not registered with LiteLLM — run: bin/litellm-proxy sync"
     fi
   fi

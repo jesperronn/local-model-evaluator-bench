@@ -23,12 +23,16 @@ read_list() {
 }
 
 # Query live model discovery from a runtime's /v1/models endpoint.
-# Usage: runtime_models <base_url>
+# Usage: runtime_models <base_url> [--auth-key KEY]
 # Returns model ids one per line, or empty string if unreachable.
 # All OpenAI-compatible runtimes (lms, ollama, mlx, omlx, mtplx) support this.
 runtime_models() {
-  local base_url="$1"
-  curl -fsS --max-time 5 "$base_url/models" 2>/dev/null \
+  local base_url="$1" auth_key="${2:-}"
+  local curl_args=(-fsS --max-time 5)
+  if [ -n "$auth_key" ]; then
+    curl_args+=(-H "Authorization: Bearer $auth_key")
+  fi
+  curl "${curl_args[@]}" "$base_url/models" 2>/dev/null \
     | jq -r '.data[].id' 2>/dev/null || true
 }
 
@@ -56,7 +60,7 @@ mtplx_up() {
 
 # Reachability check against the LiteLLM proxy. Returns 0 if up.
 litellm_up() {
-  curl -fsS --max-time 5 "$LITELLM_BASE_URL/models" >/dev/null 2>&1
+  curl -fsS --max-time 5 -H "Authorization: Bearer ${LITELLM_MASTER_KEY:-sk-local-test-key}" "$LITELLM_BASE_URL/models" >/dev/null 2>&1
 }
 
 # Model ids oMLX currently holds in memory. oMLX loads on first request and
