@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # bin/troubleshoot — deprecated alias, renamed to bin/debug.
 # See docs/PLAN-CLI-UNIFICATION.md.
-echo "bin/troubleshoot is deprecated — use bin/debug (same flags)" >&2
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
+echo "${C_YEL}bin/troubleshoot is deprecated${C_RST} — use bin/debug (same flags)" >&2
 exec "$(cd "$(dirname "$0")" && pwd)/debug" "$@"

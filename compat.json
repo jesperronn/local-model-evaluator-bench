@@ -1547,7 +1547,10 @@
     "first_seen": "2026-08-30",
     "run_id": "20260830-112128",
     "symptom": "MISS: hello.txt not created",
-    "status": "open"
+    "status": "resolved",
+    "resolved_date": "2026-09-11",
+    "resolved_run_id": "20260911-211805",
+    "resolved_agent_version": "unknown"
   },
   "omp:ornith-1.5-35b-a3b:omlx": {
     "adapter": "omp",
@@ -1916,9 +1919,12 @@
     "first_seen": "2026-09-05",
     "run_id": "20260905-131300",
     "symptom": "404 litellm.NotFoundError: NotFoundError: OpenAIException - {\"detail\":\"Not Found\"}. Received Model Group=mtplx/ornith-ai",
-    "status": "open",
-    "last_seen": "2026-09-06",
-    "last_run_id": "20260906-220919"
+    "status": "resolved",
+    "last_seen": "2026-09-07",
+    "last_run_id": "20260907-112925",
+    "resolved_date": "2026-09-07",
+    "resolved_run_id": "20260907-115905",
+    "resolved_agent_version": "unknown"
   },
   "gptme:ornith-ai-ornith-1.5-35b-a3b-mlx-4bit:mtplx": {
     "adapter": "gptme",

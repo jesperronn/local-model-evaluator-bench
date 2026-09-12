@@ -3,17 +3,17 @@
 # Uses lastUsedTime from `lms ps --json` to determine idle duration.
 
 set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
 
 TTL_MINUTES=30
 DRY_RUN=false
 VERBOSE=false
 INTERACTIVE=false
 
-DIM='\033[2m'
-BOLD='\033[1m'
-GREEN_BOLD='\033[1;32m'
-RED_BOLD='\033[1;31m'
-RESET='\033[0m'
+GREEN_BOLD="${C_BLD}${C_GRN}"
+RED_BOLD="${C_BLD}${C_RED}"
 
 usage() {
   cat <<EOF
@@ -105,7 +105,7 @@ else
       ids+=("${all_ids[$i]}")
       idle_mins+=("${all_idle_mins[$i]}")
     elif $VERBOSE; then
-      printf "${DIM}Keep   ${RESET}${BOLD}%s${RESET} ${DIM}(idle %sm)${RESET}\n" \
+      printf "${C_DIM}Keep   ${C_RST}${C_BLD}%s${C_RST} ${C_DIM}(idle %sm)${C_RST}\n" \
         "${all_ids[$i]}" "${all_idle_mins[$i]}"
     fi
   done
@@ -129,15 +129,15 @@ for i in "${!ids[@]}"; do
   plain="Unloading ${id} (idle ${idle}m)..."
   pad=$(( max_prefix_len - ${#plain} ))
 
-  printf "${DIM}Unloading${RESET} ${BOLD}%s${RESET} ${DIM}(idle %sm)${RESET}..." "$id" "$idle"
+  printf "${C_DIM}Unloading${C_RST} ${C_BLD}%s${C_RST} ${C_DIM}(idle %sm)${C_RST}..." "$id" "$idle"
 
   if $DRY_RUN; then
-    printf "%*s${GREEN_BOLD}OK${RESET}\n" $(( pad + 1 )) ""
+    printf "%*s${GREEN_BOLD}OK${C_RST}\n" $(( pad + 1 )) ""
   else
     if lms unload "$id" >/dev/null 2>&1; then
-      printf "%*s${GREEN_BOLD}OK${RESET}\n" $(( pad + 1 )) ""
+      printf "%*s${GREEN_BOLD}OK${C_RST}\n" $(( pad + 1 )) ""
     else
-      printf "%*s${RED_BOLD}FAILED${RESET}\n" $(( pad + 1 )) ""
+      printf "%*s${RED_BOLD}FAILED${C_RST}\n" $(( pad + 1 )) ""
     fi
   fi
 done

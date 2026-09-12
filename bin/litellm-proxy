@@ -70,6 +70,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
 
 CONFIG="$HERE/config-templates/litellm.yaml"
 NETWORK="litellm-net"
@@ -93,7 +94,7 @@ _exists()  { docker ps -a --filter "name=^${1}\$" --format '{{.Names}}' | grep -
 cmd_start() {
   _need_docker
   if _running "$PROXY_CONTAINER"; then
-    echo "litellm-proxy: already running"
+    echo "${C_GRN}litellm-proxy: already running${C_RST}"
     return 0
   fi
 
@@ -101,10 +102,10 @@ cmd_start() {
 
   if ! _running "$LITELLM_PG_CONTAINER"; then
     if _exists "$LITELLM_PG_CONTAINER"; then
-      echo "litellm-proxy: starting existing Postgres container $LITELLM_PG_CONTAINER"
+      echo "${C_BLU}litellm-proxy:${C_RST} starting existing Postgres container $LITELLM_PG_CONTAINER"
       docker start "$LITELLM_PG_CONTAINER" >/dev/null
     else
-      echo "litellm-proxy: creating Postgres container $LITELLM_PG_CONTAINER"
+      echo "${C_BLU}litellm-proxy:${C_RST} creating Postgres container $LITELLM_PG_CONTAINER"
       docker run -d \
         --name "$LITELLM_PG_CONTAINER" \
         --network "$NETWORK" \
@@ -175,17 +176,17 @@ cmd_start() {
 
 cmd_stop() {
   docker stop "$PROXY_CONTAINER" "$LITELLM_PG_CONTAINER" >/dev/null 2>&1 || true
-  echo "litellm-proxy: stopped (data persists — bin/litellm-proxy start to resume)"
+  echo "${C_GRN}litellm-proxy: stopped${C_RST} (data persists — bin/litellm-proxy start to resume)"
 }
 
 cmd_status() {
   if _running "$PROXY_CONTAINER"; then
     local health
     health="$(curl -fsS -m 3 "${LITELLM_BASE_URL%/v1}/health/readiness" 2>/dev/null || echo '{}')"
-    echo "litellm proxy: up at $LITELLM_BASE_URL"
+    echo "${C_GRN}litellm proxy: up${C_RST} at $LITELLM_BASE_URL"
     echo "  db: $(echo "$health" | jq -r '.db // "unknown"' 2>/dev/null)"
   else
-    echo "litellm proxy: down (start: bin/litellm-proxy start)"
+    echo "${C_RED}litellm proxy: down${C_RST} (start: bin/litellm-proxy start)"
   fi
   if _running "$LITELLM_PG_CONTAINER"; then
     echo "postgres: up ($LITELLM_PG_CONTAINER, port $LITELLM_PG_PORT)"

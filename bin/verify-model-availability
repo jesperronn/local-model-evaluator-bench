@@ -11,6 +11,8 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
 
 # Predefined model tiers
 declare -A TIERS=(
@@ -53,7 +55,7 @@ while [ $# -gt 0 ]; do
     --tier)
       tier="$2"
       if [ -z "${TIERS[$tier]:-}" ]; then
-        echo "Unknown tier: $tier"
+    err "Unknown tier: $tier"
         exit 1
       fi
       models=( ${TIERS[$tier]} )
@@ -80,28 +82,28 @@ for model in "${models[@]}"; do
   output=$(timeout 5 lms get "$model" 2>&1 || true)
 
   if echo "$output" | grep -q "The artifact does not exist"; then
-    echo "✗ NOT FOUND"
+    printf '%s\n' "${C_RED}✗ NOT FOUND${C_RST}"
     echo "    $(echo "$output" | grep "The artifact does not exist" | head -1)"
     ((fail++))
   elif echo "$output" | grep -q "do not have permission\|permission denied"; then
-    echo "✗ NO PERMISSION"
+    printf '%s\n' "${C_RED}✗ NO PERMISSION${C_RST}"
     echo "    $(echo "$output" | grep -E "permission|Permission" | head -1)"
     ((fail++))
   elif echo "$output" | grep -qE "Error:.*Failed to resolve"; then
-    echo "✗ RESOLUTION FAILED"
+    printf '%s\n' "${C_RED}✗ RESOLUTION FAILED${C_RST}"
     echo "    $(echo "$output" | grep -E "Error:.*Failed" | head -1)"
     ((fail++))
   elif echo "$output" | tail -1 | grep -q "Error:"; then
-    echo "✗ ERROR"
+    printf '%s\n' "${C_RED}✗ ERROR${C_RST}"
     echo "    $(echo "$output" | tail -1)"
     ((fail++))
   else
     # No error at end = likely succeeded (lms downloads in background)
-    echo "✓ FOUND"
+    printf '%s\n' "${C_GRN}✓ FOUND${C_RST}"
     ((pass++))
   fi
 done
 
 echo
-echo "Summary: $pass found, $fail not found"
+echo "${C_BLD}Summary:${C_RST} $pass found, $fail not found"
 [ $fail -eq 0 ] && exit 0 || exit 1

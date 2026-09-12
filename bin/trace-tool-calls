@@ -48,6 +48,11 @@ import os
 import sys
 
 SESSIONS_ROOT = os.path.expanduser("~/.pi/agent/sessions")
+USE_COLOR = bool(sys.stdout.isatty() and not os.environ.get("NO_COLOR"))
+
+
+def paint(code: str, value: str) -> str:
+    return f"\033[{code}m{value}\033[0m" if USE_COLOR else value
 
 
 def slugify_cwd(path: str) -> str:
@@ -75,7 +80,7 @@ def resolve_session(arg: str) -> str:
 
 def analyze(path: str) -> int:
     edit_calls = write_calls = mangled = edit_errors = 0
-    print(f"# {path}\n")
+    print(f"{paint('1', '#')} {path}\n")
     for line in open(path):
         try:
             o = json.loads(line)
@@ -105,7 +110,7 @@ def analyze(path: str) -> int:
                             flag = "  ✓ nested array edits[]"
                     elif name == "write":
                         write_calls += 1
-                    print(f"  → {name}({flat[:120]}{'…' if len(flat) > 120 else ''}){flag}")
+                    print(f"  {paint('34', '→')} {name}({flat[:120]}{'…' if len(flat) > 120 else ''}){paint('31' if 'MANGLED' in flag else '32', flag) if flag else ''}")
         elif role == "toolResult":
             if m.get("isError"):
                 txt = "".join(
@@ -113,9 +118,9 @@ def analyze(path: str) -> int:
                 )
                 if m.get("toolName") == "edit":
                     edit_errors += 1
-                print(f"  ✗ ERROR [{m.get('toolName')}]: {txt[:120]}")
+                print(f"  {paint('31', '✗ ERROR')} [{m.get('toolName')}]: {txt[:120]}")
 
-    print("\n# summary")
+    print(f"\n{paint('1', '# summary')}")
     print(f"  edit calls       : {edit_calls}")
     print(f"  write calls      : {write_calls}")
     print(f"  mangled-XML edits: {mangled}")
@@ -127,7 +132,8 @@ def analyze(path: str) -> int:
         if edit_calls
         else "no edit calls (model may have used write, or never edited)"
     )
-    print(f"  verdict          : {verdict}")
+    verdict_color = "31" if (mangled or edit_errors) else "32" if edit_calls else "33"
+    print(f"  verdict          : {paint(verdict_color, verdict)}")
     return 1 if (mangled or edit_errors) else 0
 
 

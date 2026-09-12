@@ -17,6 +17,9 @@
 # Also buckets total RAM into benchmarked tiers (24/32/48/64/128 GB).
 #
 set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
 
 # Tiers: "benchmarked" tiers have real data; others are placeholders.
 TIERS=(24 32 48 64 128)
@@ -445,19 +448,19 @@ _output_human() {
   [[ "$benchmarked" == "true" ]] && benchmarked="yes" || benchmarked="no"
 
   echo "════════════════════════════════════════════════════"
-  echo "Hardware Profile — Local Model Agent Benchmarking"
+  echo "${C_BLD}Hardware Profile — Local Model Agent Benchmarking${C_RST}"
   echo "════════════════════════════════════════════════════"
   echo ""
-  echo "Machine Identity:"
+  echo "${C_BLD}Machine Identity:${C_RST}"
   printf "  Hostname:            %s\n" "$hostname"
   printf "  Username:            %s\n" "$username"
   printf "  OS:                  %s\n" "$(uname -s)"
   echo ""
-  echo "Memory:"
+  echo "${C_BLD}Memory:${C_RST}"
   printf "  Total RAM:           %s GB\n" "$ram_total"
   printf "  RAM Used:            %s GB\n" "$ram_used"
   echo ""
-  echo "Processor:"
+  echo "${C_BLD}Processor:${C_RST}"
   printf "  Model:               %s\n" "$cpu_model"
   printf "  Cores:               %s\n" "$cpu_cores"
   if [[ "$cpu_ghz" == "N/A" ]]; then
@@ -466,10 +469,10 @@ _output_human() {
     printf "  Base Frequency:      %s GHz\n" "$cpu_ghz"
   fi
   echo ""
-  echo "Storage:"
+  echo "${C_BLD}Storage:${C_RST}"
   printf "  Free Space:          %s\n" "$disk_free"
   echo ""
-  echo "Benchmark Tier:"
+  echo "${C_BLD}Benchmark Tier:${C_RST}"
   printf "  Nearest RAM Tier:    %s GB\n" "$tier"
   printf "  Data Available:      %s (see docs/HARDWARE-RECOMMENDATIONS.md)\n" "$benchmarked"
   echo ""
@@ -479,7 +482,7 @@ _output_human() {
   if [[ "$is_apple_silicon" == "true" ]]; then
     gpu_cap_mb=$(_gpu_wired_mem_cap_mb "$ram_total")
     if [[ -n "$gpu_cap_mb" ]]; then
-      echo "Tuning Tip (Apple Silicon):"
+      echo "${C_YEL}Tuning Tip (Apple Silicon):${C_RST}"
       echo "  Raise GPU memory cap for larger models/contexts (resets on reboot):"
       printf "    sudo sysctl iogpu.wired_limit_mb=%s\n" "$gpu_cap_mb"
       echo "  Close memory-heavy apps (Chrome, Docker) before deep agent loops."
@@ -518,8 +521,8 @@ _output_full() {
   # RAM breakdown (macOS only)
   if [[ "$os" == "macos" ]]; then
     echo ""
-    echo "════════════════════════════════════════════════════"
-    echo "Memory Breakdown"
+    echo "${C_DIM}════════════════════════════════════════════════════${C_RST}"
+    echo "${C_BLD}Memory Breakdown${C_RST}"
     echo "════════════════════════════════════════════════════"
     local total_ram used_ram free_ram wired_ram inactive_ram active_ram
     read total_ram used_ram free_ram wired_ram inactive_ram < <(_ram_gb_breakdown "$os" || echo "")
@@ -538,7 +541,7 @@ _output_full() {
   # Runtime status
   echo ""
   echo "════════════════════════════════════════════════════"
-  echo "Installed Models & Runtime Environments"
+  echo "${C_BLD}Installed Models & Runtime Environments${C_RST}"
   echo "════════════════════════════════════════════════════"
   echo ""
 

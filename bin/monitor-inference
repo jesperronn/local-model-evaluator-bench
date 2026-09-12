@@ -11,7 +11,9 @@
 #   bin/monitor-inference --detect-stalls    # Kill benchmark on stall
 
 set -euo pipefail
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$HERE/config.sh"
+source "$HERE/lib/common.sh"
 
 interval=${1:-1}
 detect_stalls=${2:-}
@@ -28,9 +30,9 @@ done
 stall_count=0
 max_stalls=$((180 / interval))  # 180s threshold
 
-echo "📊 LMS Inference Monitor (interval: ${interval}s)"
-echo "Columns: Time | Tokens/sec | VRAM | Prompt Toks | Gen Toks | Latency"
-echo "---"
+echo "${C_BLD}📊 LMS Inference Monitor${C_RST} (interval: ${interval}s)"
+echo "${C_DIM}Columns: Time | Tokens/sec | VRAM | Prompt Toks | Gen Toks | Latency${C_RST}"
+echo "${C_DIM}---${C_RST}"
 
 while true; do
   stats=$(lms log stream --json --stats 2>/dev/null | tail -1 2>/dev/null || echo "{}")
@@ -42,16 +44,16 @@ while true; do
     gen=$(echo "$stats" | jq -r '.stats.generationTokens // 0' 2>/dev/null || echo "0")
     latency=$(echo "$stats" | jq -r '.stats.latencyMs // 0' 2>/dev/null || echo "0")
 
-    printf "[%s] tokens/s: %6s | VRAM: %5s | prompt: %4s | gen: %4s | latency: %6s ms\n" \
+    printf "[%s] ${C_GRN}tokens/s: %6s${C_RST} | VRAM: %5s | prompt: %4s | gen: %4s | latency: %6s ms\n" \
       "$(date '+%H:%M:%S')" "$tokens" "$vram" "$prompt" "$gen" "$latency"
 
     stall_count=0
   else
     stall_count=$((stall_count + 1))
-    printf "[%s] ⚠️  Waiting for metrics (%ds)\n" "$(date '+%H:%M:%S')" "$((stall_count * interval))"
+    printf "[%s] ${C_YEL}⚠️  Waiting for metrics (%ds)${C_RST}\n" "$(date '+%H:%M:%S')" "$((stall_count * interval))"
 
     if [ "$detect_stalls" = true ] && [ $stall_count -ge $max_stalls ]; then
-      echo "❌ STALL DETECTED: No metrics for ${stall_count}s threshold"
+      echo "${C_RED}❌ STALL DETECTED: No metrics for ${stall_count}s threshold${C_RST}"
       pkill -f "bin/bench" || true
       exit 1
     fi
