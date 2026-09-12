@@ -5,6 +5,7 @@ node_modules/
 *.log
 .aider*
 .cave/
+.zvec-grep/
 bench1.txt
 __pycache__/
 *.bak.*
