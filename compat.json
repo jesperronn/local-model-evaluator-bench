@@ -1681,18 +1681,6 @@
     "resolved_run_id": "20260830-142014",
     "resolved_agent_version": "1.18.25"
   },
-  "omp:mtplx-flash-next-optimized-speed:mtplx": {
-    "adapter": "omp",
-    "model": "mtplx-flash-next-optimized-speed",
-    "runtime": "mtplx",
-    "agent_version": "unknown",
-    "first_seen": "2026-08-30",
-    "run_id": "20260830-140649",
-    "symptom": "MISS: hello.txt not created",
-    "status": "open",
-    "last_seen": "2026-08-30",
-    "last_run_id": "20260830-142154"
-  },
   "claude:mtplx-flash-next-optimized-speed:mtplx": {
     "adapter": "claude",
     "model": "mtplx-flash-next-optimized-speed",
