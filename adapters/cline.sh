@@ -67,6 +67,7 @@ CLINE_ARGS=(
   --data-dir "$DATA_DIR"
   -P "openai-compatible"
   --model "$PREFIXED_MODEL_ID"
+  --thinking low
 )
 
 if [ ! -t 0 ]; then

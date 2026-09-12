@@ -78,9 +78,12 @@ fi
 
 # Use the proxy provider to route through the unified endpoint.
 # The provider name "litellm" is configured in ~/.pi/agent/models.json
+
 # and points to LITELLM_BASE_URL with all models accessible via their
 # provider-prefixed IDs (lms/..., ollama/..., etc.).
-PI_ARGS=(--provider litellm --model "$PREFIXED_MODEL_ID")
+# Reduce verbose reasoning output with --thinking=low (same optimization as OMP)
+# This reduces overthinking and speeds up inference without affecting accuracy.
+PI_ARGS=(--provider litellm --model "$PREFIXED_MODEL_ID" --thinking low)
 
 if [ ! -t 0 ]; then
   exec pi "${PI_ARGS[@]}" -p "$(cat)"

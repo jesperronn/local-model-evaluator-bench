@@ -75,6 +75,7 @@ export OPENAI_API_BASE="$LITELLM_BASE_URL"
 
 CAVEMAN_ARGS=(
   --model "$PREFIXED_MODEL_ID"
+  --thinking low
 )
 
 if [ ! -t 0 ]; then
