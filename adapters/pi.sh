@@ -81,9 +81,13 @@ fi
 
 # and points to LITELLM_BASE_URL with all models accessible via their
 # provider-prefixed IDs (lms/..., ollama/..., etc.).
-# Reduce verbose reasoning output with --thinking=low (same optimization as OMP)
-# This reduces overthinking and speeds up inference without affecting accuracy.
-PI_ARGS=(--provider litellm --model "$PREFIXED_MODEL_ID" --thinking low)
+PI_ARGS=(--provider litellm --model "$PREFIXED_MODEL_ID")
+
+# Ornith-specific optimization: reduce verbose reasoning output
+# Only apply --thinking=low to Ornith models; other models may not support it
+if [[ "$MODEL_ID" =~ ornith|Ornith ]]; then
+  PI_ARGS+=(--thinking low)
+fi
 
 if [ ! -t 0 ]; then
   exec pi "${PI_ARGS[@]}" -p "$(cat)"

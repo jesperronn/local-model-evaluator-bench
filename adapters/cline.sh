@@ -67,8 +67,13 @@ CLINE_ARGS=(
   --data-dir "$DATA_DIR"
   -P "openai-compatible"
   --model "$PREFIXED_MODEL_ID"
-  --thinking low
 )
+
+# Ornith-specific optimization: reduce verbose reasoning output
+# Only apply --thinking=low to Ornith models; other models may not support it
+if [[ "$MODEL_ID" =~ ornith|Ornith ]]; then
+  CLINE_ARGS+=(--thinking low)
+fi
 
 if [ ! -t 0 ]; then
   # Suppress AI SDK warnings that cline writes to stdout (not stderr) on first

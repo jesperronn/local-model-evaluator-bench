@@ -64,8 +64,14 @@ OMP_CONFIG_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/omp-litellm-co
 OMP_ARGS=(
   --model "$PREFIXED_MODEL_ID"
   --auto-approve
-  --thinking=low
 )
+
+# Ornith-specific optimization: reduce verbose reasoning output
+# Only apply --thinking=low to Ornith models; other models may not support it
+if [[ "$MODEL_ID" =~ ornith|Ornith ]]; then
+  OMP_ARGS+=(--thinking=low)
+fi
+
 if [ -f "$OMP_CONFIG_PATH" ]; then
   OMP_ARGS+=(--config "$OMP_CONFIG_PATH")
 fi

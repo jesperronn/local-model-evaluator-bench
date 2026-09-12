@@ -75,8 +75,13 @@ export OPENAI_API_BASE="$LITELLM_BASE_URL"
 
 CAVEMAN_ARGS=(
   --model "$PREFIXED_MODEL_ID"
-  --thinking low
 )
+
+# Ornith-specific optimization: reduce verbose reasoning output
+# Only apply --thinking=low to Ornith models; other models may not support it
+if [[ "$MODEL_ID" =~ ornith|Ornith ]]; then
+  CAVEMAN_ARGS+=(--thinking low)
+fi
 
 if [ ! -t 0 ]; then
   exec caveman "${CAVEMAN_ARGS[@]}" --print "$(cat)"
