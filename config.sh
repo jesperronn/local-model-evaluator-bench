@@ -50,8 +50,7 @@ export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1
 # proxy binds only to 127.0.0.1 on a single-user machine, so no key is needed.
 # Set LITELLM_MASTER_KEY yourself if this ever needs to be reachable beyond
 # localhost or shared with another user.
-# Virtual key format required by litellm: must start with 'sk-'
-export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-local-test-key}"
+export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-}"
 # Postgres backing store for store_model_in_db (litellm requires Postgres, no
 # sqlite support). bin/litellm-proxy runs this in a local Docker container
 # named litellm-postgres, so no system Postgres install is needed.

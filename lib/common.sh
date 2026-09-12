@@ -60,7 +60,7 @@ mtplx_up() {
 
 # Reachability check against the LiteLLM proxy. Returns 0 if up.
 litellm_up() {
-  curl -fsS --max-time 5 -H "Authorization: Bearer ${LITELLM_MASTER_KEY:-sk-local-test-key}" "$LITELLM_BASE_URL/models" >/dev/null 2>&1
+  curl -fsS --max-time 5 "$LITELLM_BASE_URL/models" >/dev/null 2>&1
 }
 
 # Model ids oMLX currently holds in memory. oMLX loads on first request and
