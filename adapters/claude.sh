@@ -54,7 +54,7 @@ fi
 
 # Claude Code's Stainless SDK appends /v1/messages, so we pass the base without the /v1 suffix.
 CLAUDE_BASE_URL="${LITELLM_BASE_URL%/v1}"
-AUTH_TOKEN="${LITELLM_MASTER_KEY:-litellm}"
+AUTH_TOKEN="$LITELLM_MASTER_KEY"
 
 CLAUDE_ARGS=()
 if [ ! -t 0 ]; then

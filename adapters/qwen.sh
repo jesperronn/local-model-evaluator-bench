@@ -57,7 +57,7 @@ fi
 
 # Set environment variables to route through the LiteLLM proxy.
 # LiteLLM does not require a key for localhost access unless LITELLM_MASTER_KEY is set.
-export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
 export OPENAI_BASE_URL="$LITELLM_BASE_URL"
 export OPENAI_MODEL="$PREFIXED_MODEL_ID"
 export QWEN_CODE_SUPPRESS_YOLO_WARNING=1

@@ -45,12 +45,9 @@ export MLX_BASE_URL="${MLX_BASE_URL:-http://127.0.0.1:8080/v1}"
 export LITELLM_PROXY_MODE="${LITELLM_PROXY_MODE:-1}"  # 1 = proxy available; set to 0 to disable
 export LITELLM_PORT="${LITELLM_PORT:-4444}"
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1}"
-# Unset by default: litellm does not require a key for any endpoint (including
-# the store_model_in_db admin routes like /model/new) unless one is set. This
-# proxy binds only to 127.0.0.1 on a single-user machine, so no key is needed.
-# Set LITELLM_MASTER_KEY yourself if this ever needs to be reachable beyond
-# localhost or shared with another user.
-export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-}"
+# Set to DUMMY for local dev (auth-free localhost proxy, no security needed).
+# The UI dashboard requires this; the API doesn't check it unless set.
+export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-DUMMY}"
 # Postgres backing store for store_model_in_db (litellm requires Postgres, no
 # sqlite support). bin/litellm-proxy runs this in a local Docker container
 # named litellm-postgres, so no system Postgres install is needed.

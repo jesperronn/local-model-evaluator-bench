@@ -57,7 +57,7 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"  # codex reads the key from this env var (see -c env_key).
+export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
 
 # Start the models-format wrapper on a local port. The wrapper transforms
 # LiteLLM's OpenAI-format /v1/models response to Ollama format.

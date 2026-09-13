@@ -21,7 +21,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 # Configure LiteLLM proxy connection (both tools require a non-empty key value)
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
-export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"

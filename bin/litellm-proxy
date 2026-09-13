@@ -461,6 +461,183 @@ cmd_sync_omlx() {
   [ "$failed" -eq 0 ]
 }
 
+# cmd_sync_ollama — register/deregister Ollama's live models with the proxy's
+# DB-backed model list. Ollama is multi-model and reports available models via
+# /v1/models. This diffs that against registered "ollama/*" entries and reconciles.
+cmd_sync_ollama() {
+  local ollama_json
+  if ! ollama_json="$(curl -fsS -m 5 "http://localhost:11434/api/tags" 2>/dev/null)"; then
+    echo "litellm-proxy sync: Ollama not reachable at http://localhost:11434 — skipping (this is fine if it's not running)" >&2
+    return 0
+  fi
+
+  if ! _running "$LITELLM_PG_CONTAINER"; then
+    echo "litellm-proxy sync: Postgres ($LITELLM_PG_CONTAINER) not running — skipping" >&2
+    return 1
+  fi
+
+  local -a live_ids=()
+  while IFS= read -r name; do
+    [ -n "$name" ] && live_ids+=("$name")
+  done < <(echo "$ollama_json" | jq -r '.models[].name // empty' 2>/dev/null)
+
+  local -a registered=()
+  while IFS=$'\t' read -r id name; do
+    [ -n "$name" ] && registered+=("$id"$'\t'"$name")
+  done < <(_pg_sql "SELECT model_id, model_name FROM \"LiteLLM_ProxyModelTable\" WHERE model_name LIKE 'ollama/%';" 2>/dev/null)
+
+  local added=0 removed=0 failed=0
+  local bare wanted found pair rid rname model_id litellm_params
+
+  for bare in "${live_ids[@]+"${live_ids[@]}"}"; do
+    wanted="ollama/$bare"
+    found=0
+    for pair in "${registered[@]+"${registered[@]}"}"; do
+      [ "${pair#*$'\t'}" = "$wanted" ] && { found=1; break; }
+    done
+    model_id="ollama-$(_sql_quote "$bare")"
+    litellm_params="$(jq -nc --arg model "$bare" \
+      '{model:$model, custom_llm_provider:"custom_openai", api_base:"os.environ/LITELLM_OLLAMA_BASE", api_key:"ollama", timeout:600}')"
+    if _pg_sql "INSERT INTO \"LiteLLM_ProxyModelTable\"
+                  (model_id, model_name, litellm_params, model_info, created_by, updated_by)
+                VALUES
+                  ('$model_id', '$(_sql_quote "$wanted")', '$(_sql_quote "$litellm_params")'::jsonb, '{}'::jsonb,
+                   'bin/litellm-proxy sync', 'bin/litellm-proxy sync')
+                ON CONFLICT (model_id) DO UPDATE SET
+                  litellm_params = EXCLUDED.litellm_params,
+                  updated_by = EXCLUDED.updated_by,
+                  updated_at = now();" >/dev/null 2>&1; then
+      if [ "$found" -eq 0 ]; then
+        echo "litellm-proxy sync: + registered $wanted (visible within ~30s)"
+        added=$((added + 1))
+      fi
+    else
+      echo "litellm-proxy sync: failed to register/update $wanted" >&2
+      failed=$((failed + 1))
+    fi
+  done
+
+  for pair in "${registered[@]+"${registered[@]}"}"; do
+    rid="${pair%%$'\t'*}"
+    rname="${pair#*$'\t'}"
+    bare_id="${rname#ollama/}"
+    still_live=0
+    for bare in "${live_ids[@]+"${live_ids[@]}"}"; do
+      [ "$bare" = "$bare_id" ] && { still_live=1; break; }
+    done
+    if [ "$still_live" -eq 0 ]; then
+      if _pg_sql "DELETE FROM \"LiteLLM_ProxyModelTable\" WHERE model_id = '$(_sql_quote "$rid")';" >/dev/null 2>&1; then
+        echo "litellm-proxy sync: - removed $rname (no longer served by Ollama)"
+        removed=$((removed + 1))
+      else
+        echo "litellm-proxy sync: failed to remove $rname" >&2
+        failed=$((failed + 1))
+      fi
+    fi
+  done
+
+  if [ "$added" -eq 0 ] && [ "$removed" -eq 0 ] && [ "$failed" -eq 0 ]; then
+    echo "litellm-proxy sync: ollama up to date (${#live_ids[@]} model(s): ${live_ids[*]:-none})"
+  elif [ "$failed" -gt 0 ]; then
+    echo "litellm-proxy sync: ollama +$added -$removed (failed: $failed)"
+  else
+    echo "litellm-proxy sync: ollama +$added -$removed"
+  fi
+  [ "$failed" -eq 0 ]
+}
+
+# cmd_sync_lms — register LM Studio's current loaded model. LM Studio is
+# single-model (like mlx_lm.server), so this queries the current model and
+# registers it, deregistering any previous lms/* model if it changed.
+cmd_sync_lms() {
+  local lms_json
+  if ! lms_json="$(curl -fsS -m 5 "$LMS_BASE_URL/models" 2>/dev/null)"; then
+    echo "litellm-proxy sync: LM Studio not reachable at $LMS_BASE_URL — skipping (this is fine if it's not running)" >&2
+    return 0
+  fi
+
+  if ! _running "$LITELLM_PG_CONTAINER"; then
+    echo "litellm-proxy sync: Postgres ($LITELLM_PG_CONTAINER) not running — skipping" >&2
+    return 1
+  fi
+
+  local loaded_model
+  loaded_model="$(echo "$lms_json" | jq -r '.data[0].id // empty' 2>/dev/null)"
+  [ -z "$loaded_model" ] && { echo "litellm-proxy sync: lms has no model loaded"; return 0; }
+
+  local registered
+  registered="$(curl -fs -m 2 "http://localhost:5432/v1/models" 2>/dev/null | jq -r '.data[] | select(.id | startswith("lms/")) | .id' | sed 's|lms/||' | head -1)"
+
+  if [ "$loaded_model" = "$registered" ]; then
+    echo "litellm-proxy sync: lms up to date (1 model: $loaded_model)"
+    return 0
+  fi
+
+  # Model changed, update DB
+  local model_id="lms-$(_sql_quote "$loaded_model")"
+  local wanted="lms/$loaded_model"
+  local litellm_params="$(jq -nc --arg model "$loaded_model" \
+    '{model:$model, custom_llm_provider:"custom_openai", api_base:"os.environ/LITELLM_LMS_BASE", api_key:"lm-studio", timeout:600}')"
+
+  if _pg_sql "INSERT INTO \"LiteLLM_ProxyModelTable\"
+                (model_id, model_name, litellm_params, model_info, created_by, updated_by)
+              VALUES
+                ('$model_id', '$(_sql_quote "$wanted")', '$(_sql_quote "$litellm_params")'::jsonb, '{}'::jsonb,
+                 'bin/litellm-proxy sync', 'bin/litellm-proxy sync')
+              ON CONFLICT (model_id) DO UPDATE SET
+                litellm_params = EXCLUDED.litellm_params,
+                updated_by = EXCLUDED.updated_by,
+                updated_at = now();" >/dev/null 2>&1; then
+    echo "litellm-proxy sync: + registered $wanted"
+    # Remove old lms model if different
+    if [ -n "$registered" ] && [ "$registered" != "$loaded_model" ]; then
+      _pg_sql "DELETE FROM \"LiteLLM_ProxyModelTable\" WHERE model_name LIKE 'lms/%' AND model_name != '$(_sql_quote "$wanted")';" >/dev/null 2>&1
+      echo "litellm-proxy sync: - removed lms/$registered"
+    fi
+  else
+    echo "litellm-proxy sync: failed to register $wanted" >&2
+    return 1
+  fi
+}
+
+# cmd_sync_mlx — same as lms: single-model server, register the current loaded model.
+cmd_sync_mlx() {
+  local mlx_json
+  if ! mlx_json="$(curl -fsS -m 5 "http://localhost:8080/v1/models" 2>/dev/null)"; then
+    echo "litellm-proxy sync: MLX not reachable at http://localhost:8080 — skipping (this is fine if it's not running)" >&2
+    return 0
+  fi
+
+  if ! _running "$LITELLM_PG_CONTAINER"; then
+    echo "litellm-proxy sync: Postgres ($LITELLM_PG_CONTAINER) not running — skipping" >&2
+    return 1
+  fi
+
+  local loaded_model
+  loaded_model="$(echo "$mlx_json" | jq -r '.data[0].id // empty' 2>/dev/null)"
+  [ -z "$loaded_model" ] && { echo "litellm-proxy sync: mlx has no model loaded"; return 0; }
+
+  local model_id="mlx-$(_sql_quote "$loaded_model")"
+  local wanted="mlx/$loaded_model"
+  local litellm_params="$(jq -nc --arg model "$loaded_model" \
+    '{model:$model, custom_llm_provider:"custom_openai", api_base:"os.environ/LITELLM_MLX_BASE", api_key:"not-needed", timeout:600}')"
+
+  if _pg_sql "INSERT INTO \"LiteLLM_ProxyModelTable\"
+                (model_id, model_name, litellm_params, model_info, created_by, updated_by)
+              VALUES
+                ('$model_id', '$(_sql_quote "$wanted")', '$(_sql_quote "$litellm_params")'::jsonb, '{}'::jsonb,
+                 'bin/litellm-proxy sync', 'bin/litellm-proxy sync')
+              ON CONFLICT (model_id) DO UPDATE SET
+                litellm_params = EXCLUDED.litellm_params,
+                updated_by = EXCLUDED.updated_by,
+                updated_at = now();" >/dev/null 2>&1; then
+    echo "litellm-proxy sync: registered $wanted"
+  else
+    echo "litellm-proxy sync: failed to register $wanted" >&2
+    return 1
+  fi
+}
+
 cmd_models() {
   # What the proxy actually resolves, grouped by route. With
   # check_provider_endpoint: true this is a live query of each backend, so a
@@ -479,7 +656,10 @@ case "${1:-status}" in
   status|--check)    cmd_status;;
   logs)              cmd_logs;;
   models|--models)   cmd_models;;
-  sync)              cmd_sync_omlx && cmd_sync_mtplx;;
+  sync)              cmd_sync_lms && cmd_sync_ollama && cmd_sync_mlx && cmd_sync_omlx && cmd_sync_mtplx;;
+  sync-lms)          cmd_sync_lms;;
+  sync-ollama)       cmd_sync_ollama;;
+  sync-mlx)          cmd_sync_mlx;;
   sync-omlx)         cmd_sync_omlx;;
   sync-mtplx)        cmd_sync_mtplx;;
   -h|--help|help)    awk 'NR>1 && /^[^#]/{exit} NR>1{print}' "$0";;

@@ -59,7 +59,7 @@ fi
 GPTME_MODEL="openai/${RUNTIME_PREFIXED_ID}"
 
 export OPENAI_BASE_URL="$LITELLM_BASE_URL"
-export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
 
 # gptme requires the Python bin to be on PATH
 export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"

@@ -60,7 +60,7 @@ fi
 
 # Set environment variables to route through the LiteLLM proxy.
 # LiteLLM does not require a key for localhost access unless LITELLM_MASTER_KEY is set.
-export LLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export LLM_API_KEY="$LITELLM_MASTER_KEY"
 export LLM_BASE_URL="$LITELLM_BASE_URL"
 export LLM_MODEL="$PREFIXED_MODEL_ID"
 export OPENHANDS_SUPPRESS_BANNER=1

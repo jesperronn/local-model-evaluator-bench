@@ -81,7 +81,7 @@ fi
 AIDER_ARGS=(
   --model "${PREFIXED_MODEL_ID}"
   --openai-api-base "$LITELLM_BASE_URL"
-  --openai-api-key "${LITELLM_MASTER_KEY:-litellm}"
+  --openai-api-key "$LITELLM_MASTER_KEY"
   --no-check-update --no-show-model-warnings --no-gitignore
   --yes-always --no-auto-commits --no-dirty-commits
 )

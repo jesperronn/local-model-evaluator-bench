@@ -54,7 +54,7 @@ FORGE_MODEL="${PREFIXED_MODEL_ID##*/}"
 
 # Set up the OpenAI-compatible endpoint to point to the LiteLLM proxy
 export OPENAI_BASE_URL="$LITELLM_BASE_URL"
-export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-default}"
+export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
 export OPENAI_MODEL="$PREFIXED_MODEL_ID"
 
 # Configure forge to use the LiteLLM-proxied model for all modes

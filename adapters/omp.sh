@@ -54,7 +54,7 @@ fi
 # routes through its own built-in "litellm" provider instead, which reads
 # LITELLM_BASE_URL/LITELLM_API_KEY. omp requires a non-empty key value.
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
-export LITELLM_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
 
 # For MTPLX, override the provider to route through litellm proxy instead of
 # directly to MTPLX. This ensures omp sees model capabilities from litellm's

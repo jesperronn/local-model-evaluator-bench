@@ -70,61 +70,7 @@
 # is what keeps real /chat/completions calls able to run for the full 600s
 # once request_timeout itself gets lowered to bound model-discovery calls.
 
-model_list:
-  - model_name: "lms/*"
-    litellm_params:
-      model: "*"
-      custom_llm_provider: "custom_openai"
-      api_base: os.environ/LITELLM_LMS_BASE
-      api_key: lm-studio
-      timeout: 600
-
-  - model_name: "ollama/*"
-    litellm_params:
-      model: "*"
-      custom_llm_provider: "custom_openai"
-      api_base: os.environ/LITELLM_OLLAMA_BASE
-      api_key: ollama
-      timeout: 600
-
-  - model_name: "mlx/*"
-    litellm_params:
-      model: "*"
-      custom_llm_provider: "custom_openai"
-      api_base: os.environ/LITELLM_MLX_BASE
-      api_key: not-needed
-      timeout: 600
-
-  # oMLX is multi-model, so unlike the mlx route this one actually enumerates:
-  # /v1/models returns every model oMLX serves, prefixed omlx/.
-  - model_name: "omlx/*"
-    litellm_params:
-      model: "*"
-      custom_llm_provider: "custom_openai"
-      api_base: os.environ/LITELLM_OMLX_BASE
-      api_key: os.environ/LITELLM_OMLX_KEY
-      timeout: 600
-
-  # MTPLX is also multi-model, like oMLX — /v1/models enumerates what it serves.
-  # Unlike oMLX, MTPLX returns bare model IDs without provider prefix. This
-  # wildcard route stays as the base route definition (and a same-request
-  # fallback), but individual MTPLX models are NOT hand-listed below it: they
-  # are registered/deregistered at runtime in the DB-backed model list by
-  # `bin/litellm-proxy sync` (see cmd_sync_mtplx in that script), which diffs
-  # MTPLX's own /v1/models against the LiteLLM_ProxyModelTable rows already
-  # registered and adds/removes rows as needed (a direct Postgres write, not
-  # the admin API — see that function's comment for why). That command runs
-  # automatically at the end of `bin/litellm-proxy start`/`restart`, so a new
-  # or swapped MTPLX model gets picked up (within ~30s) without editing this
-  # file or restarting the proxy — run it by hand (`bin/litellm-proxy sync`)
-  # after switching MTPLX to a different model without a proxy restart.
-  - model_name: "mtplx/*"
-    litellm_params:
-      model: "*"
-      custom_llm_provider: "custom_openai"
-      api_base: os.environ/LITELLM_MTPLX_BASE
-      api_key: os.environ/LITELLM_MTPLX_KEY
-      timeout: 600
+model_list: []
 
 litellm_settings:
   # Drops Copilot CLI's Responses-API-only `apply_patch` tool (type: "custom",

@@ -65,12 +65,12 @@ fi
 
 # Caveman doesn't support --api-base via CLI, so configure via environment variables
 # that caveman may use for OpenAI-compatible endpoints.
-export CAVEMAN_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export CAVEMAN_API_KEY="$LITELLM_MASTER_KEY"
 export CAVEMAN_API_BASE="$LITELLM_BASE_URL"
 export CAVEMAN_MODEL="$PREFIXED_MODEL_ID"
 
 # Also set standard OpenAI env vars in case caveman uses those
-export OPENAI_API_KEY="${LITELLM_MASTER_KEY:-litellm}"
+export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
 export OPENAI_API_BASE="$LITELLM_BASE_URL"
 
 CAVEMAN_ARGS=(

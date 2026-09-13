@@ -59,7 +59,7 @@ fi
 DATA_DIR="$HOME/.cline-litellm-adapter"
 "$CLINE" auth openai-compatible \
   --data-dir "$DATA_DIR" \
-  --apikey  "${LITELLM_MASTER_KEY:-litellm}" \
+  --apikey  "$LITELLM_MASTER_KEY" \
   --modelid "$PREFIXED_MODEL_ID" \
   --baseurl "$LITELLM_BASE_URL" >/dev/null 2>&1
 
