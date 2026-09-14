@@ -59,32 +59,13 @@ fi
 
 export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
 
-# Start the models-format wrapper on a local port. The wrapper transforms
+# Start or reuse the singleton models-format wrapper. The wrapper transforms
 # LiteLLM's OpenAI-format /v1/models response to Ollama format.
-# Find a free port by trying to bind to one
+# All concurrent codex.sh invocations share one wrapper instance for efficiency.
 ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WRAPPER_SCRIPT="$ADAPTER_DIR/codex-models-wrapper.py"
+WRAPPER_MANAGER="$ADAPTER_DIR/codex-wrapper-manager.sh"
 
-# Use Python to find a free port (more portable than nc)
-WRAPPER_PORT=$(python3 -c "
-import socket
-for port in range(19900, 20100):
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('127.0.0.1', port))
-        s.close()
-        print(port)
-        break
-    except OSError:
-        pass
-" 2>/dev/null)
-
-if [[ -z "$WRAPPER_PORT" ]]; then
-  echo "Could not find a free port for wrapper" >&2
-  exit 1
-fi
-
-# Strip /v1 from LITELLM_BASE_URL here because the wrapper (below) does a
+# Strip /v1 from LITELLM_BASE_URL here because the wrapper does a
 # naive `TARGET_URL + self.path` concatenation: codex's model_provider
 # base_url further down KEEPS its /v1 suffix, so codex's own request path
 # already carries "/v1/models" / "/v1/responses" — that's what self.path
@@ -103,21 +84,21 @@ fi
 # alone looked fine.
 WRAPPER_TARGET_URL="${LITELLM_BASE_URL%/v1}"
 
-# Start wrapper in background, capture its PID
-python3 "$WRAPPER_SCRIPT" "$WRAPPER_PORT" "$WRAPPER_TARGET_URL" &
-WRAPPER_PID=$!
+# Start or reuse the singleton wrapper via the manager
+WRAPPER_PORT=$("$WRAPPER_MANAGER" start "$WRAPPER_TARGET_URL") || {
+  echo "Failed to start codex-models-wrapper" >&2
+  exit 1
+}
 
-# Clean up wrapper when this script exits
+# Clean up wrapper reference when this script exits
+# The manager ref-counts, so the wrapper stays running until the last user exits
 cleanup() {
-  if [[ -n "$WRAPPER_PID" ]] && kill -0 "$WRAPPER_PID" 2>/dev/null; then
-    kill "$WRAPPER_PID" 2>/dev/null || true
-    wait "$WRAPPER_PID" 2>/dev/null || true
-  fi
+  "$WRAPPER_MANAGER" stop 2>/dev/null || true
 }
 trap cleanup EXIT
 
-# Give the wrapper a moment to start (increased to ensure it's ready)
-sleep 1.0
+# Wrapper is ready (manager ensures this before returning)
+sleep 0.1
 
 # Point Codex to the wrapper instead of directly to LiteLLM. Keep the /v1
 # suffix here — see the WRAPPER_TARGET_URL comment above for why base_url and
