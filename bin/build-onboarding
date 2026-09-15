@@ -59,7 +59,7 @@ DROP_BIN=(
   investigate fix-card lint-cards lint lint-adapters sweep-cards eval-agent
   suggest-tuning outdated prune cards results debug trace-edit trace-tool-calls
   cleanup build-llmrun build-onboarding lms_gc pi-patch-edit-shim
-  mlx-serve-qwen3-coder mlx-serve-qwen3-next troubleshoot recover stale
+  troubleshoot recover stale
 )
 
 ALL_AGENTS="${AGENTS},${IDE_AGENTS}"

@@ -67,9 +67,14 @@ Excellent coding model. All 5 adapters work at high scores: codex, hermes, and o
 - **hermes:** ~38s avg (LMS). Clean on all 9 cases.
 - **opencode:** ~35s avg (LMS). Clean on all 9 cases.
 
-## MLX runtime — hermes regression (2026-06-13)
+## MLX runtime — hermes regression (2026-06-13) [ARCHIVED]
 
-MLX hermes (via `bin/mlx-serve-qwen3-next`) scores significantly lower than LMS hermes
+> **Archived 2026-09-15:** `bin/mlx-serve-qwen3-next` has been removed. It was a raw
+> `mlx_lm.server` wrapper; use `lms` or `omlx` instead — both serve this model without
+> the tool-parser patching this wrapper existed for, and are faster (see
+> [docs/runtimes/mlx.md](../runtimes/mlx.md)). The findings below are kept for history.
+
+MLX hermes (via the now-removed `bin/mlx-serve-qwen3-next`) scores significantly lower than LMS hermes
 despite tool calls now parsing correctly. LMS hermes: 34/34 100%, 38s avg. MLX hermes:
 ~0-2/4 per case, 150-285s avg (partial/full failures on bash-01, js-01, js-02 confirmed).
 
