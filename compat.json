@@ -1366,15 +1366,12 @@
     "agent_version": "unknown",
     "first_seen": "2026-08-29",
     "run_id": "20260829-144813",
-    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
-    "status": "resolved",
+    "symptom": "Failed to get response from the AI model; retried 5 times (total retry wait time: 33.62 seconds) Last error: 500 litellm",
+    "status": "open",
     "last_seen": "2026-08-29",
     "last_run_id": "20260829-154618",
-    "regressed_date": "2026-08-30",
-    "regressed_run_id": "20260830-112212",
-    "resolved_date": "2026-08-30",
-    "resolved_run_id": "20260830-134417",
-    "resolved_agent_version": "unknown"
+    "regressed_date": "2026-09-14",
+    "regressed_run_id": "20260914-215736"
   },
   "aider:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "aider",
@@ -1417,15 +1414,17 @@
     "adapter": "hermes",
     "model": "Ornith-1.5-35B-A3B-MLX-4bit",
     "runtime": "omlx",
-    "agent_version": "Hermes Agent v0.20.0 (2026.8.3)",
+    "agent_version": "unknown",
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
-    "symptom": "API call failed after 3 retries: Connection error.",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
     "status": "resolved",
     "last_seen": "2026-08-29",
     "last_run_id": "20260829-175557",
-    "resolved_date": "2026-08-29",
-    "resolved_run_id": "20260829-175829",
+    "regressed_date": "2026-09-14",
+    "regressed_run_id": "20260914-215736",
+    "resolved_date": "2026-09-15",
+    "resolved_run_id": "20260915-222413",
     "resolved_agent_version": "Hermes Agent v0.20.0 (2026.8.3)"
   },
   "gptme:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
@@ -1490,30 +1489,26 @@
     "agent_version": "unknown",
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
-    "symptom": "ERROR: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'lms/Ornith-1.5-35B-A3B-MLX-4",
-    "status": "resolved",
+    "symptom": "ERROR: Reconnecting... 1/5",
+    "status": "open",
     "last_seen": "2026-08-30",
     "last_run_id": "20260830-124835",
-    "resolved_date": "2026-08-30",
-    "resolved_run_id": "20260830-124859",
-    "resolved_agent_version": "unknown"
+    "regressed_date": "2026-09-14",
+    "regressed_run_id": "20260914-215736"
   },
   "nanocoder:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "nanocoder",
     "model": "Ornith-1.5-35B-A3B-MLX-4bit",
     "runtime": "omlx",
-    "agent_version": "unknown\nunknown",
+    "agent_version": "unknown",
     "first_seen": "2026-08-29",
     "run_id": "20260829-154043",
-    "symptom": "MISS: hello.txt not created",
-    "status": "resolved",
+    "symptom": "Authentication failed: Invalid API key or credentials",
+    "status": "open",
     "last_seen": "2026-08-30",
     "last_run_id": "20260830-112305",
-    "regressed_date": "2026-08-30",
-    "regressed_run_id": "20260830-112305",
-    "resolved_date": "2026-08-30",
-    "resolved_run_id": "20260830-112211",
-    "resolved_agent_version": "unknown"
+    "regressed_date": "2026-09-14",
+    "regressed_run_id": "20260914-215736"
   },
   "opencode-orch:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "opencode-orch",
@@ -1546,11 +1541,10 @@
     "agent_version": "unknown",
     "first_seen": "2026-08-30",
     "run_id": "20260830-112128",
-    "symptom": "MISS: hello.txt not created",
-    "status": "resolved",
-    "resolved_date": "2026-09-11",
-    "resolved_run_id": "20260911-211805",
-    "resolved_agent_version": "unknown"
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open",
+    "regressed_date": "2026-09-14",
+    "regressed_run_id": "20260914-215736"
   },
   "omp:ornith-1.5-35b-a3b:omlx": {
     "adapter": "omp",
@@ -1571,16 +1565,15 @@
     "adapter": "codex",
     "model": "Ornith-1.5-35B-A3B-MLX-4bit",
     "runtime": "omlx",
-    "agent_version": "codex-cli 0.151.0",
+    "agent_version": "codex-cli 0.154.0",
     "first_seen": "2026-08-30",
     "run_id": "20260830-112211",
-    "symptom": "2026-08-30T09:22:23.390615Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected",
-    "status": "resolved",
+    "symptom": "warning: Model metadata for `omlx/Ornith-1.5-35B-A3B-MLX-4bit` not found. Defaulting to fallback metadata; this can degr",
+    "status": "open",
     "last_seen": "2026-08-30",
     "last_run_id": "20260830-112211",
-    "resolved_date": "2026-08-30",
-    "resolved_run_id": "20260830-125653",
-    "resolved_agent_version": "codex-cli 0.151.0"
+    "regressed_date": "2026-09-14",
+    "regressed_run_id": "20260914-215736"
   },
   "cn:ornith-1.5-35b-a3b:omlx": {
     "adapter": "cn",
@@ -1598,14 +1591,13 @@
     "adapter": "goose",
     "model": "Ornith-1.5-35B-A3B-MLX-4bit",
     "runtime": "omlx",
-    "agent_version": " 1.48.0",
+    "agent_version": " 1.50.0",
     "first_seen": "2026-08-30",
     "run_id": "20260830-112130",
-    "symptom": "-32002: Tool 'read' not found. Available tools: [load, delegate, extensionmanager__search_available_extensions, extensio",
-    "status": "resolved",
-    "resolved_date": "2026-08-30",
-    "resolved_run_id": "20260830-125702",
-    "resolved_agent_version": "unknown"
+    "symptom": "MISS: _ still present in file",
+    "status": "open",
+    "regressed_date": "2026-09-14",
+    "regressed_run_id": "20260914-215736"
   },
   "forge:ornith-1.5-35b-a3b:omlx": {
     "adapter": "forge",
@@ -1981,6 +1973,61 @@
     "first_seen": "2026-09-06",
     "run_id": "20260906-221018",
     "symptom": "warning: remote app server at `ws://127.0.0.1:61945` transport failed: WebSocket protocol error: Connection reset withou",
+    "status": "open"
+  },
+  "vibe:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "vibe",
+    "model": "Ornith-1.5-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-14",
+    "run_id": "20260914-215736",
+    "symptom": "Error: API error from bench (model: omlx/Ornith-1.5-35B-A3B-MLX-4bit): Invalid API key. Please check your API key and tr",
+    "status": "open"
+  },
+  "pi:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
+    "adapter": "pi",
+    "model": "Ornith-1.5-35B-A3B-MLX-4bit",
+    "runtime": "omlx",
+    "agent_version": "0.85.1",
+    "first_seen": "2026-09-14",
+    "run_id": "20260914-215736",
+    "symptom": "Warning: Model \"omlx/Ornith-1.5-35B-A3B-MLX-4bit\" not found for provider \"litellm\". Using custom model id.",
+    "status": "resolved",
+    "last_seen": "2026-09-16",
+    "last_run_id": "20260916-070649",
+    "resolved_date": "2026-09-16",
+    "resolved_run_id": "20260916-070715",
+    "resolved_agent_version": "0.85.1"
+  },
+  "omp:qwen3.8:27b-mlx:ollama": {
+    "adapter": "omp",
+    "model": "qwen3.8:27b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-14",
+    "run_id": "20260914-223123",
+    "symptom": "",
+    "status": "open"
+  },
+  "hermes:qwen3.8:27b-mlx:ollama": {
+    "adapter": "hermes",
+    "model": "qwen3.8:27b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-14",
+    "run_id": "20260914-223123",
+    "symptom": "MISS: word 'hello' not found on its own line in greeting.txt",
+    "status": "open"
+  },
+  "qwen:qwen3.8:27b-mlx:ollama": {
+    "adapter": "qwen",
+    "model": "qwen3.8:27b-mlx",
+    "runtime": "ollama",
+    "agent_version": "unknown",
+    "first_seen": "2026-09-14",
+    "run_id": "20260914-223123",
+    "symptom": "",
     "status": "open"
   }
 }

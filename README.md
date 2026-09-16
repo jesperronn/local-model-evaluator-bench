@@ -102,7 +102,7 @@ See [CASES.md](docs/CASES.md) for test specifications, [WORKFLOW.md](docs/WORKFL
 - **Models** → [docs/models/](docs/models/) — per-model cards (Qwen, Gemma, Phi, Mistral, etc.)
 - **Tools/CLIs** → [docs/tools/](docs/tools/) — per-tool cards (aider, hermes, opencode, caveman, Cline, Continue, etc.)
 - **Extensions** → [docs/extensions/](docs/extensions/) — IDE integrations (VS Code, JetBrains plugins)
-- **Runtimes** → [docs/runtimes/](docs/runtimes/) — LM Studio, Ollama, MLX
+- **Runtimes** → [docs/runtimes/](docs/runtimes/) — LM Studio, Ollama, MLX, oMLX, mlx-serve, llama.cpp
 
 ### Templates & Examples
 

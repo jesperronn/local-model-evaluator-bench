@@ -42,12 +42,14 @@ export MLX_BASE_URL="${MLX_BASE_URL:-http://127.0.0.1:8080/v1}"
 # NEW PROXY-FIRST APPROACH: When LITELLM_BASE_URL is set, adapters prefer it and fall back to
 # direct runtime endpoints only if proxy is unavailable. Use bin/litellm-proxy to run the
 # Docker-backed service; models are addressed as lms/<id>, ollama/<id>, mlx/<id>, omlx/<id>, mtplx/<id>.
-export LITELLM_PROXY_MODE="${LITELLM_PROXY_MODE:-1}"  # 1 = proxy available; set to 0 to disable
+# NOTE: Auth requires pre-registering keys in litellm's token database. For now, disable proxy
+# and use direct runtime endpoints per adapter (see adapters/*.sh).
+export LITELLM_PROXY_MODE="${LITELLM_PROXY_MODE:-0}"  # 1 = proxy available; set to 0 to disable
 export LITELLM_PORT="${LITELLM_PORT:-4444}"
 export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:${LITELLM_PORT}/v1}"
-# Set to DUMMY for local dev (auth-free localhost proxy, no security needed).
-# The UI dashboard requires this; the API doesn't check it unless set.
-export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-DUMMY}"
+# Set to sk-* format for local dev (OpenAI-compatible format required by adapters).
+# The proxy validates this format; for localhost dev, any sk-* key works.
+export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-local-bench-key-12345678}"
 # Postgres backing store for store_model_in_db (litellm requires Postgres, no
 # sqlite support). bin/litellm-proxy runs this in a local Docker container
 # named litellm-postgres, so no system Postgres install is needed.

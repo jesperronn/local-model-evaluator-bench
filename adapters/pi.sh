@@ -39,24 +39,55 @@ command -v pi >/dev/null 2>&1 || {
   exit 1
 }
 
-# Ensure litellm provider is configured in pi's models.json
-PI_LIVE_CFG="$HOME/.pi/agent/models.json"
-if [ ! -f "$PI_LIVE_CFG" ] || ! jq -e '.providers.litellm' "$PI_LIVE_CFG" >/dev/null 2>&1; then
-  mkdir -p "$(dirname "$PI_LIVE_CFG")"
-  # Merge litellm provider into existing config or create new one
-  if [ -f "$PI_LIVE_CFG" ]; then
-    jq '.providers.litellm = {
-      "baseUrl": "http://127.0.0.1:4444/v1",
+# Determine which provider to use based on model prefix and LITELLM_PROXY_MODE
+# This determines both the provider name AND what goes into pi's models.json
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  # oMLX model: use direct oMLX provider
+  RUNTIME_PROVIDER="omlx"
+  RUNTIME_CONFIG='{
+    "baseUrl": "'"$OMLX_BASE_URL"'",
+    "api": "openai-completions",
+    "apiKey": "'"$OMLX_API_KEY"'",
+    "models": [
+      {"id": "Ornith-1.5-35B-A3B-MLX-4bit"},
+      {"id": "Ornith-1.5-35B-A3B-MLX-6bit"},
+      {"id": "Ornith-1.5-9B-MLX-4bit"}
+    ]
+  }'
+else
+  # Default to litellm proxy (if auth is set up) or direct lms
+  if [ "$LITELLM_PROXY_MODE" = "1" ]; then
+    RUNTIME_PROVIDER="litellm"
+    RUNTIME_CONFIG='{
+      "baseUrl": "'"$LITELLM_BASE_URL"'",
       "api": "openai-completions",
-      "apiKey": "litellm",
+      "apiKey": "'"$LITELLM_MASTER_KEY"'",
       "models": [
         {"id": "lms/qwen2.5-coder-7b"},
         {"id": "ollama/gemma4-claude:latest"},
-        {"id": "omlx/Qwen3.6-35B-A3B-MLX-4bit"},
-        {"id": "omlx/Ornith-1.0-35B-4bit"}
+        {"id": "omlx/Qwen3.6-35B-A3B-MLX-4bit"}
       ]
-    }' "$PI_LIVE_CFG" > "$PI_LIVE_CFG.tmp" && mv "$PI_LIVE_CFG.tmp" "$PI_LIVE_CFG"
+    }'
+  else
+    RUNTIME_PROVIDER="lms"
+    RUNTIME_CONFIG='{
+      "baseUrl": "'"$LMS_BASE_URL"'",
+      "api": "openai-completions",
+      "apiKey": "'"$LMS_API_KEY"'",
+      "models": []
+    }'
   fi
+fi
+
+# Merge provider config into models.json
+PI_LIVE_CFG="$HOME/.pi/agent/models.json"
+mkdir -p "$(dirname "$PI_LIVE_CFG")"
+
+if [ -f "$PI_LIVE_CFG" ]; then
+  jq --argjson cfg "$(echo "$RUNTIME_CONFIG" | jq .)" ".providers[\"$RUNTIME_PROVIDER\"] = \$cfg" "$PI_LIVE_CFG" > "$PI_LIVE_CFG.tmp" && mv "$PI_LIVE_CFG.tmp" "$PI_LIVE_CFG"
+else
+  # Create new config if file doesn't exist
+  echo "{\"providers\": {\"$RUNTIME_PROVIDER\": $(echo "$RUNTIME_CONFIG" | jq .)}}" | jq . > "$PI_LIVE_CFG"
 fi
 
 # Reapply the qwen3-coder edit-tool XML-recovery shim if missing (idempotent,
@@ -76,12 +107,9 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# Use the proxy provider to route through the unified endpoint.
-# The provider name "litellm" is configured in ~/.pi/agent/models.json
-
-# and points to LITELLM_BASE_URL with all models accessible via their
-# provider-prefixed IDs (lms/..., ollama/..., etc.).
-PI_ARGS=(--provider litellm --model "$PREFIXED_MODEL_ID")
+# Use the configured runtime provider (omlx, lms, or litellm depending on proxy mode and model prefix)
+# The provider is configured in ~/.pi/agent/models.json above
+PI_ARGS=(--provider "$RUNTIME_PROVIDER" --model "$MODEL_ID")
 
 # Ornith-specific optimization: reduce verbose reasoning output
 # Only apply --thinking=low to Ornith models; other models may not support it
