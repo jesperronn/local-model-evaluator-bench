@@ -36,24 +36,38 @@ command -v aider >/dev/null 2>&1 || {
   exit 1
 }
 
-# Prefix the model ID with the provider name if not already prefixed.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+# Determine which runtime to use based on model prefix or naming.
+# aider uses OpenAI-compatible endpoints via --openai-api-base/--openai-api-key.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  API_BASE="$OMLX_BASE_URL"
+  API_KEY="$OMLX_API_KEY"
   PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  API_BASE="$LMS_BASE_URL"
+  API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  API_BASE="$LITELLM_BASE_URL"
+  API_KEY="$LITELLM_MASTER_KEY"
+  # Prefix the model ID for litellm proxy (need "openai/" wrapper)
+  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+    PREFIXED_MODEL_ID="$MODEL_ID"
+  else
+    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  fi
+  # Wrap in openai/ for aider's litellm client check
+  if [[ ! "$PREFIXED_MODEL_ID" =~ ^openai/ ]]; then
+    PREFIXED_MODEL_ID="openai/${PREFIXED_MODEL_ID}"
+  fi
 else
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-fi
-
-# aider bundles its own litellm client-side to parse --model before any network
-# call is made. It only recognizes litellm's built-in provider registry, so our
-# runtime prefixes (omlx/, mtplx/, ...) throw `LLM Provider NOT provided` before
-# --openai-api-base is ever consulted. litellm always recognizes "openai/" and,
-# for that provider, treats everything after the first slash as an opaque model
-# id it forwards verbatim — so wrapping the already-prefixed id in another
-# "openai/" layer satisfies aider's client-side check while still sending our
-# original runtime-prefixed id (e.g. "omlx/<model>") on the wire, which is what
-# config-templates/litellm.yaml's wildcard routes match on server-side.
-if [[ ! "$PREFIXED_MODEL_ID" =~ ^openai/ ]]; then
-  PREFIXED_MODEL_ID="openai/${PREFIXED_MODEL_ID}"
+  # Default to LMS when proxy disabled
+  API_BASE="$LMS_BASE_URL"
+  API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+  # Wrap for aider's client check when not going through proxy
+  if [[ ! "$PREFIXED_MODEL_ID" =~ ^openai/ ]]; then
+    PREFIXED_MODEL_ID="openai/${PREFIXED_MODEL_ID}"
+  fi
 fi
 
 # Interactive callers get a real aider REPL; batch callers pass the prompt on stdin.
@@ -80,8 +94,8 @@ fi
 
 AIDER_ARGS=(
   --model "${PREFIXED_MODEL_ID}"
-  --openai-api-base "$LITELLM_BASE_URL"
-  --openai-api-key "$LITELLM_MASTER_KEY"
+  --openai-api-base "$API_BASE"
+  --openai-api-key "$API_KEY"
   --no-check-update --no-show-model-warnings --no-gitignore
   --yes-always --no-auto-commits --no-dirty-commits
 )

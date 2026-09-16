@@ -48,20 +48,39 @@ else
   CLINE=cline
 fi
 
-# Prefix the model ID with the provider name if not already prefixed.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+# Determine which runtime to use based on model prefix or naming.
+# cline uses OpenAI-compatible endpoints via auth command.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  API_BASE="$OMLX_BASE_URL"
+  API_KEY="$OMLX_API_KEY"
   PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  API_BASE="$LMS_BASE_URL"
+  API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  API_BASE="$LITELLM_BASE_URL"
+  API_KEY="$LITELLM_MASTER_KEY"
+  # Prefix the model ID with the provider name for litellm proxy
+  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+    PREFIXED_MODEL_ID="$MODEL_ID"
+  else
+    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  fi
 else
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  # Default to LMS when proxy disabled
+  API_BASE="$LMS_BASE_URL"
+  API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
 fi
 
-# Configure cline to use the litellm proxy for all backends
-DATA_DIR="$HOME/.cline-litellm-adapter"
+# Configure cline to use the appropriate runtime endpoint
+DATA_DIR="$HOME/.cline-local-adapter"
 "$CLINE" auth openai-compatible \
   --data-dir "$DATA_DIR" \
-  --apikey  "$LITELLM_MASTER_KEY" \
+  --apikey  "$API_KEY" \
   --modelid "$PREFIXED_MODEL_ID" \
-  --baseurl "$LITELLM_BASE_URL" >/dev/null 2>&1
+  --baseurl "$API_BASE" >/dev/null 2>&1
 
 CLINE_ARGS=(
   --data-dir "$DATA_DIR"

@@ -40,31 +40,47 @@ done
 
 command -v cn >/dev/null 2>&1 || { echo "cn not found; install: npm install -g @continuedev/cli" >&2; exit 1; }
 
-CONFIG_DIR="$HOME/.continue-litellm-adapter"
+CONFIG_DIR="$HOME/.continue-local-adapter"
 mkdir -p "$CONFIG_DIR"
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-  # Already has a provider prefix, use as-is
+# Determine which runtime to use based on model prefix or naming.
+# cn uses OpenAI-compatible endpoints via config YAML.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  API_BASE="$OMLX_BASE_URL"
+  API_KEY="$OMLX_API_KEY"
   PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  API_BASE="$LMS_BASE_URL"
+  API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  API_BASE="$LITELLM_BASE_URL"
+  API_KEY="$LITELLM_MASTER_KEY"
+  # Prefix the model ID with the provider name for litellm proxy
+  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+    PREFIXED_MODEL_ID="$MODEL_ID"
+  else
+    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  fi
 else
-  # Add the provider prefix based on --provider flag
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  # Default to LMS when proxy disabled
+  API_BASE="$LMS_BASE_URL"
+  API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
 fi
 
 # Regenerated each run so MODEL_ID always matches the current adapter invocation.
 cat > "$CONFIG_FILE" <<EOF
-name: litellm-adapter
+name: local-adapter
 version: 1.0.0
 schema: v1
 models:
-  - name: litellm-model
+  - name: local-model
     provider: openai
     model: "${PREFIXED_MODEL_ID}"
-    apiBase: "${LITELLM_BASE_URL}"
-    apiKey: "${LITELLM_MASTER_KEY}"
+    apiBase: "${API_BASE}"
+    apiKey: "${API_KEY}"
     roles:
       - chat
       - edit
