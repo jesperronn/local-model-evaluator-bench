@@ -1381,9 +1381,14 @@
     "first_seen": "2026-08-29",
     "run_id": "20260829-154341",
     "symptom": "litellm.AuthenticationError: AuthenticationError: OpenAIException - ",
-    "status": "open",
+    "status": "resolved",
     "regressed_date": "2026-09-16",
-    "regressed_run_id": "20260916-074855"
+    "regressed_run_id": "20260916-074855",
+    "last_seen": "2026-09-16",
+    "last_run_id": "20260916-075559",
+    "resolved_date": "2026-09-16",
+    "resolved_run_id": "20260916-075638",
+    "resolved_agent_version": "unknown"
   },
   "opencode:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "opencode",
@@ -2036,7 +2041,9 @@
     "first_seen": "2026-09-16",
     "run_id": "20260916-074855",
     "symptom": "{\"status\":\"error\",\"message\":\"401 Authentication Error, Invalid proxy server token passed. Received API Key = sk-...5678,",
-    "status": "open"
+    "status": "open",
+    "last_seen": "2026-09-16",
+    "last_run_id": "20260916-075838"
   },
   "cline:Ornith-1.5-35B-A3B-MLX-4bit:omlx": {
     "adapter": "cline",
@@ -2046,6 +2053,9 @@
     "first_seen": "2026-09-16",
     "run_id": "20260916-074855",
     "symptom": "\u001b[31merror:\u001b[0m Authentication Error, Invalid proxy server token passed. Received API Key = sk-...5678, Key Hash (Token)",
-    "status": "open"
+    "status": "resolved",
+    "resolved_date": "2026-09-16",
+    "resolved_run_id": "20260916-075713",
+    "resolved_agent_version": "3.0.62"
   }
 }

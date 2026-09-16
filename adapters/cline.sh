@@ -53,11 +53,11 @@ fi
 if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
   API_BASE="$OMLX_BASE_URL"
   API_KEY="$OMLX_API_KEY"
-  PREFIXED_MODEL_ID="$MODEL_ID"
+  PREFIXED_MODEL_ID="${MODEL_ID#omlx/}"
 elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
   API_BASE="$LMS_BASE_URL"
   API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="$MODEL_ID"
+  PREFIXED_MODEL_ID="${MODEL_ID#lms/}"
 elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
   API_BASE="$LITELLM_BASE_URL"
   API_KEY="$LITELLM_MASTER_KEY"
