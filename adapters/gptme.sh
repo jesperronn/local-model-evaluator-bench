@@ -40,26 +40,32 @@ command -v gptme >/dev/null 2>&1 || {
   exit 1
 }
 
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx)/ ]]; then
+# Determine which runtime to use based on model prefix or naming
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  RUNTIME_ENDPOINT="$OMLX_BASE_URL"
+  RUNTIME_API_KEY="$OMLX_API_KEY"
   RUNTIME_PREFIXED_ID="$MODEL_ID"
-else
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  RUNTIME_ENDPOINT="$LMS_BASE_URL"
+  RUNTIME_API_KEY="$LMS_API_KEY"
+  RUNTIME_PREFIXED_ID="$MODEL_ID"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  RUNTIME_ENDPOINT="$LITELLM_BASE_URL"
+  RUNTIME_API_KEY="$LITELLM_MASTER_KEY"
+  # For litellm proxy: keep the runtime prefix in the model name (see old comment below)
   RUNTIME_PREFIXED_ID="${PROVIDER}/${MODEL_ID}"
+else
+  # Default to LMS when proxy disabled
+  RUNTIME_ENDPOINT="$LMS_BASE_URL"
+  RUNTIME_API_KEY="$LMS_API_KEY"
+  RUNTIME_PREFIXED_ID="$MODEL_ID"
 fi
 
-# gptme's litellm client only recognizes "openai/" as a provider prefix, so the
-# runtime tag (omlx/, mtplx/, ...) must stay in the model name itself rather
-# than being stripped — otherwise the litellm proxy's model_name wildcard
-# (config-templates/litellm.yaml matches on "omlx/*" etc.) never matches a bare
-# name and the request 400s with "no healthy deployments for this model" (seen
-# 2026-08-29 on Ornith-1.5-35B-A3B-MLX-4bit/omlx). Wrapping the already-
-# runtime-prefixed id in another "openai/" layer satisfies gptme's client-side
-# check while still sending the original runtime-prefixed id on the wire.
+# gptme's client only recognizes "openai/" as a provider prefix, so wrap the model id
 GPTME_MODEL="openai/${RUNTIME_PREFIXED_ID}"
 
-export OPENAI_BASE_URL="$LITELLM_BASE_URL"
-export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
+export OPENAI_BASE_URL="$RUNTIME_ENDPOINT"
+export OPENAI_API_KEY="$RUNTIME_API_KEY"
 
 # gptme requires the Python bin to be on PATH
 export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"

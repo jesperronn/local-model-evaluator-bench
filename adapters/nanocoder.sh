@@ -35,6 +35,26 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Determine which runtime to use based on model prefix or naming
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  RUNTIME_ENDPOINT="$OMLX_BASE_URL"
+  RUNTIME_API_KEY="$OMLX_API_KEY"
+  PROVIDER_NAME="oMLX"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  RUNTIME_ENDPOINT="$LMS_BASE_URL"
+  RUNTIME_API_KEY="$LMS_API_KEY"
+  PROVIDER_NAME="LMS"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  RUNTIME_ENDPOINT="$LITELLM_BASE_URL"
+  RUNTIME_API_KEY="$LITELLM_MASTER_KEY"
+  PROVIDER_NAME="LiteLLM"
+else
+  # Default to LMS when proxy disabled
+  RUNTIME_ENDPOINT="$LMS_BASE_URL"
+  RUNTIME_API_KEY="$LMS_API_KEY"
+  PROVIDER_NAME="LMS"
+fi
+
 # Prefix the model ID with the provider name if not already prefixed.
 # This allows both "lms/model-id" and separate --provider flag to work.
 if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
@@ -45,13 +65,13 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# Inject LiteLLM proxy provider config so bench runs are self-contained.
+# Inject runtime provider config so bench runs are self-contained.
 # contextWindow must be set explicitly for local models (nanocoder falls back to
 # models.dev metadata which won't have entries for local model keys).
 PROVIDER_JSON=$(cat <<EOF
 [{
-  "name": "LiteLLM",
-  "baseUrl": "${LITELLM_BASE_URL}",
+  "name": "${PROVIDER_NAME}",
+  "baseUrl": "${RUNTIME_ENDPOINT}",
   "models": ["${PREFIXED_MODEL_ID}"],
   "contextWindow": 65536
 }]

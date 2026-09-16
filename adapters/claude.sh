@@ -52,9 +52,30 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# Claude Code's Stainless SDK appends /v1/messages, so we pass the base without the /v1 suffix.
-CLAUDE_BASE_URL="${LITELLM_BASE_URL%/v1}"
-AUTH_TOKEN="$LITELLM_MASTER_KEY"
+# Determine which runtime to use based on model prefix or naming
+# Claude Code's tool handling works better with direct connections than through proxies
+if [[ "$PREFIXED_MODEL_ID" =~ ^omlx/ ]] || [[ "$PREFIXED_MODEL_ID" == "Ornith"* ]]; then
+  # Route directly to oMLX for better tool call support
+  CLAUDE_BASE_URL="${OMLX_BASE_URL%/v1}"
+  AUTH_TOKEN="$OMLX_API_KEY"
+elif [[ "$PREFIXED_MODEL_ID" =~ ^mtplx/ ]]; then
+  # Route directly to MTPLX for better tool call support
+  CLAUDE_BASE_URL="${MTPLX_BASE_URL%/v1}"
+  AUTH_TOKEN="$MTPLX_API_KEY"
+elif [[ "$PREFIXED_MODEL_ID" =~ ^lms/ ]]; then
+  # Route directly to LMS
+  CLAUDE_BASE_URL="${LMS_BASE_URL%/v1}"
+  AUTH_TOKEN="$LMS_API_KEY"
+else
+  # Default to litellm proxy (if enabled) or LMS
+  if [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+    CLAUDE_BASE_URL="${LITELLM_BASE_URL%/v1}"
+    AUTH_TOKEN="$LITELLM_MASTER_KEY"
+  else
+    CLAUDE_BASE_URL="${LMS_BASE_URL%/v1}"
+    AUTH_TOKEN="$LMS_API_KEY"
+  fi
+fi
 
 CLAUDE_ARGS=()
 if [ ! -t 0 ]; then
@@ -62,13 +83,7 @@ if [ ! -t 0 ]; then
   CLAUDE_ARGS+=(--dangerously-skip-permissions --print --bare "$(cat)")
 fi
 
-# For mtplx, bypass the LiteLLM proxy and go directly to MTPLX for better tool call support.
-# Claude Code's tool handling works better with direct connections than through the proxy.
-if [[ "$PREFIXED_MODEL_ID" =~ ^mtplx/ ]]; then
-  OVERRIDE_BASE_URL="${MTPLX_BASE_URL%/v1}"
-else
-  OVERRIDE_BASE_URL="$CLAUDE_BASE_URL"
-fi
+OVERRIDE_BASE_URL="$CLAUDE_BASE_URL"
 
 # Claude Code's SDK warns about unknown models, but we suppress the window enforcement.
 # However, the SDK still exits with code 1 when seeing unknown models.

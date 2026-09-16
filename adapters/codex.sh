@@ -47,6 +47,21 @@ done
 
 command -v codex >/dev/null 2>&1 || { echo "codex not found; install: npm install -g codex-cli" >&2; exit 1; }
 
+# Determine which runtime to use based on model prefix or naming
+# When LITELLM_PROXY_MODE is disabled, route directly to runtime endpoints
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  RUNTIME_ENDPOINT="$OMLX_BASE_URL"
+  RUNTIME_API_KEY="$OMLX_API_KEY"
+elif [[ "$MODEL_ID" =~ ^lms/ ]] || [[ "$LITELLM_PROXY_MODE" != "1" ]]; then
+  RUNTIME_ENDPOINT="$LMS_BASE_URL"
+  RUNTIME_API_KEY="$LMS_API_KEY"
+else
+  RUNTIME_ENDPOINT="$LITELLM_BASE_URL"
+  RUNTIME_API_KEY="$LITELLM_MASTER_KEY"
+fi
+
+export LITELLM_API_KEY="$RUNTIME_API_KEY"
+
 # Prefix the model ID with the provider name if not already prefixed.
 # This allows both "lms/model-id" and separate --provider flag to work.
 if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
@@ -57,32 +72,15 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
-
 # Start or reuse the singleton models-format wrapper. The wrapper transforms
-# LiteLLM's OpenAI-format /v1/models response to Ollama format.
+# OpenAI-format /v1/models response to Ollama format for codex compatibility.
 # All concurrent codex.sh invocations share one wrapper instance for efficiency.
 ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WRAPPER_MANAGER="$ADAPTER_DIR/codex-wrapper-manager.sh"
 
-# Strip /v1 from LITELLM_BASE_URL here because the wrapper does a
-# naive `TARGET_URL + self.path` concatenation: codex's model_provider
-# base_url further down KEEPS its /v1 suffix, so codex's own request path
-# already carries "/v1/models" / "/v1/responses" — that's what self.path
-# will be. Keeping /v1 on both sides here would double it up
-# ("/v1/v1/models", a 404); stripping it here and keeping it on the base_url
-# given to codex is what makes the two halves add up to exactly one "/v1".
-#
-# An earlier version of this adapter got this backwards — /v1 stripped here
-# (right) but ALSO left off the base_url given to codex (wrong) — so codex
-# requested bare "/models"/"/responses", which landed on litellm as
-# "/responses" instead of "/v1/responses" (litellm doesn't serve that).
-# /v1/models discovery still "worked" by accident (both sides missing /v1
-# cancelled out), but every real completion mid-task 404'd, retried, and
-# eventually gave up with the generic "high demand" fallback message — with
-# no accompanying "failed to refresh available models" error, since discovery
-# alone looked fine.
-WRAPPER_TARGET_URL="${LITELLM_BASE_URL%/v1}"
+# Strip /v1 from the runtime endpoint (same logic as before, but now points to
+# the appropriate runtime instead of always litellm)
+WRAPPER_TARGET_URL="${RUNTIME_ENDPOINT%/v1}"
 
 # Start or reuse the singleton wrapper via the manager
 WRAPPER_PORT=$("$WRAPPER_MANAGER" start "$WRAPPER_TARGET_URL") || {
@@ -100,9 +98,7 @@ trap cleanup EXIT
 # Wrapper is ready (manager ensures this before returning)
 sleep 0.1
 
-# Point Codex to the wrapper instead of directly to LiteLLM. Keep the /v1
-# suffix here — see the WRAPPER_TARGET_URL comment above for why base_url and
-# target must agree on it.
+# Point Codex to the wrapper. Keep the /v1 suffix for the same reason as before.
 WRAPPER_URL="http://127.0.0.1:$WRAPPER_PORT/v1"
 
 CODEX_COMMON=(

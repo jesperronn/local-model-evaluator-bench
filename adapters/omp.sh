@@ -50,11 +50,22 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# omp v18+ ignores OPENAI_API_BASE/OPENAI_API_KEY for custom model ids — it
-# routes through its own built-in "litellm" provider instead, which reads
-# LITELLM_BASE_URL/LITELLM_API_KEY. omp requires a non-empty key value.
-export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
-export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
+# Determine which runtime to use based on model prefix or naming.
+# omp routes through its built-in provider which reads LITELLM_BASE_URL/LITELLM_API_KEY.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  export LITELLM_BASE_URL="$OMLX_BASE_URL"
+  export LITELLM_API_KEY="$OMLX_API_KEY"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  export LITELLM_BASE_URL="$LMS_BASE_URL"
+  export LITELLM_API_KEY="$LMS_API_KEY"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
+  export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
+else
+  # Default to LMS when proxy disabled
+  export LITELLM_BASE_URL="$LMS_BASE_URL"
+  export LITELLM_API_KEY="$LMS_API_KEY"
+fi
 
 # For MTPLX, override the provider to route through litellm proxy instead of
 # directly to MTPLX. This ensures omp sees model capabilities from litellm's

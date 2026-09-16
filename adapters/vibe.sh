@@ -40,6 +40,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Determine which runtime to use based on model prefix or naming
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  RUNTIME_ENDPOINT="$OMLX_BASE_URL"
+  PROVIDER_NAME="oMLX"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  RUNTIME_ENDPOINT="$LMS_BASE_URL"
+  PROVIDER_NAME="LMS"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  RUNTIME_ENDPOINT="$LITELLM_BASE_URL"
+  PROVIDER_NAME="LiteLLM"
+else
+  # Default to LMS when proxy disabled
+  RUNTIME_ENDPOINT="$LMS_BASE_URL"
+  PROVIDER_NAME="LMS"
+fi
+
 # Prefix the model ID with the provider name if not already prefixed.
 # This allows both "lms/model-id" and separate --provider flag to work.
 if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
@@ -50,8 +66,8 @@ else
   PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
 fi
 
-# Create an isolated VIBE_HOME with config.toml for the LiteLLM proxy backend
-VIBE_ADAPTER_HOME="${VIBE_ADAPTER_HOME:-$HOME/.vibe-litellm-adapter}"
+# Create an isolated VIBE_HOME with config.toml for the appropriate runtime backend
+VIBE_ADAPTER_HOME="${VIBE_ADAPTER_HOME:-$HOME/.vibe-local-adapter}"
 mkdir -p "$VIBE_ADAPTER_HOME"
 cat > "$VIBE_ADAPTER_HOME/config.toml" <<EOF
 active_model = "bench-model"
@@ -61,7 +77,7 @@ enable_connectors = false
 
 [[providers]]
 name = "bench"
-api_base = "$LITELLM_BASE_URL"
+api_base = "$RUNTIME_ENDPOINT"
 api_key_env_var = ""
 api_style = "openai"
 backend = "generic"
