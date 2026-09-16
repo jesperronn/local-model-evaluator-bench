@@ -37,22 +37,36 @@ done
 # mini-swe-agent v2 requires the Python bin to be on PATH
 export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"
 
-export OPENAI_API_BASE="$LITELLM_BASE_URL"
-export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
+# Determine which runtime to use based on model prefix or naming.
+# mini-swe-agent uses OpenAI-compatible endpoints via OPENAI_* env vars.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  export OPENAI_API_BASE="$OMLX_BASE_URL"
+  export OPENAI_API_KEY="$OMLX_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  export OPENAI_API_BASE="$LMS_BASE_URL"
+  export OPENAI_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  export OPENAI_API_BASE="$LITELLM_BASE_URL"
+  export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
+  # Prefix the model ID with the provider name for litellm proxy
+  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+    PREFIXED_MODEL_ID="$MODEL_ID"
+  else
+    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  fi
+else
+  # Default to LMS when proxy disabled
+  export OPENAI_API_BASE="$LMS_BASE_URL"
+  export OPENAI_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+fi
+
 export MINI_CONFIG_INTERACTIVE=0
 # litellm has no cost table for local model ids; without this it raises
 # instead of just skipping cost tracking.
 export MSWEA_COST_TRACKING=ignore_errors
-
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-  # Already has a provider prefix, use as-is
-  PREFIXED_MODEL_ID="$MODEL_ID"
-else
-  # Add the provider prefix based on --provider flag
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-fi
 
 # mini-swe-agent's bundled litellm client parses --model before any network
 # call, and only recognizes litellm's built-in provider registry — our runtime

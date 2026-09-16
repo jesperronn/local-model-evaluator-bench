@@ -39,22 +39,36 @@ command -v forge >/dev/null 2>&1 || {
   exit 1
 }
 
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx)/ ]]; then
-  # Already has a provider prefix, use as-is
+# Determine which runtime to use based on model prefix or naming.
+# forge uses OpenAI-compatible endpoints via OPENAI_* env vars.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  export OPENAI_BASE_URL="$OMLX_BASE_URL"
+  export OPENAI_API_KEY="$OMLX_API_KEY"
   PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  export OPENAI_BASE_URL="$LMS_BASE_URL"
+  export OPENAI_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  export OPENAI_BASE_URL="$LITELLM_BASE_URL"
+  export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
+  # Prefix the model ID with the provider name for litellm proxy
+  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx)/ ]]; then
+    PREFIXED_MODEL_ID="$MODEL_ID"
+  else
+    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  fi
 else
-  # Add the provider prefix based on --provider flag
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  # Default to LMS when proxy disabled
+  export OPENAI_BASE_URL="$LMS_BASE_URL"
+  export OPENAI_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
 fi
 
 # Extract the model name part (without provider prefix) for forge
 FORGE_MODEL="${PREFIXED_MODEL_ID##*/}"
 
-# Set up the OpenAI-compatible endpoint to point to the LiteLLM proxy
-export OPENAI_BASE_URL="$LITELLM_BASE_URL"
-export OPENAI_API_KEY="$LITELLM_MASTER_KEY"
+# Configure forge to use the appropriate runtime endpoint
 export OPENAI_MODEL="$PREFIXED_MODEL_ID"
 
 # Configure forge to use the LiteLLM-proxied model for all modes

@@ -42,14 +42,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-  # Already has a provider prefix, use as-is
+# Determine which runtime to use based on model prefix or naming.
+# copilot uses COPILOT_PROVIDER_* env vars for routing.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  COPILOT_PROVIDER_BASE_URL="$OMLX_BASE_URL"
+  COPILOT_PROVIDER_API_KEY="$OMLX_API_KEY"
   PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  COPILOT_PROVIDER_BASE_URL="$LMS_BASE_URL"
+  COPILOT_PROVIDER_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  COPILOT_PROVIDER_BASE_URL="$LITELLM_BASE_URL"
+  COPILOT_PROVIDER_API_KEY="$LITELLM_MASTER_KEY"
+  # Prefix the model ID with the provider name for litellm proxy
+  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
+    PREFIXED_MODEL_ID="$MODEL_ID"
+  else
+    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  fi
 else
-  # Add the provider prefix based on --provider flag
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+  # Default to LMS when proxy disabled
+  COPILOT_PROVIDER_BASE_URL="$LMS_BASE_URL"
+  COPILOT_PROVIDER_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="$MODEL_ID"
 fi
 
 COPILOT_ARGS=()
@@ -58,9 +74,9 @@ if [ ! -t 0 ]; then
 fi
 
 exec env \
-  COPILOT_PROVIDER_BASE_URL="$LITELLM_BASE_URL" \
+  COPILOT_PROVIDER_BASE_URL="$COPILOT_PROVIDER_BASE_URL" \
   COPILOT_PROVIDER_TYPE="openai" \
-  COPILOT_PROVIDER_API_KEY="$LITELLM_MASTER_KEY" \
+  COPILOT_PROVIDER_API_KEY="$COPILOT_PROVIDER_API_KEY" \
   COPILOT_PROVIDER_MODEL_ID="gpt-4o" \
   COPILOT_PROVIDER_WIRE_MODEL="$PREFIXED_MODEL_ID" \
   COPILOT_OFFLINE="true" \

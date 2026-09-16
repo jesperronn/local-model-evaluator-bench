@@ -55,19 +55,33 @@ command -v opencode >/dev/null 2>&1 || {
   exit 1
 }
 
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai|lmstudio)/ ]]; then
-  # Already has a provider prefix, use as-is
-  PREFIXED_MODEL_ID="$MODEL_ID"
-else
-  # Add the provider prefix based on --provider flag
-  # Special case: "lms" maps to "lmstudio" for opencode
-  if [ "$PROVIDER" = "lms" ]; then
-    PREFIXED_MODEL_ID="lmstudio/${MODEL_ID}"
+# Determine which runtime to use based on model prefix or naming.
+if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
+  export LITELLM_BASE_URL="$OMLX_BASE_URL"
+  export LITELLM_API_KEY="$OMLX_API_KEY"
+  PREFIXED_MODEL_ID="omlx/${MODEL_ID#omlx/}"
+elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
+  export LITELLM_BASE_URL="$LMS_BASE_URL"
+  export LITELLM_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="lmstudio/${MODEL_ID#lms/}"
+elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
+  export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
+  export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
+  # Prefix the model ID with the provider name for litellm proxy
+  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai|lmstudio)/ ]]; then
+    PREFIXED_MODEL_ID="$MODEL_ID"
   else
-    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+    if [ "$PROVIDER" = "lms" ]; then
+      PREFIXED_MODEL_ID="lmstudio/${MODEL_ID}"
+    else
+      PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
+    fi
   fi
+else
+  # Default to LMS when proxy disabled
+  export LITELLM_BASE_URL="$LMS_BASE_URL"
+  export LITELLM_API_KEY="$LMS_API_KEY"
+  PREFIXED_MODEL_ID="lmstudio/${MODEL_ID#lms/}"
 fi
 
 # --- delegate-only agent definitions (project-local, sandbox-scoped) ----------
