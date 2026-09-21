@@ -115,7 +115,7 @@ cmd_start() {
         -e POSTGRES_USER=litellm \
         -e POSTGRES_PASSWORD=litellm \
         -e POSTGRES_DB=litellm \
-        -v "${LITELLM_PG_CONTAINER}-data:/var/lib/postgresql/data" \
+        -v "${LITELLM_PG_CONTAINER}-data:/var/lib/postgresql" \
         "$PG_IMAGE" >/dev/null
     fi
   fi
