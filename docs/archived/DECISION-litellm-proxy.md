@@ -1,5 +1,7 @@
 # Decision: LiteLLM proxy layer
 
+> Superseded 2026-09-28 by [DECISION-replace-litellm-with-olla](../DECISION-replace-litellm-with-olla.md)
+
 **Date:** 2026-06-27
 **Updated:** 2026-08-06 — oMLX route added; discovery criterion re-evaluated
 **Updated:** 2026-08-02 — spiked and measured; status changed
