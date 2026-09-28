@@ -1,0 +1,128 @@
+# Olla (https://github.com/thushan/olla) config template — spiked 2026-09-28
+# against Olla v0.0.29 as a possible LiteLLM replacement. See
+# docs/DECISION-proxy-olla.md for the full evaluation and verdict.
+#
+# To use this file:
+#   1. Download+unzip the darwin-arm64 release (or another platform's) — it
+#      ships a config/profiles/ directory with built-in profiles (omlx,
+#      lm-studio, ollama, vllm, llamacpp, ...). Run `olla` from a working
+#      directory that has this config.yaml at config/config.yaml AND that
+#      same profiles/ directory alongside it (Olla resolves profiles
+#      relative to CWD, not to --config's path — verified empirically: a
+#      profiles/-less CWD silently falls back to a tiny built-in default set
+#      lacking "omlx"/"mtplx" and the endpoint config then fails to load).
+#   2. Additionally drop in a custom config/profiles/mtplx.yaml — Olla ships
+#      no built-in MTPLX profile, and the generic "openai-compatible"
+#      profile's capability_patterns (tuned for cloud "gpt-*"/"*turbo*"
+#      names) won't classify "mtplx-*" model IDs as chat-capable, which
+#      silently breaks tool-call and Anthropic-route requests to it
+#      (plain /v1/chat/completions still works). See the DECISION doc's
+#      "known gaps" section for the full profile content.
+#   3. lms/ollama are listed even though they were down during this spike —
+#      Olla marks them offline and serves omlx/mtplx fine regardless.
+#
+server:
+  host: "localhost"
+  port: 40114
+  read_timeout: 30s
+  read_header_timeout: 10s
+  write_timeout: 0s
+  shutdown_timeout: 10s
+  request_logging: true
+
+proxy:
+  engine: "olla"
+  profile: "auto"
+  load_balancer: "least-connections"
+  connection_timeout: 60s
+  connection_keep_alive: 30s
+  response_timeout: 15m
+  read_timeout: 10m
+  response_header_timeout: 30s
+  tls_handshake_timeout: 10s
+  retry:
+    enabled: true
+    on_connection_failure: true
+    max_attempts: 0
+
+discovery:
+  type: "static"
+  refresh_interval: 30s
+  health_check:
+    initial_delay: 1s
+  static:
+    endpoints:
+      - url: "http://127.0.0.1:8000"
+        name: "omlx"
+        type: "omlx"
+        priority: 100
+        model_url: "/v1/models"
+        health_check_url: "/health"
+        check_interval: 2s
+        check_timeout: 1s
+      - url: "http://127.0.0.1:8001"
+        name: "mtplx"
+        type: "mtplx"
+        priority: 100
+        model_url: "/v1/models"
+        health_check_url: "/v1/models"
+        check_interval: 2s
+        check_timeout: 1s
+      - url: "http://127.0.0.1:1234"
+        name: "lms"
+        type: "lm-studio"
+        priority: 90
+        model_url: "/v1/models"
+        health_check_url: "/v1/models"
+        check_interval: 5s
+        check_timeout: 2s
+      - url: "http://127.0.0.1:11434"
+        name: "ollama"
+        type: "ollama"
+        priority: 90
+        model_url: "/api/tags"
+        health_check_url: "/"
+        check_interval: 5s
+        check_timeout: 2s
+  model_discovery:
+    enabled: true
+    interval: 5m
+    timeout: 30s
+    concurrent_workers: 5
+    retry_attempts: 3
+    retry_backoff: 1s
+
+model_registry:
+  type: "memory"
+  enable_unifier: true
+  unification:
+    stale_threshold: 24h
+    cleanup_interval: 10m
+  routing_strategy:
+    type: "strict"
+
+translators:
+  anthropic:
+    enabled: true
+    passthrough_enabled: true
+    max_message_size: 10485760
+    inspector:
+      enabled: false
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+engineering:
+  show_nerdstats: false
+
+dashboard:
+  enabled: true
+  access_policy:
+    allowed_cidrs:
+      - "127.0.0.0/8"
+      - "::1/128"
+    allowed_hosts:
+      - "localhost"
+  gate_internal_api: false
