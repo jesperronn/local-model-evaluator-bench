@@ -227,6 +227,20 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
+# ── Olla preflight ───────────────────────────────────────────────────────────
+# Adapters migrated to route exclusively through Olla (docs/runtimes/olla.md
+# "Adapter wiring") have no LiteLLM/direct-runtime fallback, so a down Olla
+# would otherwise surface as a per-adapter connection-refused FAIL that looks
+# like a wiring bug. Check once, up front, with a clear error instead. This
+# does NOT start Olla — bin/rt olla status/start stay the only autostart path.
+_OLLA_ROUTED_ADAPTERS=" pi claude "
+for _a in ${_smoke_adapters//,/ }; do
+  if [[ "$_OLLA_ROUTED_ADAPTERS" == *" $_a "* ]]; then
+    olla_up || die "Olla proxy not reachable at $OLLA_HOST_URL — '$_a' routes through Olla only (run: bin/rt olla start)"
+    break
+  fi
+done
+
 # ── Runtime-specific setup ────────────────────────────────────────────────────
 
 if [ "$RUNTIME" = "lms" ]; then

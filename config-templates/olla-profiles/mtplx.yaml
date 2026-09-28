@@ -1,0 +1,34 @@
+# Custom Olla backend profile for MTPLX (https://github.com/youssofal/MTPLX).
+#
+# Olla ships no built-in "mtplx" profile (unlike omlx, lm-studio, ollama, ...).
+# Without this file, endpoints of type "mtplx" fail to load, and — more
+# subtly — the generic "openai-compatible" profile's capability_patterns are
+# tuned for cloud-shaped names (gpt-*, *turbo*) and silently drop mtplx-*
+# model ids from tool-call/Anthropic routing (plain /v1/chat/completions still
+# works, but tool_use and the Anthropic passthrough route don't). See
+# docs/DECISION-proxy-olla.md ("Known gaps" / test 6) for the spike that found
+# this, and docs/runtimes/olla.md for the adopted setup.
+#
+# bin/rt olla start copies this file into the repo-local Olla install's
+# config/profiles/ directory before every start, so it always matches what's
+# committed here (Olla resolves profiles relative to its CWD, not to
+# --config's path — see config-templates/olla.yaml).
+name: mtplx
+version: "1.0"
+display_name: "MTPLX"
+routing:
+  prefixes: [mtplx]
+api:
+  openai_compatible: true
+  anthropic_support:
+    enabled: true
+    messages_path: /v1/messages
+    token_count: false
+  paths: [/v1/models, /v1/chat/completions, /v1/completions, /v1/messages]
+  model_discovery_path: /v1/models
+  health_check_path: /v1/models
+characteristics: {timeout: 3m, max_concurrent_requests: 4, default_priority: 90, streaming_support: true}
+models:
+  name_format: "{{.Name}}"
+  capability_patterns:
+    chat: ["mtplx-*"]

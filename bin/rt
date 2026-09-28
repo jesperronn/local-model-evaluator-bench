@@ -9,7 +9,7 @@
 #   bin/rt log [N]           tail most recent bench log (default 40 lines)
 #   bin/rt watch [N]         live-tail bench log (follow mode)
 #   bin/rt watch --metrics   unified real-time metrics view with colors
-#   bin/rt stop TARGET       stop: bench, mlx, omlx, mtplx, ollama, lms, litellm, all
+#   bin/rt stop TARGET       stop: bench, mlx, omlx, mtplx, ollama, lms, olla, litellm, all
 #   bin/rt who [RUNTIME]     show which processes are connected to a runtime
 #
 # oMLX Commands (formerly: bin/omlx):
@@ -21,7 +21,14 @@
 #   bin/rt omlx unload ID    evict one model from memory
 #   bin/rt omlx aider-metadata  regenerate adapter metadata for aider
 #
-# LiteLLM Commands (formerly: bin/litellm-proxy):
+# Olla Commands — the unified local proxy (replaced LiteLLM; see docs/runtimes/olla.md):
+#   bin/rt olla install      download+verify+install the pinned Olla release (repo-local, no sudo)
+#   bin/rt olla start        start Olla in the background, wait for /internal/health
+#   bin/rt olla stop         stop it
+#   bin/rt olla status       check if Olla is up, how many models it discovered (read-only)
+#   bin/rt olla models       list every model Olla discovered across all backends
+#
+# LiteLLM Commands (formerly: bin/litellm-proxy) — DEPRECATED, superseded by Olla above:
 #   bin/rt litellm proxy     start LiteLLM proxy (optional, on $LITELLM_PORT)
 #   bin/rt litellm check     verify proxy is reachable
 #   bin/rt litellm models    list models the proxy resolves
@@ -227,11 +234,22 @@ cmd_status() {
     printf '%s\n' "${C_DIM}down${C_RST}"
   fi
 
-  # Optional layer — only surface it when running, so the default (adapters
-  # talking to runtimes directly) stays uncluttered.
+  # Unified proxy — read-only check, never autostart (bin/rt olla start does that).
+  printf '%s    ' "${C_BLU}Olla${C_RST}"
+  if olla_up; then
+    local _olla_served
+    _olla_served=$(runtime_models "$OLLA_BASE_URL" | wc -l | tr -d ' ')
+    printf '%s  %sport %s, %s models discovered%s\n' \
+      "${C_GRN}up${C_RST}" "${C_DIM}" "$OLLA_PORT" "$_olla_served" "${C_RST}"
+  else
+    printf '%s\n' "${C_DIM}down${C_RST}"
+  fi
+
+  # Optional layer, DEPRECATED (superseded by Olla above) — only surface it
+  # when running, so the default view stays uncluttered.
   if curl -fsS --max-time 2 "${LITELLM_BASE_URL%/v1}/health/readiness" >/dev/null 2>&1; then
     printf '%s ' "${C_BLU}LiteLLM${C_RST}"
-    printf '%s  %sport %s, routes:%s lms/ ollama/ mlx/ omlx/ mtplx/\n' \
+    printf '%s  %sport %s, routes:%s lms/ ollama/ mlx/ omlx/ mtplx/ (deprecated)\n' \
       "${C_GRN}up${C_RST}" "${C_DIM}" "$LITELLM_PORT" "${C_RST}"
   fi
 
@@ -758,7 +776,7 @@ cmd_watch() {
 
 cmd_stop() {
   local target="${1:-}"
-  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|omlx|mtplx|ollama|lms|litellm|all]"; exit 1; }
+  [ -z "$target" ] && { echo "Usage: bin/rt stop [bench|mlx|omlx|mtplx|ollama|lms|olla|litellm|all]"; exit 1; }
 
   case "$target" in
     bench)
@@ -828,6 +846,9 @@ cmd_stop() {
         ok "LiteLLM stopped"
       fi
       ;;
+    olla)
+      cmd_olla stop
+      ;;
     ollama)
       # Unload any running models first (graceful)
       if _ollama_up; then
@@ -879,10 +900,11 @@ cmd_stop() {
       cmd_stop mtplx
       cmd_stop ollama
       cmd_stop lms
+      cmd_stop olla
       cmd_stop litellm
       ;;
     *)
-      die "unknown stop target: $target (valid: bench mlx omlx mtplx ollama lms litellm all)"
+      die "unknown stop target: $target (valid: bench mlx omlx mtplx ollama lms olla litellm all)"
       ;;
   esac
 }
@@ -924,7 +946,149 @@ cmd_omlx() {
   esac
 }
 
+# ── olla subcommands ─────────────────────────────────────────────────────────
+# Olla is the unified local proxy that replaced LiteLLM (see config.sh, and
+# docs/runtimes/olla.md for the full pattern other adapters should follow).
+OLLA_VERSION="0.0.29"
+OLLA_RELEASE_SHA256_MACOS_ARM64="a879d1247090b3d85a774e0890241234b7055ec87904292313ea42c6ce7fe0b4"
+
+cmd_olla() {
+  local subcmd="${1:-status}"
+  shift 2>/dev/null || true
+  case "$subcmd" in
+    install) _olla_install "$@";;
+    start)   _olla_start "$@";;
+    stop)    _olla_stop "$@";;
+    status)  _olla_status "$@";;
+    models)  _olla_models "$@";;
+    *)
+      die "unknown olla subcommand: $subcmd (valid: install, start, stop, status, models)"
+      ;;
+  esac
+}
+
+_olla_install() {
+  local os arch
+  os="$(uname -s)"; arch="$(uname -m)"
+  if [ "$os" != "Darwin" ] || [ "$arch" != "arm64" ]; then
+    die "bin/rt olla install only supports darwin-arm64 today (detected: $os/$arch)." \
+        "Download manually from https://github.com/thushan/olla/releases/tag/v${OLLA_VERSION} and set OLLA_INSTALL_DIR."
+  fi
+
+  local asset="olla_v${OLLA_VERSION}_macos_arm64.zip"
+  local url="https://github.com/thushan/olla/releases/download/v${OLLA_VERSION}/${asset}"
+  local tmp; tmp="$(mktemp -d)"
+
+  info "downloading Olla v${OLLA_VERSION} (darwin-arm64) ..."
+  curl -fsSL -o "$tmp/$asset" "$url" || die "download failed: $url"
+
+  local got_sha; got_sha="$(shasum -a 256 "$tmp/$asset" | awk '{print $1}')"
+  if [ "$got_sha" != "$OLLA_RELEASE_SHA256_MACOS_ARM64" ]; then
+    rm -rf "$tmp"
+    die "checksum mismatch for $asset: got $got_sha, expected $OLLA_RELEASE_SHA256_MACOS_ARM64 (corrupted download or unexpected asset — not installing)"
+  fi
+  ok "checksum verified: $got_sha"
+
+  rm -rf "$OLLA_INSTALL_DIR"
+  mkdir -p "$OLLA_INSTALL_DIR"
+  unzip -q "$tmp/$asset" -d "$OLLA_INSTALL_DIR"
+  rm -rf "$tmp"
+  [ -x "$OLLA_INSTALL_DIR/olla" ] || die "install failed: $OLLA_INSTALL_DIR/olla not found after unzip"
+  mkdir -p "$OLLA_INSTALL_DIR/run" "$OLLA_INSTALL_DIR/config/profiles"
+
+  # Repo-committed MTPLX profile — Olla ships no built-in one (see
+  # config-templates/olla-profiles/mtplx.yaml). Always wins over the release zip.
+  cp "$HERE/config-templates/olla-profiles/mtplx.yaml" "$OLLA_INSTALL_DIR/config/profiles/mtplx.yaml"
+
+  echo "$OLLA_VERSION" > "$OLLA_INSTALL_DIR/VERSION"
+  ok "Olla v${OLLA_VERSION} installed to $OLLA_INSTALL_DIR"
+}
+
+_olla_start() {
+  [ -x "$OLLA_INSTALL_DIR/olla" ] || die "Olla not installed — run: bin/rt olla install"
+
+  if olla_up; then
+    ok "Olla already running at $OLLA_HOST_URL"
+    return 0
+  fi
+
+  # Keep the committed MTPLX profile in sync with the install dir on every
+  # start, so editing config-templates/olla-profiles/mtplx.yaml takes effect
+  # without re-running install.
+  mkdir -p "$OLLA_INSTALL_DIR/config/profiles" "$OLLA_INSTALL_DIR/run"
+  cp "$HERE/config-templates/olla-profiles/mtplx.yaml" "$OLLA_INSTALL_DIR/config/profiles/mtplx.yaml"
+
+  local pidfile="$OLLA_INSTALL_DIR/run/olla.pid"
+  local logfile="$OLLA_INSTALL_DIR/run/olla.log"
+
+  if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null; then
+    die "a bin/rt olla start PID file exists ($pidfile) but Olla isn't answering health checks — check $logfile, then bin/rt olla stop and retry"
+  fi
+
+  info "starting Olla on $OLLA_HOST_URL ..."
+  # Olla resolves config/profiles/ relative to its CWD, not to --config's
+  # path (see config-templates/olla.yaml) — must cd into the install dir.
+  ( cd "$OLLA_INSTALL_DIR" && nohup ./olla --config "$HERE/config-templates/olla.yaml" >>"$logfile" 2>&1 & echo $! > "$pidfile" )
+
+  local waited=0
+  until olla_up; do
+    sleep 0.2
+    waited=$((waited + 1))
+    if [ "$waited" -ge 50 ]; then
+      err "Olla did not become healthy within 10s — check $logfile"
+      tail -20 "$logfile" >&2 2>/dev/null || true
+      exit 1
+    fi
+  done
+
+  ok "Olla up — PID $(cat "$pidfile"), port $OLLA_PORT"
+  echo "  OpenAI:    $OLLA_BASE_URL"
+  echo "  Anthropic: $OLLA_ANTHROPIC_BASE_URL"
+  echo "  Dashboard: $OLLA_HOST_URL"
+  echo "  Log:       $logfile"
+}
+
+_olla_stop() {
+  local pidfile="$OLLA_INSTALL_DIR/run/olla.pid"
+  local pid=""
+  [ -f "$pidfile" ] && pid="$(cat "$pidfile" 2>/dev/null)"
+  if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+    # Fall back to a port lookup in case the pid file is stale or missing.
+    pid=$(lsof -ti ":$OLLA_PORT" 2>/dev/null | head -1)
+  fi
+  if [ -z "$pid" ]; then
+    info "olla: nothing on port $OLLA_PORT"
+    rm -f "$pidfile"
+    return 0
+  fi
+  info "stopping Olla (PID $pid)"
+  kill "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+  rm -f "$pidfile"
+  ok "Olla stopped"
+}
+
+_olla_status() {
+  if ! olla_up; then
+    printf '%s %s\n' "${C_BLU}Olla${C_RST}" "${C_DIM}down${C_RST} (start: bin/rt olla start)"
+    return 1
+  fi
+  local pidfile="$OLLA_INSTALL_DIR/run/olla.pid" pid=""
+  [ -f "$pidfile" ] && pid="$(cat "$pidfile" 2>/dev/null)"
+  local served; served=$(runtime_models "$OLLA_BASE_URL" | wc -l | tr -d ' ')
+  printf '%s %s  %sport %s, pid %s, %s models discovered%s\n' \
+    "${C_BLU}Olla${C_RST}" "${C_GRN}up${C_RST}" "${C_DIM}" "$OLLA_PORT" "${pid:-?}" "$served" "${C_RST}"
+  echo "  OpenAI:    $OLLA_BASE_URL"
+  echo "  Anthropic: $OLLA_ANTHROPIC_BASE_URL"
+}
+
+_olla_models() {
+  olla_up || die "Olla not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)"
+  runtime_models "$OLLA_BASE_URL" | sort
+}
+
 # ── litellm subcommands (consolidates bin/litellm-proxy) ──────────────────────
+# DEPRECATED — superseded by Olla above (docs/DECISION-replace-litellm-with-olla.md).
+# Kept only so not-yet-migrated adapters keep working during the migration.
 cmd_litellm() {
   local subcmd="${1:-status}"
   shift 2>/dev/null || true
@@ -1015,6 +1179,7 @@ case "$CMD" in
   stop)    cmd_stop   "$@";;
   who)     cmd_who    "$@";;
   omlx)    cmd_omlx   "$@";;
+  olla)    cmd_olla   "$@";;
   litellm) cmd_litellm "$@";;
   lms-context) cmd_lms_context "$@";;
   -h|--help|help)

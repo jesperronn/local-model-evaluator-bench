@@ -16,3 +16,6 @@ __pycache__/
 
 # machine-local overrides, sourced by config.sh
 config.local.sh
+
+# repo-local Olla install (binary + run state), fetched by bin/rt olla install
+/.tools/

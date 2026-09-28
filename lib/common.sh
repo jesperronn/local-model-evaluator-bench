@@ -63,6 +63,32 @@ litellm_up() {
   curl -fsS --max-time 5 "$LITELLM_BASE_URL/models" >/dev/null 2>&1
 }
 
+# Reachability check against the Olla proxy (the unified local proxy that
+# replaced LiteLLM — see docs/runtimes/olla.md). Checks Olla's own health
+# endpoint rather than a backend route, so it reports Olla being up even if
+# every backend it fronts is offline (matches Olla's own down-backend
+# tolerance). Returns 0 if up.
+olla_up() {
+  curl -fsS --max-time 5 "$OLLA_HOST_URL/internal/health" >/dev/null 2>&1
+}
+
+# Strip a known runtime prefix (omlx/, mtplx/, lms/, ollama/, mlx/, openai/)
+# from a model id. Olla addresses models by their own bare id — it discovers
+# every backend's models under one unified list — so adapters routing only
+# through Olla (see docs/runtimes/olla.md "Adapter wiring") use this instead
+# of the per-runtime prefixing bench/other adapters still do. A model id with
+# no recognized prefix (already bare, or containing an unrelated "/") is
+# returned unchanged.
+# Usage: strip_runtime_prefix <model-id>
+strip_runtime_prefix() {
+  local m="$1"
+  if [[ "$m" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/(.+)$ ]]; then
+    printf '%s' "${BASH_REMATCH[2]}"
+  else
+    printf '%s' "$m"
+  fi
+}
+
 # Model ids oMLX currently holds in memory. oMLX loads on first request and
 # evicts LRU, so "loaded" is a subset of omlx_models and changes without us
 # asking — /v1/models can't tell us this, same as with LM Studio. Uses oMLX's

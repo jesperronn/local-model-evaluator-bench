@@ -38,7 +38,40 @@ export BENCH_OMLX_UNLOAD="${BENCH_OMLX_UNLOAD:-0}"
 # which are multi-model). Default port is mlx_lm.server's own default.
 export MLX_BASE_URL="${MLX_BASE_URL:-http://127.0.0.1:8080/v1}"
 
-# LiteLLM proxy — unified endpoint fronting all five local runtimes (lms, ollama, mlx, omlx, mtplx).
+# ─────────────────────────────────────────────────────────────────────────────
+# Olla — the unified local proxy (replaced LiteLLM 2026-09-28; see
+# docs/DECISION-replace-litellm-with-olla.md and docs/runtimes/olla.md).
+# Fronts every local runtime (lms, ollama, mlx, omlx, mtplx) behind one
+# endpoint with automatic model discovery and no auth token required. Manage
+# it with `bin/rt olla install|start|stop|status|models`. Adapters that have
+# been migrated (see docs/runtimes/olla.md "Adapter wiring") route through
+# Olla ONLY — no LiteLLM or direct-runtime fallback.
+# ─────────────────────────────────────────────────────────────────────────────
+export OLLA_PORT="${OLLA_PORT:-40114}"
+# Olla's own host:port, used for its non-API routes (health, dashboard, model
+# discovery across all of /olla/*). Adapters use the more specific
+# OLLA_BASE_URL / OLLA_ANTHROPIC_BASE_URL below instead.
+export OLLA_HOST_URL="${OLLA_HOST_URL:-http://127.0.0.1:${OLLA_PORT}}"
+# OpenAI-compatible aggregating route — every backend's models, one list.
+export OLLA_BASE_URL="${OLLA_BASE_URL:-${OLLA_HOST_URL}/olla/proxy/v1}"
+# Native Anthropic Messages route. Clients (e.g. the `claude` CLI via
+# ANTHROPIC_BASE_URL) append /v1/messages themselves, so this is the route
+# WITHOUT that suffix — matches how OMLX_BASE_URL/etc. already have /v1
+# stripped for the same reason in adapters/claude.sh.
+export OLLA_ANTHROPIC_BASE_URL="${OLLA_ANTHROPIC_BASE_URL:-${OLLA_HOST_URL}/olla/anthropic}"
+# Olla does not implement auth — it forwards whatever it's given, unvalidated
+# — but some clients require *some* value to be present.
+export OLLA_API_KEY="${OLLA_API_KEY:-olla}"
+# Repo-local install dir for the Olla binary + its profiles + run state
+# (pid/log), fetched by `bin/rt olla install`. Gitignored — not committed.
+export OLLA_INSTALL_DIR="${OLLA_INSTALL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.tools/olla}"
+
+# LiteLLM proxy — DEPRECATED, superseded by Olla above (see
+# docs/DECISION-replace-litellm-with-olla.md). Left in place only so
+# not-yet-migrated adapters keep working during the phased migration; do not
+# add new routing through it. Do not delete bin/litellm-proxy,
+# config-templates/litellm.yaml, or these vars yet — that's a later phase.
+# Unified endpoint fronting all five local runtimes (lms, ollama, mlx, omlx, mtplx).
 # NEW PROXY-FIRST APPROACH: When LITELLM_BASE_URL is set, adapters prefer it and fall back to
 # direct runtime endpoints only if proxy is unavailable. Use bin/litellm-proxy to run the
 # Docker-backed service; models are addressed as lms/<id>, ollama/<id>, mlx/<id>, omlx/<id>, mtplx/<id>.

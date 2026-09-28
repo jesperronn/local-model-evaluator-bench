@@ -1,25 +1,32 @@
-# Olla (https://github.com/thushan/olla) config template — spiked 2026-09-28
-# against Olla v0.0.29 as a possible LiteLLM replacement. See
-# docs/DECISION-proxy-olla.md for the full evaluation and verdict.
+# Olla (https://github.com/thushan/olla) config template — adopted 2026-09-28
+# as the unified local proxy, replacing LiteLLM. See
+# docs/DECISION-replace-litellm-with-olla.md for the decision and
+# docs/DECISION-proxy-olla.md for the spike it's based on.
 #
-# To use this file:
-#   1. Download+unzip the darwin-arm64 release (or another platform's) — it
-#      ships a config/profiles/ directory with built-in profiles (omlx,
-#      lm-studio, ollama, vllm, llamacpp, ...). Run `olla` from a working
-#      directory that has this config.yaml at config/config.yaml AND that
-#      same profiles/ directory alongside it (Olla resolves profiles
-#      relative to CWD, not to --config's path — verified empirically: a
-#      profiles/-less CWD silently falls back to a tiny built-in default set
-#      lacking "omlx"/"mtplx" and the endpoint config then fails to load).
-#   2. Additionally drop in a custom config/profiles/mtplx.yaml — Olla ships
-#      no built-in MTPLX profile, and the generic "openai-compatible"
-#      profile's capability_patterns (tuned for cloud "gpt-*"/"*turbo*"
-#      names) won't classify "mtplx-*" model IDs as chat-capable, which
-#      silently breaks tool-call and Anthropic-route requests to it
-#      (plain /v1/chat/completions still works). See the DECISION doc's
-#      "known gaps" section for the full profile content.
-#   3. lms/ollama are listed even though they were down during this spike —
-#      Olla marks them offline and serves omlx/mtplx fine regardless.
+# Used by: `bin/rt olla start` (see cmd_olla in bin/rt), which runs the
+# repo-local Olla binary with this file as `--config` and the install dir
+# (default .tools/olla, see OLLA_INSTALL_DIR in config.sh) as its CWD.
+#
+# Two non-obvious setup requirements, both handled automatically by
+# `bin/rt olla install` / `bin/rt olla start` — see docs/runtimes/olla.md:
+#   1. Olla resolves `config/profiles/*.yaml` relative to its CWD, not to
+#      this file's path. `bin/rt olla start` always runs it from the install
+#      dir, which holds both the release zip's built-in profiles (omlx,
+#      lm-studio, ollama, vllm, llamacpp, ...) and the repo's custom one
+#      below. A profiles-less CWD silently falls back to a tiny built-in
+#      default set lacking "omlx"/"mtplx", and the endpoint config below then
+#      fails to load.
+#   2. MTPLX needs a hand-written profile — Olla ships no built-in one, and
+#      the generic "openai-compatible" profile's capability_patterns (tuned
+#      for cloud "gpt-*"/"*turbo*" names) won't classify "mtplx-*" model IDs
+#      as chat-capable, silently breaking tool-call and Anthropic-route
+#      requests to it (plain /v1/chat/completions still works). Committed at
+#      config-templates/olla-profiles/mtplx.yaml; `bin/rt olla start` copies
+#      it into the install dir's config/profiles/ before every start, so it
+#      never drifts from what's in the repo.
+#   3. lms/ollama are listed even when down — Olla marks them offline and
+#      keeps serving the other endpoints fine regardless (see bin/rt status,
+#      which controls those runtimes; bin/rt never starts them).
 #
 server:
   host: "localhost"
