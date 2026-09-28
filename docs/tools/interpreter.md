@@ -20,7 +20,7 @@
 | **CLI command** | `interpreter` |
 | **Version** | latest |
 | **Adapter script** | [`adapters/interpreter-lms.sh`](../../adapters/interpreter-lms.sh) |
-| **How it connects** | Built-in `lmstudio` provider (hardwired to `localhost:1234/v1`). Model overridden at runtime via `-c 'model="..."'` without touching `config.toml`. |
+| **How it connects** | Routes through Olla (`$OLLA_BASE_URL`) via a custom `olla_local` model_provider registered with `-c` overrides — the built-in `lmstudio` provider is reserved and hardwired to `localhost:1234/v1`, so it can't be pointed at Olla directly (same reserved-provider issue `adapters/codex.sh` documents). Model overridden at runtime via `-c 'model="..."'` without touching `config.toml`. See [docs/runtimes/olla.md](../runtimes/olla.md). |
 | **Runtime model discovery** | **no** — `-c "model=\"$MODEL_ID\""` is passed explicitly every run (`adapters/interpreter-lms.sh`); no call to a `/v1/models`-equivalent endpoint is made by the adapter. |
 | **Last reviewed** | 2026-06-30 |
 

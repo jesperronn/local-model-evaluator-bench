@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Adapter: openhands -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Adapter: openhands -> unified endpoint via Olla proxy (OpenAI format).
+# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
+# every backend's models (omlx, mtplx, lms, ollama) under one unified list,
+# so no runtime-prefix branching, no --provider flag, and no direct-runtime
+# base-URL selection are needed here (unlike the old LiteLLM-routed version
+# of this file).
 #
-# The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
+# Olla must be running: bin/rt olla start
+# $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
+# strip_runtime_prefix (lib/common.sh) strips it, since Olla addresses models
+# by their own bare id.
 #
-# Adapter accepts --provider to override which backend to target:
-#   --provider lms        # route to LM Studio (default if lms/ prefix)
-#   --provider ollama     # route to Ollama
-#   --provider omlx       # route to oMLX
-#   --provider mlx        # route to mlx_lm.server
-#   --provider mtplx      # route to MTPLX
+# openhands bundles litellm client-side, which REQUIRES a provider prefix
+# (openai/, ollama/, etc.) to parse the model name — the bare id is wrapped
+# in "openai/" below to satisfy that client-side check.
 #
 # Install: uv tool install openhands
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
@@ -19,62 +22,23 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
-
-# Parse --provider flag if passed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --provider)
-      PROVIDER="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
 
 command -v openhands >/dev/null 2>&1 || {
   echo "openhands not found; install: uv tool install openhands" >&2
   exit 1
 }
 
-# Determine which runtime to use based on model prefix or naming.
-# openhands uses OpenAI-compatible endpoints via LLM_* env vars.
-# NOTE: openhands bundles litellm client-side, which REQUIRES a provider prefix
-# (openai/, ollama/, etc.) to parse the model name.
-if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
-  API_BASE="$OMLX_BASE_URL"
-  API_KEY="$OMLX_API_KEY"
-  PREFIXED_MODEL_ID="openai/${MODEL_ID#omlx/}"
-elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
-  API_BASE="$LMS_BASE_URL"
-  API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="openai/${MODEL_ID#lms/}"
-elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
-  API_BASE="$LITELLM_BASE_URL"
-  API_KEY="$LITELLM_MASTER_KEY"
-  # Prefix the model ID with the provider name for litellm proxy
-  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-    PREFIXED_MODEL_ID="$MODEL_ID"
-  else
-    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-  fi
-  # Wrap in openai/ for openhands' client check
-  if [[ ! "$PREFIXED_MODEL_ID" =~ ^openai/ ]]; then
-    PREFIXED_MODEL_ID="openai/${PREFIXED_MODEL_ID}"
-  fi
-else
-  # Default to LMS when proxy disabled
-  API_BASE="$LMS_BASE_URL"
-  API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="openai/${MODEL_ID}"
-fi
+olla_up || {
+  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+  exit 1
+}
 
-# Set environment variables to route through the appropriate runtime.
-export LLM_API_KEY="$API_KEY"
-export LLM_BASE_URL="$API_BASE"
-export LLM_MODEL="$PREFIXED_MODEL_ID"
+BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
+
+# Set environment variables to route through Olla.
+export LLM_API_KEY="$OLLA_API_KEY"
+export LLM_BASE_URL="$OLLA_BASE_URL"
+export LLM_MODEL="openai/${BARE_MODEL_ID}"
 export OPENHANDS_SUPPRESS_BANNER=1
 
 # Ensure openhands is on PATH (uv tool install puts it in ~/.local/bin)

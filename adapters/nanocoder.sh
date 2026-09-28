@@ -1,86 +1,50 @@
 #!/usr/bin/env bash
-# Adapter: nanocoder -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Adapter: nanocoder -> unified endpoint via Olla proxy (OpenAI format).
+# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
+# every backend's models (omlx, mtplx, lms, ollama) under one unified list,
+# so no runtime-prefix branching, no --provider flag, and no direct-runtime
+# base-URL selection are needed here (unlike the old LiteLLM-routed version
+# of this file).
 #
-# The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
+# Olla must be running: bin/rt olla start
+# $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
+# strip_runtime_prefix (lib/common.sh) strips it, since Olla addresses models
+# by their own bare id.
 #
-# Adapter accepts --provider to override which backend to target:
-#   --provider lms        # route to LM Studio (default if lms/ prefix)
-#   --provider ollama     # route to Ollama
-#   --provider omlx       # route to oMLX
-#   --provider mlx        # route to mlx_lm.server
-#   --provider mtplx      # route to MTPLX
-#
-# Provider config is injected via NANOCODER_PROVIDERS env var (JSON) so no config file is needed.
-# Non-interactive runs use `nanocoder run` (auto-detected via stdin check).
+# Provider config is injected via NANOCODER_PROVIDERS env var (JSON) so no
+# config file is needed. The `models` array is populated from Olla's live
+# /models list on every run (same pattern as adapters/pi.sh) so it can't go
+# stale as models come and go, and the target model is guaranteed to be in
+# it. Non-interactive runs use `nanocoder run` (auto-detected via stdin
+# check).
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
-# Parse --provider flag if passed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --provider)
-      PROVIDER="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
+olla_up || {
+  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+  exit 1
+}
 
-# Determine which runtime to use based on model prefix or naming
-if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
-  RUNTIME_ENDPOINT="$OMLX_BASE_URL"
-  RUNTIME_API_KEY="$OMLX_API_KEY"
-  PROVIDER_NAME="oMLX"
-elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
-  RUNTIME_ENDPOINT="$LMS_BASE_URL"
-  RUNTIME_API_KEY="$LMS_API_KEY"
-  PROVIDER_NAME="LMS"
-elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
-  RUNTIME_ENDPOINT="$LITELLM_BASE_URL"
-  RUNTIME_API_KEY="$LITELLM_MASTER_KEY"
-  PROVIDER_NAME="LiteLLM"
-else
-  # Default to LMS when proxy disabled
-  RUNTIME_ENDPOINT="$LMS_BASE_URL"
-  RUNTIME_API_KEY="$LMS_API_KEY"
-  PROVIDER_NAME="LMS"
-fi
+BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-  # Already has a provider prefix, use as-is
-  PREFIXED_MODEL_ID="$MODEL_ID"
-else
-  # Add the provider prefix based on --provider flag
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-fi
-
-# Inject runtime provider config so bench runs are self-contained.
 # contextWindow must be set explicitly for local models (nanocoder falls back to
 # models.dev metadata which won't have entries for local model keys).
-PROVIDER_JSON=$(cat <<EOF
-[{
-  "name": "${PROVIDER_NAME}",
-  "baseUrl": "${RUNTIME_ENDPOINT}",
-  "models": ["${PREFIXED_MODEL_ID}"],
-  "contextWindow": 65536
-}]
-EOF
-)
+OLLA_MODELS_JSON="$(runtime_models "$OLLA_BASE_URL" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+[ -z "$OLLA_MODELS_JSON" ] || [ "$OLLA_MODELS_JSON" = "[]" ] && OLLA_MODELS_JSON="[\"$BARE_MODEL_ID\"]"
+
+PROVIDER_JSON="$(jq -n \
+  --arg name "Olla" \
+  --arg baseUrl "$OLLA_BASE_URL" \
+  --argjson models "$OLLA_MODELS_JSON" \
+  '[{name: $name, baseUrl: $baseUrl, models: $models, contextWindow: 65536}]')"
 
 if [ -t 0 ]; then
   exec env NANOCODER_PROVIDERS="${PROVIDER_JSON}" \
-    nanocoder --provider "LiteLLM" --model "${PREFIXED_MODEL_ID}" "$@"
+    nanocoder --provider "Olla" --model "${BARE_MODEL_ID}" "$@"
 else
   PROMPT="Working directory: $(pwd)
 
@@ -91,10 +55,10 @@ $(cat)"
   # shell call is not). With stdin already consumed by the piped prompt there's
   # nothing to answer that prompt with, so nanocoder sits waiting forever -- this
   # is what the smoke-test watchdog was catching as a 120s stall (root cause was
-  # in nanocoder's own approval gating, not the LiteLLM proxy or the model).
+  # in nanocoder's own approval gating, not the proxy or the model).
   # --mode yolo bypasses all such approval prompts, matching mini-swe-agent's
   # agent.mode=yolo fix for the identical class of issue in
   # adapters/mini-swe-agent.sh.
   exec env NANOCODER_PROVIDERS="${PROVIDER_JSON}" NANOCODER_TRUST_DIRECTORY=1 \
-    nanocoder --mode yolo run --provider "LiteLLM" --model "${PREFIXED_MODEL_ID}" "${PROMPT}" "$@"
+    nanocoder --mode yolo run --provider "Olla" --model "${BARE_MODEL_ID}" "${PROMPT}" "$@"
 fi

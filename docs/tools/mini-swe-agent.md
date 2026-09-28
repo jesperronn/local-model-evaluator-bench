@@ -20,7 +20,7 @@
 | **CLI command** | `mini-swe-agent` |
 | **Version** | 2.4.2 (installed 2026-06-27) |
 | **Adapter script** | [`adapters/mini-swe-agent-lms.sh`](../../adapters/mini-swe-agent-lms.sh) |
-| **How it connects** | Routes through LiteLLM; `OPENAI_API_BASE` + `OPENAI_API_KEY` env vars; model addressed as `openai/<MODEL_ID>` |
+| **How it connects** | Routes through Olla (`$OLLA_BASE_URL`); `OPENAI_API_BASE` + `OPENAI_API_KEY` env vars; model addressed as `openai/<bare-model-id>` (see [docs/runtimes/olla.md](../runtimes/olla.md)) |
 | **Runtime model discovery** | **no** — `--model "openai/${MODEL_ID}"` is passed explicitly every run (`adapters/mini-swe-agent-lms.sh`/`mini-swe-agent-omlx.sh`); no call to a `/v1/models`-equivalent endpoint is made by the adapter. |
 | **Last reviewed** | 2026-06-27 |
 
@@ -47,7 +47,10 @@ python3 -m pip install --break-system-packages mini-swe-agent
 
 ## Edit mechanism
 
-- **Format:** LiteLLM-routed tool calls (`litellm_model` class, the v2 default).
+- **Format:** Olla-routed tool calls via mini-swe-agent's bundled litellm
+  client (`litellm_model` class, the v2 default) — the client-side library
+  is still litellm, but the wire target is Olla's OpenAI route, not a
+  LiteLLM proxy.
 - **File targeting:** operates in the adapter's working directory (CWD);
   no explicit `--repo-path` needed in v2.
 - **Multi-file edits:** not yet measured — pending a full benchmark run.
@@ -73,7 +76,7 @@ Not yet measured.
 
 | Flag | Reason |
 |------|--------|
-| `--model openai/<id>` | Routes through LiteLLM's generic OpenAI-compatible backend at `$OPENAI_API_BASE`. |
+| `--model openai/<id>` | Satisfies the bundled litellm client's provider-prefix check while routing through Olla's OpenAI-compatible backend at `$OPENAI_API_BASE` ($OLLA_BASE_URL). |
 | `--task` | v2 CLI flag for the problem statement (stdin task text), replacing v1's `--problem-statement`. |
 
 ## Status

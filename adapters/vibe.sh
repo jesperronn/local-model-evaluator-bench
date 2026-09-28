@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Adapter: Mistral Vibe (vibe) -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Adapter: Mistral Vibe (vibe) -> unified endpoint via Olla proxy (OpenAI format).
+# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
+# every backend's models (omlx, mtplx, lms, ollama) under one unified list,
+# so no runtime-prefix branching, no --provider flag, and no direct-runtime
+# base-URL selection are needed here (unlike the old LiteLLM-routed version
+# of this file).
 #
-# The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
+# Olla must be running: bin/rt olla start
+# $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
+# strip_runtime_prefix (lib/common.sh) strips it, since Olla addresses models
+# by their own bare id.
 #
 # Vibe has no CLI flags for base URL/model; it only reads a config.toml
 # ([[providers]] + [[models]] + active_model). We regenerate one per run
@@ -12,61 +18,21 @@
 # enable_connectors/enable_telemetry/enable_update_checks are turned off to
 # avoid vibe's stray calls to mistral.ai.
 #
-# Adapter accepts --provider to override which backend to target:
-#   --provider lms        # route to LM Studio (default if lms/ prefix)
-#   --provider ollama     # route to Ollama
-#   --provider omlx       # route to oMLX
-#   --provider mlx        # route to mlx_lm.server
-#   --provider mtplx      # route to MTPLX
-#
 # Install: cargo install --path <path-to-vibe-repo> (or use system package)
 # Contract: CWD is the sandbox to edit. $MODEL_ID set. Prompt on stdin.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
-# Parse --provider flag if passed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --provider)
-      PROVIDER="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
+olla_up || {
+  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+  exit 1
+}
 
-# Determine which runtime to use based on model prefix or naming
-if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
-  RUNTIME_ENDPOINT="$OMLX_BASE_URL"
-  PROVIDER_NAME="oMLX"
-elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
-  RUNTIME_ENDPOINT="$LMS_BASE_URL"
-  PROVIDER_NAME="LMS"
-elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
-  RUNTIME_ENDPOINT="$LITELLM_BASE_URL"
-  PROVIDER_NAME="LiteLLM"
-else
-  # Default to LMS when proxy disabled
-  RUNTIME_ENDPOINT="$LMS_BASE_URL"
-  PROVIDER_NAME="LMS"
-fi
+BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
-# Prefix the model ID with the provider name if not already prefixed.
-# This allows both "lms/model-id" and separate --provider flag to work.
-if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-  # Already has a provider prefix, use as-is
-  PREFIXED_MODEL_ID="$MODEL_ID"
-else
-  # Add the provider prefix based on --provider flag
-  PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-fi
-
-# Create an isolated VIBE_HOME with config.toml for the appropriate runtime backend
+# Create an isolated VIBE_HOME with config.toml pointed at Olla
 VIBE_ADAPTER_HOME="${VIBE_ADAPTER_HOME:-$HOME/.vibe-local-adapter}"
 mkdir -p "$VIBE_ADAPTER_HOME"
 cat > "$VIBE_ADAPTER_HOME/config.toml" <<EOF
@@ -76,15 +42,15 @@ enable_update_checks = false
 enable_connectors = false
 
 [[providers]]
-name = "bench"
-api_base = "$RUNTIME_ENDPOINT"
+name = "olla"
+api_base = "$OLLA_BASE_URL"
 api_key_env_var = ""
 api_style = "openai"
 backend = "generic"
 
 [[models]]
-name = "$PREFIXED_MODEL_ID"
-provider = "bench"
+name = "$BARE_MODEL_ID"
+provider = "olla"
 alias = "bench-model"
 temperature = 0.2
 input_price = 0.0
