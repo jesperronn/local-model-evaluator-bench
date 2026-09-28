@@ -20,9 +20,9 @@
 | **CLI command** | `caveman` (aliases `caveman-code`) |
 | **npm package** | `@juliusbrussee/caveman-code` (current — a distinct package from `pi`, not a `pi` fork/wrapper) |
 | **Version** | 0.65.2 (checked 2026-07-07 via `caveman --version`) |
-| **Adapter script** | [`adapters/caveman-lms.sh`](../../adapters/caveman-lms.sh), [`adapters/caveman-ollama.sh`](../../adapters/caveman-ollama.sh) |
-| **How it connects** | `--provider lmstudio` selects a custom provider defined in `~/.cave/agent/models.json` (baseUrl `http://127.0.0.1:1234/v1`, api `openai-completions`) — same JSON schema as [pi's](pi.md) `~/.pi/agent/models.json`, but its own file/directory (`~/.cave/agent/`, not `~/.pi/agent/`). |
-| **Runtime model discovery** | **no** — manual model list in `~/.cave/agent/models.json`, kept in sync by `bin/agents-config --agent caveman` (mirrors the pi sync path — see `config-templates/caveman-agent-models.json`). |
+| **Adapter script** | [`adapters/caveman.sh`](../../adapters/caveman.sh) |
+| **How it connects** | Routes ONLY through Olla (see [docs/runtimes/olla.md](../runtimes/olla.md) "Adapter wiring") — no more LiteLLM/direct-runtime branching. `--provider olla` selects an `olla` provider that the adapter merges into `~/.cave/agent/models.json` on every run (baseUrl `$OLLA_BASE_URL`, api `openai-completions`) — same JSON schema as [pi's](pi.md) `~/.pi/agent/models.json`, but its own file/directory (`~/.cave/agent/`, not `~/.pi/agent/`). |
+| **Runtime model discovery** | **yes, for the olla provider** — the adapter populates `providers.olla.models` from Olla's own live `/models` list on every run (mirrors `adapters/pi.sh`), unlike the static lmstudio/ollama/omlx/mtplx blocks `bin/agents-config --agent caveman` still manages for the other providers. |
 | **Last reviewed** | 2026-07-07 |
 
 ## Version history (last working → broken → fixed)

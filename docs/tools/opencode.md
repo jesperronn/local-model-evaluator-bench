@@ -7,9 +7,9 @@
 | **Tool name** | opencode |
 | **CLI command** | `opencode run` |
 | **Version** | 1.16.2 |
-| **Adapter script** | [`adapters/opencode-lms.sh`](../../adapters/opencode-lms.sh) |
-| **How it connects** | Built-in `lmstudio` provider (models.dev auto-discovery from `http://localhost:1234`). Model addressed as `lmstudio/<MODEL_ID>`. Config via `~/.config/opencode/opencode.json`. |
-| **Runtime model discovery** | **no, for this bench** — `bin/agents-config`'s `sync_opencode_models` re-derives the model list from what LM Studio/oMLX actually serves and *writes* it into `opencode.jsonc`'s provider block ahead of time; opencode itself doesn't query the backend live at invocation. For the custom `omlx` provider specifically, `adapters/opencode-omlx.sh` states outright: "opencode only offers models listed in that provider block; it does not query the endpoint." Whether opencode's built-in `lmstudio` provider auto-discovers via models.dev in ordinary (non-bench) interactive use is a separate, unverified claim inherited from an earlier pass on this card — treat it as unconfirmed. **This matches an open upstream feature request, confirming it's not implemented for LM Studio as of this writing:** [anomalyco/opencode#23327 — "LM Studio provider should auto-detect models via /v1/models API"](https://github.com/anomalyco/opencode/issues/23327) (open) and [anomalyco/opencode#6231 — "Auto-discover models from OpenAI-compatible provider endpoints"](https://github.com/anomalyco/opencode/issues/6231) (open). Re-check these when re-reviewing this card — if closed/merged, opencode may no longer need `bin/agents-config`'s pre-sync step. |
+| **Adapter script** | [`adapters/opencode.sh`](../../adapters/opencode.sh) (and the delegate-only variant [`adapters/opencode-orch.sh`](../../adapters/opencode-orch.sh)) |
+| **How it connects** | Routes ONLY through Olla (see [docs/runtimes/olla.md](../runtimes/olla.md) "Adapter wiring") — no more LiteLLM/direct-runtime branching. opencode's provider config is static (confirmed no live per-request discovery — see below), so the adapter itself self-heals an `olla` custom provider (`npm: "@ai-sdk/openai-compatible"`, `options.baseURL: $OLLA_BASE_URL`) into the live `~/.config/opencode/opencode.jsonc`/`.json` on every run and refreshes its `models` map from Olla's own live `/models` list (via `bin/lib/patch-jsonc-models.mjs`, comment-preserving). Model addressed as `olla/<bare-id>`. |
+| **Runtime model discovery** | **no, at the opencode-CLI level** — opencode itself doesn't query a provider's endpoint live at invocation (see the two upstream issues below), so the adapter does the discovery itself, on Olla's `/models`, and writes the result into the config before each run — see "How it connects" above. **This matches an open upstream feature request, confirming it's not implemented for LM Studio as of this writing:** [anomalyco/opencode#23327 — "LM Studio provider should auto-detect models via /v1/models API"](https://github.com/anomalyco/opencode/issues/23327) (open) and [anomalyco/opencode#6231 — "Auto-discover models from OpenAI-compatible provider endpoints"](https://github.com/anomalyco/opencode/issues/6231) (open). |
 | **Last reviewed** | 2026-06-09 |
 
 ## Edit mechanism
@@ -43,7 +43,7 @@ No other flags are used. opencode's defaults (tool-calling, auto file discovery,
 
 **qwen3-coder-next incompatibility:** opencode crashes with error(1) on all cases for this model. The model is otherwise capable (codex/caveman score 100%/97%). Suspected cause: the model's response format or the `lmstudio/qwen3-coder-next` key routing fails. Check opencode's model list and whether the model needs a config override in `~/.config/opencode/opencode.json`.
 
-**Config dependency:** opencode reads its LM Studio base URL from `~/.config/opencode/opencode.json`. If the LM Studio server is not at `localhost:1234`, this must be pre-configured. See `docs/SETUP.md`.
+**Config dependency (Olla-routed):** `adapters/opencode.sh` self-heals the `olla` provider into `~/.config/opencode/opencode.jsonc`/`.json` itself, so no manual pre-configuration is needed for Olla routing specifically. See `docs/runtimes/olla.md` "Adapter wiring".
 
 ## Status
 

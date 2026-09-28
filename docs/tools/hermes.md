@@ -19,9 +19,9 @@
 | **Tool name** | Hermes Agent |
 | **CLI command** | `hermes` |
 | **Version** | v0.17.0 (2026.6.19) |
-| **Adapter script** | [`adapters/hermes-lms.sh`](../../adapters/hermes-lms.sh) |
-| **How it connects** | Built-in `lmstudio` provider, configured in `~/.hermes/config.yaml` (`provider: lmstudio`, `base_url: http://127.0.0.1:1234/v1`). Approvals handled by a "smart guardian" LLM running locally. |
-| **Runtime model discovery** | **no** — `-m "$MODEL_ID"` is passed explicitly every run (`adapters/hermes-lms.sh`/`hermes-omlx.sh`); the `lmstudio`/`omlx` provider blocks in `~/.hermes/config.yaml` are pre-registered by config, not queried live from a `/v1/models`-equivalent endpoint at invocation time. |
+| **Adapter script** | [`adapters/hermes.sh`](../../adapters/hermes.sh) |
+| **How it connects** | Routes ONLY through Olla (see [docs/runtimes/olla.md](../runtimes/olla.md) "Adapter wiring") — no more LiteLLM/direct-runtime branching. Hermes has no built-in Olla provider, so the adapter self-heals a `providers.olla` custom-provider block (`base_url`, `api_key`, `api_mode: chat_completions`) into the user's own `~/.hermes/config.yaml` and addresses it as `--provider custom:olla -m <bare-id>`. Approvals handled by a "smart guardian" LLM running locally. |
+| **Runtime model discovery** | **no** — `-m "$BARE_MODEL_ID"` is passed explicitly every run; the `olla` provider block is config, not queried live from a `/v1/models`-equivalent endpoint at invocation time. |
 | **Last reviewed** | 2026-06-30 |
 
 ## Edit mechanism

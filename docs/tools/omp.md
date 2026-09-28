@@ -8,12 +8,11 @@
 | **CLI command** | `omp` |
 | **Installation** | `brew install omp` (or npm: `npm install -g @oh-my-pi/pi-coding-agent`) |
 | **Upstream** | [github.com/can1357/oh-my-pi](https://github.com/can1357/oh-my-pi) |
-| **Adapter scripts** | [`adapters/omp-ollama.sh`](../../adapters/omp-ollama.sh), [`adapters/omp-omlx.sh`](../../adapters/omp-omlx.sh) |
-| **How it connects (ollama)** | `--model "$MODEL_ID"` — omp auto-registers Ollama as a local provider and resolves the model directly. |
-| **How it connects (omlx)** | omp has no built-in `omlx` provider. The adapter points omp's `lm-studio` provider at the oMLX server via `LM_STUDIO_BASE_URL="$OMLX_BASE_URL"`, then selects `--model "lm-studio/$MODEL_ID"`. Verified working live against a running oMLX server (`Ornith-1.0-35B-4bit`) — real inference output, not just theorized. See [DECISION-omp-omlx.md](../DECISION-omp-omlx.md). |
-| **Runtime model discovery** | **yes** — omp auto-registers `ollama`, `llama.cpp`, and `lm-studio` as local providers and can enumerate their models (`omp models list`). This is the capability pi.md's metadata table calls out as absent from `@earendil-works/pi-coding-agent`. |
-| **Config file** | `~/.omp/agent/models.yml` for custom provider config — **not** `models.json`, which is pi's format. Not yet investigated as a place to register a first-class `omlx` provider (see Known issues). |
-| **Last reviewed** | 2026-08-11 |
+| **Adapter script** | [`adapters/omp.sh`](../../adapters/omp.sh) |
+| **How it connects** | Routes ONLY through Olla (see [docs/runtimes/olla.md](../runtimes/olla.md) "Adapter wiring") — no more LiteLLM/direct-runtime branching. omp's `--config` overlay does **not** register a model-registry provider (confirmed empirically: `omp models --config <overlay>` doesn't pick up a new provider), so the adapter instead self-heals an isolated `--profile bench-olla`'s own `models.yml` with an `olla` provider (`discovery.type: openai-models-list`, so omp queries Olla's live `/models` itself) — this avoids ever touching the user's own `~/.omp/agent/models.yml`, which is commonly a dotfiles symlink. Model addressed as `--model "olla/<bare-id>"`. |
+| **Runtime model discovery** | **yes** — via Olla's own `/models` discovery (`discovery.type: openai-models-list` in the profile's `models.yml`), not omp's own ollama/llama.cpp/lm-studio auto-registration. |
+| **Config file** | `~/.omp/profiles/bench-olla/agent/models.yml` (bench-only, isolated profile) — **not** the user's own `~/.omp/agent/models.yml`. |
+| **Last reviewed** | 2026-09-28 |
 | **Recommended for** | not yet benchmarked |
 
 ## Edit mechanism
@@ -28,9 +27,8 @@ Not yet evaluated in this bench.
 
 | Flag | Reason |
 |------|--------|
-| `--model "$MODEL_ID"` (ollama) | Explicit model selection via omp's auto-registered Ollama provider |
-| `LM_STUDIO_BASE_URL="$OMLX_BASE_URL"` (omlx) | Redirects omp's built-in `lm-studio` provider at the oMLX server, since omp has no native `omlx` provider |
-| `--model "lm-studio/$MODEL_ID"` (omlx) | Selects the model through the redirected `lm-studio` provider |
+| `--profile bench-olla` | Isolated agent state (auth/sessions/settings/caches, including `models.yml`) so the adapter's self-healed `olla` provider never touches the user's own `~/.omp/agent/models.yml` |
+| `--model "olla/$BARE_MODEL_ID"` | Selects the model through the self-healed `olla` provider |
 
 ## Known issues
 
@@ -40,10 +38,8 @@ Not yet evaluated in this bench.
 node "$(npm root -g)/@oh-my-pi/pi-coding-agent/node_modules/bun/install.js"
 ```
 
-**Config file is `~/.omp/agent/models.yml`, not pi's `models.json`.** omp reports this path as its custom-provider config file when a model lookup fails. Unlike pi, omp doesn't need this pre-populated for its auto-registered providers (ollama/llama.cpp/lm-studio), but it may be the right place to register a first-class `omlx` provider instead of routing through `lm-studio` — schema and viability not yet checked. See [DECISION-omp-omlx.md](../DECISION-omp-omlx.md) for the full history of the omlx routing workaround.
-
-**No native `omlx` provider.** Confirmed by decompiling the installed `omp` binary (`dist/cli.js`, v17.2.12) — only `ollama`, `llama.cpp`, and `lm-studio` are auto-registered as local providers. The `lm-studio` provider redirect (above) is the current workaround.
+**`--config` does not register a model-registry provider.** Confirmed empirically (2026-09-28): `omp models --config <overlay-with-a-new-provider>` still only lists the providers already present in the active profile's `models.yml` — `--config` only overlays `config.yml`-style *settings* for the run, not the provider registry. Provider discovery only happens through `models.yml` itself; see the Olla routing above for how this adapter now works around that.
 
 ## Status
 
-**untested** — no benchmark runs recorded yet. `adapters/omp-ollama.sh` and `adapters/omp-omlx.sh` both exist; the omlx path has been smoke-tested for real inference output but not run through the full case suite.
+**stable (Olla-routed)** — migrated to route exclusively through Olla 2026-09-28 (see [docs/runtimes/olla.md](../runtimes/olla.md)); `bin/smoke -m omlx/Ornith-1.5-9B-MLX-4bit -a omp --skip-compat-update` → 2/3 PASS, 1/3 PARTIAL (smoke-02-numbers off-by-formatting, not a wiring issue), confirmed in Olla's own log (`user_agent":"omp/18.4.2"`).

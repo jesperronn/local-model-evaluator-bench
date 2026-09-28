@@ -129,6 +129,12 @@
           "id": "mtplx-flash-next-optimized-speed"
         }
       ]
+    },
+    "olla": {
+      "baseUrl": "http://127.0.0.1:40114/olla/proxy/v1",
+      "api": "openai-completions",
+      "apiKey": "olla",
+      "models": []
     }
   }
 }

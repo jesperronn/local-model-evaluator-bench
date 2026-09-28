@@ -12,6 +12,15 @@
         "baseURL": "http://localhost:11434/v1"
       },
       "models": {}
+    },
+    "olla": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Olla",
+      "options": {
+        "baseURL": "http://127.0.0.1:40114/olla/proxy/v1",
+        "apiKey": "olla"
+      },
+      "models": {}
     }
   }
 }

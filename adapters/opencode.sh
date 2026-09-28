@@ -1,75 +1,69 @@
 #!/usr/bin/env bash
-# Adapter: opencode -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Adapter: opencode -> unified endpoint via Olla proxy (OpenAI format).
+# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
+# every backend's models (omlx, mtplx, lms, ollama) under one unified list,
+# but opencode's own provider config is static (see docs/tools/opencode.md —
+# opencode does not query a provider's endpoint live), so this adapter
+# self-heals an "olla" custom provider block into the user's live
+# ~/.config/opencode/opencode.jsonc (or .json) and refreshes its "models" map
+# from Olla's live /models list on every run, via the comment-preserving
+# bin/lib/patch-jsonc-models.mjs helper (also used by bin/agents-config for
+# the other providers — invoked here, not modified).
 #
-# The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
+# Olla must be running: bin/rt olla start
+# $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
+# strip_runtime_prefix (lib/common.sh) strips it, since Olla addresses models
+# by their own bare id.
 #
-# Adapter accepts --provider to override which backend to target:
-#   --provider lms        # route to LM Studio (default if lms/ prefix)
-#   --provider ollama     # route to Ollama
-#   --provider omlx       # route to oMLX
-#   --provider mlx        # route to mlx_lm.server
-#   --provider mtplx      # route to MTPLX
-#
-# opencode reads the provider baseURL from ~/.config/opencode/opencode.json
-# (lmstudio provider for lms, ollama for ollama, etc.).
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
-
-# Parse --provider flag if passed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --provider)
-      PROVIDER="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
 
 command -v opencode >/dev/null 2>&1 || {
   echo "opencode not found; install via package manager" >&2
   exit 1
 }
 
-# Determine which runtime to use based on model prefix or naming.
-# Configure environment variables that opencode uses to reach its configured providers.
-if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
-  export LITELLM_BASE_URL="$OMLX_BASE_URL"
-  export LITELLM_API_KEY="$OMLX_API_KEY"
-  # For opencode's model reference, use omlx prefix
-  PREFIXED_MODEL_ID="omlx/${MODEL_ID#omlx/}"
-elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
-  export LITELLM_BASE_URL="$LMS_BASE_URL"
-  export LITELLM_API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="lmstudio/${MODEL_ID#lms/}"
-elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
-  export LITELLM_BASE_URL="${LITELLM_BASE_URL:-http://127.0.0.1:4444/v1}"
-  export LITELLM_API_KEY="$LITELLM_MASTER_KEY"
-  # Prefix the model ID with the provider name if not already prefixed
-  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai|lmstudio)/ ]]; then
-    PREFIXED_MODEL_ID="$MODEL_ID"
-  else
-    if [ "$PROVIDER" = "lms" ]; then
-      PREFIXED_MODEL_ID="lmstudio/${MODEL_ID}"
-    else
-      PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-    fi
-  fi
+olla_up || {
+  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+  exit 1
+}
+
+BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
+
+# ── Ensure the live opencode config has an "olla" provider, seeded from
+#    config-templates/opencode.json if no config exists yet at all. ─────────
+OPENCODE_CFG_JSONC="$HOME/.config/opencode/opencode.jsonc"
+OPENCODE_CFG_JSON="$HOME/.config/opencode/opencode.json"
+if [ -f "$OPENCODE_CFG_JSONC" ]; then
+  OPENCODE_CFG="$OPENCODE_CFG_JSONC"
+elif [ -f "$OPENCODE_CFG_JSON" ]; then
+  OPENCODE_CFG="$OPENCODE_CFG_JSON"
 else
-  # Default to LMS when proxy disabled
-  export LITELLM_BASE_URL="$LMS_BASE_URL"
-  export LITELLM_API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="lmstudio/${MODEL_ID#lms/}"
+  mkdir -p "$(dirname "$OPENCODE_CFG_JSON")"
+  cp "$REPO_ROOT/config-templates/opencode.json" "$OPENCODE_CFG_JSON"
+  OPENCODE_CFG="$OPENCODE_CFG_JSON"
 fi
+
+if ! grep -q '"olla"[[:space:]]*:' "$OPENCODE_CFG"; then
+  OLLA_PROVIDER_JSON="$(jq -n --arg url "$OLLA_BASE_URL" --arg key "$OLLA_API_KEY" \
+    '{npm: "@ai-sdk/openai-compatible", name: "Olla", options: {baseURL: $url, apiKey: $key}, models: {}}')"
+  node "$REPO_ROOT/bin/lib/patch-jsonc-models.mjs" set "$OPENCODE_CFG" provider.olla "$OLLA_PROVIDER_JSON" \
+    > "$OPENCODE_CFG.tmp" && mv "$OPENCODE_CFG.tmp" "$OPENCODE_CFG"
+fi
+
+# Refresh the "olla" provider's model list from Olla's own live discovery, so
+# it can't go stale as models come and go (mirrors adapters/pi.sh's live
+# models.json merge, adapted to opencode's {id: {name}} map shape).
+OLLA_MODELS_JSON="$(runtime_models "$OLLA_BASE_URL" "$OLLA_API_KEY" | jq -R -s -c \
+  'split("\n") | map(select(length > 0)) | map({(.): {name: .}}) | add // {}')"
+node "$REPO_ROOT/bin/lib/patch-jsonc-models.mjs" write "$OPENCODE_CFG" olla "$OLLA_MODELS_JSON" \
+  > "$OPENCODE_CFG.tmp" && mv "$OPENCODE_CFG.tmp" "$OPENCODE_CFG"
+
+PREFIXED_MODEL_ID="olla/${BARE_MODEL_ID}"
 
 if [ -t 0 ]; then
   exec opencode --model "$PREFIXED_MODEL_ID" "$@"
