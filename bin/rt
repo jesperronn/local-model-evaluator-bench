@@ -1028,7 +1028,16 @@ _olla_start() {
   info "starting Olla on $OLLA_HOST_URL ..."
   # Olla resolves config/profiles/ relative to its CWD, not to --config's
   # path (see config-templates/olla.yaml) — must cd into the install dir.
-  ( cd "$OLLA_INSTALL_DIR" && nohup ./olla --config "$HERE/config-templates/olla.yaml" >>"$logfile" 2>&1 & echo $! > "$pidfile" )
+  #
+  # `exec nohup` (rather than plain `nohup ... &`) matters: backgrounding a
+  # "cd X && nohup Y &" list forks bash to run the whole list, and that
+  # wrapper process stays alive as Y's parent — so $! captures the WRAPPER's
+  # pid, not Y's, and killing it later orphans Y still bound to the port.
+  # `exec` replaces that forked subshell's own image with nohup (which then
+  # replaces itself with olla), so the one pid backgrounding captures via $!
+  # is olla's real pid throughout.
+  ( cd "$OLLA_INSTALL_DIR" && exec nohup ./olla --config "$HERE/config-templates/olla.yaml" >>"$logfile" 2>&1 ) &
+  echo $! > "$pidfile"
 
   local waited=0
   until olla_up; do
