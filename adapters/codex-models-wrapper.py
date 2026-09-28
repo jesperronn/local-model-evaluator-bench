@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-HTTP wrapper that transforms LiteLLM's OpenAI-format /v1/models response
+HTTP wrapper that transforms Olla's OpenAI-format /v1/models response
 into Ollama format that Codex expects.
 
-LiteLLM returns: {"data":[{"id":"...", ...}], "object":"list"}
+Olla returns: {"data":[{"id":"...", ...}], "object":"list"}
 Codex expects:  {"models":[{"name":"...", ...}]}
 
 Routes all other requests through unchanged.

@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
-# Adapter: GitHub Copilot CLI -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Adapter: GitHub Copilot CLI -> unified endpoint via Olla proxy (OpenAI format).
+# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
+# every backend's models (omlx, mtplx, lms, ollama) under one unified list,
+# so no runtime-prefix branching and no per-runtime endpoint selection are
+# needed here (unlike the old LiteLLM-routed version of this file).
 #
-# The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
+# Olla must be running: bin/rt olla start
+# $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
+# strip_runtime_prefix (lib/common.sh) strips it, since Olla addresses models
+# by their own bare id.
 #
-# Adapter accepts --provider to override which backend to target:
-#   --provider lms        # route to LM Studio (default if lms/ prefix)
-#   --provider ollama     # route to Ollama
-#   --provider omlx       # route to oMLX
-#   --provider mlx        # route to mlx_lm.server
-#   --provider mtplx      # route to MTPLX
-#
-# COPILOT_PROVIDER_BASE_URL redirects all model calls to the LiteLLM proxy's
+# COPILOT_PROVIDER_BASE_URL redirects all model calls to Olla's
 # OpenAI-compatible endpoint, bypassing GitHub's Copilot service entirely.
 # COPILOT_OFFLINE=true prevents the CLI from phoning home to GitHub.
 # Docs: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models
 #
 # COPILOT_PROVIDER_MODEL_ID=gpt-4o: a well-known catalog entry copilot uses to
-# resolve token limits and agent config. The actual model sent to the proxy is in
+# resolve token limits and agent config. The actual model sent to Olla is in
 # COPILOT_PROVIDER_WIRE_MODEL; the catalog entry is only for sizing defaults.
 #
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
@@ -27,46 +25,15 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
 
-# Parse --provider flag if passed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --provider)
-      PROVIDER="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
+olla_up || {
+  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+  exit 1
+}
 
-# Determine which runtime to use based on model prefix or naming.
-# copilot uses COPILOT_PROVIDER_* env vars for routing.
-if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
-  COPILOT_PROVIDER_BASE_URL="$OMLX_BASE_URL"
-  COPILOT_PROVIDER_API_KEY="$OMLX_API_KEY"
-  PREFIXED_MODEL_ID="$MODEL_ID"
-elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
-  COPILOT_PROVIDER_BASE_URL="$LMS_BASE_URL"
-  COPILOT_PROVIDER_API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="$MODEL_ID"
-elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
-  COPILOT_PROVIDER_BASE_URL="$LITELLM_BASE_URL"
-  COPILOT_PROVIDER_API_KEY="$LITELLM_MASTER_KEY"
-  # Prefix the model ID with the provider name for litellm proxy
-  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-    PREFIXED_MODEL_ID="$MODEL_ID"
-  else
-    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-  fi
-else
-  # Default to LMS when proxy disabled
-  COPILOT_PROVIDER_BASE_URL="$LMS_BASE_URL"
-  COPILOT_PROVIDER_API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="$MODEL_ID"
-fi
+BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
+COPILOT_PROVIDER_BASE_URL="$OLLA_BASE_URL"
+COPILOT_PROVIDER_API_KEY="$OLLA_API_KEY"
 
 COPILOT_ARGS=()
 if [ ! -t 0 ]; then
@@ -78,6 +45,6 @@ exec env \
   COPILOT_PROVIDER_TYPE="openai" \
   COPILOT_PROVIDER_API_KEY="$COPILOT_PROVIDER_API_KEY" \
   COPILOT_PROVIDER_MODEL_ID="gpt-4o" \
-  COPILOT_PROVIDER_WIRE_MODEL="$PREFIXED_MODEL_ID" \
+  COPILOT_PROVIDER_WIRE_MODEL="$BARE_MODEL_ID" \
   COPILOT_OFFLINE="true" \
   copilot "${COPILOT_ARGS[@]}" "$@"

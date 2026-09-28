@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Adapter: cline -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Adapter: cline -> unified endpoint via Olla proxy (OpenAI format).
+# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
+# every backend's models (omlx, mtplx, lms, ollama) under one unified list,
+# so no runtime-prefix branching and no per-runtime endpoint selection are
+# needed here (unlike the old LiteLLM-routed version of this file).
 #
-# The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
-#
-# Adapter accepts --provider to override which backend to target:
-#   --provider lms        # route to LM Studio (default if lms/ prefix)
-#   --provider ollama     # route to Ollama
-#   --provider omlx       # route to oMLX
-#   --provider mlx        # route to mlx_lm.server
-#   --provider mtplx      # route to MTPLX
+# Olla must be running: bin/rt olla start
+# $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
+# strip_runtime_prefix (lib/common.sh) strips it, since Olla addresses models
+# by their own bare id.
 #
 # Contract: CWD is the sandbox. Prompt on stdin. $MODEL_ID set.
 #
@@ -24,20 +22,6 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
-
-# Parse --provider flag if passed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --provider)
-      PROVIDER="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
 
 # Resolve the cline binary, falling back to the pnpm store when PATH is broken.
 if ! cline --version >/dev/null 2>&1; then
@@ -48,49 +32,32 @@ else
   CLINE=cline
 fi
 
-# Determine which runtime to use based on model prefix or naming.
-# cline uses OpenAI-compatible endpoints via auth command.
-if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
-  API_BASE="$OMLX_BASE_URL"
-  API_KEY="$OMLX_API_KEY"
-  PREFIXED_MODEL_ID="${MODEL_ID#omlx/}"
-elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
-  API_BASE="$LMS_BASE_URL"
-  API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="${MODEL_ID#lms/}"
-elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
-  API_BASE="$LITELLM_BASE_URL"
-  API_KEY="$LITELLM_MASTER_KEY"
-  # Prefix the model ID with the provider name for litellm proxy
-  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-    PREFIXED_MODEL_ID="$MODEL_ID"
-  else
-    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-  fi
-else
-  # Default to LMS when proxy disabled
-  API_BASE="$LMS_BASE_URL"
-  API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="$MODEL_ID"
-fi
+olla_up || {
+  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+  exit 1
+}
 
-# Configure cline to use the appropriate runtime endpoint
+BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
+API_BASE="$OLLA_BASE_URL"
+API_KEY="$OLLA_API_KEY"
+
+# Configure cline to use Olla
 DATA_DIR="$HOME/.cline-local-adapter"
 "$CLINE" auth openai-compatible \
   --data-dir "$DATA_DIR" \
   --apikey  "$API_KEY" \
-  --modelid "$PREFIXED_MODEL_ID" \
+  --modelid "$BARE_MODEL_ID" \
   --baseurl "$API_BASE" >/dev/null 2>&1
 
 CLINE_ARGS=(
   --data-dir "$DATA_DIR"
   -P "openai-compatible"
-  --model "$PREFIXED_MODEL_ID"
+  --model "$BARE_MODEL_ID"
 )
 
 # Ornith-specific optimization: reduce verbose reasoning output
 # Only apply --thinking=low to Ornith models; other models may not support it
-if [[ "$MODEL_ID" =~ ornith|Ornith ]]; then
+if [[ "$BARE_MODEL_ID" =~ ornith|Ornith ]]; then
   CLINE_ARGS+=(--thinking low)
 fi
 

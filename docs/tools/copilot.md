@@ -20,8 +20,8 @@
 | **CLI command** | `copilot` |
 | **Version** | measured pending |
 | **Adapter script** | [`adapters/copilot.sh`](../../adapters/copilot.sh) |
-| **How it connects** | `COPILOT_PROVIDER_BASE_URL` redirected at the LiteLLM proxy's OpenAI-compatible endpoint (`COPILOT_PROVIDER_TYPE=openai`), bypassing GitHub's Copilot service entirely; `COPILOT_OFFLINE=true` stops it phoning home. `COPILOT_PROVIDER_MODEL_ID=gpt-4o` is a well-known catalog entry copilot uses only to size token limits/agent config — the real model sent on the wire is `COPILOT_PROVIDER_WIRE_MODEL`, prefixed by runtime (`omlx/<id>`, `lms/<id>`, ...). |
-| **Runtime model discovery** | **no** — the wire model id is set explicitly from `$MODEL_ID`/`--provider`; no catalog query against the local backend. |
+| **How it connects** | `COPILOT_PROVIDER_BASE_URL` redirected at Olla's OpenAI-compatible endpoint (`$OLLA_BASE_URL`, `COPILOT_PROVIDER_TYPE=openai`), bypassing GitHub's Copilot service entirely; `COPILOT_OFFLINE=true` stops it phoning home. `COPILOT_PROVIDER_MODEL_ID=gpt-4o` is a well-known catalog entry copilot uses only to size token limits/agent config — the real model sent on the wire is `COPILOT_PROVIDER_WIRE_MODEL`, the bare model id with any runtime prefix stripped (`strip_runtime_prefix`; Olla addresses every backend's models by bare id). Migrated from the LiteLLM proxy to Olla 2026-09-28 — see docs/runtimes/olla.md. |
+| **Runtime model discovery** | **no** — the wire model id is set explicitly from `$MODEL_ID`; no catalog query against the local backend. |
 | **Last reviewed** | 2026-08-29 |
 
 ## Edit mechanism
@@ -47,10 +47,10 @@ Not yet evaluated — no known blockers documented beyond the fixed issues below
 
 | Flag / env var | Reason |
 |------|--------|
-| `COPILOT_PROVIDER_BASE_URL=$LITELLM_BASE_URL` | Routes all model calls through the local litellm proxy instead of GitHub's Copilot backend. |
+| `COPILOT_PROVIDER_BASE_URL=$OLLA_BASE_URL` | Routes all model calls through Olla instead of GitHub's Copilot backend. |
 | `COPILOT_PROVIDER_TYPE=openai` | Tells copilot to treat the endpoint as a generic OpenAI-compatible provider. |
 | `COPILOT_PROVIDER_MODEL_ID=gpt-4o` | A catalog entry copilot needs to resolve token-limit/sizing defaults; not the model actually called. |
-| `COPILOT_PROVIDER_WIRE_MODEL=$PREFIXED_MODEL_ID` | The real runtime-prefixed model id sent on the wire. |
+| `COPILOT_PROVIDER_WIRE_MODEL=$BARE_MODEL_ID` | The real model id (runtime prefix stripped) sent on the wire. |
 | `COPILOT_OFFLINE=true` | Prevents any call back to GitHub's own service. |
 | `--allow-all-tools --allow-all-paths --no-ask-user -p "$(cat)"` (non-interactive only) | Runs unattended in the sandbox with the piped prompt. |
 

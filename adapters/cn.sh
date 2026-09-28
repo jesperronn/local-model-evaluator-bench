@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Adapter: cn (Continue's headless CLI) -> unified endpoint via LiteLLM proxy.
-# Routes through the LiteLLM proxy ($LITELLM_BASE_URL) to any local runtime
-# (lms, ollama, mlx, omlx, mtplx) based on model ID prefix.
+# Adapter: cn (Continue's headless CLI) -> unified endpoint via Olla proxy (OpenAI format).
+# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
+# every backend's models (omlx, mtplx, lms, ollama) under one unified list,
+# so no runtime-prefix branching and no per-runtime endpoint selection are
+# needed here (unlike the old LiteLLM-routed version of this file).
 #
-# The proxy must be running: bin/litellm-proxy start
-# Model IDs are prefixed by provider: lms/<id>, ollama/<id>, omlx/<id>, mlx/<id>, mtplx/<id>
-#
-# Adapter accepts --provider to override which backend to target:
-#   --provider lms        # route to LM Studio (default if lms/ prefix)
-#   --provider ollama     # route to Ollama
-#   --provider omlx       # route to oMLX
-#   --provider mlx        # route to mlx_lm.server
-#   --provider mtplx      # route to MTPLX
+# Olla must be running: bin/rt olla start
+# $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
+# strip_runtime_prefix (lib/common.sh) strips it, since Olla addresses models
+# by their own bare id.
 #
 # Named "cn" (not "continue") because bin/bench resolves adapters via
 # `command -v "$adapter"`, and "continue" collides with the bash builtin of
@@ -23,52 +21,21 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
-PROVIDER="${PROVIDER:-${RUNTIME:-lms}}"
-
-# Parse --provider flag if passed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --provider)
-      PROVIDER="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
 
 command -v cn >/dev/null 2>&1 || { echo "cn not found; install: npm install -g @continuedev/cli" >&2; exit 1; }
+
+olla_up || {
+  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+  exit 1
+}
+
+BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
+API_BASE="$OLLA_BASE_URL"
+API_KEY="$OLLA_API_KEY"
 
 CONFIG_DIR="$HOME/.continue-local-adapter"
 mkdir -p "$CONFIG_DIR"
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
-
-# Determine which runtime to use based on model prefix or naming.
-# cn uses OpenAI-compatible endpoints via config YAML.
-if [[ "$MODEL_ID" =~ ^omlx/ ]] || [[ "$MODEL_ID" == "Ornith"* ]]; then
-  API_BASE="$OMLX_BASE_URL"
-  API_KEY="$OMLX_API_KEY"
-  PREFIXED_MODEL_ID="${MODEL_ID#omlx/}"
-elif [[ "$MODEL_ID" =~ ^lms/ ]]; then
-  API_BASE="$LMS_BASE_URL"
-  API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="${MODEL_ID#lms/}"
-elif [[ "$LITELLM_PROXY_MODE" == "1" ]]; then
-  API_BASE="$LITELLM_BASE_URL"
-  API_KEY="$LITELLM_MASTER_KEY"
-  # Prefix the model ID with the provider name for litellm proxy
-  if [[ "$MODEL_ID" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/ ]]; then
-    PREFIXED_MODEL_ID="$MODEL_ID"
-  else
-    PREFIXED_MODEL_ID="${PROVIDER}/${MODEL_ID}"
-  fi
-else
-  # Default to LMS when proxy disabled
-  API_BASE="$LMS_BASE_URL"
-  API_KEY="$LMS_API_KEY"
-  PREFIXED_MODEL_ID="$MODEL_ID"
-fi
 
 # Regenerated each run so MODEL_ID always matches the current adapter invocation.
 cat > "$CONFIG_FILE" <<EOF
@@ -78,7 +45,7 @@ schema: v1
 models:
   - name: local-model
     provider: openai
-    model: "${PREFIXED_MODEL_ID}"
+    model: "${BARE_MODEL_ID}"
     apiBase: "${API_BASE}"
     apiKey: "${API_KEY}"
     roles:
@@ -89,7 +56,7 @@ models:
       - tool_use
 EOF
 
-# Forward tuned sampling params to the LiteLLM API via Continue's
+# Forward tuned sampling params to Olla via Continue's
 # defaultCompletionOptions. Continue is the only adapter that can carry
 # per-request temperature/penalties (pi/cline expose no such CLI flags), so the
 # ADAPTER_DEFAULT_* knobs from config.sh are honoured here. Penalties are only
