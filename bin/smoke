@@ -233,7 +233,7 @@ fi
 # would otherwise surface as a per-adapter connection-refused FAIL that looks
 # like a wiring bug. Check once, up front, with a clear error instead. This
 # does NOT start Olla — bin/rt olla status/start stay the only autostart path.
-_OLLA_ROUTED_ADAPTERS=" pi claude "
+_OLLA_ROUTED_ADAPTERS=" aider caveman claude cline cn codex copilot forge goose gptme hermes interpreter mini-swe-agent nanocoder omp opencode-orch opencode openhands pi qwen vibe "
 for _a in ${_smoke_adapters//,/ }; do
   if [[ "$_OLLA_ROUTED_ADAPTERS" == *" $_a "* ]]; then
     olla_up || die "Olla proxy not reachable at $OLLA_HOST_URL — '$_a' routes through Olla only (run: bin/rt olla start)"
