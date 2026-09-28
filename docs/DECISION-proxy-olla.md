@@ -26,7 +26,7 @@ config pre-synced the same way it already needs for LiteLLM/LM Studio direct
 | Auth needed locally | Yes — `sk-*` master key required even for localhost clients | **No** — confirmed: requests succeed with no `Authorization` header, and Olla also accepts (and forwards untouched) a dummy `Bearer x` without erroring |
 | Model sync | Manual — `store_model_in_db` backed by Postgres; models must be registered | **Automatic** — static endpoint list only; Olla discovers each backend's own `/v1/models` on its own (30s health-check / 5m model-discovery interval), no per-model registration |
 | Startup | Docker + Postgres container; multi-step, slow | **Single static binary**, cold start to first healthy `/internal/health` ≈ **0.8s** (see below) |
-| Anthropic `/v1/messages` support | None (OpenAI format only) | **Yes** — dedicated `/olla/anthropic/v1/messages` route, with native passthrough when the backend supports it (both oMLX and MTPLX do) and OpenAI-translation fallback otherwise |
+| Anthropic `/v1/messages` support | Yes (LiteLLM serves `/v1/messages` and translates to OpenAI backends; not exercised in this spike) | **Yes** — dedicated `/olla/anthropic/v1/messages` route, with native passthrough when the backend supports it (both oMLX and MTPLX do) and OpenAI-translation fallback otherwise |
 | OpenAI tool calls | Passthrough only | Passthrough; verified structured `tool_calls` survive intact |
 | Down-backend tolerance | N/A (not tested this spike) | **Good** — lms/ollama configured but down; Olla marks them `offline` at startup and keeps serving omlx/mtplx with no crash, no blocking |
 | Unified model discovery | Manual registration | Automatic; unified `/olla/proxy/v1/models` lists all backends' models without per-model config |
