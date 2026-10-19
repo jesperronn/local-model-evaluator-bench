@@ -80,7 +80,7 @@ show_help() {
   help_line "  new model, adapter, or runtime."
 
   help_section "OPTIONS"
-  help_flag "--runtime" "NAME" "lms | ollama | mlx | omlx (default: lms)"
+  help_flag "--runtime" "NAME" "lms | ollama | mlx | omlx | mtplx | splash (default: lms)"
   help_flag "--model, -m" "ID" "model to test (default: \$SMOKE_MODEL for lms)"
   help_flag "--adapter, -a" "NAMES" "test specific adapters (comma-separated, or 'all')"
   help_flag "--retry-broken[=ADAPTERS]" "" "retry adapters marked as broken in compat.json"
@@ -125,6 +125,7 @@ extract_runtime_and_model() {
     ollama/*) echo "ollama"; echo "${model#ollama/}";;
     mlx/*) echo "mlx"; echo "${model#mlx/}";;
     mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
+    splash/*) echo "splash"; echo "${model#splash/}";;
     *) echo "lms"; echo "$model";;
   esac
 }
@@ -234,7 +235,12 @@ fi
 # like a wiring bug. Check once, up front, with a clear error instead. This
 # does NOT start Olla — bin/rt olla status/start stay the only autostart path.
 _OLLA_ROUTED_ADAPTERS=" aider caveman claude cline cn codex copilot forge goose gptme hermes interpreter mini-swe-agent nanocoder omp opencode-orch opencode openhands pi qwen vibe "
+# Adapters that can bypass Olla and talk to splash directly (RUNTIME=splash).
+_SPLASH_DIRECT_ADAPTERS=" omp pi "
 for _a in ${_smoke_adapters//,/ }; do
+  if [ "$RUNTIME" = "splash" ] && [[ "$_SPLASH_DIRECT_ADAPTERS" == *" $_a "* ]]; then
+    continue
+  fi
   if [[ "$_OLLA_ROUTED_ADAPTERS" == *" $_a "* ]]; then
     olla_up || die "Olla proxy not reachable at $OLLA_HOST_URL — '$_a' routes through Olla only (run: bin/rt olla start)"
     break
@@ -331,6 +337,14 @@ elif [ "$RUNTIME" = "mtplx" ]; then
       die "'$MODEL' is served by MTPLX but not registered with LiteLLM — run: bin/litellm-proxy sync"
     fi
   fi
+
+elif [ "$RUNTIME" = "splash" ]; then
+  # splash: single resident model, no load step. Check up + serving the model.
+  splash_up || die "splash not reachable at $SPLASH_BASE_URL (user starts it; this repo never does)"
+  if [ -n "${MODEL:-}" ] && ! runtime_models "$SPLASH_BASE_URL" | grep -qx "$MODEL"; then
+    die "splash does not serve '$MODEL' (see: curl $SPLASH_BASE_URL/models)"
+  fi
+  ok "splash up — ${MODEL:-$(runtime_models "$SPLASH_BASE_URL" | head -1)}"
 
 elif [ "$RUNTIME" = "omlx" ]; then
   # oMLX loads on demand, so there is nothing to pre-load — only check that the

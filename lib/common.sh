@@ -72,6 +72,11 @@ olla_up() {
   curl -fsS --max-time 5 "$OLLA_HOST_URL/internal/health" >/dev/null 2>&1
 }
 
+# Reachability check against the splash server. Returns 0 if up.
+splash_up() {
+  curl -fsS --max-time 5 "$SPLASH_BASE_URL/models" >/dev/null 2>&1
+}
+
 # Strip a known runtime prefix (omlx/, mtplx/, lms/, ollama/, mlx/, openai/)
 # from a model id. Olla addresses models by their own bare id — it discovers
 # every backend's models under one unified list — so adapters routing only
@@ -82,7 +87,7 @@ olla_up() {
 # Usage: strip_runtime_prefix <model-id>
 strip_runtime_prefix() {
   local m="$1"
-  if [[ "$m" =~ ^(lms|ollama|mlx|omlx|mtplx|openai)/(.+)$ ]]; then
+  if [[ "$m" =~ ^(lms|ollama|mlx|omlx|mtplx|splash|openai)/(.+)$ ]]; then
     printf '%s' "${BASH_REMATCH[2]}"
   else
     printf '%s' "$m"

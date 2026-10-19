@@ -38,23 +38,31 @@ command -v omp >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
-
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
+
+# RUNTIME=splash (set by bin/bench for splash/<id> models): talk to the splash
+# server directly, bypassing Olla (not registered there). See docs/tools/splash.md.
+if [ "${RUNTIME:-}" = "splash" ]; then
+  splash_up || { echo "splash not reachable at $SPLASH_BASE_URL (user starts it)" >&2; exit 1; }
+  PROV_NAME="splash"; PROV_URL="$SPLASH_BASE_URL"
+else
+  olla_up || {
+    echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
+    exit 1
+  }
+  PROV_NAME="olla"; PROV_URL="$OLLA_BASE_URL"
+fi
 
 # Isolated profile so this adapter never touches the user's own
 # ~/.omp/agent/models.yml (that file is commonly a dotfiles symlink).
-OMP_PROFILE="bench-olla"
+OMP_PROFILE="bench-$PROV_NAME"
 OMP_PROFILE_MODELS="$HOME/.omp/profiles/$OMP_PROFILE/agent/models.yml"
 mkdir -p "$(dirname "$OMP_PROFILE_MODELS")"
 if [ ! -f "$OMP_PROFILE_MODELS" ]; then
   cat > "$OMP_PROFILE_MODELS" <<YAML
 providers:
-  olla:
-    baseUrl: $OLLA_BASE_URL
+  $PROV_NAME:
+    baseUrl: $PROV_URL
     api: openai-completions
     auth: none
     discovery:
@@ -64,7 +72,7 @@ fi
 
 OMP_ARGS=(
   --profile "$OMP_PROFILE"
-  --model "olla/${BARE_MODEL_ID}"
+  --model "${PROV_NAME}/${BARE_MODEL_ID}"
   --auto-approve
 )
 

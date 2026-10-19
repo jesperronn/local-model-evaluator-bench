@@ -99,6 +99,14 @@ export MTPLX_PORT="${MTPLX_PORT:-8001}"
 export MTPLX_BASE_URL="${MTPLX_BASE_URL:-http://127.0.0.1:${MTPLX_PORT}/v1}"
 export MTPLX_API_KEY="${MTPLX_API_KEY:-mtplx}"
 
+# splash — local OpenAI-compatible inference server (llama.cpp-style, DFlash
+# speculative draft). Single resident model; also speaks /v1/messages and
+# /v1/responses. NOT behind Olla (not in olla.yaml): adapters that support it
+# talk to it directly when RUNTIME=splash. See docs/tools/splash.md.
+export SPLASH_PORT="${SPLASH_PORT:-8002}"
+export SPLASH_BASE_URL="${SPLASH_BASE_URL:-http://127.0.0.1:${SPLASH_PORT}/v1}"
+export SPLASH_API_KEY="${SPLASH_API_KEY:-splash}"
+
 # Default model used by adapters when MODEL_ID is not set externally.
 # Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh
 # Standard model for local evaluations: Ornith-1.5-35B-A3B-MLX-4bit via omlx

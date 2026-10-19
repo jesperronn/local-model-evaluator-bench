@@ -152,6 +152,7 @@ show_help() {
     mlx)    base_url="http://localhost:8080/v1";;
     omlx)   base_url="$OMLX_BASE_URL";;
     mtplx)  base_url="$MTPLX_BASE_URL";;
+    splash) base_url="$SPLASH_BASE_URL";;
     *)      base_url="$LITELLM_BASE_URL";;
   esac
   runtime_models "$base_url" | sed 's/^/  /' || echo "  ${C_DIM}(runtime server not reachable)${C_RST}"
@@ -177,6 +178,7 @@ extract_runtime_and_model() {
     mlx/*) echo "mlx"; echo "${model#mlx/}";;
     lms/*) echo "lms"; echo "${model#lms/}";;
     mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
+    splash/*) echo "splash"; echo "${model#splash/}";;
     *) echo ""; echo "$model";;
   esac
 }
@@ -233,6 +235,7 @@ if [ "$INTERACTIVE" = 1 ]; then
       mlx)    _base_url="http://localhost:8080/v1";;
       omlx)   _base_url="$OMLX_BASE_URL";;
       mtplx)  _base_url="$MTPLX_BASE_URL";;
+      splash) _base_url="$SPLASH_BASE_URL";;
       *)      _base_url="$LITELLM_BASE_URL";;
     esac
 
@@ -351,7 +354,9 @@ case "$RUNTIME" in
           RUNTIME_API_KEY="$OMLX_API_KEY";;
   mtplx)  RUNTIME_BASE_URL="$MTPLX_BASE_URL"
           RUNTIME_API_KEY="$MTPLX_API_KEY";;
-  *)      die "unknown --runtime: $RUNTIME (valid: litellm-proxy, lms, ollama, mlx, omlx, mtplx)";;
+  splash) RUNTIME_BASE_URL="$SPLASH_BASE_URL"
+          RUNTIME_API_KEY="$SPLASH_API_KEY";;
+  *)      die "unknown --runtime: $RUNTIME (valid: litellm-proxy, lms, ollama, mlx, omlx, mtplx, splash)";;
 esac
 export LMS_BASE_URL="$RUNTIME_BASE_URL"
 export LMS_API_KEY="$RUNTIME_API_KEY"
@@ -410,7 +415,7 @@ preflight_check_models() {
   local available missing=()
 
   case "$runtime" in
-    litellm-proxy|ollama|mtplx)
+    litellm-proxy|ollama|mtplx|splash)
       # Query the OpenAI-compatible /v1/models endpoint
       available="$(runtime_models "$RUNTIME_BASE_URL")"
       if [ -z "$available" ]; then
@@ -1020,6 +1025,7 @@ for model_alias in "${MODEL_ARR[@]}"; do
               info "unloading model: $model_alias"; omlx_unload_model "$model" || true
             fi;;  # default: leave resident, oMLX self-manages via LRU (see config.sh)
     mtplx)  ;;  # no known unload endpoint yet; server manages its own memory
+    splash) ;;  # single resident model; nothing to unload
   esac
 done
 
