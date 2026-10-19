@@ -28,15 +28,12 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 # mini-swe-agent v2 requires the Python bin to be on PATH
 export PATH="/Users/jesper/Library/Python/3.14/bin:$PATH"
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
-export OPENAI_API_BASE="$OLLA_BASE_URL"
-export OPENAI_API_KEY="$OLLA_API_KEY"
+export OPENAI_API_BASE="$EP_URL"
+export OPENAI_API_KEY="$EP_KEY"
 
 export MINI_CONFIG_INTERACTIVE=0
 # litellm has no cost table for local model ids; without this it raises
