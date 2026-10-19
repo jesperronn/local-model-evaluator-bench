@@ -27,10 +27,8 @@ command -v opencode >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
+if [ "${RUNTIME:-}" = "splash" ]; then PROV_ID="splash"; PROV_LABEL="Splash"; else PROV_ID="olla"; PROV_LABEL="Olla"; fi
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
@@ -48,22 +46,22 @@ else
   OPENCODE_CFG="$OPENCODE_CFG_JSON"
 fi
 
-if ! grep -q '"olla"[[:space:]]*:' "$OPENCODE_CFG"; then
-  OLLA_PROVIDER_JSON="$(jq -n --arg url "$OLLA_BASE_URL" --arg key "$OLLA_API_KEY" \
-    '{npm: "@ai-sdk/openai-compatible", name: "Olla", options: {baseURL: $url, apiKey: $key}, models: {}}')"
-  node "$REPO_ROOT/bin/lib/patch-jsonc-models.mjs" set "$OPENCODE_CFG" provider.olla "$OLLA_PROVIDER_JSON" \
+if ! grep -q "\"$PROV_ID\"[[:space:]]*:" "$OPENCODE_CFG"; then
+  OLLA_PROVIDER_JSON="$(jq -n --arg url "$EP_URL" --arg key "$EP_KEY" --arg name "$PROV_LABEL" \
+    '{npm: "@ai-sdk/openai-compatible", name: $name, options: {baseURL: $url, apiKey: $key}, models: {}}')"
+  node "$REPO_ROOT/bin/lib/patch-jsonc-models.mjs" set "$OPENCODE_CFG" "provider.$PROV_ID" "$OLLA_PROVIDER_JSON" \
     > "$OPENCODE_CFG.tmp" && mv "$OPENCODE_CFG.tmp" "$OPENCODE_CFG"
 fi
 
 # Refresh the "olla" provider's model list from Olla's own live discovery, so
 # it can't go stale as models come and go (mirrors adapters/pi.sh's live
 # models.json merge, adapted to opencode's {id: {name}} map shape).
-OLLA_MODELS_JSON="$(runtime_models "$OLLA_BASE_URL" "$OLLA_API_KEY" | jq -R -s -c \
+OLLA_MODELS_JSON="$(runtime_models "$EP_URL" "$EP_KEY" | jq -R -s -c \
   'split("\n") | map(select(length > 0)) | map({(.): {name: .}}) | add // {}')"
-node "$REPO_ROOT/bin/lib/patch-jsonc-models.mjs" write "$OPENCODE_CFG" olla "$OLLA_MODELS_JSON" \
+node "$REPO_ROOT/bin/lib/patch-jsonc-models.mjs" write "$OPENCODE_CFG" "$PROV_ID" "$OLLA_MODELS_JSON" \
   > "$OPENCODE_CFG.tmp" && mv "$OPENCODE_CFG.tmp" "$OPENCODE_CFG"
 
-PREFIXED_MODEL_ID="olla/${BARE_MODEL_ID}"
+PREFIXED_MODEL_ID="${PROV_ID}/${BARE_MODEL_ID}"
 
 if [ -t 0 ]; then
   exec opencode --model "$PREFIXED_MODEL_ID" "$@"

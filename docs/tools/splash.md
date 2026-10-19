@@ -88,3 +88,4 @@ Bench = `js-01-slugify-bug,js-02-debounce-feature`, `--stall 300`, one trial. Sm
 | aider | direct (--openai-api-base) | 3/3 | 8/8 | 64s / 29s | |
 | openhands | direct (LLM_BASE_URL) | 3/3 | 8/8 | 157s / 254s | |
 | mini-swe-agent | direct (OPENAI_API_BASE) | 3/3 | 8/8 (re-run `--warmup 0 --timeout 600`) | 228s / 331s | first bench 5/8: bench fast-path error regex (`Cannot find module`) matched the *model's own test-script output* in the log and aborted the trial early (WATCHDOG: fatal error in log) - bench false positive, not a splash issue |
+| opencode | direct (provider `splash` in ~/.config/opencode/opencode.jsonc, backup `.bak-splash`) | 3/3 | 8/8 | 64s / 205s | |
