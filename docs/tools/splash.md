@@ -85,3 +85,5 @@ Bench = `js-01-slugify-bug,js-02-debounce-feature`, `--stall 300`, one trial. Sm
 | pi | direct | 3/3 | 8/8 (earlier run) | 77s / 74s | |
 | goose | direct (OPENAI_BASE_URL) | 3/3 | 8/8 | 70s / 76s | first smoke attempt in a combined run reported failures; re-run 3/3 (flaky once) |
 | qwen | direct (OPENAI_BASE_URL) | 3/3 | 8/8 | 99s / 186s | smoke slow (120s hello) - cold start |
+| aider | direct (--openai-api-base) | 3/3 | 8/8 | 64s / 29s | |
+| openhands | direct (LLM_BASE_URL) | 3/3 | 8/8 | 157s / 254s | |

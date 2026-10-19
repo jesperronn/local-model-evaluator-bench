@@ -35,14 +35,11 @@ command -v aider >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
-API_BASE="$OLLA_BASE_URL"
-API_KEY="$OLLA_API_KEY"
+API_BASE="$EP_URL"
+API_KEY="$EP_KEY"
 # aider's bundled litellm client requires a provider prefix to parse the
 # model name, even though the endpoint is a direct OpenAI-compatible one.
 PREFIXED_MODEL_ID="openai/${BARE_MODEL_ID}"

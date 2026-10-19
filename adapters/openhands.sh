@@ -28,16 +28,13 @@ command -v openhands >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
 # Set environment variables to route through Olla.
-export LLM_API_KEY="$OLLA_API_KEY"
-export LLM_BASE_URL="$OLLA_BASE_URL"
+export LLM_API_KEY="$EP_KEY"
+export LLM_BASE_URL="$EP_URL"
 export LLM_MODEL="openai/${BARE_MODEL_ID}"
 export OPENHANDS_SUPPRESS_BANNER=1
 
