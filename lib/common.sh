@@ -77,6 +77,20 @@ splash_up() {
   curl -fsS --max-time 5 "$SPLASH_BASE_URL/models" >/dev/null 2>&1
 }
 
+# Pick the OpenAI-compatible endpoint an adapter should talk to: splash directly
+# when RUNTIME=splash (set by bin/bench for splash/<id> models), otherwise Olla.
+# Sets EP_URL (…/v1), EP_ROOT (no /v1), EP_KEY. Returns 1 (with message) if down.
+adapter_endpoint() {
+  if [ "${RUNTIME:-}" = "splash" ]; then
+    splash_up || { echo "splash not reachable at $SPLASH_BASE_URL (user starts it)" >&2; return 1; }
+    EP_URL="$SPLASH_BASE_URL"; EP_KEY="$SPLASH_API_KEY"
+  else
+    olla_up || { echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2; return 1; }
+    EP_URL="$OLLA_BASE_URL"; EP_KEY="$OLLA_API_KEY"
+  fi
+  EP_ROOT="${EP_URL%/v1}"
+}
+
 # Strip a known runtime prefix (omlx/, mtplx/, lms/, ollama/, mlx/, openai/)
 # from a model id. Olla addresses models by their own bare id — it discovers
 # every backend's models under one unified list — so adapters routing only

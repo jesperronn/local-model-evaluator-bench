@@ -74,3 +74,14 @@ js-02 4/4 74s, bash-01 0/4 stall 123s). Label: NOT the canonical baseline.
 
 Only omp and pi currently honor `RUNTIME=splash`; other adapters need the same
 `PROV_NAME/PROV_URL` branch (see `adapters/pi.sh`) and an entry in `_SPLASH_DIRECT_ADAPTERS` in `bin/smoke`.
+
+## Adapter results (direct splash route, RUNTIME=splash)
+
+Bench = `js-01-slugify-bug,js-02-debounce-feature`, `--stall 300`, one trial. Smoke = smoke-00/01/02.
+
+| Adapter | Route | Smoke | Bench | Time (js-01 / js-02) | Notes |
+|---|---|---|---|---|---|
+| omp | direct | 3/3 | 8/8 (earlier run) | - / 144s | first smoke hit cold-discovery error, re-run passed |
+| pi | direct | 3/3 | 8/8 (earlier run) | 77s / 74s | |
+| goose | direct (OPENAI_BASE_URL) | 3/3 | 8/8 | 70s / 76s | first smoke attempt in a combined run reported failures; re-run 3/3 (flaky once) |
+| qwen | direct (OPENAI_BASE_URL) | 3/3 | 8/8 | 99s / 186s | smoke slow (120s hello) - cold start |

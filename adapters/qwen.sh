@@ -30,15 +30,12 @@ command -v qwen >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
-export OPENAI_BASE_URL="$OLLA_BASE_URL"
-export OPENAI_API_KEY="$OLLA_API_KEY"
+export OPENAI_BASE_URL="$EP_URL"
+export OPENAI_API_KEY="$EP_KEY"
 export OPENAI_MODEL="$BARE_MODEL_ID"
 export QWEN_CODE_SUPPRESS_YOLO_WARNING=1
 export QWEN_CODE_SKIP_UPDATE_CHECK_ONCE=true
