@@ -683,15 +683,6 @@ progress_epoch() {
   printf '%s' "$best"
 }
 
-# Recursively signal a process and all its descendants (subshell -> timeout ->
-# bash adapter -> node/pi). Plain `kill <pid>` hits only the subshell and leaves
-# the model process generating; we must walk the tree.
-kill_tree() {
-  local p="$1" sig="${2:-TERM}" c
-  for c in $(pgrep -P "$p" 2>/dev/null); do kill_tree "$c" "$sig"; done
-  kill -"$sig" "$p" 2>/dev/null
-}
-
 # Parse lms log stream --json output and compute in-flight prediction count
 # (input events minus output events at the time of the call). Returns a string
 # like "5 in-flight" or empty if JSON is malformed or unavailable.
@@ -761,9 +752,20 @@ run_trial() {
   # adapter/runtime stderr anyway (model text flushes only at the end).
   local _ERR_RE='command not found|: not found|not installed|ECONNREFUSED|[Cc]onnection refused|fetch failed|Traceback \(most recent call last\)|Cannot find module|ENOENT|out of memory|CUDA (error|out of memory)|model_not_found|HTTP error (4|5)[0-9][0-9]|panic:|FATAL'
   local last_prog="$start" first_seen=0 abort_reason="" phase budget
+  hc_init 2
   while kill -0 "$apid" 2>/dev/null; do
     sleep 2
     kill -0 "$apid" 2>/dev/null || break
+    # Hard-ceiling backstop (runs even with --warmup 0): timeout(1) counts
+    # monotonic time that pauses during macOS sleep, so enforce on awake
+    # wall-clock too and kill the whole tree.
+    hc_tick
+    if [ "$(hc_active "$start")" -ge $(( TIMEOUT + 20 )) ]; then
+      printf 'WATCHDOG: hard ceiling %ss exceeded (awake %ss) — killing process tree\n' "$TIMEOUT" "$(hc_active "$start")" >>"$logf"
+      abort_reason="timeout"
+      kill_tree "$apid" TERM; ( sleep 5; kill_tree "$apid" KILL ) &
+      break
+    fi
     [ "$WARMUP" -gt 0 ] || continue
 
     # Fast path: a fatal error is already visible — abort now, don't wait.
@@ -805,6 +807,9 @@ run_trial() {
   elif [ $rc -eq 124 ]; then status="timeout"
   elif [ $rc -ne 0 ]; then status="error($rc)"; fi
   elapsed=$(( $(date +%s) - start ))
+  # Report awake time: wall-clock minus any system-sleep gaps seen by the poll loop.
+  elapsed=$(( elapsed - HC_SLEPT ))
+  [ "$HC_SLEPT" -gt 0 ] && printf 'NOTE: excluded %ss of system sleep from elapsed\n' "$HC_SLEPT" >>"$logf"
 
   local grade_out line pass total
   grade_out="$( cd "$sandbox" && CASE_DIR="$case_src" REPO_ROOT="$HERE" \

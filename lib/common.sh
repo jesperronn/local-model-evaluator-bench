@@ -213,6 +213,46 @@ run_timeout() {
   fi
 }
 
+# Recursively signal a process and all its descendants (subshell -> timeout ->
+# bash adapter -> node/pi). Plain `kill <pid>` hits only the wrapper.
+kill_tree() {
+  local p="$1" sig="${2:-TERM}" c
+  for c in $(pgrep -P "$p" 2>/dev/null); do kill_tree "$c" "$sig"; done
+  kill -"$sig" "$p" 2>/dev/null
+}
+
+# Sleep-aware hard-ceiling clock. GNU `timeout` (and perl alarm) count
+# monotonic time, which does NOT advance while the Mac is asleep, whereas
+# `date +%s` does. A clamshell/maintenance sleep mid-trial therefore let a
+# 20s-of-CPU trial report 2995s wall and sail past --timeout. Call hc_init once,
+# then hc_tick from a poll loop that sleeps a known short interval; a wall-clock
+# gap much larger than the interval is treated as suspend and excluded.
+# hc_active <start-epoch> prints awake seconds since start.
+hc_init() { HC_LAST="$(date +%s)"; HC_SLEPT=0; HC_INTERVAL="${1:-2}"; }
+hc_tick() {
+  local now gap; now="$(date +%s)"; gap=$(( now - HC_LAST ))
+  [ "$gap" -gt $(( HC_INTERVAL + 8 )) ] && HC_SLEPT=$(( HC_SLEPT + gap - HC_INTERVAL ))
+  HC_LAST="$now"
+}
+hc_active() { printf '%s' $(( $(date +%s) - $1 - HC_SLEPT )); }
+
+# Backstop for run_timeout: wait for <pid> (backgrounded wrapper) polling every
+# 2s; if awake time since <start> exceeds <secs>+<grace> (timeout's own
+# 15s kill-after included), kill the whole tree. Returns 0 if the process ended
+# on its own, 124 if killed here. Independent of timeout(1) behaving.
+wait_hard_ceiling() {
+  local pid="$1" start="$2" secs="$3" grace="${4:-20}"
+  hc_init 2
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 2; hc_tick
+    if [ "$(hc_active "$start")" -ge $(( secs + grace )) ]; then
+      kill_tree "$pid" TERM; sleep 2; kill_tree "$pid" KILL
+      return 124
+    fi
+  done
+  return 0
+}
+
 # Sanitize a model id into a filesystem-safe path segment.
 fs_safe() { printf '%s' "$1" | tr '/:' '__'; }
 
