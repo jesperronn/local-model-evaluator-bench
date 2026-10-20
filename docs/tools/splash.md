@@ -245,3 +245,11 @@ opencode 64/205s, omp -/144s, claude 27/51s; via Olla: pi 33/55s, goose 60/99s, 
 opencode 82/81s, omp 42/147s, claude 28/20s) - differences are within run-to-run noise; the
 shim/Olla hop adds no measurable cost. Bench ran with default `--parallel 4` against single-slot
 splash. js-03 and ts-01 have no direct-route baseline.
+
+## Interactive discovery (`bin/bench -i`)
+
+`bin/smoke` has no picker of its own (it takes `--model splash/<id>` and points at `bin/bench --interactive`).
+With no `--runtime`/`RUNTIME` set, `bin/bench -i` now lists every reachable runtime's models, prefixed
+(`interactive_model_list` in `lib/common.sh`): `splash/<id>` from `$SPLASH_BASE_URL/models` when splash is up,
+`olla/<id>` from Olla, plus lms/ollama/omlx/mtplx. Pick `splash/unsloth/...` and the prefix selects the runtime;
+rerun with `bin/smoke --model splash/<id>`. An explicit `--runtime X` keeps the old single-runtime picker.

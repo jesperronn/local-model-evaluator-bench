@@ -185,7 +185,7 @@ extract_runtime_and_model() {
   esac
 }
 
-ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME="${RUNTIME:-litellm-proxy}"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""
+ADAPTERS=""; MODELS=""; CASES=""; DIFFICULTY=""; TIMEOUT=300; WARMUP=180; STALL=120; TRIALS=1; LIST=0; INTERACTIVE=0; VERBOSE=0; RUNTIME_FROM_ENV="${RUNTIME:-}"; RUNTIME="${RUNTIME:-litellm-proxy}"; RESUME=""; SKIP_COMPAT_FILTER=0; FROM_QUALIFIED=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent|-a)        ADAPTERS="$2"; shift 2;;
@@ -196,7 +196,7 @@ while [ $# -gt 0 ]; do
     --warmup)            WARMUP="$2";   shift 2;;
     --stall)             STALL="$2";    shift 2;;
     --trials)            TRIALS="$2";   shift 2;;
-    --runtime)           RUNTIME="$2"; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
+    --runtime)           RUNTIME="$2"; _RUNTIME_EXPLICIT=1; warn "flag --runtime is deprecated; extract it from model prefix (e.g., omlx/model-name)"; shift 2;;
     --from-qualified)    FROM_QUALIFIED="$2"; shift 2;;
     --list)              LIST=1; shift;;
     --interactive|-i)    INTERACTIVE=1; shift;;
@@ -227,6 +227,17 @@ fi
 
 if [ "$INTERACTIVE" = 1 ]; then
   command -v fzf >/dev/null 2>&1 || die "fzf not installed (brew install fzf)"
+
+  if [ -z "$MODELS" ] && [ -z "${_RUNTIME_EXPLICIT:-}" ] && [ -z "${RUNTIME_FROM_ENV:-}" ]; then
+    # No runtime chosen: offer every reachable runtime's models, prefixed
+    # (splash/<id>, olla/<id>, ...); the prefix selects the runtime below.
+    all_models="$(interactive_model_list)"
+    if [ -n "$all_models" ]; then
+      sel_models="$(printf '%s\n' "$all_models" | fzf --multi --prompt='Models > ' --header='TAB = multi-select  ENTER = confirm')"
+      [ -z "$sel_models" ] && die "no models selected"
+      MODELS="$(printf '%s\n' "$sel_models" | paste -sd',' -)"
+    fi
+  fi
 
   if [ -z "$MODELS" ]; then
     # Set RUNTIME_BASE_URL for discovery

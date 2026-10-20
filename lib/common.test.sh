@@ -147,6 +147,24 @@ else
   fail=$((fail+1))
 fi
 
+# --- interactive_model_list: prefixed ids from reachable runtimes only -------------
+mkdir -p "$TMP/stubbin"
+cat > "$TMP/stubbin/curl" << 'EOS'
+#!/usr/bin/env bash
+for a in "$@"; do u="$a"; done
+case "$u" in
+  *:8002*|*SPLASH_STUB*) echo '{"data":[{"id":"unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M"}]}';;
+  *:40114*|*OLLA_STUB*)  echo '{"data":[{"id":"unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M"},{"id":"other"}]}';;
+  *) exit 7;;
+esac
+EOS
+chmod +x "$TMP/stubbin/curl"
+_il="$(PATH="$TMP/stubbin:$PATH" SPLASH_BASE_URL=http://127.0.0.1:8002/v1 OLLA_BASE_URL=http://127.0.0.1:40114/olla/openai/v1 \
+  INTERACTIVE_RUNTIMES="lms splash olla" interactive_model_list)"
+check "interactive_model_list: splash model prefixed" "1" "$(printf '%s\n' "$_il" | grep -cx 'splash/unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M')"
+check "interactive_model_list: olla models prefixed" "1" "$(printf '%s\n' "$_il" | grep -cx 'olla/other')"
+check "interactive_model_list: unreachable lms contributes nothing" "0" "$(printf '%s\n' "$_il" | grep -c '^lms/')"
+
 # --- summary ---
 echo
 if [ "$fail" -eq 0 ]; then

@@ -36,6 +36,29 @@ runtime_models() {
     | jq -r '.data[].id' 2>/dev/null || true
 }
 
+# Combined, runtime-prefixed model list for interactive pickers (bin/bench -i).
+# One "<runtime>/<id>" line per model served by each reachable local runtime
+# (lms, ollama, omlx, mtplx, splash, olla). Unreachable runtimes contribute
+# nothing; never starts anything. Prefixes match extract_runtime_and_model.
+# Set INTERACTIVE_RUNTIMES to override the runtime list (space separated).
+interactive_model_list() {
+  local rt url key
+  for rt in ${INTERACTIVE_RUNTIMES:-lms ollama omlx mtplx splash olla}; do
+    key=""
+    case "$rt" in
+      lms)    url="$LMS_BASE_URL";;
+      ollama) url="${OLLAMA_BASE_URL:-http://localhost:11434/v1}";;
+      omlx)   url="$OMLX_BASE_URL";;
+      mtplx)  url="$MTPLX_BASE_URL"; key="$MTPLX_API_KEY";;
+      splash) url="$SPLASH_BASE_URL";;
+      olla)   url="$OLLA_BASE_URL";;
+      *) continue;;
+    esac
+    [ -n "$url" ] || continue
+    runtime_models "$url" ${key:+--auth-key "$key"} | sed "s|^|$rt/|"
+  done
+}
+
 # Reachability check against the LM Studio server. Returns 0 if up.
 lms_up() {
   curl -fsS --max-time 5 "$LMS_BASE_URL/models" >/dev/null 2>&1
