@@ -79,21 +79,15 @@ function prepareEditArguments(input) {`;
 // JSON-string parse block. We inject the helper before the function and the
 // recovery call after the existing JSON.parse try/catch.
 const FN_ANCHOR = "function prepareEditArguments(input) {";
-const CALL_ANCHOR = `    if (typeof args.edits === "string") {
-        try {
-            const parsed = JSON.parse(args.edits);
-            if (Array.isArray(parsed))
-                args.edits = parsed;
-        }
-        catch { }
-    }`;
-const CALL_REPLACEMENT =
-  CALL_ANCHOR +
-  `
-    // qwen3-coder & friends mangle nested edits into XML-tagged strings.
+// pi >= 1.3 shape: the JSON-string / single-object handling is followed by
+// `const legacy = args;`. Inject the recovery immediately before it so a mangled
+// XML blob that JSON.parse could not fix is rebuilt into edits[] first.
+const CALL_ANCHOR = "    const legacy = args;\n";
+const CALL_REPLACEMENT = `    // qwen3-coder & friends mangle nested edits into XML-tagged strings.
     if (typeof args.edits === "string") {
         recoverXmlParameterEdits(args);
-    }`;
+    }
+` + CALL_ANCHOR;
 
 function main() {
   const file = findEditJs();

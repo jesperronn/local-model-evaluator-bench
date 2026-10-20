@@ -208,7 +208,13 @@ print_plan() {
   echo
   echo "${C_BLD}Smoke plan${C_RST}"
   echo "  runtime : $RUNTIME"
-  echo "  model   : ${MODEL:-${SMOKE_MODEL:-(default)}}"
+  # SMOKE_MODEL is only the default for lms; other runtimes resolve their own
+  # model (splash: resident model), so never show it as the plan there.
+  if [ "$RUNTIME" = "lms" ]; then
+    echo "  model   : ${MODEL:-${SMOKE_MODEL:-(default)}}"
+  else
+    echo "  model   : ${MODEL:-(resolved by $RUNTIME at run time)}"
+  fi
   echo "  cases   : ${SMOKE_CASES//,/ · }"
   echo "  adapters:"
   local a
@@ -356,7 +362,9 @@ elif [ "$RUNTIME" = "splash" ]; then
   if [ -n "${MODEL:-}" ] && ! runtime_models "$SPLASH_BASE_URL" | grep -qx "$MODEL"; then
     die "splash does not serve '$MODEL' (see: curl $SPLASH_BASE_URL/models)"
   fi
-  ok "splash up — ${MODEL:-$(runtime_models "$SPLASH_BASE_URL" | head -1)}"
+  # Resolve the resident model now so the plan (and bench) show what really runs.
+  MODEL="${MODEL:-$(runtime_models "$SPLASH_BASE_URL" | head -1)}"
+  ok "splash up — ${MODEL:-?}"
 
 elif [ "$RUNTIME" = "omlx" ]; then
   # oMLX loads on demand, so there is nothing to pre-load — only check that the
