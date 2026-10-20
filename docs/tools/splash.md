@@ -75,7 +75,7 @@ js-02 4/4 74s, bash-01 0/4 stall 123s). Label: NOT the canonical baseline.
 Adapters honoring `RUNTIME=splash`: omp, pi, goose, qwen, aider, mini-swe-agent, openhands,
 opencode, codex, claude (listed in `_SPLASH_DIRECT_ADAPTERS` in `bin/smoke`). Most use the
 `adapter_endpoint` helper in `lib/common.sh` (sets `EP_URL`/`EP_ROOT`/`EP_KEY`: splash when
-`RUNTIME=splash`, else Olla). Not wired: others Olla-only adapters (cline, cn, copilot, forge,
+`RUNTIME=splash`, else Olla). Not wired: other Olla-only adapters (cline, cn, copilot, forge,
 gptme, hermes, interpreter, nanocoder, vibe, caveman, opencode-orch).
 
 ## Adapter results (direct splash route, RUNTIME=splash)
