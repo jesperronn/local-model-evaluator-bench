@@ -73,10 +73,10 @@ js-02 4/4 74s, bash-01 0/4 stall 123s). Label: NOT the canonical baseline.
     bin/bench -a <adapter> -m 'splash/unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M' --cases <c1,c2> --skip-compat-filter [--stall 300]
 
 Adapters honoring `RUNTIME=splash`: omp, pi, goose, qwen, aider, mini-swe-agent, openhands,
-opencode, codex, claude (listed in `_SPLASH_DIRECT_ADAPTERS` in `bin/smoke`). Most use the
+opencode, codex, claude, cn, copilot, gptme, hermes, interpreter, nanocoder, vibe, plus cline/forge
+wired but not runnable here (listed in `_SPLASH_DIRECT_ADAPTERS` in `bin/smoke`). Most use the
 `adapter_endpoint` helper in `lib/common.sh` (sets `EP_URL`/`EP_ROOT`/`EP_KEY`: splash when
-`RUNTIME=splash`, else Olla). Not wired: other Olla-only adapters (cline, cn, copilot, forge,
-gptme, hermes, interpreter, nanocoder, vibe, caveman, opencode-orch).
+`RUNTIME=splash`, else Olla). Not wired: caveman (not a candidate), opencode-orch.
 
 ## Adapter results (direct splash route, RUNTIME=splash)
 
@@ -144,3 +144,27 @@ Bench = `js-01-slugify-bug,js-02-debounce-feature`, `--stall 300`, one trial. Sm
 - User config touched: `~/.config/opencode/opencode.jsonc` (adds a `splash` provider;
   backups `opencode.json.bak-splash`, `opencode.jsonc.bak-splash`), `~/.pi/agent/models.json`
   (earlier). Codex/goose/qwen/aider/openhands/claude need no user-config edits.
+
+## Third pass: remaining adapters + harder cases
+
+`bin/smoke` now forwards `--warmup/--timeout/--stall` to bench and maps `--parallel N` to
+`BENCH_PARALLEL` (+`BENCH_PARALLEL_EXPLICIT=1`; bench itself has no `--parallel` flag).
+Bench runs used `BENCH_PARALLEL=1 BENCH_PARALLEL_EXPLICIT=1 ... --skip-compat-filter --warmup 0 --timeout 600`.
+
+| Adapter | Route/wiring | Smoke | Bench js-01/js-02 | Time js-01 / js-02 | Notes |
+|---|---|---|---|---|---|
+| cn | `adapter_endpoint` (config.yaml apiBase) | 3/3 | 8/8 | 29s / 40s | |
+| copilot | `adapter_endpoint` (BYOK env) | 3/3 | 8/8 | 67s / 125s | gpt-4o catalog id makes copilot send a `custom` (apply_patch) tool -> splash HTTP 400 "only function tools are supported"; adapter uses catalog id `gpt-4.1` when `RUNTIME=splash` |
+| gptme | `adapter_endpoint` | 3/3 | 8/8 | 143s / 98s | |
+| hermes | `adapter_endpoint`, provider `custom:splash` self-healed into ~/.hermes/config.yaml (backup `.bak-splash`) | 3/3 | 8/8 | 127s / 312s | |
+| interpreter | `adapter_endpoint` (`-c model_providers...`) | 3/3 | 8/8 | 66s / 58s | |
+| nanocoder | `adapter_endpoint` (NANOCODER_PROVIDERS) | 3/3 | 8/8 | 53s / 83s | |
+| vibe | `adapter_endpoint` (isolated VIBE_HOME) | 3/3 | 8/8 | 75s / 131s | |
+| forge | wired | FAIL 0/3 | - | - | environment: `better_sqlite3.node` native binding missing for node 24 (forge's bundled dep); not a splash issue. Deferred (would need `npm rebuild` of a global package) |
+| cline | wired | not run | - | - | `cline` binary not installed (smoke: "cline not installed - skipping") |
+
+### Harder cases (`--timeout 900`, one trial)
+
+Cases: js-03-multifile-cache, js-04-multifile-rename, js-05-multiselect-filter, js-06-lint-and-test, ts-01-groupby, bash-01-topwords.
+
+HARDTABLE
