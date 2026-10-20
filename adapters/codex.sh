@@ -32,10 +32,7 @@ MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
 command -v codex >/dev/null 2>&1 || { echo "codex not found; install: npm install -g codex-cli" >&2; exit 1; }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
@@ -48,7 +45,8 @@ WRAPPER_MANAGER="$ADAPTER_DIR/codex-wrapper-manager.sh"
 
 # Strip /v1 from Olla's OpenAI-compatible base URL — the wrapper re-adds it
 # (see WRAPPER_URL below) the same way it always has.
-WRAPPER_TARGET_URL="${OLLA_BASE_URL%/v1}"
+WRAPPER_TARGET_URL="$EP_ROOT"
+export BENCH_EP_KEY="$EP_KEY"
 
 # Start or reuse the singleton wrapper via the manager
 WRAPPER_PORT=$("$WRAPPER_MANAGER" start "$WRAPPER_TARGET_URL") || {
@@ -74,12 +72,19 @@ CODEX_COMMON=(
   -c model_provider="olla_local"
   -c model_providers.olla_local.name="Olla Proxy"
   -c model_providers.olla_local.base_url="$WRAPPER_URL"
-  -c model_providers.olla_local.env_key="OLLA_API_KEY"
+  -c model_providers.olla_local.env_key="BENCH_EP_KEY"
   # codex 0.142.3 dropped wire_api="chat" support; "responses" is now the only
   # valid value. LMS ≥0.3.x and other OpenAI-compatible endpoints accept
   # Responses-API-shaped tool outputs.
   -c model_providers.olla_local.wire_api="responses"
 )
+# splash /v1/responses only accepts function tools: codex's built-in
+# web_search tool (type "web_search") is rejected with HTTP 400 (bisected; the
+# MCP "namespace" tools are accepted). Disable it, and force the JSON function
+# variant of apply_patch (freeform "custom" would be rejected the same way).
+if [ "${RUNTIME:-}" = "splash" ]; then
+  CODEX_COMMON+=(-c web_search="disabled" -c apply_patch_tool_type="function")
+fi
 if [ ! -t 0 ]; then
   exec codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "${CODEX_COMMON[@]}" "$(cat)" "$@"
 else
