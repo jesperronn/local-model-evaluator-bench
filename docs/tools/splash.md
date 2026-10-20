@@ -253,3 +253,44 @@ With no `--runtime`/`RUNTIME` set, `bin/bench -i` now lists every reachable runt
 (`interactive_model_list` in `lib/common.sh`): `splash/<id>` from `$SPLASH_BASE_URL/models` when splash is up,
 `olla/<id>` from Olla, plus lms/ollama/omlx/mtplx. Pick `splash/unsloth/...` and the prefix selects the runtime;
 rerun with `bin/smoke --model splash/<id>`. An explicit `--runtime X` keeps the old single-runtime picker.
+
+## Smoke rerun (omlx/mtplx off) — 2026-10-20
+
+Model `unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M`; one adapter at a time, `--skip-compat-update --parallel 1 --warmup 0 --timeout 600`; only splash (:8002), shim (:8003) and Olla up. Times are smoke-00 / 01 / 02. "Previous" = per-case smoke times recorded earlier in this doc (most adapters only recorded "3/3", so no per-case baseline).
+
+### Direct route (`splash/...`)
+
+| Adapter | Result | Times (s) | vs previous |
+|---|---|---|---|
+| claude | 3/3 | 12 / 18 / 16 | prev 3/3, bench 27s/51s; same range. First attempt also 3/3 but bench exited rc=2 (concurrent edit of bin/bench by another agent: syntax error at line 1038), retried |
+| aider | 3/3 | 12 / 14 / 15 | 3/3 before; no per-case baseline |
+| goose | 3/3 | 90 / 298 / 2530 | 3/3 before; 02 outlier (2530s wall, machine load avg ~70 at the time; far past --timeout 600, not investigated) |
+| cn | 3/3 | 2995 / 21 / 20 | same: 00 outlier under heavy host load, not investigated |
+| pi | 3/3 | 12 / 12 / 17 | 3/3 before; no per-case baseline |
+| omp | 3/3 | 66 / 30 / 12 | 3/3 before |
+| codex | 3/3 | 244 / 229 / 24 | prev 20 / 28 / 16 (re-smoke); slower now, 00/01 cold/queued |
+| nanocoder | 3/3 | 33 / 26 / 10 | no baseline |
+| gptme | 3/3 | 26 / 32 / 18 | no baseline |
+| hermes | 3/3 | 14 / 16 / 25 | no baseline |
+| copilot | 3/3 | 46 / 50 / 47 | no baseline |
+| interpreter | 3/3 | 50 / 48 / 30 | no baseline |
+| vibe | 3/3 | 64 / 62 / 34 | no baseline |
+| opencode | 3/3 | 79 / 53 / 29 | 3/3 before |
+| mini-swe-agent | 3/3 | 82 / 141 / 107 | 3/3 before |
+| openhands | 3/3 | 93 / 92 / 83 | 3/3 before |
+| qwen | 3/3 | 121 / 129 / 77 | prev 120s hello (cold); same |
+| forge | FAIL 0/3 (twice) | error(1) in ~2s each | `Could not locate the bindings file` (better-sqlite3 native module missing for node 24.22 in `@hoangsonw/forge`); install/env problem, not splash |
+
+### Via Olla (`olla/...`)
+
+| Adapter | Result | Times (s) | vs previous |
+|---|---|---|---|
+| pi | 3/3 | 20 / 14 / 16 | 3/3 before |
+| claude | 3/3 | 17 / 15 / 18 | 3/3 before |
+| aider | 3/3 | 9 / 12 / 12 | 3/3 before |
+| goose | 3/3 | 23 / 21 / 10 | 3/3 before |
+| opencode | 3/3 | 43 / 33 / 31 | 3/3 before |
+| omp | 3/3 | 45 / 20 / 16 | 3/3 before |
+| codex | 3/3 | 202 / 18 / 16 | prev 331 / 44 / 29; faster |
+| copilot | 3/3 | 41 / 41 / 36 | prev 105 / 123 / 91; ~2.5x faster |
+| hermes | 3/3 | 14 / 16 / 16 | prev 141 / 43 / 31; much faster |
