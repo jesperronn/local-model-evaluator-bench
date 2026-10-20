@@ -80,7 +80,7 @@ show_help() {
   help_line "  new model, adapter, or runtime."
 
   help_section "OPTIONS"
-  help_flag "--runtime" "NAME" "lms | ollama | mlx | omlx | mtplx | splash (default: lms)"
+  help_flag "--runtime" "NAME" "lms | ollama | mlx | omlx | mtplx | splash | olla (default: lms)"
   help_flag "--model, -m" "ID" "model to test (default: \$SMOKE_MODEL for lms)"
   help_flag "--adapter, -a" "NAMES" "test specific adapters (comma-separated, or 'all')"
   help_flag "--retry-broken[=ADAPTERS]" "" "retry adapters marked as broken in compat.json"
@@ -126,6 +126,7 @@ extract_runtime_and_model() {
     mlx/*) echo "mlx"; echo "${model#mlx/}";;
     mtplx/*) echo "mtplx"; echo "${model#mtplx/}";;
     splash/*) echo "splash"; echo "${model#splash/}";;
+    olla/*) echo "olla"; echo "${model#olla/}";;
     *) echo "lms"; echo "$model";;
   esac
 }
@@ -339,6 +340,15 @@ elif [ "$RUNTIME" = "mtplx" ]; then
       die "'$MODEL' is served by MTPLX but not registered with LiteLLM — run: bin/litellm-proxy sync"
     fi
   fi
+
+elif [ "$RUNTIME" = "olla" ]; then
+  # olla/<id>: model served by any backend behind Olla (bare id). Check only
+  # that Olla is up and lists it; never starts anything.
+  olla_up || die "Olla not reachable at $OLLA_HOST_URL (run: bin/rt olla start)"
+  if [ -n "${MODEL:-}" ] && ! runtime_models "$OLLA_BASE_URL" | grep -qix "$MODEL"; then
+    die "Olla does not list '$MODEL' (see: bin/rt olla models)"
+  fi
+  ok "Olla up — ${MODEL:-?}"
 
 elif [ "$RUNTIME" = "splash" ]; then
   # splash: single resident model, no load step. Check up + serving the model.

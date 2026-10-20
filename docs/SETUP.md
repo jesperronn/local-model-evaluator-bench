@@ -253,6 +253,19 @@ entries whose dir no longer exists (the cache goes stale after deletes).
 `--unused` falls back to token-subset matching so a not-yet-indexed download
 still matches its id in the bench model lists.
 
+### splash behind Olla (`bin/splash-shim`)
+
+splash rejects the chunked request bodies Olla sends. Start the buffering shim (port
+`SPLASH_SHIM_PORT`, default 8003; Olla's splash endpoint points at it) before using splash
+through Olla; start order is splash (yours), `bin/rt splash-shim start`, `bin/rt olla start`:
+
+```bash
+bin/rt splash-shim start|stop|status   # log: logs/splash-shim.log
+bin/smoke -m 'olla/<model-id>' -a pi --skip-compat-update   # bench via Olla, bare id after olla/
+```
+
+Details and results: docs/tools/splash.md ("Olla route").
+
 ## 4. Editor extensions (same LM Studio server)
 
 The CLIs are the automated part. To evaluate the **VS Code / IntelliJ**

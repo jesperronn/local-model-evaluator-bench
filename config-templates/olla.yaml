@@ -75,9 +75,11 @@ discovery:
         health_check_url: "/v1/models"
         check_interval: 2s
         check_timeout: 1s
-      - url: "http://127.0.0.1:8002"
+      # splash rejects chunked request bodies (which Olla sends); go via the
+      # buffering shim bin/splash-shim (bin/rt splash-shim start) on :8003.
+      - url: "http://127.0.0.1:8003"
         name: "splash"
-        type: "openai-compatible"
+        type: "splash"   # custom profile config-templates/olla-profiles/splash.yaml (Anthropic route on)
         priority: 100
         model_url: "/v1/models"
         health_check_url: "/v1/models"

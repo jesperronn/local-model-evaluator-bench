@@ -1,0 +1,25 @@
+# Custom Olla backend profile for splash (docs/tools/splash.md), reached through
+# bin/splash-shim. The generic "openai-compatible" profile disables Anthropic
+# support, so /olla/anthropic/v1/messages (used by the claude adapter) found
+# 0 compatible endpoints and returned 503 model_unavailable. splash serves
+# /v1/messages natively, so enable passthrough here. Copied into the Olla
+# install's config/profiles/ by bin/rt olla start (same as mtplx.yaml).
+name: splash
+version: "1.0"
+display_name: "splash"
+routing:
+  prefixes: [splash]
+api:
+  openai_compatible: true
+  anthropic_support:
+    enabled: true
+    messages_path: /v1/messages
+    token_count: false
+  paths: [/v1/models, /v1/chat/completions, /v1/completions, /v1/messages]
+  model_discovery_path: /v1/models
+  health_check_path: /v1/models
+characteristics: {timeout: 15m, max_concurrent_requests: 1, default_priority: 90, streaming_support: true}
+models:
+  name_format: "{{.Name}}"
+  capability_patterns:
+    chat: ["*"]

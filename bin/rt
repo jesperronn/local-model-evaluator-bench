@@ -28,6 +28,9 @@
 #   bin/rt olla status       check if Olla is up, how many models it discovered (read-only)
 #   bin/rt olla models       list every model Olla discovered across all backends
 #
+# splash-shim (buffers chunked request bodies for Olla -> splash; log logs/splash-shim.log):
+#   bin/rt splash-shim start|stop|status
+#
 # LiteLLM Commands (formerly: bin/litellm-proxy) — DEPRECATED, superseded by Olla above:
 #   bin/rt litellm proxy     start LiteLLM proxy (optional, on $LITELLM_PORT)
 #   bin/rt litellm check     verify proxy is reachable
@@ -952,6 +955,37 @@ cmd_omlx() {
 OLLA_VERSION="0.0.29"
 OLLA_RELEASE_SHA256_MACOS_ARM64="a879d1247090b3d85a774e0890241234b7055ec87904292313ea42c6ce7fe0b4"
 
+cmd_splash_shim() {
+  local sub="${1:-status}" pidfile="$HERE/logs/splash-shim.pid" logfile="$HERE/logs/splash-shim.log"
+  local pid=""
+  [ -f "$pidfile" ] && pid="$(cat "$pidfile" 2>/dev/null)"
+  case "$sub" in
+    start)
+      if curl -fsS --max-time 2 "$SPLASH_SHIM_URL/v1/models" >/dev/null 2>&1; then
+        ok "splash-shim already up on $SPLASH_SHIM_URL"; return 0
+      fi
+      mkdir -p "$HERE/logs"
+      ( exec nohup "$HERE/bin/splash-shim" >>"$logfile" 2>&1 ) &
+      echo $! > "$pidfile"
+      sleep 1
+      kill -0 "$(cat "$pidfile")" 2>/dev/null || die "splash-shim failed to start — see $logfile"
+      ok "splash-shim up — PID $(cat "$pidfile"), $SPLASH_SHIM_URL -> $SPLASH_BASE_URL (log: $logfile)";;
+    stop)
+      if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+        pid=$(lsof -ti ":$SPLASH_SHIM_PORT" 2>/dev/null | head -1)
+      fi
+      [ -z "$pid" ] && { info "splash-shim: nothing on port $SPLASH_SHIM_PORT"; rm -f "$pidfile"; return 0; }
+      kill "$pid" 2>/dev/null || true; rm -f "$pidfile"; ok "splash-shim stopped";;
+    status)
+      if curl -fsS --max-time 2 "$SPLASH_SHIM_URL/v1/models" >/dev/null 2>&1; then
+        ok "splash-shim up (port $SPLASH_SHIM_PORT, pid ${pid:-?}) -> splash"
+      else
+        info "splash-shim down or splash unreachable (start: bin/rt splash-shim start)"; return 1
+      fi;;
+    *) die "unknown splash-shim subcommand: $sub (valid: start, stop, status)";;
+  esac
+}
+
 cmd_olla() {
   local subcmd="${1:-status}"
   shift 2>/dev/null || true
@@ -998,7 +1032,7 @@ _olla_install() {
 
   # Repo-committed MTPLX profile — Olla ships no built-in one (see
   # config-templates/olla-profiles/mtplx.yaml). Always wins over the release zip.
-  cp "$HERE/config-templates/olla-profiles/mtplx.yaml" "$OLLA_INSTALL_DIR/config/profiles/mtplx.yaml"
+  cp "$HERE"/config-templates/olla-profiles/*.yaml "$OLLA_INSTALL_DIR/config/profiles/"
 
   echo "$OLLA_VERSION" > "$OLLA_INSTALL_DIR/VERSION"
   ok "Olla v${OLLA_VERSION} installed to $OLLA_INSTALL_DIR"
@@ -1016,7 +1050,7 @@ _olla_start() {
   # start, so editing config-templates/olla-profiles/mtplx.yaml takes effect
   # without re-running install.
   mkdir -p "$OLLA_INSTALL_DIR/config/profiles" "$OLLA_INSTALL_DIR/run"
-  cp "$HERE/config-templates/olla-profiles/mtplx.yaml" "$OLLA_INSTALL_DIR/config/profiles/mtplx.yaml"
+  cp "$HERE"/config-templates/olla-profiles/*.yaml "$OLLA_INSTALL_DIR/config/profiles/"
 
   local pidfile="$OLLA_INSTALL_DIR/run/olla.pid"
   local logfile="$OLLA_INSTALL_DIR/run/olla.log"
@@ -1189,6 +1223,7 @@ case "$CMD" in
   who)     cmd_who    "$@";;
   omlx)    cmd_omlx   "$@";;
   olla)    cmd_olla   "$@";;
+  splash-shim) cmd_splash_shim "$@";;
   litellm) cmd_litellm "$@";;
   lms-context) cmd_lms_context "$@";;
   -h|--help|help)

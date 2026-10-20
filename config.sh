@@ -106,6 +106,10 @@ export MTPLX_API_KEY="${MTPLX_API_KEY:-mtplx}"
 export SPLASH_PORT="${SPLASH_PORT:-8002}"
 export SPLASH_BASE_URL="${SPLASH_BASE_URL:-http://127.0.0.1:${SPLASH_PORT}/v1}"
 export SPLASH_API_KEY="${SPLASH_API_KEY:-splash}"
+# bin/splash-shim: buffering shim Olla's splash endpoint points at (splash rejects
+# chunked request bodies, which Olla sends). Start: bin/rt splash-shim start.
+export SPLASH_SHIM_PORT="${SPLASH_SHIM_PORT:-8003}"
+export SPLASH_SHIM_URL="${SPLASH_SHIM_URL:-http://127.0.0.1:${SPLASH_SHIM_PORT}}"
 
 # Default model used by adapters when MODEL_ID is not set externally.
 # Override per-invocation with:  MODEL_ID=other/model adapter/copilot-lms.sh

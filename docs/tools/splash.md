@@ -30,7 +30,7 @@ content ~20-30). Prefill, not decode, dominates long agent contexts.
 
 ## Wiring (what changed)
 
-splash is **not** behind Olla (not in `config-templates/olla.yaml`; adding it needs an Olla
+splash is behind Olla only via `bin/splash-shim` (see "Olla route"); the old note: it was not in `config-templates/olla.yaml`; adding it needs an Olla
 restart, which was out of scope). Instead it is a direct runtime selected by the
 `splash/` model prefix:
 
@@ -64,7 +64,7 @@ js-02 4/4 74s, bash-01 0/4 stall 123s). Label: NOT the canonical baseline.
   (lms: idle)`. The stall watchdog appears lms-oriented; likely long reasoning with no
   output on splash. Not investigated (use `--stall 300`).
 - pi edit-tool shim warning (`bin/pi-patch-edit-shim` not applied) unrelated to splash.
-- Olla route: registered but BLOCKED, see "Olla route" below.
+- Olla route: works via `bin/splash-shim` (chunked-body workaround), see "Olla route" below.
 - `compat.json` deliberately not updated (`--skip-compat-update` on smoke).
 
 ## Commands
@@ -191,20 +191,53 @@ pi -032535, omp -033550, codex -040507, opencode -042433.
 - compat.json: uncommitted diff is unrelated to splash (forge/cline entries on omlx, older
   run ids from 2026-09-16); left uncommitted.
 
-## Olla route (2026-10-20): registered, but requests fail
+## Olla route (2026-10-20): working via bin/splash-shim
 
-Added endpoint `splash` (`type: openai-compatible`, 127.0.0.1:8002, `/v1/models` health) to
-`config-templates/olla.yaml` (backup `olla.yaml.bak-splash`) and restarted Olla via
-`bin/rt olla stop/start` (v0.0.29). Olla health OK and `bin/rt olla models` lists
-`unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M` (routed as `X-Olla-Endpoint: splash`).
+Olla forwards request bodies with `Transfer-Encoding: chunked`; splash rejects that with
+400 "transfer encoding is not supported" (also reproducible with
+`curl -H 'Transfer-Encoding: chunked'` directly; `proxy.engine: sherpa` did not help).
+splash is off-limits, so a stdlib-only buffering shim sits in between:
 
-But every request through Olla returns HTTP 400 from splash:
-`{"error":{"message":"transfer encoding is not supported",...}}`. Olla forwards the request
-body with `Transfer-Encoding: chunked`; splash rejects chunked request bodies. Reproduced
-directly: `curl -H 'Transfer-Encoding: chunked' http://127.0.0.1:8002/v1/chat/completions`
-gives the same 400, while the same body with Content-Length works. Switching
-`proxy.engine` to `sherpa` did not help (reverted). Fix needs to be in splash (accept
-chunked bodies) or a buffering shim in front of it; neither was done (splash is off-limits
-here). Bench via Olla was therefore not run; direct-route numbers above remain the reference.
-Endpoint stays registered in the template; model appears in lists but is unusable via Olla
-until splash is fixed.
+    Olla :40114 --chunked--> bin/splash-shim :8003 --Content-Length--> splash :8002
+
+- `bin/splash-shim` reads the whole request body (chunked or not), forwards it with a plain
+  Content-Length, drops hop-by-hop headers, and streams the response back chunk by chunk
+  (SSE arrives incrementally; `GET /v1/models` works for health). Env:
+  `SPLASH_SHIM_PORT` (8003, config.sh), `SPLASH_PORT`. Control: `bin/rt splash-shim
+  start|stop|status` (log `logs/splash-shim.log`). Like Olla it is started manually.
+- `config-templates/olla.yaml`: splash endpoint URL is `http://127.0.0.1:8003`, type `splash`.
+- New Olla profile `config-templates/olla-profiles/splash.yaml` (copied by `bin/rt olla
+  start`, like mtplx): the generic `openai-compatible` profile disables Anthropic support, so
+  claude's `/olla/anthropic/v1/messages` saw 0 compatible endpoints and got 503
+  `model_unavailable`. The profile enables passthrough (splash serves /v1/messages natively).
+- Curl-verified through the shim (chunked) and through Olla `/olla/proxy/v1/chat/completions`:
+  non-stream chat, SSE streaming (chunks arrive incrementally), tool call
+  (`finish_reason: tool_calls`, `{"city":"Paris"}`).
+
+### How to run the bench via Olla
+Neither bench nor smoke had a runtime that merely means "go through Olla with a bare id"
+(bare id = lms; `mlx/`/`mtplx/`/`omlx/` demand their own servers). Added a minimal runtime
+prefix `olla/<id>` to `bin/bench` and `bin/smoke` (checks only that Olla is up and lists the
+model; adapters strip the prefix via `strip_runtime_prefix` and use Olla). Form:
+
+    bin/smoke -m 'olla/unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M' -a pi --skip-compat-update --parallel 1 --warmup 0 --timeout 600
+    bin/bench -a pi --models 'olla/unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M' --cases js-01-slugify-bug,js-02-debounce-feature,js-03-multifile-cache,ts-01-groupby --skip-compat-filter --warmup 0 --timeout 900
+
+### Results via Olla (RUNTIME=olla; smoke = 3 cases; bench = 4 cases, 16 checks, 1 trial)
+
+| Adapter | Smoke | Bench (js-01 / js-02 / js-03 / ts-01) | Notes |
+|---|---|---|---|
+| pi | 3/3 | 4/4, 4/4, 5/5, 3/3 (33s/55s/55s/130s) | |
+| claude | 3/3 | 4/4, 4/4, 5/5, 3/3 (28s/20s/80s/34s) | needs splash.yaml profile; first pass with openai-compatible profile: smoke 1/3, bench 2/4 3/4 3/5 0/3 (all 503 model_unavailable, ~180s each; partial scores are baseline checks, not agent work) |
+| aider | 3/3 | 4/4, 4/4, 5/5, 1/3 (64s/28s/94s/34s) | ts-01 1/3 reproduced on re-run (34s); no direct-route ts-01 number to compare; not investigated |
+| goose | 3/3 | 4/4, 4/4, 5/5, 3/3 (60s/99s/242s/132s) | |
+| opencode | 3/3 | 4/4, 4/4, 5/5, 3/3 (82s/81s/49s/83s) | |
+| omp | 3/3 | 4/4, 4/4, 5/5, 3/3 (42s/147s/76s/117s) | first pass failed in 2s: stale omp `bench-olla` profile model discovery ("Model not found"); passed after discovery refreshed (same cold-discovery quirk as direct route) |
+| codex | FAIL 0/3 | FAIL (2s each, HTTP 400) | as predicted: the splash tweaks (`-c web_search=disabled -c apply_patch_tool_type=function`) are keyed on `RUNTIME=splash` in adapters/codex.sh; under `olla/` RUNTIME=olla so they are not applied and splash's /v1/responses rejects non-function tools. Not fixed (record only). Same for copilot's gpt-4.1 catalog id, hermes provider and opencode's provider name (keyed on RUNTIME=splash; opencode works anyway via provider `olla`). |
+
+Comparison with direct route: smoke 3/3 and js-01/js-02 8/8 match for pi, goose, aider, opencode, omp,
+claude. Times are in the same range (direct js-01/js-02: pi 77/74s, goose 70/76s, aider 64/29s,
+opencode 64/205s, omp -/144s, claude 27/51s; via Olla: pi 33/55s, goose 60/99s, aider 64/28s,
+opencode 82/81s, omp 42/147s, claude 28/20s) - differences are within run-to-run noise; the
+shim/Olla hop adds no measurable cost. Bench ran with default `--parallel 4` against single-slot
+splash. js-03 and ts-01 have no direct-route baseline.

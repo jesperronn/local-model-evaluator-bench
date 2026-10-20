@@ -19,3 +19,4 @@ config.local.sh
 
 # repo-local Olla install (binary + run state), fetched by bin/rt olla install
 /.tools/
+logs/*.pid
