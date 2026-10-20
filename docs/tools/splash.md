@@ -233,7 +233,11 @@ model; adapters strip the prefix via `strip_runtime_prefix` and use Olla). Form:
 | goose | 3/3 | 4/4, 4/4, 5/5, 3/3 (60s/99s/242s/132s) | |
 | opencode | 3/3 | 4/4, 4/4, 5/5, 3/3 (82s/81s/49s/83s) | |
 | omp | 3/3 | 4/4, 4/4, 5/5, 3/3 (42s/147s/76s/117s) | first pass failed in 2s: stale omp `bench-olla` profile model discovery ("Model not found"); passed after discovery refreshed (same cold-discovery quirk as direct route) |
-| codex | FAIL 0/3 | FAIL (2s each, HTTP 400) | as predicted: the splash tweaks (`-c web_search=disabled -c apply_patch_tool_type=function`) are keyed on `RUNTIME=splash` in adapters/codex.sh; under `olla/` RUNTIME=olla so they are not applied and splash's /v1/responses rejects non-function tools. Not fixed (record only). Same for copilot's gpt-4.1 catalog id, hermes provider and opencode's provider name (keyed on RUNTIME=splash; opencode works anyway via provider `olla`). |
+| codex | 3/3 (`--parallel 1`; 331s/44s/29s, first call cold) | 4/4, 4/4, 5/5, 3/3 (42s/159s/328s/294s) | fixed: `backend_is_splash` (lib/common.sh) is true for `RUNTIME=olla` when Olla's `/olla/models` lists only the `splash` endpoint for the model, so the `-c web_search=disabled -c apply_patch_tool_type=function` tweaks apply (first pass was FAIL 0/3 / HTTP 400 without them). Direct-route re-smoke 3/3 (20s/28s/16s), no regression |
+| copilot | 3/3 (105s/123s/91s) | 4/4, 4/4, 5/5, 3/3 (125s/214s/175s/395s) | gpt-4.1 catalog id now chosen via `backend_is_splash` |
+| hermes | 3/3 (141s/43s/31s) | 4/4, 4/4, 5/5, 3/3 (149s/259s/279s/801s) | needed no change: provider `olla` works against splash; the splash-only provider name is cosmetic. Smoke also passed (3/3) before the helper existed |
+
+Bench for these three ran with `BENCH_PARALLEL=1`, `--warmup 0 --timeout 900`.
 
 Comparison with direct route: smoke 3/3 and js-01/js-02 8/8 match for pi, goose, aider, opencode, omp,
 claude. Times are in the same range (direct js-01/js-02: pi 77/74s, goose 70/76s, aider 64/29s,

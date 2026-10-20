@@ -35,7 +35,7 @@ COPILOT_PROVIDER_API_KEY="$EP_KEY"
 # gpt-4o catalog entry makes copilot send a non-function (custom apply_patch) tool, which
 # splash rejects with HTTP 400; gpt-4.1 yields function tools only.
 COPILOT_CATALOG_ID=gpt-4o
-[ "${RUNTIME:-}" = splash ] && COPILOT_CATALOG_ID=gpt-4.1
+backend_is_splash && COPILOT_CATALOG_ID=gpt-4.1
 COPILOT_ARGS=()
 if [ ! -t 0 ]; then
   COPILOT_ARGS+=(--allow-all-tools --allow-all-paths --no-ask-user -p "$(cat)")

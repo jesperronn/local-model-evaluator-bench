@@ -82,7 +82,7 @@ CODEX_COMMON=(
 # web_search tool (type "web_search") is rejected with HTTP 400 (bisected; the
 # MCP "namespace" tools are accepted). Disable it, and force the JSON function
 # variant of apply_patch (freeform "custom" would be rejected the same way).
-if [ "${RUNTIME:-}" = "splash" ]; then
+if backend_is_splash; then
   CODEX_COMMON+=(-c web_search="disabled" -c apply_patch_tool_type="function")
 fi
 if [ ! -t 0 ]; then

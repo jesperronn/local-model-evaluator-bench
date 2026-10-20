@@ -77,6 +77,41 @@ splash_up() {
   curl -fsS --max-time 5 "$SPLASH_BASE_URL/models" >/dev/null 2>&1
 }
 
+# True when the backend serving the model is splash, whose API rejects non-function
+# tools: RUNTIME=splash (direct), or RUNTIME=olla with the model served ONLY by Olla's
+# "splash" endpoint (Olla /olla/models availability list; falls back to matching the id
+# against splash's /v1/models). Cached per run in _BACKEND_IS_SPLASH. Failure-tolerant:
+# any error => false.
+# Usage: backend_is_splash [model-id]   (default $MODEL_ID)
+backend_is_splash() {
+  [ "${RUNTIME:-}" = splash ] && return 0
+  [ "${RUNTIME:-}" = olla ] || return 1
+  if [ -z "${_BACKEND_IS_SPLASH:-}" ]; then
+    local id eps
+    id="$(strip_runtime_prefix "${1:-${MODEL_ID:-}}")"
+    eps="$(curl -fsS --max-time 5 "$OLLA_HOST_URL/olla/models" 2>/dev/null | python3 -c '
+import json,sys
+mid=sys.argv[1]
+try:
+    for m in json.load(sys.stdin).get("data",[]):
+        o=m.get("olla",{})
+        if m.get("id")==mid or mid in o.get("aliases",[]):
+            print(" ".join(sorted({a.get("endpoint","") for a in o.get("availability",[])})))
+            break
+except Exception:
+    pass' "$id" 2>/dev/null)"
+    if [ "$eps" = splash ]; then
+      _BACKEND_IS_SPLASH=1
+    elif [ -z "$eps" ] && curl -fsS --max-time 5 "$SPLASH_BASE_URL/models" 2>/dev/null | grep -qF "\"$id\""; then
+      _BACKEND_IS_SPLASH=1
+    else
+      _BACKEND_IS_SPLASH=0
+    fi
+    export _BACKEND_IS_SPLASH
+  fi
+  [ "$_BACKEND_IS_SPLASH" = 1 ]
+}
+
 # Pick the OpenAI-compatible endpoint an adapter should talk to: splash directly
 # when RUNTIME=splash (set by bin/bench for splash/<id> models), otherwise Olla.
 # Sets EP_URL (…/v1), EP_ROOT (no /v1), EP_KEY. Returns 1 (with message) if down.
@@ -101,7 +136,7 @@ adapter_endpoint() {
 # Usage: strip_runtime_prefix <model-id>
 strip_runtime_prefix() {
   local m="$1"
-  if [[ "$m" =~ ^(lms|ollama|mlx|omlx|mtplx|splash|openai)/(.+)$ ]]; then
+  if [[ "$m" =~ ^(lms|ollama|mlx|omlx|mtplx|splash|olla|openai)/(.+)$ ]]; then
     printf '%s' "${BASH_REMATCH[2]}"
   else
     printf '%s' "$m"
