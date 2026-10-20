@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Adapter: interpreter (Open Interpreter) -> unified endpoint via Olla proxy
-# (OpenAI format). Routes ONLY through Olla ($OLLA_BASE_URL) — see
+# (OpenAI format). Routes ONLY through Olla ($EP_URL) — see
 # docs/runtimes/olla.md "Adapter wiring" for the pattern this adapter
 # follows. Olla auto-discovers every backend's models (omlx, mtplx, lms,
 # ollama) under one unified list, so no runtime-prefix branching, no
@@ -36,10 +36,7 @@ command -v interpreter >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
@@ -47,7 +44,7 @@ OI_CONFIG=(
   -c "model=\"$BARE_MODEL_ID\""
   -c "model_provider=\"olla_local\""
   -c "model_providers.olla_local.name=\"Olla\""
-  -c "model_providers.olla_local.base_url=\"$OLLA_BASE_URL\""
+  -c "model_providers.olla_local.base_url=\"$EP_URL\""
   -c "model_providers.olla_local.wire_api=\"chat\""
   -c "approval_policy=\"never\""
 )

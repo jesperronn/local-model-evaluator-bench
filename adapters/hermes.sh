@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Adapter: hermes -> unified endpoint via Olla proxy (OpenAI format).
-# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# Routes ONLY through Olla ($EP_URL) — see docs/runtimes/olla.md
 # "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
 # every backend's models (omlx, mtplx, lms, ollama) under one unified list,
 # so no runtime-prefix branching is needed here (unlike the previous
@@ -10,7 +10,7 @@
 # `providers.olla` custom-provider block into the user's own
 # ~/.hermes/config.yaml (same self-heal pattern used for omlx/mtplx before —
 # see config-templates/hermes-config.snippet.yaml) and addresses it as
-# `--provider custom:olla`.
+# `--provider custom:$HERMES_PROV`.
 #
 # Olla must be running: bin/rt olla start
 # $MODEL_ID may be passed bare or with a runtime prefix (omlx/<id>, etc.) —
@@ -29,22 +29,20 @@ command -v hermes >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
 # Self-heal: ensure ~/.hermes/config.yaml has a "providers.olla" custom
 # provider block pointed at Olla. Hermes doesn't discover providers over
 # HTTP, so this must exist before `--provider custom:olla` will resolve.
+HERMES_PROV=olla; [ "${RUNTIME:-}" = splash ] && HERMES_PROV=splash
 HERMES_CFG="${HERMES_CFG:-$HOME/.hermes/config.yaml}"
-if [ -f "$HERMES_CFG" ] && ! grep -q '^  olla:' "$HERMES_CFG"; then
-  awk -v url="$OLLA_BASE_URL" -v key="$OLLA_API_KEY" '
+if [ -f "$HERMES_CFG" ] && ! grep -q "^  $HERMES_PROV:" "$HERMES_CFG"; then
+  awk -v prov="$HERMES_PROV" -v url="$EP_URL" -v key="$EP_KEY" '
     /^providers:/ {
       print
-      print "  olla:"
+      print "  " prov ":"
       print "    name: Olla"
       print "    base_url: " url
       print "    api_key: " key
@@ -58,7 +56,7 @@ fi
 # -t file,terminal: both toolsets work together since v0.17.0 (the tool-name
 # conflict present in v0.16.0 is fixed). Enables write_file, patch, read_file,
 # search_files, process, AND direct shell execution via terminal.
-HERMES_ARGS=(--provider "custom:olla" -m "$BARE_MODEL_ID" -t file,terminal)
+HERMES_ARGS=(--provider "custom:$HERMES_PROV" -m "$BARE_MODEL_ID" -t file,terminal)
 
 if [ ! -t 0 ]; then
   # Interactive approval mode: the smart guardian will ask for confirmations

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Adapter: GitHub Copilot CLI -> unified endpoint via Olla proxy (OpenAI format).
-# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# Routes ONLY through Olla ($EP_URL) — see docs/runtimes/olla.md
 # "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
 # every backend's models (omlx, mtplx, lms, ollama) under one unified list,
 # so no runtime-prefix branching and no per-runtime endpoint selection are
@@ -26,14 +26,11 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
-COPILOT_PROVIDER_BASE_URL="$OLLA_BASE_URL"
-COPILOT_PROVIDER_API_KEY="$OLLA_API_KEY"
+COPILOT_PROVIDER_BASE_URL="$EP_URL"
+COPILOT_PROVIDER_API_KEY="$EP_KEY"
 
 COPILOT_ARGS=()
 if [ ! -t 0 ]; then

@@ -236,7 +236,7 @@ fi
 # does NOT start Olla — bin/rt olla status/start stay the only autostart path.
 _OLLA_ROUTED_ADAPTERS=" aider caveman claude cline cn codex copilot forge goose gptme hermes interpreter mini-swe-agent nanocoder omp opencode-orch opencode openhands pi qwen vibe "
 # Adapters that can bypass Olla and talk to splash directly (RUNTIME=splash).
-_SPLASH_DIRECT_ADAPTERS=" omp pi goose qwen aider mini-swe-agent openhands opencode codex claude "
+_SPLASH_DIRECT_ADAPTERS=" omp pi goose qwen aider mini-swe-agent openhands opencode codex claude cline cn copilot forge gptme hermes interpreter nanocoder vibe "
 for _a in ${_smoke_adapters//,/ }; do
   if [ "$RUNTIME" = "splash" ] && [[ "$_SPLASH_DIRECT_ADAPTERS" == *" $_a "* ]]; then
     continue

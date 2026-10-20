@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Adapter: cline -> unified endpoint via Olla proxy (OpenAI format).
-# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# Routes ONLY through Olla ($EP_URL) — see docs/runtimes/olla.md
 # "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
 # every backend's models (omlx, mtplx, lms, ollama) under one unified list,
 # so no runtime-prefix branching and no per-runtime endpoint selection are
@@ -32,14 +32,11 @@ else
   CLINE=cline
 fi
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
-API_BASE="$OLLA_BASE_URL"
-API_KEY="$OLLA_API_KEY"
+API_BASE="$EP_URL"
+API_KEY="$EP_KEY"
 
 # Configure cline to use Olla
 DATA_DIR="$HOME/.cline-local-adapter"

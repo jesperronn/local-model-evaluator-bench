@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Adapter: nanocoder -> unified endpoint via Olla proxy (OpenAI format).
-# Routes ONLY through Olla ($OLLA_BASE_URL) — see docs/runtimes/olla.md
+# Routes ONLY through Olla ($EP_URL) — see docs/runtimes/olla.md
 # "Adapter wiring" for the pattern this adapter follows. Olla auto-discovers
 # every backend's models (omlx, mtplx, lms, ollama) under one unified list,
 # so no runtime-prefix branching, no --provider flag, and no direct-runtime
@@ -24,21 +24,18 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config.sh"
 
 MODEL_ID="${MODEL_ID:-$PREFERRED_MODEL_ID}"
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
 # contextWindow must be set explicitly for local models (nanocoder falls back to
 # models.dev metadata which won't have entries for local model keys).
-OLLA_MODELS_JSON="$(runtime_models "$OLLA_BASE_URL" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+OLLA_MODELS_JSON="$(runtime_models "$EP_URL" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
 [ -z "$OLLA_MODELS_JSON" ] || [ "$OLLA_MODELS_JSON" = "[]" ] && OLLA_MODELS_JSON="[\"$BARE_MODEL_ID\"]"
 
 PROVIDER_JSON="$(jq -n \
   --arg name "Olla" \
-  --arg baseUrl "$OLLA_BASE_URL" \
+  --arg baseUrl "$EP_URL" \
   --argjson models "$OLLA_MODELS_JSON" \
   '[{name: $name, baseUrl: $baseUrl, models: $models, contextWindow: 65536}]')"
 
