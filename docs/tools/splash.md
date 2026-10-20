@@ -177,7 +177,7 @@ Cases: js-03-multifile-cache, js-04-multifile-rename, js-05-multiselect-filter, 
 | codex | 5/5 454s | 3/3 65s | 5/5 111s | 4/4 184s | 3/3 83s | 4/4 267s | 24/24 |
 | opencode | 5/5 113s | 3/3 55s | 5/5 123s | 4/4 51s | 3/3 51s | 4/4 91s | 24/24 |
 
-Notes: aider ts-01-groupby partial (aider edit-format/whole-file limitation, see grader MISS lines in
+Notes: aider ts-01-groupby partial (cause not investigated; see grader output in
 run 20261020-030505). omp bash-01 took 902s (at the 900s ceiling yet graded 4/4). bash-01 is slow on
 pi/omp because the model over-verifies. Run IDs: claude 20261020-025905, aider -030505, goose -031530,
 pi -032535, omp -033550, codex -040507, opencode -042433.
