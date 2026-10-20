@@ -264,8 +264,8 @@ Model `unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M`; one adapter at a time, `--skip-compa
 |---|---|---|---|
 | claude | 3/3 | 12 / 18 / 16 | prev 3/3, bench 27s/51s; same range. First attempt also 3/3 but bench exited rc=2 (concurrent edit of bin/bench by another agent: syntax error at line 1038), retried |
 | aider | 3/3 | 12 / 14 / 15 | 3/3 before; no per-case baseline |
-| goose | 3/3 | 90 / 298 / 2530 | 3/3 before; 02 outlier (2530s wall, machine load avg ~70 at the time; far past --timeout 600, not investigated) |
-| cn | 3/3 | 2995 / 21 / 20 | same: 00 outlier under heavy host load, not investigated |
+| goose | 3/3 | 90 / 298 / 2530 | 3/3 before; 02 wall time inflated by macOS clamshell sleep (2180s asleep, ~350s awake); fixed in 9215eca: elapsed now excludes sleep |
+| cn | 3/3 | 2995 / 21 / 20 | 00 wall time inflated by macOS sleep (805s+2170s asleep, ~20s awake); see 9215eca |
 | pi | 3/3 | 12 / 12 / 17 | 3/3 before; no per-case baseline |
 | omp | 3/3 | 66 / 30 / 12 | 3/3 before |
 | codex | 3/3 | 244 / 229 / 24 | prev 20 / 28 / 16 (re-smoke); slower now, 00/01 cold/queued |
