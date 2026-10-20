@@ -30,10 +30,8 @@ command -v claude >/dev/null 2>&1 || {
   exit 1
 }
 
-olla_up || {
-  echo "Olla proxy not reachable at $OLLA_HOST_URL (start it: bin/rt olla start)" >&2
-  exit 1
-}
+adapter_endpoint || exit 1
+if [ "${RUNTIME:-}" = "splash" ]; then ANTH_URL="$EP_ROOT"; else ANTH_URL="$OLLA_ANTHROPIC_BASE_URL"; fi
 
 BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 
@@ -47,9 +45,9 @@ fi
 # However, the SDK still exits with code 1 when seeing unknown models.
 # We filter the warning output and return 0 to allow tests to proceed.
 env \
-  ANTHROPIC_BASE_URL="$OLLA_ANTHROPIC_BASE_URL" \
-  ANTHROPIC_AUTH_TOKEN="$OLLA_API_KEY" \
-  ANTHROPIC_API_KEY="$OLLA_API_KEY" \
+  ANTHROPIC_BASE_URL="$ANTH_URL" \
+  ANTHROPIC_AUTH_TOKEN="$EP_KEY" \
+  ANTHROPIC_API_KEY="$EP_KEY" \
   ANTHROPIC_MODEL="${BARE_MODEL_ID}" \
   ANTHROPIC_DEFAULT_SONNET_MODEL="${BARE_MODEL_ID}" \
   ANTHROPIC_DEFAULT_HAIKU_MODEL="${BARE_MODEL_ID}" \
