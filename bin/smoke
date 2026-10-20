@@ -441,18 +441,21 @@ while IFS=, read -r adapter model_col case pass total score seconds status _rest
   [ "$adapter" = adapter ] && continue
   all_adapters["$adapter"]=1
   key="$(printf '%-12s %-22s %s' "$adapter" "$model_col" "$case")"
+  logf="$RUN_DIR/sandbox/$adapter/$(fs_safe "$model_col")/$case/.bench.log"
+  # bench's seconds already exclude macOS system sleep; surface how much it left out.
+  slept="$(grep -aoE 'excluded [0-9]+s of system sleep' "$logf" 2>/dev/null | grep -oE '[0-9]+' | tail -1)"
+  sleep_note=""; [ -n "$slept" ] && sleep_note=", excl. ${slept}s sleep"
   if   [ "$status" != ok ]; then
     err  "$(printf '%-60s FAIL    — %s' "$key" "$status")"; fails=$((fails+1))
   elif [ "$pass" = "$total" ]; then
-    ok   "$(printf '%-60s PASS    (%ss)' "$key" "$seconds")"
+    ok   "$(printf '%-60s PASS    (%ss%s)' "$key" "$seconds" "$sleep_note")"
     passing_adapters["$adapter"]=1
   else
-    warn "$(printf '%-60s PARTIAL — %s/%s (%ss)' "$key" "$pass" "$total" "$seconds")"
+    warn "$(printf '%-60s PARTIAL — %s/%s (%ss%s)' "$key" "$pass" "$total" "$seconds" "$sleep_note")"
   fi
   # On any non-pass, show a short error excerpt from the trial log so the
   # user can judge whether the adapter wiring needs adjustment.
   if [ "$pass" != "$total" ] || [ "$total" -eq 0 ] || [ "$status" != ok ]; then
-    logf="$RUN_DIR/sandbox/$adapter/$(fs_safe "$model_col")/$case/.bench.log"
     if [ -f "$logf" ]; then
       excerpt="$(grep -aiE 'WATCHDOG:|MISS:|^RESULT |error|refus|not found|failed|exception|traceback|cannot|denied|no such|command not found|permission' "$logf" \
         | grep -av '[⠁-⣿]' | tail -5)"
