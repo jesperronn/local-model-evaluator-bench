@@ -64,7 +64,7 @@ js-02 4/4 74s, bash-01 0/4 stall 123s). Label: NOT the canonical baseline.
   (lms: idle)`. The stall watchdog appears lms-oriented; likely long reasoning with no
   output on splash. Not investigated (use `--stall 300`).
 - pi edit-tool shim warning (`bin/pi-patch-edit-shim` not applied) unrelated to splash.
-- Not registered in Olla; Olla-only adapters other than omp/pi cannot use splash yet.
+- Olla route: registered but BLOCKED, see "Olla route" below.
 - `compat.json` deliberately not updated (`--skip-compat-update` on smoke).
 
 ## Commands
@@ -190,3 +190,21 @@ pi -032535, omp -033550, codex -040507, opencode -042433.
 - `bin/smoke --parallel` was not a real flag before; now maps to BENCH_PARALLEL env.
 - compat.json: uncommitted diff is unrelated to splash (forge/cline entries on omlx, older
   run ids from 2026-09-16); left uncommitted.
+
+## Olla route (2026-10-20): registered, but requests fail
+
+Added endpoint `splash` (`type: openai-compatible`, 127.0.0.1:8002, `/v1/models` health) to
+`config-templates/olla.yaml` (backup `olla.yaml.bak-splash`) and restarted Olla via
+`bin/rt olla stop/start` (v0.0.29). Olla health OK and `bin/rt olla models` lists
+`unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M` (routed as `X-Olla-Endpoint: splash`).
+
+But every request through Olla returns HTTP 400 from splash:
+`{"error":{"message":"transfer encoding is not supported",...}}`. Olla forwards the request
+body with `Transfer-Encoding: chunked`; splash rejects chunked request bodies. Reproduced
+directly: `curl -H 'Transfer-Encoding: chunked' http://127.0.0.1:8002/v1/chat/completions`
+gives the same 400, while the same body with Content-Length works. Switching
+`proxy.engine` to `sherpa` did not help (reverted). Fix needs to be in splash (accept
+chunked bodies) or a buffering shim in front of it; neither was done (splash is off-limits
+here). Bench via Olla was therefore not run; direct-route numbers above remain the reference.
+Endpoint stays registered in the template; model appears in lists but is unusable via Olla
+until splash is fixed.

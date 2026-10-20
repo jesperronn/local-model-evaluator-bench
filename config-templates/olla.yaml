@@ -75,6 +75,14 @@ discovery:
         health_check_url: "/v1/models"
         check_interval: 2s
         check_timeout: 1s
+      - url: "http://127.0.0.1:8002"
+        name: "splash"
+        type: "openai-compatible"
+        priority: 100
+        model_url: "/v1/models"
+        health_check_url: "/v1/models"
+        check_interval: 5s
+        check_timeout: 2s
       - url: "http://127.0.0.1:1234"
         name: "lms"
         type: "lm-studio"
