@@ -32,6 +32,10 @@ BARE_MODEL_ID="$(strip_runtime_prefix "$MODEL_ID")"
 COPILOT_PROVIDER_BASE_URL="$EP_URL"
 COPILOT_PROVIDER_API_KEY="$EP_KEY"
 
+# gpt-4o catalog entry makes copilot send a non-function (custom apply_patch) tool, which
+# splash rejects with HTTP 400; gpt-4.1 yields function tools only.
+COPILOT_CATALOG_ID=gpt-4o
+[ "${RUNTIME:-}" = splash ] && COPILOT_CATALOG_ID=gpt-4.1
 COPILOT_ARGS=()
 if [ ! -t 0 ]; then
   COPILOT_ARGS+=(--allow-all-tools --allow-all-paths --no-ask-user -p "$(cat)")
@@ -41,7 +45,7 @@ exec env \
   COPILOT_PROVIDER_BASE_URL="$COPILOT_PROVIDER_BASE_URL" \
   COPILOT_PROVIDER_TYPE="openai" \
   COPILOT_PROVIDER_API_KEY="$COPILOT_PROVIDER_API_KEY" \
-  COPILOT_PROVIDER_MODEL_ID="gpt-4o" \
+  COPILOT_PROVIDER_MODEL_ID="$COPILOT_CATALOG_ID" \
   COPILOT_PROVIDER_WIRE_MODEL="$BARE_MODEL_ID" \
   COPILOT_OFFLINE="true" \
   copilot "${COPILOT_ARGS[@]}" "$@"
