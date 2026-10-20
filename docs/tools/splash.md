@@ -167,4 +167,26 @@ Bench runs used `BENCH_PARALLEL=1 BENCH_PARALLEL_EXPLICIT=1 ... --skip-compat-fi
 
 Cases: js-03-multifile-cache, js-04-multifile-rename, js-05-multiselect-filter, js-06-lint-and-test, ts-01-groupby, bash-01-topwords.
 
-HARDTABLE
+| Adapter | js-03 | js-04 | js-05 | js-06 | ts-01 | bash-01 | Total |
+|---|---|---|---|---|---|---|---|
+| claude | 5/5 53s | 3/3 28s | 5/5 111s | 4/4 83s | 3/3 31s | 4/4 53s | 24/24 |
+| aider | 5/5 89s | 3/3 24s | 5/5 125s | 4/4 32s | **1/3** 32s | 4/4 318s | 22/24 |
+| goose | 5/5 113s | 3/3 67s | 5/5 97s | 4/4 63s | 3/3 141s | 4/4 121s | 24/24 |
+| pi | 5/5 51s | 3/3 34s | 5/5 72s | 4/4 28s | 3/3 44s | 4/4 381s | 24/24 |
+| omp | 5/5 95s | 3/3 56s | 5/5 278s | 4/4 46s | 3/3 375s | 4/4 902s | 24/24 |
+| codex | 5/5 454s | 3/3 65s | 5/5 111s | 4/4 184s | 3/3 83s | 4/4 267s | 24/24 |
+| opencode | 5/5 113s | 3/3 55s | 5/5 123s | 4/4 51s | 3/3 51s | 4/4 91s | 24/24 |
+
+Notes: aider ts-01-groupby partial (aider edit-format/whole-file limitation, see grader MISS lines in
+run 20261020-030505). omp bash-01 took 902s (at the 900s ceiling yet graded 4/4). bash-01 is slow on
+pi/omp because the model over-verifies. Run IDs: claude 20261020-025905, aider -030505, goose -031530,
+pi -032535, omp -033550, codex -040507, opencode -042433.
+
+## Problems / deferred (third pass)
+
+- forge: native `better_sqlite3.node` binding missing for node 24 - cannot run at all (env issue).
+- cline: binary not installed; adapter wired but untested.
+- opencode-orch, caveman: not wired (optional / not a candidate).
+- `bin/smoke --parallel` was not a real flag before; now maps to BENCH_PARALLEL env.
+- compat.json: uncommitted diff is unrelated to splash (forge/cline entries on omlx, older
+  run ids from 2026-09-16); left uncommitted.
