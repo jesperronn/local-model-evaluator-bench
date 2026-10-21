@@ -26,9 +26,9 @@ CONFIG_BACKUP="$HOME/.config/llmrun/agents.json.backup.$$"
 if [ -f "$HOME/.config/llmrun/agents.json" ]; then
   cp "$HOME/.config/llmrun/agents.json" "$CONFIG_BACKUP"
 fi
-trap "[ -f '$CONFIG_BACKUP' ] && mv '$CONFIG_BACKUP' '$HOME/.config/llmrun/agents.json'" EXIT
-
-TMP="$(mktemp -d)"; trap "rm -rf '$TMP'" EXIT
+TMP="$(mktemp -d)"
+# Single trap: a second `trap ... EXIT` would replace this one and strand the backup.
+trap "rm -rf '$TMP'; [ -f '$CONFIG_BACKUP' ] && mv '$CONFIG_BACKUP' '$HOME/.config/llmrun/agents.json'" EXIT
 
 # Test 1: suggest-tuning emits valid JSON with context + defaults
 echo "=== Test 1: suggest-tuning generates valid plan ==="
@@ -86,14 +86,17 @@ models_total=$(jq -r .model "$plan_all" | sort -u | wc -l | tr -d ' ')
 check_match "plan has multiple rows" "^[0-9]+" "$rows_total"
 check_match "plan covers multiple models" "^[0-9]+" "$(printf '%d' "$models_total")"
 
-# Verify each model in plan has context, temperature, max_tokens (3 keys per model)
-expected_rows=$((models_total * 3))
+# Verify each model in plan has context, temperature, max_tokens (3 keys per model),
+# plus one extra README-floor context row for models whose card context is below it.
+floor_rows=$(jq -r 'select(.source == "README.md") | .model' "$plan_all" | wc -l | tr -d ' ')
+expected_rows=$((models_total * 3 + floor_rows))
 check "plan has 3 rows per model" "$expected_rows" "$rows_total"
 
 # Test 5: config can be retrieved for applied settings
 echo ""
 echo "=== Test 5: retrieve applied config ==="
 model=$(jq -r .model "$plan_all" | head -1)
+llmrun agents config apply "$plan_all" --write >/dev/null 2>&1
 get_ctx=$(llmrun agents config get "$model" context 2>/dev/null || echo "missing")
 check_match "can retrieve context for model" "[0-9]+" "$get_ctx"
 

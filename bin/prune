@@ -352,7 +352,7 @@ fi
 # ── display table ─────────────────────────────────────────────────────────────
 
 print_table() {
-  printf "${BOLD}%-8s  %-7s  %-10s  %s${RESET}\n" "Runtime" "Size" "Last used" "Model"
+  printf "${C_BLD}%-8s  %-7s  %-10s  %s${C_RST}\n" "Runtime" "Size" "Last used" "Model"
   printf '%0.s─' {1..80}; echo
   while IFS=$'\t' read -r rt id size last_used_s _target; do
     local size_str last_str
@@ -413,10 +413,10 @@ do_interactive() {
     local plain="Removing [$rt] $id..."
     local pad=$(( max_len - ${#plain} ))
 
-    printf "${DIM}Removing${RESET} ${BOLD}[%s]${RESET} %s..." "$rt" "$id"
+    printf "${C_DIM}Removing${C_RST} ${C_BLD}[%s]${C_RST} %s..." "$rt" "$id"
 
     if $DRY_RUN; then
-      printf "%*s${GREEN_BOLD}dry-run${RESET}\n" $(( pad + 1 )) ""
+      printf "%*s${C_BLD}${C_GRN}dry-run${C_RST}\n" $(( pad + 1 )) ""
       continue
     fi
 
@@ -452,9 +452,9 @@ do_interactive() {
     esac
 
     if $ok; then
-      printf "%*s${GREEN_BOLD}OK${RESET}\n" $(( pad + 1 )) ""
+      printf "%*s${C_BLD}${C_GRN}OK${C_RST}\n" $(( pad + 1 )) ""
     else
-      printf "%*s${RED_BOLD}FAILED${RESET}\n" $(( pad + 1 )) ""
+      printf "%*s${C_BLD}${C_RED}FAILED${C_RST}\n" $(( pad + 1 )) ""
     fi
   done
 }
@@ -464,29 +464,29 @@ do_interactive() {
 if $INTERACTIVE; then
   do_interactive
   echo
-  echo "${BOLD}Next steps:${RESET}"
+  echo "${C_BLD}Next steps:${C_RST}"
   if [ "$RUNTIME" = "lms" ] || [ "$RUNTIME" = "all" ]; then
-    echo "  Restart LM Studio daemon:    ${GREEN_BOLD}pkill llmster && lms server start${RESET}"
+    echo "  Restart LM Studio daemon:    ${C_BLD}${C_GRN}pkill llmster && lms server start${C_RST}"
   fi
-  echo "  Check available disk space:  ${GREEN_BOLD}df -h${RESET}"
-  echo "  Run again to remove more:    ${GREEN_BOLD}bin/prune --interactive${RESET}"
+  echo "  Check available disk space:  ${C_BLD}${C_GRN}df -h${C_RST}"
+  echo "  Run again to remove more:    ${C_BLD}${C_GRN}bin/prune --interactive${C_RST}"
   if [ -n "$RUNTIME" ] && [ "$RUNTIME" != "all" ]; then
-    echo "  Show all runtimes:           ${GREEN_BOLD}bin/prune${RESET}"
+    echo "  Show all runtimes:           ${C_BLD}${C_GRN}bin/prune${C_RST}"
   fi
 else
-  $DRY_RUN && printf "${DIM}(dry-run — use --interactive to select models for removal)${RESET}\n\n"
+  $DRY_RUN && printf "${C_DIM}(dry-run — use --interactive to select models for removal)${C_RST}\n\n"
   print_table
   echo
   total=$(echo "$entries_tsv" | wc -l | tr -d ' ')
   total_bytes=$(echo "$entries_tsv" | awk -F'\t' '{sum+=$3} END{print sum+0}')
-  printf "${DIM}%d models, %s total${RESET}\n" "$total" "$(fmt_bytes "$total_bytes")"
+  printf "${C_DIM}%d models, %s total${C_RST}\n" "$total" "$(fmt_bytes "$total_bytes")"
   echo
-  echo "${BOLD}Next steps:${RESET}"
-  echo "  Select models to remove:     ${GREEN_BOLD}bin/prune --interactive${RESET}"
+  echo "${C_BLD}Next steps:${C_RST}"
+  echo "  Select models to remove:     ${C_BLD}${C_GRN}bin/prune --interactive${C_RST}"
   if $UNUSED; then
-    echo "  Show all models (incl. used): ${GREEN_BOLD}bin/prune${RESET}"
+    echo "  Show all models (incl. used): ${C_BLD}${C_GRN}bin/prune${C_RST}"
   else
-    echo "  Show only unused models:     ${GREEN_BOLD}bin/prune --unused${RESET}"
+    echo "  Show only unused models:     ${C_BLD}${C_GRN}bin/prune --unused${C_RST}"
   fi
-  echo "  Filter by runtime:           ${GREEN_BOLD}bin/prune --runtime=lms${RESET}"
+  echo "  Filter by runtime:           ${C_BLD}${C_GRN}bin/prune --runtime=lms${C_RST}"
 fi

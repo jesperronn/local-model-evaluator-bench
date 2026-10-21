@@ -9,12 +9,13 @@
 #   lint --adapters       check adapter scripts (bypass flags, agent recognition)
 #   lint --cards          validate model/tool/runtime cards against CARD-SPEC.md
 #   lint --fix            auto-fix fixable issues (cards)
+#   lint PATH...          check only the given shell files/directories
 #
 # Exit 0 = clean, non-zero = lint errors.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$HERE"
+cd "$HERE" || exit 2
 
 # Colors (disabled if NO_COLOR is set).
 if [ -z "${NO_COLOR:-}" ]; then
@@ -29,6 +30,7 @@ DO_SCRIPTS=0
 DO_ADAPTERS=0
 DO_CARDS=0
 DO_FIX=0
+PATHS=()
 
 source "$HERE/lib/common.sh"
 source "$HERE/bin/lib/help.sh"
@@ -36,7 +38,7 @@ source "$HERE/bin/lib/help.sh"
 show_help() {
   help_header "lint" "validate scripts, adapters, and cards"
   help_section "USAGE"
-  help_line "  lint [OPTIONS]"
+  help_line "  lint [OPTIONS] [PATH...]"
 
   help_section "OPTIONS"
   help_flag "--scripts" "" "shell scripts (bash -n, shellcheck)"
@@ -65,7 +67,8 @@ while [ $# -gt 0 ]; do
     --cards) DO_CARDS=1; shift;;
     --fix) DO_FIX=1; shift;;
     --verbose|-v) LINT_VERBOSE=1; shift;;
-    *) err "unknown option: $1"; echo; show_help; exit 2;;
+    -*) err "unknown option: $1"; echo; show_help; exit 2;;
+    *) PATHS+=("$1"); DO_SCRIPTS=1; shift;;
   esac
 done
 
@@ -84,6 +87,10 @@ if [ "$DO_SCRIPTS" -eq 1 ]; then
 
   # Emit the list of shell scripts to lint.
   collect_shell_files() {
+    if [ "${#PATHS[@]}" -gt 0 ]; then
+      find "${PATHS[@]}" -type f | sort -u
+      return
+    fi
     {
       find bin -type f -not -name '*.test.sh'
       find lib -type f -name '*.sh'
@@ -99,8 +106,8 @@ if [ "$DO_SCRIPTS" -eq 1 ]; then
     [ -f "$f" ] && head -1 "$f" 2>/dev/null | grep -qE '^#!.*\b(ba)?sh\b'
   }
 
-  local -a files=()
-  local f fail=0
+  files=()
+  fail=0
   for f in $(collect_shell_files); do
     is_shell_file "$f" && files+=("$f")
   done
@@ -120,7 +127,7 @@ if [ "$DO_SCRIPTS" -eq 1 ]; then
     done
     rm -f /tmp/lint_syntax.$$
 
-    # shellcheck
+    # Run shellcheck
     if command -v shellcheck >/dev/null 2>&1; then
       [ "$LINT_VERBOSE" -eq 1 ] && printf '%s shellcheck %d files\n' "${C_DIM}==>${C_RST}" "${#files[@]}"
       if ! shellcheck -x -e SC1091 "${files[@]}" 2>/dev/null; then
@@ -146,7 +153,7 @@ if [ "$DO_ADAPTERS" -eq 1 ]; then
 
   BYPASS_PATTERN='--yes-always|--dangerously-bypass-approvals-and-sandbox|--allow-dangerously-skip-permissions|--auto-approve|--yolo|--no-git\b|--no-auto-commits|--no-dirty-commits|--no-ask-user|--allow-all-tools|--allow-all-paths'
 
-  local adapter_fail=0
+  adapter_fail=0
   for adapter in "$HERE/adapters"/*.sh; do
     name="$(basename "$adapter")"
 
@@ -182,7 +189,7 @@ if [ "$DO_ADAPTERS" -eq 1 ]; then
     in_fn { print }
   ' "$HERE/bin/setup" | grep -oE '^[[:space:]]*[a-z0-9_-]+\)' | tr -d ') ')"
 
-  for agent in $(cd "$HERE/adapters" && ls -1 *.sh 2>/dev/null | sed -E 's/-(proxy-ollama|lms|mlx|omlx|ollama)\.sh$//; s/\.sh$//' | sort -u); do
+  for agent in $(cd "$HERE/adapters" && find . -maxdepth 1 -name "*.sh" | sed "s|^\./||" | sed -E 's/-(proxy-ollama|lms|mlx|omlx|ollama)\.sh$//; s/\.sh$//' | sort -u); do
     if ! echo "$known_agents" | grep -qxF "$agent"; then
       echo "${C_RED}[FAIL]${C_RST} agent '$agent' has an adapter but is missing from bin/setup"
       adapter_fail=1

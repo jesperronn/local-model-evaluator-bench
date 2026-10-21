@@ -48,6 +48,7 @@ mkdir -p "$SANDBOX/.lmstudio/.internal" \
 echo "dummy" > "$SANDBOX/.cache/huggingface/hub/models--mlx-community--qwen3-32b/model.safetensors"
 
 cp "$HERE/bin/prune" "$REPO/bin/prune"
+mkdir -p "$REPO/bin/lib" && cp "$HERE/bin/lib/help.sh" "$REPO/bin/lib/help.sh"
 PRUNE="$REPO/bin/prune"
 
 # Minimal config.sh / common.sh (sandbox-only, never touches the real repo)
@@ -58,6 +59,7 @@ CASES_DIR="$HERE/cases"
 RESULTS_DIR="$HERE/results"
 EOF
 cat > "$REPO/lib/common.sh" <<'EOF'
+C_RED=; C_GRN=; C_YEL=; C_BLU=; C_DIM=; C_RST=; C_BLD=
 die() { echo "ERROR: $*" >&2; exit 1; }
 warn() { echo "WARNING: $*" >&2; }
 read_list() { grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$1" 2>/dev/null || true; }

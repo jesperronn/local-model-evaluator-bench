@@ -74,12 +74,13 @@ print(json.dumps({"model": model, "key": key, "value": value, "reason": reason, 
 
 # ── parse "Context window" quick-verdict rows out of each model card ────────
 parse_context_gb_or_k() {
-  # Normalizes "65536", "256K", "128k" etc to a raw token count.
+  # Normalizes "65536", "1,048,576", "256K", "128k" etc to a raw token count
+  # (K = 1024, so "64k" meets the 65536 hermes floor).
   local raw="$1"
-  raw="$(printf '%s' "$raw" | grep -oE '[0-9]+[Kk]?' | head -1)"
+  raw="$(printf '%s' "$raw" | tr -d ',' | grep -oE '[0-9]+[Kk]?' | head -1)"
   [ -z "$raw" ] && return
   if [[ "$raw" =~ [Kk]$ ]]; then
-    printf '%d' $(( ${raw%[Kk]} * 1000 ))
+    printf '%d' $(( ${raw%[Kk]} * 1024 ))
   else
     printf '%d' "$raw"
   fi

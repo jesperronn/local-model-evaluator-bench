@@ -10,7 +10,7 @@ trap "rm -rf '$TMP'" EXIT
 
 # Test 1: --help shows usage
 echo "[TEST] --help"
-if "$HERE/bin/bootstrap-machine" --help | grep -q "propose or apply"; then
+if "$HERE/bin/bootstrap-machine" --help | grep "apply proposed changes" >/dev/null; then
   echo "[PASS] --help output shows description"
 else
   echo "[FAIL] --help output missing"
